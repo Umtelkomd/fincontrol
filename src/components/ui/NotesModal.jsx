@@ -29,7 +29,7 @@ const NotesModal = ({ isOpen, onClose, transaction, onAddNote }) => {
   const systemLogs = transaction.notes?.filter(n => n.type === 'system') || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-[#1c1c1e] rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] flex justify-between items-center bg-[#111111]">
           <div>

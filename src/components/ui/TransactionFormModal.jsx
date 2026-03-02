@@ -206,7 +206,7 @@ const TransactionFormModal = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
       <div className="bg-[#1c1c1e] rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-scaleIn max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="px-6 py-5 border-b border-[rgba(255,255,255,0.08)] flex justify-between items-center bg-[#2c2c2e]">
@@ -227,7 +227,7 @@ const TransactionFormModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Type Selector */}
+          {/* ── Tipo de transacción ── */}
           <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#2c2c2e] rounded-2xl">
             <button
               type="button"
@@ -255,6 +255,12 @@ const TransactionFormModal = ({
               <ArrowDownCircle size={18} />
               Gasto
             </button>
+          </div>
+
+          {/* ── Detalles ── */}
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-[10px] font-bold text-[#636366] uppercase tracking-widest">Detalles</span>
+            <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
           </div>
 
           {/* Date & Amount */}
@@ -314,7 +320,8 @@ const TransactionFormModal = ({
             {showSuggestions && suggestions.length > 0 && (
               <div
                 ref={suggestionsRef}
-                className="absolute z-10 left-0 right-0 mt-1 bg-[#1c1c1e] border border-[rgba(255,255,255,0.08)] rounded-xl shadow-lg overflow-hidden"
+                className="absolute z-[300] left-0 right-0 mt-1 bg-[#2c2c2e] border border-[rgba(255,255,255,0.12)] rounded-xl overflow-hidden"
+                style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
               >
                 {suggestions.map((s, idx) => (
                   <button
@@ -381,6 +388,12 @@ const TransactionFormModal = ({
             )}
           </div>
 
+          {/* ── Clasificación ── */}
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-[10px] font-bold text-[#636366] uppercase tracking-widest">Clasificación</span>
+            <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
+          </div>
+
           {/* Project */}
           <div>
             <label className="block text-sm font-semibold text-[#c7c7cc] mb-2">
@@ -443,6 +456,12 @@ const TransactionFormModal = ({
             </div>
           )}
 
+          {/* ── Estado y notas ── */}
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-[10px] font-bold text-[#636366] uppercase tracking-widest">Estado y Notas</span>
+            <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
+          </div>
+
           {/* Status */}
           <div>
             <label className="block text-sm font-semibold text-[#c7c7cc] mb-2">Estado de Pago</label>
@@ -490,22 +509,31 @@ const TransactionFormModal = ({
             />
           </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={submitting || projectsLoading || activeProjects.length === 0}
-            className={`
-              w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-white
-              transition-all duration-200 shadow-lg
-              ${formData.type === 'income'
-                ? 'bg-[#30d158] hover:bg-[#28c74e]'
-                : 'bg-[#0a84ff] hover:bg-[#0070e0]'}
-              ${(submitting || projectsLoading || activeProjects.length === 0) ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl transform hover:-translate-y-0.5'}
-            `}
-          >
-            {submitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            {submitting ? 'Guardando...' : editingTransaction ? 'Guardar Cambios' : 'Crear Transacción'}
-          </button>
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3.5 rounded-xl font-semibold text-[#8e8e93] bg-[#2c2c2e] hover:bg-[rgba(255,255,255,0.08)] hover:text-[#c7c7cc] transition-all duration-200 border border-[rgba(255,255,255,0.06)]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || projectsLoading || activeProjects.length === 0}
+              className={`
+                flex-[2] flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white
+                transition-all duration-200 shadow-lg
+                ${formData.type === 'income'
+                  ? 'bg-[#30d158] hover:bg-[#28c74e]'
+                  : 'bg-[#0a84ff] hover:bg-[#0070e0]'}
+                ${(submitting || projectsLoading || activeProjects.length === 0) ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+              `}
+            >
+              {submitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              {submitting ? 'Guardando...' : editingTransaction ? 'Guardar Cambios' : 'Crear Transacción'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

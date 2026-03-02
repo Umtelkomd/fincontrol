@@ -56,7 +56,7 @@ export const ToastProvider = ({ children }) => {
     <ToastContext.Provider value={{ showToast, removeToast }}>
       {children}
       {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 max-w-[400px]">
+      <div className="fixed bottom-4 right-4 z-[400] flex flex-col gap-2 max-w-[400px]">
         {toasts.map((toast) => {
           const Icon = ICONS[toast.type];
           return (

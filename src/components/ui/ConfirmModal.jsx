@@ -24,7 +24,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText 
   const style = variantStyles[variant] || variantStyles.danger;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
       <div className="bg-[#1c1c1e] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn">
         <div className="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] flex justify-between items-center">
           <h3 className="font-bold text-lg text-[#e5e5ea]">{title}</h3>

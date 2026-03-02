@@ -34,28 +34,31 @@ const CustomTooltip = ({ active, payload, label }) => {
 // ─── Primary KPI Card ────────────────────────────────────────────
 const PrimaryKPI = ({ title, amount, icon: Icon, color, subtitle, trend }) => {
   const isNeg = amount < 0;
-  const colorMap = {
-    green: { bg: 'rgba(48,209,88,0.08)', text: '#30d158', icon: '#30d158' },
-    red: { bg: 'rgba(255,69,58,0.08)', text: '#ff453a', icon: '#ff453a' },
-    blue: { bg: 'rgba(10,132,255,0.08)', text: '#0a84ff', icon: '#0a84ff' },
-    orange: { bg: 'rgba(255,159,10,0.08)', text: '#ff9f0a', icon: '#ff9f0a' },
+  const palette = {
+    green:  { grad: 'rgba(48,209,88,0.08)',   border: 'rgba(48,209,88,0.18)',   iconBg: 'rgba(48,209,88,0.15)',   iconColor: '#30d158' },
+    red:    { grad: 'rgba(255,69,58,0.08)',    border: 'rgba(255,69,58,0.18)',   iconBg: 'rgba(255,69,58,0.15)',   iconColor: '#ff453a' },
+    blue:   { grad: 'rgba(10,132,255,0.08)',   border: 'rgba(10,132,255,0.18)',  iconBg: 'rgba(10,132,255,0.15)', iconColor: '#0a84ff' },
+    orange: { grad: 'rgba(255,159,10,0.08)',   border: 'rgba(255,159,10,0.18)',  iconBg: 'rgba(255,159,10,0.15)', iconColor: '#ff9f0a' },
   };
-  const c = colorMap[color] || colorMap.blue;
+  const c = palette[color] || palette.blue;
 
   return (
-    <div className="bg-[#1c1c1e] rounded-xl p-5 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.1)] transition-all">
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">{title}</p>
-        <div className="p-2 rounded-lg" style={{ background: c.bg }}>
-          <Icon size={16} style={{ color: c.icon }} />
+    <div
+      className="rounded-xl p-5 border transition-all duration-200 hover:translate-y-[-1px] hover:shadow-lg"
+      style={{ background: `linear-gradient(135deg, ${c.grad} 0%, #1c1c1e 55%)`, borderColor: c.border }}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div className="p-2.5 rounded-xl flex-shrink-0" style={{ background: c.iconBg }}>
+          <Icon size={18} style={{ color: c.iconColor }} />
         </div>
+        <p className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">{title}</p>
       </div>
-      <h3 className={`text-[26px] font-bold tracking-tight leading-none ${isNeg ? 'text-[#ff453a]' : 'text-[#e5e5ea]'}`}>
+      <h3 className={`text-[30px] font-bold tracking-tight leading-none ${isNeg ? 'text-[#ff453a]' : 'text-[#e5e5ea]'}`}>
         €{formatCurrency(amount)}
       </h3>
       <div className="flex items-center gap-1.5 mt-2">
         {trend && (
-          <span className={`flex items-center ${trend === 'up' ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+          <span className={`flex items-center gap-1 text-[11px] font-medium ${trend === 'up' ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
             {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           </span>
         )}
@@ -278,14 +281,14 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-[rgba(255,255,255,0.06)] bg-[#111111]">
-                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-[#636366] uppercase">Proyecto</th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-medium text-[#636366] uppercase">Ingresos</th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-medium text-[#636366] uppercase">Gastos</th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-medium text-[#636366] uppercase">Margen</th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-medium text-[#636366] uppercase">ROI</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-medium text-[#636366] uppercase">Estado</th>
+                <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#636366] uppercase tracking-wider">Proyecto</th>
+                <th className="px-5 py-3.5 text-right text-[11px] font-semibold text-[#636366] uppercase tracking-wider">Ingresos</th>
+                <th className="px-5 py-3.5 text-right text-[11px] font-semibold text-[#636366] uppercase tracking-wider">Gastos</th>
+                <th className="px-5 py-3.5 text-right text-[11px] font-semibold text-[#636366] uppercase tracking-wider">Margen</th>
+                <th className="px-5 py-3.5 text-right text-[11px] font-semibold text-[#636366] uppercase tracking-wider">ROI</th>
+                <th className="px-5 py-3.5 text-center text-[11px] font-semibold text-[#636366] uppercase tracking-wider">Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -294,31 +297,32 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
                 const roi = project.ingresos > 0 ? ((margin / project.ingresos) * 100) : 0;
                 const isPositive = margin >= 0;
                 const isHighRoi = roi >= 30;
+                const rowBg = idx % 2 === 0 ? 'bg-transparent' : 'bg-[rgba(255,255,255,0.015)]';
 
                 return (
                   <tr
                     key={idx}
-                    className="border-b border-[rgba(255,255,255,0.04)] last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors cursor-pointer"
+                    className={`border-b border-[rgba(255,255,255,0.04)] last:border-0 ${rowBg} hover:bg-[rgba(255,255,255,0.035)] transition-colors cursor-pointer`}
                     onClick={() => setSelectedProject(project.name)}
                   >
-                    <td className="px-4 py-2.5">
+                    <td className="px-5 py-3.5">
                       <span className="text-[13px] font-medium text-[#c7c7cc] hover:text-[#0a84ff] transition-colors">{project.name}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-right text-[13px] text-[#98989d]">€{formatCurrency(project.ingresos)}</td>
-                    <td className="px-4 py-2.5 text-right text-[13px] text-[#98989d]">€{formatCurrency(project.gastos)}</td>
-                    <td className={`px-4 py-2.5 text-right text-[13px] font-medium ${isPositive ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+                    <td className="px-5 py-3.5 text-right text-[13px] text-[#98989d]">€{formatCurrency(project.ingresos)}</td>
+                    <td className="px-5 py-3.5 text-right text-[13px] text-[#98989d]">€{formatCurrency(project.gastos)}</td>
+                    <td className={`px-5 py-3.5 text-right text-[13px] font-semibold ${isPositive ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
                       {isPositive ? '+' : ''}€{formatCurrency(margin)}
                     </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <span className={`text-[12px] font-medium ${isPositive ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+                    <td className="px-5 py-3.5 text-right">
+                      <span className={`text-[12px] font-semibold ${isPositive ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
                         {roi.toFixed(1)}%
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold ${
-                        isHighRoi ? 'bg-[rgba(48,209,88,0.1)] text-[#30d158]' :
-                        isPositive ? 'bg-[rgba(255,255,255,0.04)] text-[#8e8e93]' :
-                        'bg-[rgba(255,69,58,0.1)] text-[#ff453a]'
+                    <td className="px-5 py-3.5 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                        isHighRoi ? 'bg-[rgba(48,209,88,0.1)] text-[#30d158] border border-[rgba(48,209,88,0.2)]' :
+                        isPositive ? 'bg-[rgba(255,255,255,0.05)] text-[#8e8e93] border border-[rgba(255,255,255,0.08)]' :
+                        'bg-[rgba(255,69,58,0.1)] text-[#ff453a] border border-[rgba(255,69,58,0.2)]'
                       }`}>
                         {isHighRoi ? 'Excelente' : isPositive ? 'Normal' : 'Crítico'}
                       </span>
