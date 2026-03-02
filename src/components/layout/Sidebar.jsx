@@ -3,23 +3,25 @@ import { auth } from '../../services/firebase';
 import {
   Briefcase,
   LayoutDashboard,
-  Filter,
   ArrowUpCircle,
   ArrowDownCircle,
+  ListFilter,
   DollarSign,
-  Plus,
-  LogOut,
-  Tag,
-  Building2,
-  TrendingUp,
   BarChart3,
-  Clock,
-  FolderOpen,
-  Landmark,
-  FileText,
-  PieChart,
-  Activity
+  Settings,
+  Plus,
+  LogOut
 } from 'lucide-react';
+
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+  { id: 'ingresos', label: 'Ingresos', icon: ArrowUpCircle, permission: 'cxc', color: '#30d158' },
+  { id: 'gastos', label: 'Gastos', icon: ArrowDownCircle, permission: 'cxp', color: '#ff453a' },
+  { id: 'transactions', label: 'Transacciones', icon: ListFilter },
+  { id: 'cashflow', label: 'Flujo de Caja', icon: DollarSign, permission: 'reports' },
+  { id: 'reportes', label: 'Reportes', icon: BarChart3, permission: 'reports' },
+  { id: 'configuracion', label: 'Configuración', icon: Settings, permission: 'settings' },
+];
 
 const Sidebar = ({ user, userRole, hasPermission, view, setView, onNewTransaction }) => {
   const handleLogout = async () => {
@@ -30,122 +32,88 @@ const Sidebar = ({ user, userRole, hasPermission, view, setView, onNewTransactio
     }
   };
 
-  const NavItem = ({ id, label, icon: Icon }) => {
+  const NavItem = ({ id, label, icon: Icon, color }) => {
     const isActive = view === id;
 
     return (
       <button
         onClick={() => setView(id)}
         className={`
-          relative flex items-center gap-[10px] w-full px-3 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150
+          relative flex items-center gap-2.5 w-full px-3 py-[8px] rounded-[10px] text-[13px] font-medium transition-all duration-150
           ${isActive
             ? 'bg-[rgba(255,255,255,0.08)] text-white'
-            : 'text-[#8e8e93] hover:bg-[rgba(255,255,255,0.06)] hover:text-white'}
+            : 'text-[#8e8e93] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#c7c7cc]'}
         `}
       >
         {isActive && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#30d158] rounded-r" />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-[#30d158] rounded-r-sm" />
         )}
-        <Icon size={18} className={isActive ? 'text-[#30d158]' : 'text-[#636366]'} />
-        <span className="flex-1 text-left">{label}</span>
+        <Icon size={17} className={isActive ? (color || 'text-[#30d158]') : 'text-[#636366]'} style={isActive && color ? { color } : undefined} />
+        <span className="flex-1 text-left truncate">{label}</span>
       </button>
     );
   };
 
-  const SectionTitle = ({ children }) => (
-    <div className="pt-5 pb-1.5 px-3 text-[11px] font-semibold text-[#48484a] uppercase tracking-wider">
-      {children}
-    </div>
-  );
-
   return (
-    <aside className="hidden md:flex flex-col w-[260px] h-screen sticky top-0" style={{ background: 'rgba(28, 28, 30, 0.85)', backdropFilter: 'blur(40px) saturate(180%)', WebkitBackdropFilter: 'blur(40px) saturate(180%)', borderRight: '0.5px solid rgba(255,255,255,0.08)' }}>
+    <aside className="hidden md:flex flex-col w-[250px] h-screen sticky top-0" style={{ background: 'rgba(28, 28, 30, 0.92)', backdropFilter: 'blur(40px) saturate(180%)', WebkitBackdropFilter: 'blur(40px) saturate(180%)', borderRight: '0.5px solid rgba(255,255,255,0.06)' }}>
       {/* Logo */}
-      <div className="p-6 border-b border-[rgba(255,255,255,0.06)]">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-gradient-to-br from-[#30d158] to-[#0a84ff] rounded-[10px] flex items-center justify-center" style={{ boxShadow: '0 2px 8px rgba(48, 209, 88, 0.25)' }}>
+      <div className="px-5 pt-5 pb-4 border-b border-[rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-gradient-to-br from-[#30d158] to-[#0a84ff] rounded-[9px] flex items-center justify-center shadow-lg">
             <Briefcase className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-[15px] font-bold text-white tracking-tight">UMTELKOMD</h1>
-            <p className="text-[11px] text-[#8e8e93] font-medium">Sistema Financiero</p>
+            <h1 className="text-[14px] font-bold text-white tracking-tight leading-tight">FinControl</h1>
+            <p className="text-[10px] text-[#636366] font-medium">UMTELKOMD GmbH</p>
           </div>
         </div>
 
-        {/* User Info Card */}
-        <div className="mt-4 p-3 bg-[rgba(255,255,255,0.04)] rounded-xl border border-[rgba(255,255,255,0.06)]">
-          <p className="text-sm font-medium text-white/80 truncate">{user?.email}</p>
-          <span className={`
-            inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase
-            ${userRole === 'admin'
-              ? 'bg-[rgba(191,90,242,0.12)] text-[#bf5af2]'
-              : 'bg-[rgba(10,132,255,0.12)] text-[#0a84ff]'}
-          `}>
-            {userRole === 'admin' ? 'Administrador' : userRole === 'manager' ? 'Manager' : 'Editor'}
+        {/* User pill */}
+        <div className="mt-3 flex items-center gap-2 px-2.5 py-2 bg-[rgba(255,255,255,0.04)] rounded-lg border border-[rgba(255,255,255,0.04)]">
+          <div className="w-6 h-6 rounded-full bg-[rgba(191,90,242,0.15)] flex items-center justify-center">
+            <span className="text-[10px] font-bold text-[#bf5af2]">
+              {(user?.email || '?')[0].toUpperCase()}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium text-[#c7c7cc] truncate">{user?.email}</p>
+          </div>
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+            userRole === 'admin' ? 'bg-[rgba(191,90,242,0.12)] text-[#bf5af2]' : 'bg-[rgba(10,132,255,0.12)] text-[#0a84ff]'
+          }`}>
+            {userRole === 'admin' ? 'Admin' : userRole === 'manager' ? 'Mgr' : 'Edit'}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {hasPermission('dashboard') && (
-          <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} />
-        )}
-        <NavItem id="transactions" label="Todas las Transacciones" icon={Filter} />
-
-        {(hasPermission('cxp') || hasPermission('cxc')) && (
-          <SectionTitle>Gestion de Deudas</SectionTitle>
-        )}
-        {hasPermission('cxp') && (
-          <NavItem id="cxp" label="Cuentas por Pagar" icon={ArrowDownCircle} />
-        )}
-        {hasPermission('cxc') && (
-          <NavItem id="cxc" label="Cuentas por Cobrar" icon={ArrowUpCircle} />
-        )}
-
-        {hasPermission('reports') && (
-          <>
-            <SectionTitle>Reportes</SectionTitle>
-            <NavItem id="executive-summary" label="Resumen Ejecutivo" icon={FileText} />
-            <NavItem id="reports" label="Estado de Resultados" icon={TrendingUp} />
-            <NavItem id="financial-ratios" label="Ratios Financieros" icon={Activity} />
-            <NavItem id="report-cxp" label="Reporte CXP" icon={Clock} />
-            <NavItem id="report-cxc" label="Reporte CXC" icon={BarChart3} />
-            <NavItem id="cashflow" label="Flujo de Caja" icon={DollarSign} />
-          </>
-        )}
-
-        {hasPermission('settings') && (
-          <>
-            <SectionTitle>Configuracion</SectionTitle>
-            <NavItem id="projects" label="Proyectos" icon={FolderOpen} />
-            <NavItem id="categories" label="Categorias" icon={Tag} />
-            <NavItem id="cost-centers" label="Centros de Costo" icon={Building2} />
-            <NavItem id="bank-account" label="Cuenta Bancaria" icon={Landmark} />
-          </>
-        )}
+      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+        {NAV_ITEMS.map(item => {
+          if (item.permission && !hasPermission(item.permission)) return null;
+          return <NavItem key={item.id} {...item} />;
+        })}
       </nav>
 
       {/* Actions */}
-      <div className="p-3 border-t border-[rgba(255,255,255,0.06)] space-y-2">
+      <div className="px-3 pb-3 space-y-2 border-t border-[rgba(255,255,255,0.06)] pt-3">
         <button
           onClick={onNewTransaction}
-          className="flex items-center justify-center gap-2 w-full bg-[#30d158] hover:bg-[#28c74e] text-white px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all"
+          className="flex items-center justify-center gap-2 w-full bg-[#30d158] hover:bg-[#28c74e] text-white px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all shadow-sm hover:shadow-md"
         >
           <Plus size={16} /> Nueva Transacción
         </button>
         <button
           onClick={handleLogout}
-          className="flex items-center justify-center gap-2 w-full hover:bg-[rgba(255,255,255,0.06)] text-[#8e8e93] hover:text-white px-4 py-2 rounded-lg text-[13px] font-medium transition-all"
+          className="flex items-center justify-center gap-2 w-full hover:bg-[rgba(255,255,255,0.05)] text-[#636366] hover:text-[#8e8e93] px-4 py-2 rounded-[10px] text-[12px] font-medium transition-all"
         >
-          <LogOut size={16} /> Cerrar Sesión
+          <LogOut size={14} /> Cerrar Sesión
         </button>
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-2.5 border-t border-[rgba(255,255,255,0.06)] text-center">
-        <p className="text-[10px] text-[#48484a]">
-          Desarrollado por <span className="font-semibold text-[#636366]">HMR NEXUS</span>
+      <div className="px-3 py-2 border-t border-[rgba(255,255,255,0.04)] text-center">
+        <p className="text-[9px] text-[#3a3a3c]">
+          Desarrollado por <span className="font-semibold text-[#48484a]">HMR NEXUS</span>
         </p>
       </div>
     </aside>

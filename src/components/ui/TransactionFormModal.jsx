@@ -12,7 +12,8 @@ const TransactionFormModal = ({
   expenseCategories = EXPENSE_CATEGORIES,
   incomeCategories = INCOME_CATEGORIES,
   costCenters = [],
-  transactions = []
+  transactions = [],
+  defaultType = null
 }) => {
   const { projects, loading: projectsLoading } = useProjects(user);
 
@@ -97,12 +98,14 @@ const TransactionFormModal = ({
       });
     } else {
       const firstProject = activeProjects[0]?.displayName || activeProjects[0]?.name || '';
+      const initialType = defaultType || 'expense';
+      const categories = initialType === 'income' ? incomeCategories : expenseCategories;
       setFormData({
         date: new Date().toISOString().split('T')[0],
         description: '',
         amount: '',
-        type: 'expense',
-        category: expenseCategories[0] || '',
+        type: initialType,
+        category: categories[0] || '',
         project: firstProject,
         costCenter: 'Sin asignar',
         status: 'pending',
@@ -114,7 +117,7 @@ const TransactionFormModal = ({
       });
     }
     setShowSuggestions(false);
-  }, [editingTransaction, isOpen, projects]);
+  }, [editingTransaction, isOpen, projects, defaultType]);
 
   const handleTypeChange = (newType) => {
     const categories = getCategoriesByType(newType);
