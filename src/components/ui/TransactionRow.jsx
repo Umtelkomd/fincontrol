@@ -173,19 +173,15 @@ const TransactionRow = ({ t, onToggleStatus, onDelete, onEdit, onViewNotes, onRe
 
       {/* Estado */}
       <td className="px-4 py-4 text-center">
-        <button
-          onClick={() => onToggleStatus(t)}
-          disabled={userRole === 'editor'}
+        <span
           className={`
             inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
-            border transition-all duration-200
-            ${statusConfig.class}
-            ${userRole === 'editor' ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110 cursor-pointer'}
+            border ${statusConfig.class}
           `}
         >
           <StatusIcon size={14} />
           {statusConfig.text}
-        </button>
+        </span>
       </td>
 
       {/* Acciones */}

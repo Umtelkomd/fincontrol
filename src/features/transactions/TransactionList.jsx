@@ -375,7 +375,7 @@ const TransactionList = ({
                 <TransactionRow
                   key={t.id}
                   t={t}
-                  onToggleStatus={handleToggleStatus}
+                  
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                   onViewNotes={handleViewNotes}
