@@ -117,19 +117,23 @@ const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTrans
               <X size={22} />
             </button>
           </div>
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-[rgba(255,255,255,0.04)] rounded-lg">
-            <div className="w-7 h-7 rounded-full bg-[rgba(191,90,242,0.15)] flex items-center justify-center">
-              <span className="text-[11px] font-bold text-[#bf5af2]">{(user?.email || '?')[0].toUpperCase()}</span>
-            </div>
+          <button onClick={() => handleNavigation('/perfil')} className="mt-3 flex items-center gap-2 px-3 py-2 bg-[rgba(255,255,255,0.04)] rounded-lg hover:bg-[rgba(255,255,255,0.07)] transition-colors w-full text-left">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-[rgba(191,90,242,0.15)] flex items-center justify-center flex-shrink-0">
+                <span className="text-[11px] font-bold text-[#bf5af2]">{(user?.displayName || user?.email || '?')[0].toUpperCase()}</span>
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-[#c7c7cc] truncate">{user?.email}</p>
+              <p className="text-xs font-medium text-[#c7c7cc] truncate">{user?.displayName || user?.email}</p>
             </div>
             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
               userRole === 'admin' ? 'bg-[rgba(191,90,242,0.12)] text-[#bf5af2]' : 'bg-[rgba(10,132,255,0.12)] text-[#0a84ff]'
             }`}>
               {userRole === 'admin' ? 'Admin' : userRole === 'manager' ? 'Mgr' : 'Edit'}
             </span>
-          </div>
+          </button>
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">

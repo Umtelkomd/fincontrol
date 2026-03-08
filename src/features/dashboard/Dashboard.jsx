@@ -378,16 +378,32 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
         {/* Expense Distribution */}
         <div className="bg-[#1c1c1e] p-5 rounded-xl border border-[rgba(255,255,255,0.06)]">
           <h4 className="text-[13px] font-semibold text-[#c7c7cc] mb-4">Distribución de Gastos</h4>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
               <PieChart>
-                <Pie data={metrics.categoryDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
-                  {metrics.categoryDistribution.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
-                  ))}
+                <Pie data={(() => {
+                  const sorted = [...(metrics.categoryDistribution || [])].sort((a, b) => b.value - a.value);
+                  const top = sorted.slice(0, 8);
+                  const otherSum = sorted.slice(8).reduce((s, c) => s + c.value, 0);
+                  if (otherSum > 0) top.push({ name: 'Otros', value: otherSum });
+                  return top;
+                })()} cx="50%" cy="45%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
+                  {(() => {
+                    const sorted = [...(metrics.categoryDistribution || [])].sort((a, b) => b.value - a.value);
+                    const count = Math.min(sorted.length, 8) + (sorted.length > 8 ? 1 : 0);
+                    return Array.from({ length: count }, (_, i) => (
+                      <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} strokeWidth={0} />
+                    ));
+                  })()}
                 </Pie>
                 <Tooltip formatter={v => `€${formatCurrency(v)}`} contentStyle={{ borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', backgroundColor: '#2c2c2e', color: '#fff' }} />
-                <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ fontSize: '11px' }} />
+                <Legend
+                  layout="horizontal"
+                  verticalAlign="bottom"
+                  align="center"
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }}
+                  formatter={(value) => value.length > 15 ? value.slice(0, 15) + '\u2026' : value}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>

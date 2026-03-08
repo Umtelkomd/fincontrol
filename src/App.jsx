@@ -40,6 +40,7 @@ import ProyeccionCashflow from './features/cashflow/ProyeccionCashflow';
 import MultiMoneda from './features/multimoneda/MultiMoneda';
 import RolesManager from './features/roles/RolesManager';
 import BackupManager from './features/backup/BackupManager';
+import UserProfile from './features/perfil/UserProfile';
 
 import TransactionFormModal from './components/ui/TransactionFormModal';
 import { formatCurrency } from './utils/formatters';
@@ -68,6 +69,7 @@ const VIEW_TITLES = {
   '/multi-moneda': 'Multi-Moneda',
   '/roles': 'Roles y Permisos',
   '/backup': 'Backup y Restauración',
+  '/perfil': 'Mi Perfil',
 };
 
 // Skeleton Loading Component
@@ -161,6 +163,7 @@ function AppContent() {
       'multi-moneda': '/multi-moneda',
       roles: '/roles',
       backup: '/backup',
+      perfil: '/perfil',
     };
     navigate(pathMap[viewId] || '/');
   };
@@ -278,6 +281,8 @@ function AppContent() {
                 <Route path="/multi-moneda" element={<MultiMoneda user={user} userRole={userRole} />} />
                 <Route path="/roles" element={<RolesManager user={user} userRole={userRole} />} />
                 <Route path="/backup" element={<BackupManager user={user} userRole={userRole} />} />
+                {/* Perfil */}
+                <Route path="/perfil" element={<UserProfile user={user} userRole={userRole} />} />
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
