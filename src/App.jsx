@@ -8,6 +8,7 @@ import { useTransactionActions } from './hooks/useTransactionActions';
 import { useFilters } from './hooks/useFilters';
 import { useCategories } from './hooks/useCategories';
 import { useCostCenters } from './hooks/useCostCenters';
+import { useBankAccount } from './hooks/useBankAccount';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import Login from './features/auth/Login';
 import Sidebar from './components/layout/Sidebar';
@@ -41,7 +42,8 @@ import RolesManager from './features/roles/RolesManager';
 import BackupManager from './features/backup/BackupManager';
 
 import TransactionFormModal from './components/ui/TransactionFormModal';
-import { Loader2 } from 'lucide-react';
+import { formatCurrency } from './utils/formatters';
+import { Loader2, Landmark } from 'lucide-react';
 
 const VIEW_TITLES = {
   '/': 'Dashboard',
@@ -104,6 +106,7 @@ function AppContent() {
   const { createTransaction } = useTransactionActions(user);
   const { expenseCategories, incomeCategories } = useCategories(user);
   const { costCenters } = useCostCenters(user);
+  const { bankAccount, calculateRealBalance } = useBankAccount(user);
   const {
     searchTerm,
     setSearchTerm,
@@ -125,6 +128,9 @@ function AppContent() {
   const showToast = toastCtx?.showToast;
 
   const loading = authLoading || transactionsLoading;
+
+  const allTxSource = allTransactions && allTransactions.length > 0 ? allTransactions : [];
+  const bankBalanceData = bankAccount ? calculateRealBalance(allTxSource) : null;
 
   if (!user) {
     return <Login />;
@@ -195,6 +201,8 @@ function AppContent() {
         userRole={userRole}
         hasPermission={hasPermission}
         onNewTransaction={handleNewTransaction}
+        bankBalanceData={bankBalanceData}
+        bankAccount={bankAccount}
       />
 
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -215,6 +223,14 @@ function AppContent() {
 
             {!loading && (
               <div className="hidden md:flex items-center gap-3">
+                {bankBalanceData && (
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[rgba(255,255,255,0.04)] rounded-lg border border-[rgba(255,255,255,0.04)]">
+                    <Landmark size={12} className={bankBalanceData.currentBalance >= 0 ? 'text-[#30d158]' : 'text-[#ff453a]'} />
+                    <span className={`text-[12px] font-semibold tabular-nums ${bankBalanceData.currentBalance >= 0 ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+                      €{formatCurrency(bankBalanceData.currentBalance)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[rgba(255,255,255,0.04)] rounded-lg border border-[rgba(255,255,255,0.04)]">
                   <div className="w-1.5 h-1.5 bg-[#30d158] rounded-full animate-pulse"></div>
                   <span className="text-[11px] text-[#8e8e93]">

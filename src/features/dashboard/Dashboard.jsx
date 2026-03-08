@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Wallet, ArrowUpCircle, ArrowDownCircle, TrendingUp, TrendingDown,
-  AlertTriangle, Users, Clock, ArrowRight, Plus, Eye
+  AlertTriangle, Users, Clock, ArrowRight, Plus, Eye, Landmark, Settings
 } from 'lucide-react';
 import ProjectDetail from './ProjectDetail';
 import {
-  LineChart, Line, PieChart, Pie, BarChart, Bar, ComposedChart,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+  LineChart, Line, PieChart, Pie, BarChart, Bar, ComposedChart, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
 import PeriodSelector, { usePeriodSelector } from '../../components/ui/PeriodSelector';
 import { useMetrics } from '../../hooks/useMetrics';
+import { useBankAccount } from '../../hooks/useBankAccount';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { COLORS, ALERT_THRESHOLDS } from '../../constants/config';
 
@@ -81,13 +82,59 @@ const AlertItem = ({ icon: Icon, text, color = '#ff453a', action, onAction }) =>
   </div>
 );
 
+const BankBalanceTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#2c2c2e] p-3 rounded-xl border border-[rgba(255,255,255,0.1)] text-sm" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+        <p className="font-medium text-[#c7c7cc] mb-1">{label}</p>
+        <p className={`text-xs font-semibold ${payload[0].value >= 0 ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+          €{formatCurrency(payload[0].value)}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 const Dashboard = ({ transactions, allTransactions, user, setView }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const period = usePeriodSelector(2026);
+  const { bankAccount, calculateRealBalance } = useBankAccount(user);
 
   const sourceData = allTransactions && allTransactions.length > 0 ? allTransactions : transactions;
   const filteredByPeriod = period.filterTransactions(sourceData);
   const metrics = useMetrics(filteredByPeriod);
+
+  const bankBalance = useMemo(() => {
+    if (!bankAccount) return null;
+    return calculateRealBalance(sourceData);
+  }, [bankAccount, sourceData]);
+
+  const dailyBalanceData = useMemo(() => {
+    if (!bankAccount) return [];
+    const data = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const txUntilDate = sourceData.filter(t =>
+        t.date <= dateStr && t.date > bankAccount.balanceDate && t.status === 'paid'
+      );
+
+      let net = 0;
+      txUntilDate.forEach(t => {
+        net += t.type === 'income' ? t.amount : -t.amount;
+      });
+
+      data.push({
+        date: dateStr,
+        label: date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+        saldo: bankAccount.balance + net,
+      });
+    }
+    return data;
+  }, [bankAccount, sourceData]);
 
   if (selectedProject) {
     return (
@@ -101,6 +148,9 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
   }
 
   const hasAlerts = Object.values(metrics.alerts).some(a => a);
+  const creditUtilPct = bankBalance && bankBalance.creditLimit < 0
+    ? Math.min(100, Math.max(0, (bankBalance.creditUsed / Math.abs(bankBalance.creditLimit)) * 100))
+    : 0;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -113,26 +163,97 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
         <PeriodSelector {...period} compact />
       </div>
 
-      {/* ─── TOP 3: Saldo, Ingresos, Gastos ────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-1">
-          <div className="bg-gradient-to-br from-[rgba(48,209,88,0.06)] to-[rgba(10,132,255,0.04)] rounded-xl p-6 border border-[rgba(48,209,88,0.12)] hover:border-[rgba(48,209,88,0.2)] transition-all">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">Saldo Actual</p>
-              <Wallet size={18} className="text-[#30d158]" />
-            </div>
-            <h3 className={`text-[32px] font-bold tracking-tight leading-none ${metrics.cashBalance < 0 ? 'text-[#ff453a]' : 'text-white'}`}>
-              €{formatCurrency(metrics.cashBalance)}
-            </h3>
-            <p className="text-[12px] text-[#636366] mt-2">Efectivo disponible hoy</p>
-            {metrics.alerts.negativeBalance && (
-              <div className="flex items-center gap-1.5 mt-2 text-[#ff453a]">
-                <AlertTriangle size={12} />
-                <span className="text-[11px] font-medium">Balance negativo</span>
+      {/* ─── HERO: Saldo Bancario ──────────────────────────────── */}
+      {bankAccount ? (
+        <div className="bg-gradient-to-br from-[rgba(48,209,88,0.08)] to-[rgba(10,132,255,0.06)] rounded-2xl p-6 border border-[rgba(48,209,88,0.15)] hover:border-[rgba(48,209,88,0.25)] transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 rounded-xl bg-[rgba(48,209,88,0.15)]">
+                <Landmark size={20} className="text-[#30d158]" />
               </div>
-            )}
+              <p className="text-[12px] font-semibold text-[#8e8e93] uppercase tracking-wider">Saldo Bancario</p>
+            </div>
+            <Wallet size={18} className="text-[#636366]" />
+          </div>
+          <h3 className={`text-[40px] font-bold tracking-tight leading-none ${bankBalance?.currentBalance < 0 ? 'text-[#ff453a]' : 'text-white'}`}>
+            €{formatCurrency(bankBalance?.currentBalance || 0)}
+          </h3>
+          <p className="text-[12px] text-[#636366] mt-2">
+            {bankAccount.bankName} · actualizado al {bankBalance?.balanceDate || bankAccount.balanceDate}
+          </p>
+          {bankBalance?.currentBalance < 0 && bankBalance.creditLimit < 0 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[11px] mb-1.5">
+                <span className="text-[#ff453a] font-medium">Línea de crédito utilizada</span>
+                <span className="text-[#8e8e93]">{creditUtilPct.toFixed(0)}% de €{formatCurrency(Math.abs(bankBalance.creditLimit))}</span>
+              </div>
+              <div className="w-full h-2 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${creditUtilPct}%`,
+                    background: creditUtilPct > 80 ? '#ff453a' : creditUtilPct > 50 ? '#ff9f0a' : '#30d158',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-[#1c1c1e] rounded-2xl p-6 border border-[rgba(255,255,255,0.06)] text-center">
+          <Landmark size={28} className="text-[#636366] mx-auto mb-3" />
+          <p className="text-[14px] text-[#8e8e93] mb-3">Sin cuenta bancaria configurada</p>
+          <button
+            onClick={() => setView?.('configuracion')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[rgba(48,209,88,0.1)] text-[#30d158] rounded-lg text-[13px] font-medium hover:bg-[rgba(48,209,88,0.15)] transition-colors"
+          >
+            <Settings size={14} /> Configurar Cuenta
+          </button>
+        </div>
+      )}
+
+      {/* ─── Timeline 30 días ──────────────────────────────────── */}
+      {bankAccount && dailyBalanceData.length > 0 && (
+        <div className="bg-[#1c1c1e] p-5 rounded-xl border border-[rgba(255,255,255,0.06)]">
+          <h4 className="text-[13px] font-semibold text-[#c7c7cc] mb-4">Evolución del Saldo — Últimos 30 días</h4>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140}>
+              <AreaChart data={dailyBalanceData}>
+                <defs>
+                  <linearGradient id="saldoGradientPos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#30d158" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#30d158" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="saldoGradientNeg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ff453a" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#ff453a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#636366', fontSize: 10 }} interval={4} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#636366', fontSize: 10 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
+                <Tooltip content={<BankBalanceTooltip />} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 4" />
+                {bankBalance?.creditLimit < 0 && (
+                  <ReferenceLine y={bankBalance.creditLimit} stroke="#ff453a" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: 'Límite', fill: '#ff453a', fontSize: 10, position: 'right' }} />
+                )}
+                <Area
+                  type="monotone"
+                  dataKey="saldo"
+                  stroke={dailyBalanceData[dailyBalanceData.length - 1]?.saldo >= 0 ? '#30d158' : '#ff453a'}
+                  strokeWidth={2}
+                  fill={dailyBalanceData[dailyBalanceData.length - 1]?.saldo >= 0 ? 'url(#saldoGradientPos)' : 'url(#saldoGradientNeg)'}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
+      )}
+
+      {/* ─── KPIs: Ingresos, Gastos, Utilidad ──────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <PrimaryKPI
           title="Ingresos Cobrados"
           amount={metrics.collectedIncome}
@@ -149,10 +270,18 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
           subtitle="Ya pagados"
           trend="down"
         />
+        <PrimaryKPI
+          title="Liquidez Proyectada"
+          amount={metrics.projectedLiquidity}
+          icon={TrendingUp}
+          color="blue"
+          subtitle="Saldo + CxC − CxP"
+          trend={metrics.projectedLiquidity >= 0 ? 'up' : 'down'}
+        />
       </div>
 
       {/* ─── Secondary KPIs ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <PrimaryKPI
           title="Cuentas por Cobrar"
           amount={metrics.pendingReceivables}
@@ -166,14 +295,6 @@ const Dashboard = ({ transactions, allTransactions, user, setView }) => {
           icon={Clock}
           color="red"
           subtitle="Pendiente de pago"
-        />
-        <PrimaryKPI
-          title="Liquidez Proyectada"
-          amount={metrics.projectedLiquidity}
-          icon={TrendingUp}
-          color="blue"
-          subtitle="Saldo + CxC − CxP"
-          trend={metrics.projectedLiquidity >= 0 ? 'up' : 'down'}
         />
       </div>
 

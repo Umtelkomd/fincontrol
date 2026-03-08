@@ -5,8 +5,9 @@ import {
   Briefcase, LayoutDashboard, ArrowUpCircle, ArrowDownCircle,
   ListFilter, DollarSign, BarChart3, Settings, Plus, LogOut,
   FileText, Target, Scale, Bell, History, Paperclip, RefreshCw,
-  Upload, BookOpen, Folder, TrendingUp, Coins, Shield, Database
+  Upload, BookOpen, Folder, TrendingUp, Coins, Shield, Database, Landmark
 } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
 const NAV_SECTIONS = [
   {
@@ -58,7 +59,7 @@ const NAV_SECTIONS = [
   },
 ];
 
-const Sidebar = ({ user, userRole, hasPermission, onNewTransaction }) => {
+const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceData, bankAccount }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -122,6 +123,35 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction }) => {
             {userRole === 'admin' ? 'Admin' : userRole === 'manager' ? 'Mgr' : 'Edit'}
           </span>
         </div>
+
+        {/* Bank Balance Mini Badge */}
+        {bankBalanceData && bankAccount && (
+          <div className="mt-2 px-2.5 py-2 bg-[rgba(255,255,255,0.03)] rounded-lg border border-[rgba(255,255,255,0.04)]">
+            <div className="flex items-center gap-2 mb-1">
+              <Landmark size={12} className={bankBalanceData.currentBalance >= 0 ? 'text-[#30d158]' : 'text-[#ff453a]'} />
+              <span className={`text-[12px] font-bold tabular-nums ${bankBalanceData.currentBalance >= 0 ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+                €{formatCurrency(bankBalanceData.currentBalance)}
+              </span>
+            </div>
+            {bankBalanceData.creditLimit < 0 && (() => {
+              const pct = Math.min(100, Math.max(0, (bankBalanceData.creditUsed / Math.abs(bankBalanceData.creditLimit)) * 100));
+              return (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: pct > 80 ? '#ff453a' : pct > 50 ? '#ff9f0a' : '#30d158',
+                      }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-[#636366] whitespace-nowrap">{pct.toFixed(0)}%</span>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
