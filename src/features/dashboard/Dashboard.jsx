@@ -9,8 +9,11 @@ import {
   FileDown,
   FileUp,
   Landmark,
+  Shield,
   ShieldAlert,
   Target,
+  TrendingDown,
+  TrendingUp,
   Wallet,
 } from 'lucide-react';
 import {
@@ -26,6 +29,8 @@ import {
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+
+const getGreeting = () => { const h = new Date().getHours(); if (h < 12) return 'Buenos días'; if (h < 18) return 'Buenas tardes'; return 'Buenas noches'; };
 
 const kpiCardClassName =
   'relative overflow-hidden rounded-[28px] border border-[rgba(205,219,243,0.74)] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(245,248,253,0.82))] p-5 shadow-[0_18px_44px_rgba(124,148,191,0.1)]';
@@ -90,6 +95,9 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
   const overdueExposure =
     metrics.overdueReceivables.reduce((sum, entry) => sum + entry.openAmount, 0) +
     metrics.overduePayables.reduce((sum, entry) => sum + entry.openAmount, 0);
+  const health = metrics.runwayMonths!=null && metrics.runwayMonths<3 ? {label:'CRÍTICA',color:'#dc2626'} : ((metrics.runwayMonths!=null && metrics.runwayMonths<6)||overdueExposure>10000) ? {label:'ALERTA',color:'#d97706'} : {label:'ESTABLE',color:'#16a34a'};
+  const netMarginPct = metrics.cashInflows>0 ? ((metrics.cashInflows-metrics.avgMonthlyOutflows)/metrics.cashInflows*100).toFixed(1) : '0.0';
+  const breakEvenGap = metrics.avgMonthlyOutflows - metrics.cashInflows;
 
   const upcomingRows = [...metrics.upcomingReceivables, ...metrics.upcomingPayables]
     .sort((left, right) => (left.dueDate || '').localeCompare(right.dueDate || ''))
@@ -153,6 +161,7 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
       <section className="relative overflow-hidden rounded-[34px] border border-[rgba(205,219,243,0.82)] bg-[radial-gradient(circle_at_top_left,rgba(168,193,235,0.26),transparent_28%),radial-gradient(circle_at_top_right,rgba(226,233,245,0.62),transparent_22%),linear-gradient(160deg,rgba(247,249,252,0.98)_0%,rgba(236,241,248,0.96)_100%)] px-6 py-7 shadow-[0_24px_74px_rgba(124,148,191,0.12)]">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
+            <p className="text-sm text-[#5b78a8] mb-1">{getGreeting()}</p>
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#5b78a8]">
               Inicio operativo
             </p>
@@ -162,6 +171,7 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
             <p className="mt-4 max-w-2xl text-[14px] leading-7 text-[#5f7091]">
               La caja ya sale de movimientos bancarios y los compromisos abiertos permanecen fuera del saldo hasta su cobro o pago real.
             </p>
+            <span className="inline-flex items-center gap-1.5 mt-3 rounded-full px-3 py-1 text-xs font-semibold" style={{backgroundColor: health.color+'18', color: health.color}}>● Salud financiera: {health.label}</span>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[460px]">
@@ -181,7 +191,7 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-5">
         <HeroCard
           title="Caja real"
           value={formatCurrency(metrics.currentCash)}
@@ -209,6 +219,13 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
           subtitle="Suma de documentos vencidos por cobrar y por pagar."
           accent="#c25d42"
           icon={ShieldAlert}
+        />
+        <HeroCard
+          title="Margen Neto Mes"
+          value={netMarginPct+'%'}
+          subtitle="Ingresos menos burn rate mensual sobre ingresos totales."
+          accent={parseFloat(netMarginPct)>=0?'#16a34a':'#dc2626'}
+          icon={parseFloat(netMarginPct)>=0?TrendingUp:TrendingDown}
         />
       </div>
 

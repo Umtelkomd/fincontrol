@@ -33,6 +33,7 @@ const ProyectoDashboard = lazy(() => import('./features/proyectos/ProyectoDashbo
 const ProyeccionCashflow = lazy(() => import('./features/cashflow/ProyeccionCashflow'));
 const MultiMoneda = lazy(() => import('./features/multimoneda/MultiMoneda'));
 const RolesManager = lazy(() => import('./features/roles/RolesManager'));
+const WhatIf = lazy(() => import('./features/whatif/WhatIf'));
 const BackupManager = lazy(() => import('./features/backup/BackupManager'));
 const UserProfile = lazy(() => import('./features/perfil/UserProfile'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
@@ -128,6 +129,7 @@ function AppContent() {
       presupuesto: '/presupuesto',
       conciliacion: '/conciliacion',
       proyectos: '/proyectos',
+      whatif: '/whatif',
       configuracion: '/configuracion',
     };
     navigate(pathMap[viewId] || '/');
@@ -244,6 +246,7 @@ function AppContent() {
                   <Route path="/recurrencia" element={<Recurrencia user={user} userRole={userRole} />} />
                   <Route path="/import-export" element={<ImportExport user={user} userRole={userRole} />} />
                   <Route path="/balance" element={<BalanceGeneral user={user} userRole={userRole} />} />
+                  <Route path="/whatif" element={<WhatIf user={user} />} />
                   <Route path="/proyectos" element={<ProyectoDashboard user={user} userRole={userRole} />} />
                   <Route path="/proyeccion" element={<ProyeccionCashflow user={user} userRole={userRole} />} />
                   <Route path="/multi-moneda" element={<MultiMoneda user={user} userRole={userRole} />} />

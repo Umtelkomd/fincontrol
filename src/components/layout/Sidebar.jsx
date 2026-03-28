@@ -13,6 +13,7 @@ import {
   Scale,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   WalletCards,
 } from 'lucide-react';
 import { auth } from '../../services/firebase';
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },
   { path: '/reportes', label: 'Reportes', icon: BarChart3, permission: 'reports' },
   { path: '/proyectos', label: 'Proyectos', icon: FolderKanban, permission: 'reports' },
+  { path: '/whatif', label: 'Simulador', icon: SlidersHorizontal, permission: 'reports' },
   { path: '/configuracion', label: 'Configuracion', icon: Settings, permission: 'settings' },
 ];
 

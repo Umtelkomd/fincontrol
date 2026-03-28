@@ -1,0 +1,377 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e8]
+          - generic [ref=e11]:
+            - heading "FinControl" [level=1] [ref=e12]
+            - paragraph [ref=e13]: Treasury OS · UMTELKOMD
+        - button "J jromero@umtelkomd.com Administrador" [ref=e14]:
+          - generic [ref=e15]: J
+          - generic [ref=e16]:
+            - paragraph [ref=e17]: jromero@umtelkomd.com
+            - paragraph [ref=e18]: Administrador
+        - generic [ref=e19]:
+          - generic [ref=e20]:
+            - paragraph [ref=e21]: Caja actual
+            - img [ref=e22]
+          - paragraph [ref=e24]: €-41.128,52
+          - paragraph [ref=e25]: Volksbank
+      - navigation [ref=e26]:
+        - generic [ref=e27]:
+          - paragraph [ref=e28]: Principal
+          - generic [ref=e29]:
+            - button "Inicio" [ref=e30]:
+              - img [ref=e32]
+              - generic [ref=e37]: Inicio
+            - button "Tesoreria" [ref=e38]:
+              - img [ref=e40]
+              - generic [ref=e44]: Tesoreria
+        - generic [ref=e45]:
+          - paragraph [ref=e46]: Operacion
+          - generic [ref=e47]:
+            - button "Cuentas por Cobrar" [ref=e48]:
+              - img [ref=e50]
+              - generic [ref=e52]: Cuentas por Cobrar
+            - button "Cuentas por Pagar" [ref=e53]:
+              - img [ref=e55]
+              - generic [ref=e57]: Cuentas por Pagar
+            - button "Proyectos" [ref=e58]:
+              - img [ref=e60]
+              - generic [ref=e62]: Proyectos
+            - button "Presupuesto" [ref=e63]:
+              - img [ref=e65]
+              - generic [ref=e68]: Presupuesto
+            - button "Conciliacion" [ref=e69]:
+              - img [ref=e71]
+              - generic [ref=e75]: Conciliacion
+        - generic [ref=e76]:
+          - paragraph [ref=e77]: Analisis
+          - generic [ref=e78]:
+            - button "Reportes" [ref=e79]:
+              - img [ref=e81]
+              - generic [ref=e83]: Reportes
+            - button "Legado" [ref=e84]:
+              - img [ref=e86]
+              - generic [ref=e88]: Legado
+            - button "Configuracion" [ref=e89]:
+              - img [ref=e91]
+              - generic [ref=e94]: Configuracion
+      - generic [ref=e95]:
+        - button "Nuevo registro" [active] [ref=e96]:
+          - img [ref=e97]
+          - text: Nuevo registro
+        - button "Cerrar sesion" [ref=e98]:
+          - img [ref=e99]
+          - text: Cerrar sesion
+    - main [ref=e102]:
+      - generic [ref=e104]:
+        - generic [ref=e106]:
+          - heading "Inicio" [level=2] [ref=e107]
+          - paragraph [ref=e108]: lunes, 23 de marzo de 2026
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - img [ref=e111]
+            - generic [ref=e113]: €-41.128,52
+          - generic [ref=e116]: 231 transacciones legadas visibles
+      - generic [ref=e119]:
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - paragraph [ref=e123]: Inicio operativo
+            - heading "Liquidez real, vencimientos y proyeccion semanal en una sola vista." [level=2] [ref=e124]
+            - paragraph [ref=e125]: La caja ya sale de movimientos bancarios y los compromisos abiertos permanecen fuera del saldo hasta su cobro o pago real.
+          - generic [ref=e126]:
+            - generic [ref=e127]:
+              - paragraph [ref=e128]: Caja actual
+              - paragraph [ref=e129]: "-41.128,52"
+            - generic [ref=e130]:
+              - paragraph [ref=e131]: CXC abierta
+              - paragraph [ref=e132]: 24.520,58
+            - generic [ref=e133]:
+              - paragraph [ref=e134]: CXP abierta
+              - paragraph [ref=e135]: 65.180,70
+        - generic [ref=e136]:
+          - generic [ref=e139]:
+            - generic [ref=e140]:
+              - generic [ref=e141]:
+                - paragraph [ref=e142]: Caja real
+                - paragraph [ref=e143]: "-41.128,52"
+              - img [ref=e145]
+            - paragraph [ref=e147]: Saldo operativo de la cuenta principal tras movimientos contabilizados.
+          - generic [ref=e150]:
+            - generic [ref=e151]:
+              - generic [ref=e152]:
+                - paragraph [ref=e153]: Liquidez proyectada
+                - paragraph [ref=e154]: "-81.788,64"
+              - img [ref=e156]
+            - paragraph [ref=e159]: Caja actual mas CXC abierta menos CXP abierta.
+          - generic [ref=e162]:
+            - generic [ref=e163]:
+              - generic [ref=e164]:
+                - paragraph [ref=e165]: Siguiente ventana
+                - paragraph [ref=e166]: "-140,00"
+              - img [ref=e168]
+            - paragraph [ref=e170]: Impacto neto esperado de vencimientos en los proximos 14 dias.
+          - generic [ref=e173]:
+            - generic [ref=e174]:
+              - generic [ref=e175]:
+                - paragraph [ref=e176]: Exposicion vencida
+                - paragraph [ref=e177]: 83.016,31
+              - img [ref=e179]
+            - paragraph [ref=e181]: Suma de documentos vencidos por cobrar y por pagar.
+        - generic [ref=e182]:
+          - generic [ref=e183]:
+            - generic [ref=e184]:
+              - generic [ref=e185]:
+                - paragraph [ref=e186]: Tendencia
+                - heading "Caja de las ultimas 12 semanas" [level=3] [ref=e187]
+              - button "Abrir tesoreria" [ref=e188]:
+                - text: Abrir tesoreria
+                - img [ref=e189]
+            - application [ref=e194]:
+              - generic [ref=e203]:
+                - generic [ref=e204]:
+                  - generic [ref=e206]: 04 ene
+                  - generic [ref=e208]: 11 ene
+                  - generic [ref=e210]: 18 ene
+                  - generic [ref=e212]: 25 ene
+                  - generic [ref=e214]: 01 feb
+                  - generic [ref=e216]: 08 feb
+                  - generic [ref=e218]: 15 feb
+                  - generic [ref=e220]: 22 feb
+                  - generic [ref=e222]: 01 mar
+                  - generic [ref=e224]: 08 mar
+                  - generic [ref=e226]: 15 mar
+                  - generic [ref=e228]: 22 mar
+                - generic [ref=e229]:
+                  - generic [ref=e231]: €-80k
+                  - generic [ref=e233]: €-60k
+                  - generic [ref=e235]: €-40k
+                  - generic [ref=e237]: €-20k
+                  - generic [ref=e239]: €0k
+          - generic [ref=e240]:
+            - generic [ref=e242]:
+              - paragraph [ref=e243]: Proyeccion
+              - heading "Compromisos de las proximas 8 semanas" [level=3] [ref=e244]
+            - application [ref=e248]:
+              - generic [ref=e264]:
+                - generic [ref=e265]:
+                  - generic [ref=e267]: W1
+                  - generic [ref=e269]: W2
+                  - generic [ref=e271]: W3
+                  - generic [ref=e273]: W4
+                  - generic [ref=e275]: W5
+                  - generic [ref=e277]: W6
+                  - generic [ref=e279]: W7
+                  - generic [ref=e281]: W8
+                - generic [ref=e282]:
+                  - generic [ref=e284]: €0k
+                  - generic [ref=e286]: €1k
+                  - generic [ref=e288]: €2k
+                  - generic [ref=e290]: €3k
+                  - generic [ref=e292]: €4k
+        - generic [ref=e293]:
+          - generic [ref=e294]:
+            - generic [ref=e296]:
+              - paragraph [ref=e297]: Vencimientos
+              - heading "Proximos movimientos de caja" [level=3] [ref=e298]
+            - generic [ref=e300]:
+              - generic [ref=e301]:
+                - img [ref=e303]
+                - generic [ref=e306]:
+                  - paragraph [ref=e307]: IHK Rostock camara de comercio
+                  - paragraph [ref=e308]: Sin documento · vence 30/03/2026
+              - generic [ref=e309]:
+                - paragraph [ref=e310]: "-140,00"
+                - paragraph [ref=e311]: IHK Rostock camara de comercio
+          - generic [ref=e312]:
+            - generic [ref=e313]:
+              - generic [ref=e314]:
+                - paragraph [ref=e315]: Rentabilidad
+                - heading "Margen reciente por proyecto" [level=3] [ref=e316]
+              - button "Ver detalle" [ref=e317]:
+                - text: Ver detalle
+                - img [ref=e318]
+            - generic [ref=e320]:
+              - generic [ref=e321]:
+                - generic [ref=e322]:
+                  - generic [ref=e323]:
+                    - paragraph [ref=e324]: PROY-003
+                    - paragraph [ref=e325]: Ingreso 219.036,16 · Gasto 106.169,03
+                  - generic [ref=e326]: 51.5%
+                - paragraph [ref=e329]: Neto +112.867,13
+              - generic [ref=e330]:
+                - generic [ref=e331]:
+                  - generic [ref=e332]:
+                    - paragraph [ref=e333]: PROY-001
+                    - paragraph [ref=e334]: Ingreso 164.236,59 · Gasto 107.361,12
+                  - generic [ref=e335]: 34.6%
+                - paragraph [ref=e338]: Neto +56.875,47
+              - generic [ref=e339]:
+                - generic [ref=e340]:
+                  - generic [ref=e341]:
+                    - paragraph [ref=e342]: PROY-004
+                    - paragraph [ref=e343]: Ingreso 86.923,44 · Gasto 56.633,01
+                  - generic [ref=e344]: 34.9%
+                - paragraph [ref=e347]: Neto +30.290,43
+              - generic [ref=e348]:
+                - generic [ref=e349]:
+                  - generic [ref=e350]:
+                    - paragraph [ref=e351]: PROY-002
+                    - paragraph [ref=e352]: Ingreso 69.911,41 · Gasto 42.841,82
+                  - generic [ref=e353]: 38.7%
+                - paragraph [ref=e356]: Neto +27.069,59
+              - generic [ref=e357]:
+                - generic [ref=e358]:
+                  - generic [ref=e359]:
+                    - paragraph [ref=e360]: PROY-005
+                    - paragraph [ref=e361]: Ingreso 11.073,40 · Gasto 974,20
+                  - generic [ref=e362]: 91.2%
+                - paragraph [ref=e365]: Neto +10.099,20
+              - generic [ref=e366]:
+                - generic [ref=e367]:
+                  - generic [ref=e368]:
+                    - paragraph [ref=e369]: WEST-001 (NE4 West-connect)
+                    - paragraph [ref=e370]: Ingreso 36.659,20 · Gasto 32.100,45
+                  - generic [ref=e371]: 12.4%
+                - paragraph [ref=e374]: Neto +4.558,75
+        - generic [ref=e375]:
+          - generic [ref=e376]:
+            - generic [ref=e378]:
+              - paragraph [ref=e379]: Alertas
+              - heading "Radar operativo" [level=3] [ref=e380]
+            - generic [ref=e381]:
+              - generic [ref=e382]:
+                - generic [ref=e383]:
+                  - img [ref=e384]
+                  - generic [ref=e386]: Cartera vencida
+                - paragraph [ref=e387]: 12 documentos por cobrar · 24.520,58
+              - generic [ref=e388]:
+                - generic [ref=e389]:
+                  - img [ref=e390]
+                  - generic [ref=e393]: Pagos vencidos
+                - paragraph [ref=e394]: 16 documentos por pagar · 58.495,73
+          - generic [ref=e395]:
+            - generic [ref=e397]:
+              - paragraph [ref=e398]: Capacidad
+              - heading "Runway estimado" [level=3] [ref=e399]
+            - generic [ref=e400]:
+              - generic [ref=e401]:
+                - img [ref=e403]
+                - paragraph [ref=e407]: "-0.4m"
+              - paragraph [ref=e408]: "Basado en caja actual y egreso mensual promedio de los ultimos 90 dias: 100.998,39."
+          - generic [ref=e409]:
+            - generic [ref=e411]:
+              - paragraph [ref=e412]: Disciplina
+              - heading "Accion sugerida" [level=3] [ref=e413]
+            - generic [ref=e414]:
+              - img [ref=e416]
+              - paragraph [ref=e420]: Prioriza el cobro de la cartera vencida y valida conciliacion semanalmente para mantener la caja proyectada alineada con banco.
+    - generic [ref=e422]:
+      - button [ref=e423]:
+        - img [ref=e424]
+      - complementary [ref=e427]:
+        - generic [ref=e428]:
+          - paragraph [ref=e429]: Operacion
+          - heading "Centro de tesoreria" [level=3] [ref=e430]
+          - paragraph [ref=e431]: Registra caja real, compromisos abiertos y ajustes sin volver a depender de una transaccion generica.
+        - generic [ref=e432]:
+          - button "Registrar cobro Entrada real de dinero, con o sin factura CXC asociada." [ref=e433]:
+            - generic [ref=e434]:
+              - img [ref=e436]
+              - generic [ref=e439]:
+                - paragraph [ref=e440]: Registrar cobro
+                - paragraph [ref=e441]: Entrada real de dinero, con o sin factura CXC asociada.
+          - button "Registrar pago Salida real de dinero, con o sin factura CXP asociada." [ref=e442]:
+            - generic [ref=e443]:
+              - img [ref=e445]
+              - generic [ref=e448]:
+                - paragraph [ref=e449]: Registrar pago
+                - paragraph [ref=e450]: Salida real de dinero, con o sin factura CXP asociada.
+          - button "Crear factura CXC Documento pendiente por cobrar que aun no afecta caja." [ref=e451]:
+            - generic [ref=e452]:
+              - img [ref=e454]
+              - generic [ref=e458]:
+                - paragraph [ref=e459]: Crear factura CXC
+                - paragraph [ref=e460]: Documento pendiente por cobrar que aun no afecta caja.
+          - button "Crear factura CXP Documento pendiente por pagar que aun no afecta caja." [ref=e461]:
+            - generic [ref=e462]:
+              - img [ref=e464]
+              - generic [ref=e468]:
+                - paragraph [ref=e469]: Crear factura CXP
+                - paragraph [ref=e470]: Documento pendiente por pagar que aun no afecta caja.
+          - button "Ajuste bancario Movimiento directo de tesoreria no ligado a CXC o CXP." [ref=e471]:
+            - generic [ref=e472]:
+              - img [ref=e474]
+              - generic [ref=e478]:
+                - paragraph [ref=e479]: Ajuste bancario
+                - paragraph [ref=e480]: Movimiento directo de tesoreria no ligado a CXC o CXP.
+      - generic [ref=e481]:
+        - generic [ref=e483]:
+          - img [ref=e485]
+          - generic [ref=e488]:
+            - paragraph [ref=e489]: Flujo activo
+            - heading "Registrar cobro" [level=2] [ref=e490]
+            - paragraph [ref=e491]: Entrada real de dinero, con o sin factura CXC asociada.
+        - generic [ref=e492]:
+          - generic [ref=e493]:
+            - generic [ref=e494]:
+              - generic [ref=e495]: Factura asociada
+              - combobox "Factura asociada" [ref=e496]:
+                - option "Cobro libre" [selected]
+                - option "KW07_Dehme_Umtelkomd_NE4 · Sin factura · 1110.00 EUR"
+                - option "KW08_Luegde_Umtelkomd_NE4 · Sin factura · 1724.40 EUR"
+                - option "KW07_Lothe_Umtelkomd_NE4 · Sin factura · 819.00 EUR"
+                - option "KW07_BUER-BURTONSTR._Umtelkomd_NE4 · Sin factura · 2184.00 EUR"
+                - option "2026_03_09_Roßdorf_Umtelkomd_P05 · Sin factura · 14100.00 EUR"
+                - option "AP_Roßdorf_QFF-001_KW10_2026_UMTELK · Sin factura · 2024.00 EUR"
+                - option "R-2025-179 · Sin factura · 134.44 EUR"
+                - option "R-2025-181 · Sin factura · 67.22 EUR"
+                - option "R-2025-184 · Sin factura · 67.22 EUR"
+                - option "R-2025-183 · Sin factura · 67.22 EUR"
+            - generic [ref=e497]:
+              - generic [ref=e498]: Importe *
+              - spinbutton "Importe *" [ref=e499]
+            - generic [ref=e500]:
+              - generic [ref=e501]: Fecha *
+              - textbox "Fecha *" [ref=e502]: 2026-03-23
+            - generic [ref=e503]:
+              - generic [ref=e504]: Metodo *
+              - combobox "Metodo *" [ref=e505]:
+                - option "Transferencia" [selected]
+                - option "Efectivo"
+                - option "Tarjeta"
+            - generic [ref=e506]:
+              - generic [ref=e507]: Contraparte *
+              - textbox "Contraparte *" [ref=e508]
+            - generic [ref=e509]:
+              - generic [ref=e510]: Descripcion *
+              - textbox "Descripcion *" [ref=e511]
+            - generic [ref=e512]:
+              - generic [ref=e513]: Proyecto
+              - combobox "Proyecto" [ref=e514]:
+                - option "Sin proyecto" [selected]
+                - option "Vancom NE4"
+                - option "Overhead"
+                - option "Würzwurg"
+                - option "NE4 West-connect"
+                - option "Höxter Nord"
+                - option "Roßdorf2"
+                - option "Roßdorf 1"
+          - generic [ref=e515]:
+            - generic [ref=e516]:
+              - img [ref=e518]
+              - generic [ref=e520]:
+                - paragraph [ref=e521]: Registro operativo
+                - paragraph [ref=e522]: Caja, compromisos y conciliacion comparten la misma base canonica.
+            - generic [ref=e523]:
+              - button "Cancelar" [ref=e524]
+              - button "Guardar operacion" [ref=e525]:
+                - img [ref=e526]
+                - text: Guardar operacion
+  - generic [ref=e530]: €1k
+```
