@@ -390,6 +390,8 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
     return date;
   }, []);
 
+  const sevenDaysAgoISO = useMemo(() => sevenDaysAgo.toISOString().slice(0, 10), [sevenDaysAgo]);
+
   const unifiedRecords = useMemo(() => {
     return [
       ...buildLegacyRows(transactions),
@@ -413,8 +415,7 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
     let pendientes = 0;
 
     for (const entry of unifiedRecords) {
-      const createdAt = getCreatedDate(entry);
-      if (createdAt && createdAt >= sevenDaysAgo) nuevas += 1;
+      if (entry.date && entry.date >= sevenDaysAgoISO) nuevas += 1;
       if (entry.hasUnreadUpdates) sinLeer += 1;
       if (entry.notes?.some((note) => note.type === 'comment')) conComentarios += 1;
       if (['pending', 'partial', 'overdue'].includes(entry.status)) pendientes += 1;
@@ -487,8 +488,7 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
       }
 
       if (quickFilter === 'nuevas') {
-        const createdAt = getCreatedDate(entry);
-        if (!createdAt || createdAt < sevenDaysAgo) return false;
+        if (!entry.date || entry.date < sevenDaysAgoISO) return false;
       }
 
       if (quickFilter === 'sinLeer' && !entry.hasUnreadUpdates) {
