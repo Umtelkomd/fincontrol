@@ -213,20 +213,28 @@ export const useTreasuryMetrics = (options = {}) => {
 
     const trailing90Start = toISODate(addDays(referenceDate, -90));
     const trailing90End = toISODate(referenceDate);
+    const year2026Start = '2026-01-01';
+    // Filter to 2026-only movements for burn rate calculation (no 2025 legacy data)
     const trailingOutflows = ledger.postedMovements.filter(
       (entry) =>
         entry.direction === 'out' &&
         compareIsoDate(entry.postedDate, trailing90Start) >= 0 &&
-        compareIsoDate(entry.postedDate, trailing90End) <= 0,
+        compareIsoDate(entry.postedDate, trailing90End) <= 0 &&
+        compareIsoDate(entry.postedDate, year2026Start) >= 0,
     );
     const trailingInflows = ledger.postedMovements.filter(
       (entry) =>
         entry.direction === 'in' &&
         compareIsoDate(entry.postedDate, trailing90Start) >= 0 &&
-        compareIsoDate(entry.postedDate, trailing90End) <= 0,
+        compareIsoDate(entry.postedDate, trailing90End) <= 0 &&
+        compareIsoDate(entry.postedDate, year2026Start) >= 0,
     );
-    const avgMonthlyOutflows = clampMoney(sumMoney(trailingOutflows, (entry) => entry.amount) / 3);
-    const avgMonthlyInflows = clampMoney(sumMoney(trailingInflows, (entry) => entry.amount) / 3);
+    // Number of months actually covered (avoid dividing by 3 if <3 months of 2026 data)
+    const monthsCovered2026 = Math.max(1,
+      Math.min(3, Math.ceil((new Date(referenceDate) - new Date(year2026Start)) / (1000 * 60 * 60 * 24 * 30)))
+    );
+    const avgMonthlyOutflows = clampMoney(sumMoney(trailingOutflows, (entry) => entry.amount) / monthsCovered2026);
+    const avgMonthlyInflows = clampMoney(sumMoney(trailingInflows, (entry) => entry.amount) / monthsCovered2026);
     const runwayMonths = avgMonthlyOutflows > 0 ? clampMoney(currentCash / avgMonthlyOutflows) : null;
 
     return {

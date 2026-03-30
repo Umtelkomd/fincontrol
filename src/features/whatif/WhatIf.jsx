@@ -184,6 +184,7 @@ export default function WhatIf({ user }) {
   const [nuevasContrataciones, setNuevasContrataciones] = useState(0);
   const [subidaPrecios, setSubidaPrecios] = useState(0);
   const [activeScenario, setActiveScenario] = useState('base');
+  const [gastoBaseManual, setGastoBaseManual] = useState(null); // null = usar dato real
 
   const applyScenario = (scenario) => {
     setActiveScenario(scenario.id);
@@ -198,10 +199,12 @@ export default function WhatIf({ user }) {
     if (metrics.loading) return null;
 
     const { currentCash, avgMonthlyInflows, avgMonthlyOutflows, pendingReceivables, pendingPayables } = metrics;
+    // Use manual override if set, otherwise use calculated 2026 average
+    const gastoBase = gastoBaseManual !== null ? gastoBaseManual : avgMonthlyOutflows;
 
     // Base: promedios mensuales reales (últimos 90 días / 3)
     const ingresosSim = avgMonthlyInflows * (1 + varIngresos / 100) * (1 + subidaPrecios / 100);
-    const gastosSim = avgMonthlyOutflows * (1 + varGastos / 100) + nuevasContrataciones * COST_PER_HIRE;
+    const gastosSim = gastoBase * (1 + varGastos / 100) + nuevasContrataciones * COST_PER_HIRE;
     const margenNeto = ingresosSim - gastosSim;
     const margenPct = gastosSim > 0 ? (margenNeto / gastosSim) * 100 : ingresosSim > 0 ? 100 : 0;
     const runwaySim = gastosSim > 0 ? currentCash / gastosSim : null;
@@ -213,10 +216,10 @@ export default function WhatIf({ user }) {
 
     const puntoEquilibrio = gastosSim - ingresosSim;
 
-    const netActual = avgMonthlyInflows - avgMonthlyOutflows;
-    const runwayActual = avgMonthlyOutflows > 0 ? currentCash / avgMonthlyOutflows : null;
+    const netActual = avgMonthlyInflows - gastoBase;
+    const runwayActual = gastoBase > 0 ? currentCash / gastoBase : null;
 
-    const dangerLevel = avgMonthlyOutflows * 2;
+    const dangerLevel = gastoBase * 2;
 
     const now = new Date();
     const startMonth = now.getMonth();
@@ -244,7 +247,7 @@ export default function WhatIf({ user }) {
       dangerLevel,
       actual: {
         ingresos: avgMonthlyInflows,
-        gastos: avgMonthlyOutflows,
+        gastos: gastoBase,
         margenNeto: netActual,
         runway: runwayActual,
         currentCash,
@@ -326,6 +329,42 @@ export default function WhatIf({ user }) {
             <div className="space-y-5">
               <div className="flex items-start gap-1">
                 <div className="flex-1">
+                  {/* Gasto mensual base — override manual */}
+                  <div className="rounded-2xl border border-[rgba(196,214,255,0.38)] bg-[rgba(255,255,255,0.5)] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-[#101938]">Gasto mensual base</p>
+                        <p className="text-xs text-[#5f7091]">
+                          {gastoBaseManual !== null
+                            ? `Manual: ${formatCurrency(gastoBaseManual)} EUR/mes`
+                            : `Auto (2026): ${formatCurrency(metrics.avgMonthlyOutflows)} EUR/mes`}
+                        </p>
+                      </div>
+                      {gastoBaseManual !== null && (
+                        <button
+                          onClick={() => setGastoBaseManual(null)}
+                          className="text-xs text-[#3156d3] hover:underline"
+                        >
+                          Usar dato real
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={Math.max(100000, Math.round((metrics.avgMonthlyOutflows || 50000) * 3))}
+                      step={500}
+                      value={gastoBaseManual !== null ? gastoBaseManual : (metrics.avgMonthlyOutflows || 0)}
+                      onChange={(e) => { setGastoBaseManual(Number(e.target.value)); setActiveScenario(null); }}
+                      className="w-full accent-blue-500 h-2 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-[#7b8cab] mt-1">
+                      <span>€0</span>
+                      <span>€{formatCurrency(Math.round((metrics.avgMonthlyOutflows || 50000) * 1.5))}</span>
+                      <span>€{formatCurrency(Math.max(100000, Math.round((metrics.avgMonthlyOutflows || 50000) * 3)))}</span>
+                    </div>
+                  </div>
+
                   <SliderControl label="Variación de ingresos" value={varIngresos} onChange={(v) => { setVarIngresos(v); setActiveScenario(null); }} min={-50} max={100} />
                 </div>
                 <HelpButton title="Variación de ingresos" size={13}>
