@@ -33,7 +33,8 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
   const paidAmount = Number(r.paidAmount || raw.paidAmount || 0);
   const openAmount = Number(r.openAmount || raw.openAmount || 0);
   const payments = raw.payments || r.payments || [];
-  const notes = (raw.notes || r.notes || []).filter((n) => typeof n === 'object');
+  const rawNotes = raw.notes || r.notes || [];
+  const notes = (Array.isArray(rawNotes) ? rawNotes : []).filter((n) => typeof n === 'object');
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
