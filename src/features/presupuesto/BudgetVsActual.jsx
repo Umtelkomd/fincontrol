@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   Plus,
   Target,
   TrendingDown,
@@ -19,6 +21,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -41,6 +44,14 @@ const CURRENT_MONTH = new Date().getMonth(); // 0-indexed
 const CURRENT_YEAR = new Date().getFullYear();
 
 const generateLineId = () => `line-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}`;
+
+// Color palette for per-category chart bars
+const CAT_COLORS = [
+  '#3156d3','#0f8f4b','#d47a22','#9333ea','#0891b2',
+  '#db2777','#65a30d','#ea580c','#6366f1','#14b8a6',
+  '#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16',
+];
+const getCatColor = (idx) => CAT_COLORS[idx % CAT_COLORS.length];
 
 // ── Confirm Modal ───────────────────────────────────────────────
 const ConfirmModal = ({ isOpen, onConfirm, onCancel, title, message }) => {
@@ -391,6 +402,65 @@ const CreateBudgetModal = ({ isOpen, onClose, onSubmit, projects, year }) => {
   );
 };
 
+// ── Drill-down row: shows real transactions for a budget line ──────
+const DrillDownRow = ({ row, allTransactions, selectedYear, canAct, incToBudgetMap, txToBudgetMap }) => {
+  const txList = allTransactions
+    .filter(t => {
+      if (Number(t.date?.slice(0,4)) !== Number(selectedYear)) return false;
+      const status = String(t.status||'').toLowerCase();
+      if (!['paid','completed','settled'].includes(status)) return false;
+      const isInc = t.type === 'income';
+      const mapped = (isInc ? incToBudgetMap : txToBudgetMap).get(t.category || t.categoryName || '');
+      return mapped === row.categoryName;
+    })
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  return (
+    <tr>
+      <td colSpan={canAct ? 8 : 7} className="bg-[rgba(49,86,211,0.03)] px-6 pb-4 pt-2">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6980ac]">
+          Operaciones reales — {row.categoryName} ({txList.length})
+        </p>
+        {txList.length === 0 ? (
+          <p className="text-xs italic text-[#9aabcb]">Sin transacciones registradas para esta categoría en {selectedYear}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left">
+              <thead>
+                <tr className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a9bbf]">
+                  <th className="pb-1 pr-4">Fecha</th>
+                  <th className="pb-1 pr-4">Descripción / Contraparte</th>
+                  <th className="pb-1 pr-4 text-right">Importe</th>
+                  <th className="pb-1">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[rgba(201,214,238,0.4)]">
+                {txList.slice(0,25).map(t => (
+                  <tr key={t.id} className="text-xs">
+                    <td className="py-1.5 pr-4 whitespace-nowrap text-[#6b7a96]">{t.date}</td>
+                    <td className="py-1.5 pr-4 text-[#101938]">{t.description || t.counterparty || t.vendor || '—'}</td>
+                    <td className={"py-1.5 pr-4 text-right font-semibold " + (t.type === 'income' ? 'text-[#0f8f4b]' : 'text-[#c46a19]')}>
+                      {t.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(t.amount || 0))}
+                    </td>
+                    <td className="py-1.5">
+                      <span className="rounded-full bg-[rgba(15,143,75,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#0f8f4b]">
+                        {t.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {txList.length > 25 && (
+                  <tr><td colSpan={4} className="pt-2 text-xs italic text-[#9aabcb]">+{txList.length - 25} más...</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+};
+
 // ── Main Component ──────────────────────────────────────────────
 const BudgetVsActual = ({ user, userRole }) => {
   const { showToast } = useToast();
@@ -544,37 +614,26 @@ const BudgetVsActual = ({ user, userRole }) => {
       .sort((a, b) => (a.type === 'expense' ? b.variance - a.variance : a.variance - b.variance));
   }, [currentBudget, actuals, activeTab]);
 
-  // Chart data: monthly budget vs actual for the selected budget
+  // Chart data: per-category monthly budget vs actual
   const chartData = useMemo(() => {
     return MONTHS.map((m, i) => {
-      const row = {
-        name: m,
-        budget: 0,
-        actual: 0,
-        budgetIncome: 0,
-        actualIncome: 0,
-        budgetExpense: 0,
-        actualExpense: 0,
-      };
-
+      const row = { name: m, budgetIncome: 0, actualIncome: 0, budgetExpense: 0, actualExpense: 0 };
       if (currentBudget?.lines?.length) {
         currentBudget.lines.forEach((line) => {
-          row.budget += line.monthlyBudget[i] || 0;
-          if (line.type === 'income') {
-            row.budgetIncome += line.monthlyBudget[i] || 0;
-            const key = `${line.categoryName}|income|${i}`;
-            row.actualIncome += (actuals.get(key)?.income || 0);
-          } else {
-            row.budgetExpense += line.monthlyBudget[i] || 0;
-            const key = `${line.categoryName}|expense|${i}`;
-            row.actualExpense += (actuals.get(key)?.expense || 0);
-          }
+          const dir = line.type === 'income' ? 'income' : 'expense';
+          const bKey = `budget_${line.categoryName}`;
+          const aKey = `actual_${line.categoryName}`;
+          const budAmt = line.monthlyBudget[i] || 0;
+          const actKey = `${line.categoryName}|${dir}|${i}`;
+          const actAmt = line.type === 'income'
+            ? (actuals.get(actKey)?.income || 0)
+            : (actuals.get(actKey)?.expense || 0);
+          row[bKey] = (row[bKey] || 0) + budAmt;
+          row[aKey] = (row[aKey] || 0) + actAmt;
+          if (line.type === 'income') { row.budgetIncome += budAmt; row.actualIncome += actAmt; }
+          else { row.budgetExpense += budAmt; row.actualExpense += actAmt; }
         });
-
-        // actual = income - expense (net)
-        row.actual = row.actualIncome - row.actualExpense;
       }
-
       return row;
     });
   }, [currentBudget, actuals]);
@@ -595,6 +654,7 @@ const BudgetVsActual = ({ user, userRole }) => {
 
   // DEBUG: visible debug panel for diagnosis
   const [showDebug, setShowDebug] = useState(false);
+  const [expandedRow, setExpandedRow] = useState(null); // categoryName of expanded row
   const canAct = userRole === 'admin';
 
   if (budgetsLoading || ledger.loading) {
@@ -916,17 +976,49 @@ const BudgetVsActual = ({ user, userRole }) => {
               </h3>
               <p className="mt-1 text-sm text-[#6b7a96]">Barras: presupuesto. Línea: ejecución real.</p>
             </div>
-            <div className="h-[300px]">
+            <div className="h-[340px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
+                <BarChart data={chartData} barGap={2} barCategoryGap="20%">
                   <CartesianGrid stroke="rgba(176,194,226,0.42)" vertical={false} />
                   <XAxis dataKey="name" stroke="#7b8dae" tickLine={false} axisLine={false} />
                   <YAxis stroke="#7b8dae" tickLine={false} axisLine={false} tickFormatter={(v) => `€${Math.round(v / 1000)}k`} />
-                  <Tooltip content={<TooltipCard />} />
-                  <Bar dataKey="budgetIncome" name="Ingreso presupuestado" fill="#3156d3" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="actualIncome" name="Ingreso real" fill="#0f8f4b" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="budgetExpense" name="Gasto presupuestado" fill="#d47a22" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="actualExpense" name="Gasto real" fill="#c46a19" radius={[6, 6, 0, 0]} />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div className="rounded-2xl border border-[rgba(201,214,238,0.82)] bg-white/96 px-4 py-3 shadow-[0_20px_50px_rgba(118,136,173,0.18)] max-w-xs">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#6980ac]">{label}</p>
+                          {payload.map((e) => e.value > 0 && (
+                            <p key={e.dataKey} className="text-sm font-medium" style={{ color: e.color }}>
+                              {e.name}: {formatCurrency(e.value)}
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }} />
+                  {(currentBudget?.lines || []).map((line, idx) => (
+                    <Bar
+                      key={`budget_${line.categoryName}`}
+                      dataKey={`budget_${line.categoryName}`}
+                      name={`${line.categoryName} (prev)`}
+                      fill={getCatColor(idx)}
+                      fillOpacity={0.35}
+                      stackId={line.type === 'income' ? 'bi' : 'be'}
+                      radius={[3, 3, 0, 0]}
+                    />
+                  ))}
+                  {(currentBudget?.lines || []).map((line, idx) => (
+                    <Bar
+                      key={`actual_${line.categoryName}`}
+                      dataKey={`actual_${line.categoryName}`}
+                      name={line.categoryName}
+                      fill={getCatColor(idx)}
+                      stackId={line.type === 'income' ? 'ai' : 'ae'}
+                      radius={[3, 3, 0, 0]}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -969,10 +1061,21 @@ const BudgetVsActual = ({ user, userRole }) => {
                     {summaryRows.map((row) => {
                       const isOver = row.type === 'expense' ? row.variance < 0 : row.variance < 0;
                       return (
-                        <tr key={row.id} className="hover:bg-[rgba(90,141,221,0.04)]">
+                        <React.Fragment key={row.id}>
+                        <tr
+                          className="cursor-pointer hover:bg-[rgba(90,141,221,0.04)]"
+                          onClick={() => setExpandedRow(expandedRow === row.categoryName ? null : row.categoryName)}
+                        >
                           <td className="px-4 py-4">
-                            <p className="text-sm font-semibold text-[#101938]">{row.categoryName}</p>
-                            {row.notes && <p className="text-xs text-[#6b7a96]">{row.notes}</p>}
+                            <div className="flex items-center gap-2">
+                              {expandedRow === row.categoryName
+                                ? <ChevronUp size={14} className="text-[#3156d3]" />
+                                : <ChevronDown size={14} className="text-[#9aabcb]" />}
+                              <div>
+                                <p className="text-sm font-semibold text-[#101938]">{row.categoryName}</p>
+                                {row.notes && <p className="text-xs text-[#6b7a96]">{row.notes}</p>}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-4 py-4">
                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -1045,8 +1148,18 @@ const BudgetVsActual = ({ user, userRole }) => {
                             </td>
                           )}
                         </tr>
+                        {/* Drill-down: transactions for this category */}
+                        {expandedRow === row.categoryName && <DrillDownRow
+                          row={row}
+                          allTransactions={allTransactions}
+                          selectedYear={selectedYear}
+                          canAct={canAct}
+                          incToBudgetMap={incToBudgetMap}
+                          txToBudgetMap={txToBudgetMap}
+                        />}
+                        </React.Fragment>
                       );
-                    })}
+                      })}
                     {summaryRows.length === 0 && (
                       <tr>
                         <td colSpan={canAct ? 8 : 7} className="px-4 py-10 text-center text-sm text-[#6b7a96]">
