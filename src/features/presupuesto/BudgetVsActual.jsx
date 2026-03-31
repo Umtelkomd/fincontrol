@@ -425,122 +425,78 @@ const BudgetVsActual = ({ user, userRole }) => {
     );
   }, [budgets, selectedYear, selectedProject]);
 
-  // Build actuals from BOTH postedMovements (bankMovements) AND allTransactions (categorized)
-  // Uses CATEGORY_MAPPING to map transaction categories → budget categories
+  // Build actuals: aggregate real amounts per budget category + month
   const actuals = useMemo(() => {
-    const map = new Map(); // key: "categoryName|income|month"
+    const map = new Map(); // key: "budgetCat|income|monthIndex"
 
-    // Budget categories for fallback fuzzy matching
-    const budgetCategories = currentBudget?.lines
-      ? [...new Set(currentBudget.lines.map((l) => l.categoryName))]
-      : [];
+    if (!currentBudget?.lines?.length) return map;
 
-    const normalize = (s) =>
-      (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').trim();
-
-    const STOPWORDS = new Set(['de','del','la','el','los','las','y','a','en','por','para','con','sin','al','lo','una','unos','otras','otros','pasajes','pasaje']);
-    const getWords = (s) => normalize(s).split(/\s+/).filter((w) => w.length > 2 && !STOPWORDS.has(w));
-
-    const scoreMatch = (txCat, budCat) => {
-      const nt = normalize(txCat); const nb = normalize(budCat);
-      if (nt === nb) return 100;
-      if (nt.includes(nb) || nb.includes(nt)) return 80;
-      const wt = new Set(getWords(txCat)); const wb = new Set(getWords(budCat));
-      const shared = [...wt].filter((w) => wb.has(w));
-      return shared.length > 0 ? 60 + shared.length * 10 : 0;
-    };
-
-    // Map transaction category → budget category (3 strategies, best one wins)
-    const matchCategory = (txCat, dir) => {
-      if (!txCat) return null;
-      const dirType = dir === 'in' ? 'income' : 'expense';
-
-      // 1. Direction-aware exact match
-      const lookupMap = dir === 'in' ? incToBudgetMap : txToBudgetMap;
-      const mapped = lookupMap.get(txCat);
-      if (mapped) {
-        const budLine = currentBudget?.lines?.find((l) => l.categoryName === mapped && l.type === dirType);
-        if (budLine) return mapped;
-      }
-
-      // 1b. Try opposite map as fallback (category name may exist in both directions)
-      const mappedFallback = (dir === 'in' ? txToBudgetMap : incToBudgetMap).get(txCat);
-      if (mappedFallback) {
-        const budLine = currentBudget?.lines?.find((l) => l.categoryName === mappedFallback && l.type === dirType);
-        if (budLine) return mappedFallback;
-      }
-
-      // 2. Fuzzy keyword match as fallback (for unmapped categories)
-      if (!budgetCategories.length) return null;
-      let best = { cat: null, score: 0 };
-      for (const bc of budgetCategories) {
-        const budLine = currentBudget.lines.find((l) => l.categoryName === bc);
-        if (!budLine || budLine.type !== dirType) continue;
-        const score = scoreMatch(txCat, bc);
-        if (score > best.score) best = { cat: bc, score };
-      }
-      return best.score >= 40 ? best.cat : null;
-    };
-
-    // Source 1: bankMovements (categorized) + legacyMovements from postedMovements
-    ledger.postedMovements.forEach((m) => {
-      if (Number(m.postedDate?.slice(0, 4)) !== Number(selectedYear)) return;
-      if (selectedProject && m.projectName !== projects.find((p) => p.id === selectedProject)?.name) return;
-
-      const month = Number(m.postedDate?.slice(5, 7)) - 1; // 0-indexed
-      const rawCat = m.categoryName || '';
-      const dir = m.direction === 'in' ? 'income' : 'expense';
-
-      const cat = matchCategory(rawCat, m.direction);
-      if (!cat) return;
-      const key = `${cat}|${dir}|${month}`;
-      const netAmt = Math.abs(m.netAmount ?? m.amount);
-
-      const existing = map.get(key) || { income: 0, expense: 0 };
-      if (dir === 'income') existing.income += netAmt;
-      else existing.expense += netAmt;
-      map.set(key, existing);
-    });
-
-    // Source 2: allTransactions (Firebase transactions collection — always have categoryName)
-    // This covers 2026 entries that may not yet appear as bankMovements
-    const postedLegacyIds = new Set(
-      ledger.postedMovements
-        .filter(m => m.source === 'legacy-transaction')
-        .map(m => m.legacyTransactionId)
-        .filter(Boolean)
+    // Build a quick lookup: budgetCategoryName → type (income|expense)
+    const budLineLookup = new Map(
+      currentBudget.lines.map((l) => [l.categoryName, l.type])
     );
 
-    allTransactions.forEach((t) => {
-      const year = Number(t.date?.slice(0, 4));
-      if (year !== Number(selectedYear)) return;
+    // Resolve a tx category + direction → budget category name (or null)
+    const resolve = (rawCat, isIncome) => {
+      if (!rawCat) return null;
+      const lookupMap = isIncome ? incToBudgetMap : txToBudgetMap;
+      const budCat = lookupMap.get(rawCat);
+      if (!budCat) return null;
+      const expectedType = isIncome ? 'income' : 'expense';
+      return budLineLookup.get(budCat) === expectedType ? budCat : null;
+    };
 
-      // Skip if already counted via legacyMovements above
-      if (postedLegacyIds.has(t.id)) return;
-
-      // Only count settled/paid/completed transactions (not pending/issued)
-      const status = String(t.status || '').toLowerCase();
-      const isSettled = status === 'paid' || status === 'completed' || status === 'settled';
-      if (!isSettled) return;
-
-      const month = Number(t.date?.slice(5, 7)) - 1;
-      const rawCat = t.category || t.categoryName || '';
-      const txDir = t.type === 'income' ? 'in' : 'out';
-      const dir = t.type === 'income' ? 'income' : 'expense';
-
-      const cat = matchCategory(rawCat, txDir);
-      if (!cat) return;
-
-      const key = `${cat}|${dir}|${month}`;
-      const amount = Math.abs(t.amount || 0);
+    const addAmount = (budCat, isIncome, monthIdx, amount) => {
+      const dir = isIncome ? 'income' : 'expense';
+      const key = `${budCat}|${dir}|${monthIdx}`;
       const existing = map.get(key) || { income: 0, expense: 0 };
-      if (dir === 'income') existing.income += amount;
+      if (isIncome) existing.income += amount;
       else existing.expense += amount;
       map.set(key, existing);
+    };
+
+    // ── Source A: allTransactions (Firebase transactions — always categorized) ──
+    // These are the manually entered income/expense records with category field
+    allTransactions.forEach((t) => {
+      if (Number(t.date?.slice(0, 4)) !== Number(selectedYear)) return;
+
+      const status = String(t.status || '').toLowerCase();
+      const settled = ['paid','completed','settled'].includes(status);
+      if (!settled) return;
+
+      const isIncome = t.type === 'income';
+      const rawCat = t.category || t.categoryName || '';
+      const budCat = resolve(rawCat, isIncome);
+      if (!budCat) return;
+
+      const monthIdx = Number(t.date?.slice(5, 7)) - 1;
+      if (monthIdx < 0 || monthIdx > 11) return;
+
+      addAmount(budCat, isIncome, monthIdx, Math.abs(t.amount || 0));
+    });
+
+    // ── Source B: bankMovements that have categoryName set ──
+    // Only adds movements NOT already represented by allTransactions
+    const txIds = new Set(allTransactions.map(t => t.id).filter(Boolean));
+
+    ledger.postedMovements.forEach((m) => {
+      if (Number(m.postedDate?.slice(0, 4)) !== Number(selectedYear)) return;
+      if (!m.categoryName) return; // skip uncategorized bank imports
+      // Skip if this movement is linked to a transaction already counted above
+      if (m.legacyTransactionId && txIds.has(m.legacyTransactionId)) return;
+
+      const isIncome = m.direction === 'in';
+      const budCat = resolve(m.categoryName, isIncome);
+      if (!budCat) return;
+
+      const monthIdx = Number(m.postedDate?.slice(5, 7)) - 1;
+      if (monthIdx < 0 || monthIdx > 11) return;
+
+      addAmount(budCat, isIncome, monthIdx, Math.abs(m.netAmount ?? m.amount));
     });
 
     return map;
-  }, [ledger.postedMovements, selectedYear, selectedProject, projects, currentBudget]);
+  }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget]);
 
   // Summary rows: budget line vs actual
   const summaryRows = useMemo(() => {
