@@ -35,6 +35,7 @@ import { useCategories } from '../../hooks/useCategories';
 import { useFinanceLedger } from '../../hooks/useFinanceLedger';
 import { useAllTransactions } from '../../hooks/useAllTransactions';
 import { useProjects } from '../../hooks/useProjects';
+import { useCostCenters } from '../../hooks/useCostCenters';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
 
@@ -467,11 +468,13 @@ const BudgetVsActual = ({ user, userRole }) => {
   const { budgets, loading: budgetsLoading, createBudget, upsertBudgetLine, deleteBudgetLine, importBudgetLines, getBudgetsForYear } = useBudgets(user);
   const { projects } = useProjects(user);
   const categories = useCategories(user);
+  const { costCenters } = useCostCenters(user);
   const ledger = useFinanceLedger(user);
   const { allTransactions } = useAllTransactions(user);
 
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [selectedProject, setSelectedProject] = useState(null); // null = empresa
+  const [selectedCostCenter, setSelectedCostCenter] = useState(''); // '' = todos
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'detail'
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // null = no modal
@@ -529,6 +532,7 @@ const BudgetVsActual = ({ user, userRole }) => {
     // These are the manually entered income/expense records with category field
     allTransactions.forEach((t) => {
       if (Number(t.date?.slice(0, 4)) !== Number(selectedYear)) return;
+      if (selectedCostCenter && (t.costCenter || '') !== selectedCostCenter) return;
 
       const status = String(t.status || '').toLowerCase();
       const settled = ['paid','completed','settled'].includes(status);
@@ -552,6 +556,7 @@ const BudgetVsActual = ({ user, userRole }) => {
     ledger.postedMovements.forEach((m) => {
       if (Number(m.postedDate?.slice(0, 4)) !== Number(selectedYear)) return;
       if (!m.categoryName) return; // skip uncategorized bank imports
+      if (selectedCostCenter && (m.costCenterId || '') !== selectedCostCenter) return;
       // Skip if this movement is linked to a transaction already counted above
       if (m.legacyTransactionId && txIds.has(m.legacyTransactionId)) return;
 
@@ -566,7 +571,7 @@ const BudgetVsActual = ({ user, userRole }) => {
     });
 
     return map;
-  }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget]);
+  }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter]);
 
   // Summary rows: budget line vs actual
   const summaryRows = useMemo(() => {
@@ -678,6 +683,12 @@ const BudgetVsActual = ({ user, userRole }) => {
             <h2 className="text-[32px] font-semibold tracking-tight text-[#101938]">Planificado vs. Real.</h2>
             <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#5f7091]">
               Compara el presupuesto por categoría y mes contra la ejecución real (neto sin IVA).
+              {selectedCostCenter && (
+                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[rgba(49,86,211,0.1)] px-3 py-0.5 text-[13px] font-semibold text-[#3156d3]">
+                  CC: {selectedCostCenter}
+                  <button onClick={() => setSelectedCostCenter('')} className="ml-1 text-[#6980ac] hover:text-[#3156d3]">×</button>
+                </span>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -700,6 +711,17 @@ const BudgetVsActual = ({ user, userRole }) => {
               <option value="">Empresa</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name || p.displayName || p.code}</option>
+              ))}
+            </select>
+            {/* Cost Center filter */}
+            <select
+              className="rounded-2xl border border-[rgba(201,214,238,0.82)] bg-white/88 px-4 py-3 text-sm text-[#16223f] outline-none focus:border-[rgba(90,141,221,0.56)]"
+              value={selectedCostCenter}
+              onChange={(e) => setSelectedCostCenter(e.target.value)}
+            >
+              <option value="">Todos los CC</option>
+              {costCenters.map((cc) => (
+                <option key={cc.id} value={cc.name}>{cc.id} — {cc.name}</option>
               ))}
             </select>
             {canAct && (
