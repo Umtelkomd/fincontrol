@@ -1,32 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { X, Loader2, DollarSign } from 'lucide-react';
-import { formatCurrency } from '../../utils/formatters';
-
-const safe = (v) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+import { formatCurrency, safe, MONEY_TOLERANCE } from '../../utils/formatters';
 
 const PartialPaymentModalInner = ({ transaction, onClose, onSubmit }) => {
   const [submitting, setSubmitting] = useState(false);
   const paidAmount = transaction.paidAmount || 0;
   const remaining = transaction.amount - paidAmount;
 
-  const [formData, setFormData] = useState({
+  const getDefaultFormData = useCallback(() => ({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     method: 'Transferencia',
     note: ''
-  });
+  }), []);
 
-  // Reset form when transaction changes
-  const [lastTxId, setLastTxId] = useState(null);
-  if (transaction.id !== lastTxId) {
-    setLastTxId(transaction.id);
-    setFormData({
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      method: 'Transferencia',
-      note: ''
-    });
-  }
+  const [formData, setFormData] = useState(getDefaultFormData);
+
+  // Reset form when transaction changes — FIX: was direct setState in render
+  useEffect(() => {
+    setFormData(getDefaultFormData());
+  }, [transaction.id, getDefaultFormData]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -47,7 +40,7 @@ const PartialPaymentModalInner = ({ transaction, onClose, onSubmit }) => {
     e.preventDefault();
     const amount = parseFloat(formData.amount);
     if (!amount || amount <= 0) return;
-    if (amount > remaining + 0.01) {
+    if (amount > remaining + MONEY_TOLERANCE) {
       // Validation: amount exceeds remaining balance
       return;
     }

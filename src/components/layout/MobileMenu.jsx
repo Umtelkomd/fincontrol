@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftRight,
   Briefcase,
+  Building2,
   FolderKanban,
   Landmark,
   LayoutDashboard,
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { path: '/conciliacion', label: 'Conciliación', icon: Scale, permission: 'cxp' },
   { path: '/import-export', label: 'Importar', icon: ArrowLeftRight, permission: 'settings' },
   { path: '/configuracion', label: 'Configuración', icon: Settings, permission: 'settings' },
+  { path: '/partners', label: 'Partners', icon: Building2, permission: 'settings' },
 ];
 
 const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTransaction }) => {

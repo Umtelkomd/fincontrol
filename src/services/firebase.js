@@ -14,4 +14,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const appId = import.meta.env.VITE_FIREBASE_APP_ID || 'default-app-id';
+
+// Tenant key — must match the appId used in Firestore rules
+// Throws early if missing so data doesn't accidentally mix under 'default-app-id'
+const APP_ID = import.meta.env.VITE_FIREBASE_APP_ID;
+if (!APP_ID) {
+  throw new Error('VITE_FIREBASE_APP_ID environment variable is required. Check your .env file.');
+}
+export const appId = APP_ID;

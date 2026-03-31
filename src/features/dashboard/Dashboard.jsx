@@ -30,6 +30,7 @@ import {
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { summarizeVAT } from '../../finance/reporting';
 
 const getGreeting = () => { const h = new Date().getHours(); if (h < 12) return 'Buenos días'; if (h < 18) return 'Buenas tardes'; return 'Buenas noches'; };
 
@@ -102,11 +103,14 @@ const SectionCard = ({ title, eyebrow, action, children }) => (
 const Dashboard = ({ user, setView, onNewTransaction }) => {
   const metrics = useTreasuryMetrics({ user });
 
+  // Compute VAT summary from posted movements
+  const vatSummary = summarizeVAT(metrics.postedMovements || []);
+
   const overdueExposure =
     metrics.overdueReceivables.reduce((sum, entry) => sum + entry.openAmount, 0) +
     metrics.overduePayables.reduce((sum, entry) => sum + entry.openAmount, 0);
   const health = metrics.runwayMonths!=null && metrics.runwayMonths<3 ? {label:'CRÍTICA',color:'#dc2626'} : ((metrics.runwayMonths!=null && metrics.runwayMonths<6)||overdueExposure>10000) ? {label:'ALERTA',color:'#d97706'} : {label:'ESTABLE',color:'#16a34a'};
-  const netMarginPct = metrics.cashInflows>0 ? ((metrics.cashInflows-metrics.avgMonthlyOutflows)/metrics.cashInflows*100).toFixed(1) : '0.0';
+  const netMarginPct = metrics.cashInflows > 0 ? ((metrics.cashInflows - metrics.avgMonthlyOutflows) / metrics.cashInflows * 100).toFixed(1) : '0.0';
 
   const upcomingRows = [...metrics.upcomingReceivables, ...metrics.upcomingPayables]
     .sort((left, right) => (left.dueDate || '').localeCompare(right.dueDate || ''))
@@ -283,6 +287,40 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
             </HelpButton>
           }
         />
+      </div>
+
+      {/* VAT Summary Card — German Umsatzsteuer */}
+      <div className="rounded-[28px] border border-[rgba(205,219,243,0.74)] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(245,248,253,0.82))] p-5 shadow-[0_18px_44px_rgba(124,148,191,0.1)]">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7184a8]">IVA Alemán — Umsatzsteuer (Voranmeldung)</p>
+          </div>
+          <HelpButton title="IVA Alemán (Umsatzsteuer)" size={13}>
+            <p><strong>USt (Umsatzsteuer)</strong> = IVA cobrado en ingresos. Lo debes al Finanzamt.</p>
+            <p className="mt-1"><strong>Vorsteuer</strong> = IVA pagado en gastos. El Finanzamt te lo devuelve.</p>
+            <p className="mt-1"><strong>Neto +</strong> = debes pagar al Finanzamt.</p>
+            <p className="mt-1"><strong>Neto −</strong> = el Finanzamt te devuelve.</p>
+          </HelpButton>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.06)] px-4 py-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d97706]">USt (ingresos)</p>
+            <p className="mt-1 text-[20px] font-semibold text-[#d97706]">{formatCurrency(vatSummary.outputVAT)}</p>
+            <p className="text-[10px] text-[#6b7a96]">IVA cobrado — debe a Finanzamt</p>
+          </div>
+          <div className="rounded-2xl border border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.06)] px-4 py-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3b82f6]">Vorsteuer (gastos)</p>
+            <p className="mt-1 text-[20px] font-semibold text-[#3b82f6]">{formatCurrency(vatSummary.inputVAT)}</p>
+            <p className="text-[10px] text-[#6b7a96]">IVA pagado — reclamable</p>
+          </div>
+          <div className={`rounded-2xl border px-4 py-3 text-center ${vatSummary.netVAT >= 0 ? 'border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.06)]' : 'border-[rgba(16,185,129,0.18)] bg-[rgba(16,185,129,0.06)]'}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#7184a8]">Neto VAT</p>
+            <p className={`mt-1 text-[20px] font-semibold ${vatSummary.netVAT >= 0 ? 'text-[#dc2626]' : 'text-[#16a34a]'}`}>
+              {vatSummary.netVAT >= 0 ? '+' : ''}{formatCurrency(vatSummary.netVAT)}
+            </p>
+            <p className="text-[10px] text-[#6b7a96]">{vatSummary.netVAT >= 0 ? 'Debes al Finanzamt' : 'A favor de la empresa'}</p>
+          </div>
+        </div>
       </div>
 
       <SectionCard eyebrow="Acciones" title="Registrar operacion desde inicio">

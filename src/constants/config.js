@@ -30,8 +30,26 @@ export const ALERT_THRESHOLDS = {
   cxcLimit: 15000
 };
 
+// German VAT (Umsatzsteuer) rates
+// VAT is collected on behalf of Finanzamt — it is NOT company revenue or expense
+export const TAX_RATES = {
+  STANDARD: 0.19,   // 19% regular VAT (Regelsteuersatz) — default for most transactions
+  REDUCED: 0.07,     // 7% reduced VAT (ermäßigter Steuersatz) — food, books, cultural events, etc.
+  ZERO: 0,           // 0% VAT exempt (steuerfrei) — certain financial services, exports outside EU
+};
+
+// Labels for display
+export const TAX_RATE_LABELS = {
+  0.19: '19% Std.',
+  0.07: '7% Red.',
+  0: '0% Ex.',
+};
+
 export const FINANCIAL_CONSTANTS = {
-  INITIAL_BANK_BALANCE: 28450.00,
+  // Initial bank balance is NET of VAT — the opening balance reflects only net amounts
+  // since all bank transactions in Dec 2025 already had VAT separated at source.
+  INITIAL_BANK_BALANCE_NET: 28450.00,
+  INITIAL_BANK_BALANCE: 28450.00, // Alias for backward compat
   IVA_BALANCE_DEC2025: 7332.94,
   ESTIMATED_TAX_RATE: 0.25,
   DAYS_PER_MONTH: 30,

@@ -27,6 +27,7 @@ export const EXPENSE_CATEGORIES = [
 export const INCOME_CATEGORIES = [
   "Consultoria",
   "Financiero",
+  "Ingresos Servicios",
   "Otros",
   "Por Venta",
   "Servicios",

@@ -101,18 +101,46 @@ export const filterRowsByRange = (rows, getDate, range) => {
   });
 };
 
-export const summarizeMovements = (movements) => {
+export const summarizeMovements = (movements, { useNet = false } = {}) => {
+  const getAmount = (entry) =>
+    useNet && entry.netAmount != null ? entry.netAmount : entry.amount;
+
   const inflows = clampMoney(
-    movements.filter((entry) => entry.direction === 'in').reduce((sum, entry) => sum + entry.amount, 0),
+    movements.filter((entry) => entry.direction === 'in').reduce((sum, entry) => sum + getAmount(entry), 0),
   );
   const outflows = clampMoney(
-    movements.filter((entry) => entry.direction === 'out').reduce((sum, entry) => sum + entry.amount, 0),
+    movements.filter((entry) => entry.direction === 'out').reduce((sum, entry) => sum + getAmount(entry), 0),
   );
 
   return {
     inflows,
     outflows,
     net: clampMoney(inflows - outflows),
+  };
+};
+
+/** Summarize VAT amounts from a set of movements or documents.
+ *  For income: outputVAT = sum of taxAmount (Umsatzsteuer owed to Finanzamt)
+ *  For expenses: inputVAT = sum of taxAmount (Vorsteuer reclaimable from Finanzamt)
+ */
+export const summarizeVAT = (rows) => {
+  let outputVAT = 0; // Umsatzsteuer from income
+  let inputVAT = 0;  // Vorsteuer from expenses
+
+  rows.forEach((row) => {
+    const taxAmount = clampMoney(row.taxAmount ?? 0);
+    if (taxAmount <= 0) return;
+    if (row.direction === 'in' || row.kind === 'receivable') {
+      outputVAT = clampMoney(outputVAT + taxAmount);
+    } else if (row.direction === 'out' || row.kind === 'payable') {
+      inputVAT = clampMoney(inputVAT + taxAmount);
+    }
+  });
+
+  return {
+    outputVAT,   // Umsatzsteuer (output VAT) — you collected this
+    inputVAT,    // Vorsteuer (input VAT) — you paid this
+    netVAT: clampMoney(outputVAT - inputVAT), // positive = you owe Finanzamt, negative = they owe you
   };
 };
 

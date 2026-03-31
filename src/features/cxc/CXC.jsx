@@ -1,10 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { TrendingUp, Clock, AlertCircle, DollarSign, CheckCircle2, Circle, ArrowUpCircle, RefreshCw } from 'lucide-react';
-import { formatCurrency, formatDate, getDaysOverdue } from '../../utils/formatters';
+import { formatCurrency, formatDate, getDaysOverdue, safe } from '../../utils/formatters';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import PartialPaymentModal from '../../components/ui/PartialPaymentModal';
-
-const safe = (v) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 const CXC = ({
   transactions,

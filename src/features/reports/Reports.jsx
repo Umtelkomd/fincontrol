@@ -34,6 +34,7 @@ import {
   getMovementCategory,
   resolvePeriodRange,
   summarizeMovements,
+  summarizeVAT,
   toPdfTransaction,
 } from '../../finance/reporting';
 
@@ -153,6 +154,13 @@ const Reports = ({ user }) => {
 
   const currentTotals = summarizeMovements(currentMovements);
   const previousTotals = summarizeMovements(previousMovements);
+  // Net-of-VAT totals for P&L (excludes VAT from revenue and expenses)
+  const currentTotalsNet = summarizeMovements(currentMovements, { useNet: true });
+  const previousTotalsNet = summarizeMovements(previousMovements, { useNet: true });
+
+  // VAT summary for the period
+  const currentVAT = summarizeVAT(currentMovements);
+  const previousVAT = summarizeVAT(previousMovements);
 
   const yearFilteredReceivables = useMemo(() => {
     if (selectedYear === 'all') return ledger.receivables;
@@ -553,6 +561,61 @@ const Reports = ({ user }) => {
           </div>
         </section>
       </div>
+
+      {/* VAT Summary Section */}
+      <section className="rounded-[28px] border border-[rgba(205,219,243,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,249,255,0.9))] p-5 shadow-[0_24px_72px_rgba(126,147,190,0.12)]">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6980ac]">IVA Alemán (Umsatzsteuer)</p>
+            <h3 className="mt-1 text-[18px] font-semibold tracking-tight text-[#101938]">Resumen VAT del período</h3>
+          </div>
+          <div className="flex gap-3">
+            <div className="rounded-2xl border border-[rgba(255,159,10,0.18)] bg-[rgba(255,159,10,0.06)] px-3 py-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d97706]">USt (输出)</p>
+              <p className="text-sm font-bold text-[#d97706]">{formatCurrency(currentVAT.outputVAT)}</p>
+            </div>
+            <div className="rounded-2xl border border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.06)] px-3 py-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3b82f6]">Vorsteuer (输入)</p>
+              <p className="text-sm font-bold text-[#3b82f6]">{formatCurrency(currentVAT.inputVAT)}</p>
+            </div>
+            <div className={`rounded-2xl border px-3 py-2 text-center ${currentVAT.netVAT >= 0 ? 'border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.06)]' : 'border-[rgba(16,185,129,0.18)] bg-[rgba(16,185,129,0.06)]'}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#7184a8]">Neto VAT</p>
+              <p className={`text-sm font-bold ${currentVAT.netVAT >= 0 ? 'text-[#dc2626]' : 'text-[#16a34a]'}`}>
+                {currentVAT.netVAT >= 0 ? '+' : ''}{formatCurrency(currentVAT.netVAT)}
+              </p>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-[#6b7a96]">
+          <span className="font-semibold text-[#d97706]">USt (Umsatzsteuer)</span> = IVA cobrado en ingresos (acreedor).{' '}
+          <span className="font-semibold text-[#3b82f6]">Vorsteuer</span> = IVA pagado en gastos (reclamable).{' '}
+          <span className="font-semibold">Neto +</span> = debe pagar a Finanzamt. <span className="font-semibold">Neto −</span> = saldo a favor.
+        </p>
+        {compareMode && (previousVAT.outputVAT > 0 || previousVAT.inputVAT > 0) && (
+          <div className="mt-3 flex gap-4 text-xs text-[#6b7a96]">
+            <span>vs. período anterior: USt {formatCurrency(previousVAT.outputVAT)}, Vorsteuer {formatCurrency(previousVAT.inputVAT)}, Neto {formatCurrency(previousVAT.netVAT)}</span>
+          </div>
+        )}
+        <div className="mt-4">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#6980ac]">Resultado neto (excluye IVA)</p>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-[rgba(48,209,88,0.14)] bg-[rgba(48,209,88,0.06)] px-4 py-3">
+              <p className="text-[10px] text-[#6b7a96]">Ingresos netos</p>
+              <p className="text-base font-bold text-[#30d158]">{formatCurrency(currentTotalsNet.inflows)}</p>
+            </div>
+            <div className="rounded-2xl border border-[rgba(255,69,58,0.14)] bg-[rgba(255,69,58,0.06)] px-4 py-3">
+              <p className="text-[10px] text-[#6b7a96]">Gastos netos</p>
+              <p className="text-base font-bold text-[#ff453a]">{formatCurrency(currentTotalsNet.outflows)}</p>
+            </div>
+            <div className={`rounded-2xl border px-4 py-3 ${currentTotalsNet.net >= 0 ? 'border-[rgba(48,209,88,0.14)] bg-[rgba(48,209,88,0.06)]' : 'border-[rgba(255,69,58,0.14)] bg-[rgba(255,69,58,0.06)]'}`}>
+              <p className="text-[10px] text-[#6b7a96]">Resultado neto</p>
+              <p className={`text-base font-bold ${currentTotalsNet.net >= 0 ? 'text-[#30d158]' : 'text-[#ff453a]'}`}>
+                {currentTotalsNet.net >= 0 ? '+' : ''}{formatCurrency(currentTotalsNet.net)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

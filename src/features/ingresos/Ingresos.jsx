@@ -36,7 +36,7 @@ const StatCard = ({ title, value, subtitle, accent, icon, onClick }) => {
 
   return (
     <div
-      className={`rounded-[26px] border border-[rgba(255,255,255,0.08)] bg-[rgba(10,11,15,0.92)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${onClick ? 'cursor-pointer hover:scale-[1.02] hover:shadow-[0_28px_90px_rgba(0,0,0,0.44)] transition-transform duration-200' : ''}`}
+      className={`rounded-[26px] border border-[rgba(205,219,243,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,248,255,0.94))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${onClick ? 'cursor-pointer hover:scale-[1.02] hover:shadow-[0_28px_90px_rgba(0,0,0,0.44)] transition-transform duration-200' : ''}`}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -44,14 +44,14 @@ const StatCard = ({ title, value, subtitle, accent, icon, onClick }) => {
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6e73]">{title}</p>
-          <p className="mt-2 text-[28px] font-semibold tracking-tight text-white">{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6b7a96]">{title}</p>
+          <p className="mt-2 text-[28px] font-semibold tracking-tight text-[#101938]">{value}</p>
         </div>
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl" style={{ backgroundColor: `${accent}1f`, color: accent }}>
           <IconComponent size={18} />
         </div>
       </div>
-      <p className="text-sm text-[#8e8e93]">{subtitle}</p>
+      <p className="text-sm text-[#6b7a96]">{subtitle}</p>
     </div>
   );
 };
@@ -150,7 +150,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
       <div className="flex items-center justify-center py-28">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#30d158] border-t-transparent" />
-          <p className="text-sm text-[#8e8e93]">Consolidando ingresos operativos...</p>
+          <p className="text-sm text-[#6b7a96]">Consolidando ingresos operativos...</p>
         </div>
       </div>
     );
@@ -158,11 +158,11 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
 
   return (
     <div className="space-y-6 pb-12">
-      <section className="rounded-[34px] border border-[rgba(255,255,255,0.08)] bg-[radial-gradient(circle_at_top_left,rgba(48,209,88,0.18),transparent_28%),linear-gradient(160deg,#0d1310_0%,#090b10_100%)] px-6 py-7 shadow-[0_40px_120px_rgba(0,0,0,0.42)]">
+      <section className="rounded-[34px] border border-[rgba(205,219,243,0.82)] bg-[radial-gradient(circle_at_top_left,rgba(48,209,88,0.18),transparent_28%),linear-gradient(160deg,#0d1310_0%,#090b10_100%)] px-6 py-7 shadow-[0_40px_120px_rgba(0,0,0,0.42)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#80f0a4]">Ingresos</p>
-            <h2 className="text-[32px] font-semibold tracking-tight text-white">Cobros reales y cartera pendiente en una sola vista.</h2>
+            <h2 className="text-[32px] font-semibold tracking-tight text-[#101938]">Cobros reales y cartera pendiente en una sola vista.</h2>
             <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[#a7a7ad]">
               La caja entra solo con movimientos bancarios `posted`. Las facturas abiertas permanecen como cartera hasta registrar un cobro real.
             </p>
@@ -171,7 +171,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
             <button
               type="button"
               onClick={() => onNewTransaction('income')}
-              className="inline-flex items-center gap-2 rounded-2xl bg-[#30d158] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#28c74e]"
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#30d158] px-4 py-3 text-sm font-semibold text-[#101938] transition-colors hover:bg-[#28c74e]"
             >
               <Plus size={16} />
               Nueva factura CXC
@@ -187,12 +187,12 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
         <StatCard title="Vencido" value={formatCurrency(totalOverdue)} subtitle={`${metrics.overdueReceivables.length} documentos fuera de plazo`} accent="#ff453a" icon={AlertTriangle} onClick={() => setStatusFilter('overdue')} />
       </div>
 
-      <section className="rounded-[28px] border border-[rgba(255,255,255,0.08)] bg-[rgba(10,11,15,0.92)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)]">
+      <section className="rounded-[28px] border border-[rgba(205,219,243,0.82)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,248,255,0.94))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)]">
         <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative w-full xl:max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6e6e73]" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7a96]" size={16} />
             <input
-              className="w-full rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[#101115] py-3 pl-10 pr-4 text-sm text-white outline-none transition-all focus:border-[rgba(48,209,88,0.35)]"
+              className="w-full rounded-2xl border border-[rgba(205,219,243,0.82)] bg-[#101115] py-3 pl-10 pr-4 text-sm text-[#101938] outline-none transition-all focus:border-[rgba(48,209,88,0.35)]"
               placeholder="Buscar cliente, documento o proyecto"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -207,7 +207,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
                 className={`rounded-full border px-3 py-2 text-sm font-medium transition-all ${
                   statusFilter === option.id
                     ? 'border-[rgba(48,209,88,0.28)] bg-[rgba(48,209,88,0.12)] text-[#30d158]'
-                    : 'border-[rgba(255,255,255,0.08)] text-[#8e8e93] hover:bg-[rgba(255,255,255,0.04)] hover:text-white'
+                    : 'border-[rgba(255,255,255,0.08)] text-[#6b7a96] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#101938]'
                 }`}
               >
                 {option.label}
@@ -219,7 +219,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left">
             <thead>
-              <tr className="border-b border-[rgba(255,255,255,0.06)] text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6e73]">
+              <tr className="border-b border-[rgba(255,255,255,0.06)] text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6b7a96]">
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Documento</th>
                 <th className="px-4 py-3">Proyecto</th>
@@ -237,14 +237,14 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
                 return (
                   <tr key={row.id} className="cursor-pointer hover:bg-[rgba(255,255,255,0.03)]" onClick={() => setDetailRecord(row)}>
                     <td className="px-4 py-4">
-                      <p className="text-sm font-semibold text-white">{row.counterpartyName}</p>
-                      <p className="text-xs text-[#8e8e93]">{row.description || 'Sin descripción'}</p>
+                      <p className="text-sm font-semibold text-[#101938]">{row.counterpartyName}</p>
+                      <p className="text-xs text-[#6b7a96]">{row.description || 'Sin descripción'}</p>
                     </td>
-                    <td className="px-4 py-4 text-sm text-[#d6d6db]">{row.documentNumber || 'Sin documento'}</td>
-                    <td className="px-4 py-4 text-sm text-[#8e8e93]">{row.projectName || 'Sin proyecto'}</td>
-                    <td className="px-4 py-4 text-right text-sm font-semibold text-white">{formatCurrency(row.grossAmount)}</td>
+                    <td className="px-4 py-4 text-sm text-[#16223f]">{row.documentNumber || 'Sin documento'}</td>
+                    <td className="px-4 py-4 text-sm text-[#6b7a96]">{row.projectName || 'Sin proyecto'}</td>
+                    <td className="px-4 py-4 text-right text-sm font-semibold text-[#101938]">{formatCurrency(row.grossAmount)}</td>
                     <td className="px-4 py-4 text-right text-sm font-semibold text-[#64d2ff]">{formatCurrency(row.openAmount)}</td>
-                    <td className="px-4 py-4 text-center text-sm text-[#8e8e93]">{row.dueDate ? formatDate(row.dueDate) : 'Sin fecha'}</td>
+                    <td className="px-4 py-4 text-center text-sm text-[#6b7a96]">{row.dueDate ? formatDate(row.dueDate) : 'Sin fecha'}</td>
                     <td className="px-4 py-4 text-center">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
                         row.status === 'settled'
@@ -258,7 +258,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
                         {statusLabels[row.status]}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-center text-xs text-[#8e8e93]">{row.source}</td>
+                    <td className="px-4 py-4 text-center text-xs text-[#6b7a96]">{row.source}</td>
                     {canAct && (
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-2">
@@ -267,7 +267,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
                               <button
                                 type="button"
                                 onClick={() => setSelectedRow(row)}
-                                className="rounded-xl border border-[rgba(255,255,255,0.08)] px-3 py-2 text-xs font-semibold text-[#64d2ff] transition-colors hover:bg-[rgba(100,210,255,0.12)]"
+                                className="rounded-xl border border-[rgba(205,219,243,0.82)] px-3 py-2 text-xs font-semibold text-[#64d2ff] transition-colors hover:bg-[rgba(100,210,255,0.12)]"
                               >
                                 Abono
                               </button>
@@ -275,7 +275,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
                                 type="button"
                                 onClick={() => handleSettle(row)}
                                 disabled={loadingId === row.id}
-                                className="rounded-xl bg-[#30d158] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#28c74e] disabled:opacity-50"
+                                className="rounded-xl bg-[#30d158] px-3 py-2 text-xs font-semibold text-[#101938] transition-colors hover:bg-[#28c74e] disabled:opacity-50"
                               >
                                 {loadingId === row.id ? 'Procesando...' : 'Liquidar'}
                               </button>
@@ -289,7 +289,7 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={canAct ? 9 : 8} className="px-4 py-8 text-center text-sm text-[#6e6e73]">
+                  <td colSpan={canAct ? 9 : 8} className="px-4 py-8 text-center text-sm text-[#6b7a96]">
                     No hay ingresos que coincidan con los filtros.
                   </td>
                 </tr>

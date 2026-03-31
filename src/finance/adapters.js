@@ -36,6 +36,10 @@ const normalizeDocument = (raw, kind, source) => {
   const paidAmount = getPaidAmount(raw);
   const stage = deriveDocumentStage(raw.status, openAmount);
   const status = deriveDocumentStatus(stage, raw.dueDate || raw.date);
+  // VAT fields — backward compat: if taxRate missing, assume 19%
+  const taxRate = raw.taxRate ?? 0.19;
+  const netAmount = raw.netAmount ?? (taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount);
+  const taxAmount = raw.taxAmount ?? (grossAmount - netAmount);
 
   return {
     id: raw.id,
@@ -69,6 +73,10 @@ const normalizeDocument = (raw, kind, source) => {
     createdAt: raw.createdAt || null,
     updatedAt: raw.updatedAt || null,
     updatedBy: raw.updatedBy || raw.lastModifiedBy || '',
+    // VAT fields — German Umsatzsteuer
+    taxRate,
+    netAmount,
+    taxAmount,
     raw,
   };
 };
@@ -77,35 +85,48 @@ export const adaptReceivableDoc = (raw, source = 'receivable') => normalizeDocum
 
 export const adaptPayableDoc = (raw, source = 'payable') => normalizeDocument(raw, 'payable', source);
 
-export const adaptBankMovementDoc = (raw, source = 'bankMovement') => ({
-  id: raw.id,
-  source,
-  kind: raw.kind || MOVEMENT_KIND.ADJUSTMENT,
-  status: raw.status || MOVEMENT_STATUS.POSTED,
-  accountId: getAccountId(raw.accountId),
-  currency: getCurrency(raw.currency),
-  direction: raw.direction === 'out' ? 'out' : 'in',
-  amount: clampMoney(raw.amount),
-  postedDate: toISODate(raw.postedDate || raw.valueDate || raw.date) || toISODate(new Date()),
-  valueDate: toISODate(raw.valueDate || raw.postedDate || raw.date) || toISODate(new Date()),
-  description: raw.description || '',
-  counterpartyName: raw.counterpartyName || raw.client || raw.vendor || '',
-  documentNumber: raw.documentNumber || raw.invoiceNumber || '',
-  projectId: raw.projectId || '',
-  projectName: raw.projectName || raw.project || 'Sin proyecto',
-  costCenterId: raw.costCenterId || raw.costCenter || '',
-  receivableId: raw.receivableId || null,
-  payableId: raw.payableId || null,
-  linkedTransactionId: raw.linkedTransactionId || null,
-  legacyTransactionId: raw.legacyTransactionId || null,
-  reconciledAt: raw.reconciledAt || null,
-  reconciliationId: raw.reconciliationId || null,
-  createdBy: raw.createdBy || '',
-  createdAt: raw.createdAt || null,
-  updatedAt: raw.updatedAt || null,
-  updatedBy: raw.updatedBy || '',
-  raw,
-});
+export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
+  // VAT fields — backward compat: if taxRate missing, assume 19%
+  const taxRate = raw.taxRate ?? 0.19;
+  const grossAmount = clampMoney(raw.amount);
+  const netAmount = raw.netAmount ?? (taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount);
+  const taxAmount = raw.taxAmount ?? (grossAmount - netAmount);
+
+  return {
+    id: raw.id,
+    source,
+    kind: raw.kind || MOVEMENT_KIND.ADJUSTMENT,
+    status: raw.status || MOVEMENT_STATUS.POSTED,
+    accountId: getAccountId(raw.accountId),
+    currency: getCurrency(raw.currency),
+    direction: raw.direction === 'out' ? 'out' : 'in',
+    amount: grossAmount,
+    postedDate: toISODate(raw.postedDate || raw.valueDate || raw.date) || toISODate(new Date()),
+    valueDate: toISODate(raw.valueDate || raw.postedDate || raw.date) || toISODate(new Date()),
+    description: raw.description || '',
+    counterpartyName: raw.counterpartyName || raw.client || raw.vendor || '',
+    documentNumber: raw.documentNumber || raw.invoiceNumber || '',
+    projectId: raw.projectId || '',
+    projectName: raw.projectName || raw.project || 'Sin proyecto',
+    costCenterId: raw.costCenterId || raw.costCenter || '',
+    receivableId: raw.receivableId || null,
+    payableId: raw.payableId || null,
+    linkedTransactionId: raw.linkedTransactionId || null,
+    legacyTransactionId: raw.legacyTransactionId || null,
+    reconciledAt: raw.reconciledAt || null,
+    reconciliationId: raw.reconciliationId || null,
+    createdBy: raw.createdBy || '',
+    createdAt: raw.createdAt || null,
+    updatedAt: raw.updatedAt || null,
+    updatedBy: raw.updatedBy || '',
+    // VAT fields — German Umsatzsteuer
+    taxRate,
+    netAmount,
+    taxAmount,
+    categoryName: raw.categoryName || raw.category || '',
+    raw,
+  };
+};
 
 export const adaptLegacyTransactionToMovement = (transaction) => {
   const settledAmount = (() => {
@@ -117,6 +138,12 @@ export const adaptLegacyTransactionToMovement = (transaction) => {
 
   if (settledAmount <= 0) return null;
 
+  // For VAT tracking: backward compat assumes 19% if taxRate not stored
+  const grossAmount = settledAmount;
+  const taxRate = transaction.taxRate ?? 0.19;
+  const netAmount = taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount;
+  const taxAmount = grossAmount - netAmount;
+
   return adaptBankMovementDoc(
     {
       id: `legacy-movement-${transaction.id}`,
@@ -125,7 +152,7 @@ export const adaptLegacyTransactionToMovement = (transaction) => {
       accountId: MAIN_ACCOUNT_ID,
       currency: DEFAULT_CURRENCY,
       direction: transaction.type === 'income' ? 'in' : 'out',
-      amount: settledAmount,
+      amount: grossAmount,
       postedDate: transaction.paidDate || transaction.date,
       valueDate: transaction.paidDate || transaction.date,
       description: transaction.description || '',
@@ -138,6 +165,12 @@ export const adaptLegacyTransactionToMovement = (transaction) => {
       createdBy: transaction.createdBy || 'legacy',
       createdAt: transaction.createdAt || transaction.date,
       updatedAt: transaction.lastModifiedAt || transaction.createdAt || transaction.date,
+      // VAT fields — German Umsatzsteuer (Vorsteuer for expenses, Umsatzsteuer for income)
+      taxRate,
+      netAmount,
+      taxAmount,
+      categoryName: transaction.category || transaction.categoryName || '',
+      category: transaction.category || '',
     },
     'legacy-transaction',
   );

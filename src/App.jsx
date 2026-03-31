@@ -36,6 +36,7 @@ const RolesManager = lazy(() => import('./features/roles/RolesManager'));
 const WhatIf = lazy(() => import('./features/whatif/WhatIf'));
 const BackupManager = lazy(() => import('./features/backup/BackupManager'));
 const UserProfile = lazy(() => import('./features/perfil/UserProfile'));
+const Partners = lazy(() => import('./features/partners/Partners'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
 
 const VIEW_TITLES = {
@@ -64,6 +65,7 @@ const VIEW_TITLES = {
   '/backup': 'Backup',
   '/perfil': 'Perfil',
   '/whatif': 'Simulación',
+  '/partners': 'Partners',
 };
 
 const SkeletonCard = () => (
@@ -269,6 +271,7 @@ function AppContent() {
                   <Route path="/roles" element={<RolesManager user={user} userRole={userRole} />} />
                   <Route path="/backup" element={<BackupManager user={user} userRole={userRole} />} />
                   <Route path="/perfil" element={<UserProfile user={user} userRole={userRole} />} />
+                  <Route path="/partners" element={<Partners user={user} userRole={userRole} />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

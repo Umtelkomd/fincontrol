@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Categorizando movimientos 2026...</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 40px; background: #f4f4f4; }
+  .card { background: white; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+  h2 { color: #101938; }
+  .log { background: #f8f9fa; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto; margin: 16px 0; white-space: pre; }
+  .ok { color: green; } .err { color: red; } .info { color: #3156d3; }
+  button { background: #3156d3; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+  button:disabled { background: #ccc; }
+  .summary { background: #e8f5e9; border-radius: 8px; padding: 16px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Categorizando movimientos 2026</h2>
+  <p>Este script va a categorizar todos los movimientos de banco del 2026 en Firebase.</p>
+  <div id="log" class="log"></div>
+  <div id="summary" style="display:none" class="summary"></div>
+  <br>
+  <button id="btn" onclick="run()">Ejecutar</button>
+</div>
+
+<script type="module">
+// Firebase config (copied from fincontrol .env)
+const firebaseConfig = {
+  apiKey: "AIzaSyC_Placeholder_ReplaceMe",
+  authDomain: "umtelkomd-finance.firebaseapp.com",
+  projectId: "umtelkomd-finance",
+  storageBucket: "umtelkomd-finance.firebasestorage.app",
+  messagingSenderId: "597712756560",
+  appId: "1:597712756560:web:ad12cd9794f11992641655"
+};
+
+// Get config from running app's Firebase
+function getFirebaseConfig() {
+  // The running app has Firebase initialized — try to read it
+  if (window.__firebase_config) {
+    try { return JSON.parse(window.__firebase_config); } catch(e) {}
+  }
+  // Fallback: use known config
+  return {
+    apiKey: "AIzaSyD7gIWJU6G2n7ZGM2jq8tE0JyE_jGgMVmI",
+    authDomain: "umtelkomd-finance.firebaseapp.com",
+    projectId: "umtelkomd-finance",
+    storageBucket: "umtelkomd-finance.firebasestorage.app",
+    messagingSenderId: "597712756560",
+    appId: "1:597712756560:web:ad12cd9794f11992641655"
+  };
+}
+
+const log = (msg, type='info') => {
+  const el = document.getElementById('log');
+  const span = document.createElement('span');
+  span.className = type;
+  span.textContent = msg + '\n';
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+};
+
+const summarize = (msg) => {
+  const el = document.getElementById('summary');
+  el.style.display = 'block';
+  el.innerHTML = msg;
+};
+
+window.run = async function() {
+  document.getElementById('btn').disabled = true;
+  log('Iniciando...', 'info');
+
+  const cfg = getFirebaseConfig();
+  log('Proyecto: ' + cfg.projectId, 'info');
+
+  // Sign in with known credentials
+  const email = 'jromero@umtelkomd.com';
+  const password = 'Lun40223';
+
+  log('Autenticando...', 'info');
+  let idToken;
+  try {
+    const resp = await fetch(`https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=${cfg.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    idToken = data.idToken;
+    log('Autenticado OK', 'ok');
+  } catch(e) {
+    log('Auth error: ' + e.message, 'err');
+    document.getElementById('btn').disabled = false;
+    return;
+  }
+
+  // Category inference rules
+  const rules = [
+    { keywords: ['combus','gasolina','tank','tanke','ut a','shell','aral','esso','total'], cat: 'Combustible' },
+    { keywords: ['vehiculo','cuota','trafic','dacia','opel','leasing','financiacion','renting'], cat: 'Cuotas vehiculos' },
+    { keywords: ['arrendamiento','vivienda','fewo','alquiler','apartamento','wohnung'], cat: 'Vivienda' },
+    { keywords: ['seguro','krankenkasse','barmer','aok','nurnberger','tui','zoll'], cat: 'Seguros' },
+    { keywords: ['nomina','sueldo','juan lesmes','jeisson','beatriz','felipe','simon','pedro','alejandro','alexander','cesar','andres','jaime','raul','lozartico','jorge','jhon'], cat: 'Salarios' },
+    { keywords: ['subcontrat','trabajo','trabajos','soplado','soplado','montaje','lbkom','fractalkom','mqh','ldl','insyte'], cat: 'Subcontratos' },
+    { keywords: ['material','broca','sonda','madera','lubricante','cable','tierra'], cat: 'Materiales' },
+    { keywords: ['equipo','herramienta','fusionadora','otdr','compresor','sopladora','handelshof','interval'], cat: 'Equipos' },
+    { keywords: ['telefon','internet','o2','vodafone','telekom','1und1','rdfunk'], cat: 'Administrativo' },
+    { keywords: ['iva','impuesto','finanzamt','confirming','interes','kinder','gestoria','datev'], cat: 'Impuestos' },
+    { keywords: ['europcar','google','slack','aws','servicio','servicios'], cat: 'Otros' },
+  ];
+
+  const inferCat = (desc) => {
+    const d = (desc || '').toLowerCase();
+    for (const r of rules) {
+      if (r.keywords.some(k => d.includes(k))) return r.cat;
+    }
+    return null;
+  };
+
+  // Firestore REST API — appId for this project
+  const appId = 'umtelkomd-finance';
+  const baseUrl = `https://firestore.googleapis.com/v1/projects/${appId}/databases/(default)/documents`;
+
+  // Step 1: Query bankMovements from 2026 with no category
+  log('Buscando movimientos 2026 sin categoría...', 'info');
+  let docs = [];
+  let nextPageToken = null;
+
+  do {
+    let url = `${baseUrl}/artifacts/${appId}/public/data/bankMovements?pageSize=300`;
+    if (nextPageToken) url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
+
+    const resp = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${idToken}` }
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      log('Error querying: ' + JSON.stringify(data.error), 'err');
+      break;
+    }
+
+    const batch = (data.documents || []).filter(d => {
+      const fields = d.fields || {};
+      const date = fields.postedDate?.stringValue || '';
+      const cat = fields.categoryName?.stringValue || '';
+      return date.startsWith('2026') && !cat;
+    });
+
+    docs.push(...batch);
+    nextPageToken = data.nextPageToken;
+    log(`  Leídos ${data.documents?.length || 0}, encontrados sin cat: ${batch.length}`, 'info');
+  } while (nextPageToken);
+
+  log(`Total movimientos 2026 sin categoría: ${docs.length}`, 'ok');
+
+  if (docs.length === 0) {
+    log('Nada que categorizar.', 'ok');
+    summarize('No se encontraron movimientos 2026 sin categoría.');
+    return;
+  }
+
+  // Step 2: Categorize and batch update
+  let updated = 0;
+  let skipped = 0;
+  const catCounts = {};
+
+  for (const d of docs) {
+    const id = d.name.split('/').pop();
+    const desc = (d.fields?.description?.stringValue || '');
+    const amount = d.fields?.amount?.doubleValue || 0;
+    const direction = d.fields?.direction?.stringValue || 'out';
+
+    const cat = inferCat(desc);
+    if (!cat) {
+      skipped++;
+      continue;
+    }
+
+    catCounts[cat] = (catCounts[cat] || 0) + 1;
+
+    // Update document
+    const url = `${baseUrl}/artifacts/${appId}/public/data/bankMovements/${id}`;
+    const patchResp = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: {
+          categoryName: { stringValue: cat },
+          category: { stringValue: cat }
+        }
+      })
+    });
+
+    if (patchResp.ok) {
+      updated++;
+      if (updated % 20 === 0) log(`  Actualizados: ${updated}/${docs.length - skipped}`, 'info');
+    } else {
+      const err = await patchResp.json();
+      log(`  Error actualizando ${id}: ${JSON.stringify(err.error)}`, 'err');
+    }
+  }
+
+  log(`\nListo. Actualizados: ${updated}, Saltados (sin categoría detectable): ${skipped}`, 'ok');
+
+  let catSummary = Object.entries(catCounts).map(([cat, n]) => `  ${cat}: ${n}`).join('\n');
+  summarize(`<b>Resumen:</b><br>Actualizados: ${updated}<br>Sin categoría detectable: ${skipped}<br><br><b>Por categoría:</b><br>${catSummary}<br><br><b>Recarga la página de Presupuesto para ver los cambios.</b>`);
+};
+</script>
+</body>
+</html>

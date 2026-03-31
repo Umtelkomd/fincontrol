@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Briefcase,
+  Building2,
   FolderKanban,
   Globe,
   Landmark,
@@ -28,10 +29,12 @@ const NAV_ITEMS = [
   { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },
   { path: '/reportes', label: 'Reportes', icon: BarChart3, permission: 'reports' },
   { path: '/proyectos', label: 'Proyectos', icon: FolderKanban, permission: 'reports' },
+  { path: '/presupuesto', label: 'Presupuesto', icon: Briefcase, permission: 'reports' },
   { path: '/whatif', label: 'Simulador', icon: SlidersHorizontal, permission: 'reports' },
   { path: '/conciliacion', label: 'Conciliación', icon: Scale, permission: 'cxp' },
   { path: '/import-export', label: 'Importar', icon: ArrowLeftRight, permission: 'settings' },
   { path: '/configuracion', label: 'Configuración', icon: Settings, permission: 'settings' },
+  { path: '/partners', label: 'Partners', icon: Building2, permission: 'settings' },
 ];
 
 const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceData, bankAccount }) => {

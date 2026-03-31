@@ -2,6 +2,8 @@ import { logError } from '../utils/logger';
 import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { computeNetFromGross, computeTaxFromGross } from '../utils/formatters';
+import { TAX_RATES } from '../constants/config';
 
 const buildLegacySnapshot = (transaction, override = {}) => ({
   date: override.date ?? transaction?.date ?? null,
@@ -15,6 +17,10 @@ const buildLegacySnapshot = (transaction, override = {}) => ({
   paidAmount: override.paidAmount ?? parseFloat(transaction?.paidAmount || 0),
   lastModifiedBy: override.lastModifiedBy ?? transaction?.lastModifiedBy ?? '',
   lastModifiedAt: override.lastModifiedAt ?? transaction?.lastModifiedAt ?? null,
+  // VAT fields — backward compat: if missing, assume STANDARD 19%
+  taxRate: override.taxRate ?? transaction?.taxRate ?? TAX_RATES.STANDARD,
+  netAmount: override.netAmount ?? transaction?.netAmount ?? null,
+  taxAmount: override.taxAmount ?? transaction?.taxAmount ?? null,
 });
 
 export const useTransactionActions = (user) => {
@@ -43,10 +49,17 @@ export const useTransactionActions = (user) => {
         });
       }
 
+      // Compute VAT fields from gross amount
+      // Backward compat: taxRate defaults to 19% (STANDARD) if not provided
+      const grossAmount = parseFloat(formData.amount);
+      const taxRate = formData.taxRate ?? TAX_RATES.STANDARD;
+      const netAmount = taxRate > 0 ? computeNetFromGross(grossAmount, taxRate) : grossAmount;
+      const taxAmount = computeTaxFromGross(grossAmount, taxRate);
+
       const transactionData = {
         date: formData.date,
         description: formData.description,
-        amount: parseFloat(formData.amount),
+        amount: grossAmount,
         type: formData.type,
         category: formData.category,
         project: formData.project,
@@ -59,7 +72,11 @@ export const useTransactionActions = (user) => {
         hasUnreadUpdates: formData.comment ? true : false,
         lastModifiedBy: user.email,
         lastModifiedAt: serverTimestamp(),
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        // VAT fields — German Umsatzsteuer
+        taxRate,
+        netAmount,
+        taxAmount,
       };
 
       const docRef = await addDoc(transactionsRef, transactionData);
@@ -106,10 +123,16 @@ export const useTransactionActions = (user) => {
         });
       }
 
+      // Compute VAT fields from gross amount — backward compat uses existing taxRate or 19%
+      const grossAmount = parseFloat(formData.amount);
+      const taxRate = formData.taxRate ?? existingTransaction?.taxRate ?? TAX_RATES.STANDARD;
+      const netAmount = taxRate > 0 ? computeNetFromGross(grossAmount, taxRate) : grossAmount;
+      const taxAmount = computeTaxFromGross(grossAmount, taxRate);
+
       const payload = {
         date: formData.date,
         description: formData.description,
-        amount: parseFloat(formData.amount),
+        amount: grossAmount,
         type: formData.type,
         category: formData.category,
         project: formData.project,
@@ -121,7 +144,11 @@ export const useTransactionActions = (user) => {
         recurringEndDate: formData.isRecurring && formData.recurringEndDate ? formData.recurringEndDate : null,
         hasUnreadUpdates: true,
         lastModifiedBy: user.email,
-        lastModifiedAt: serverTimestamp()
+        lastModifiedAt: serverTimestamp(),
+        // VAT fields — German Umsatzsteuer
+        taxRate,
+        netAmount,
+        taxAmount,
       };
 
       await updateDoc(transactionDoc, payload);

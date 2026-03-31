@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, ArrowUpCircle, ArrowDownCircle, Save, Loader2, RefreshCw } from 'lucide-react';
+import { X, ArrowUpCircle, ArrowDownCircle, Save, Loader2, RefreshCw, Calculator, UserPlus, Building2 } from 'lucide-react';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../../constants/categories';
 import { useProjects } from '../../hooks/useProjects';
+import { usePartners } from '../../hooks/usePartners';
+import { TAX_RATES } from '../../constants/config';
+import { formatCurrency, formatTaxRate } from '../../utils/formatters';
 
 const TransactionFormModal = ({
   isOpen,
@@ -16,6 +19,7 @@ const TransactionFormModal = ({
   defaultType = null
 }) => {
   const { projects, loading: projectsLoading } = useProjects(user);
+  const { partners, loading: partnersLoading } = usePartners(user);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,14 +36,25 @@ const TransactionFormModal = ({
     notes: [],
     isRecurring: false,
     recurringFrequency: 'monthly',
-    recurringEndDate: ''
+    recurringEndDate: '',
+    taxRate: TAX_RATES.STANDARD, // Default 19% German VAT
+    counterpartyId: '',
+    counterpartyName: '',
   });
 
-  // Autocomplete state
+  // Description autocomplete state (legacy — kept for backward compat)
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const descriptionRef = useRef(null);
   const suggestionsRef = useRef(null);
+
+  // Partner autocomplete state
+  const [showPartnerSuggestions, setShowPartnerSuggestions] = useState(false);
+  const [activePartnerIndex, setActivePartnerIndex] = useState(-1);
+  const [partnerInput, setPartnerInput] = useState('');
+  const partnerInputRef = useRef(null);
+  const partnerSuggestionsRef = useRef(null);
+  const [showCreateNewPartner, setShowCreateNewPartner] = useState(false);
 
   // Filtrar solo proyectos activos para el selector
   const activeProjects = useMemo(() => projects.filter(p => p.status === 'active'), [projects]);
@@ -65,6 +80,28 @@ const TransactionFormModal = ({
       .slice(0, 5);
   }, [formData.description, formData.type, transactions]);
 
+  // Partner type filter: for income → client, for expense → vendor
+  const partnerTypeFilter = formData.type === 'income' ? 'client' : 'vendor';
+
+  // Compute active partners for autocomplete (filter by type + status active)
+  const partnerSuggestions = useMemo(() => {
+    const query = partnerInput.trim().toLowerCase();
+    if (!query || query.length < 1) return [];
+    return partners
+      .filter(p => {
+        const typeOk = p.type === partnerTypeFilter || p.type === 'both';
+        return p.status === 'active' && typeOk && p.name.toLowerCase().includes(query);
+      })
+      .slice(0, 8);
+  }, [partnerInput, partners, partnerTypeFilter]);
+
+  // Whether user typed a name that doesn't exist as a partner
+  const typedPartnerNotInList = useMemo(() => {
+    const query = partnerInput.trim();
+    if (!query || query.length < 2) return false;
+    return !partners.some(p => p.name.toLowerCase() === query.toLowerCase());
+  }, [partnerInput, partners]);
+
   // Close suggestions on click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -74,6 +111,13 @@ const TransactionFormModal = ({
       ) {
         setShowSuggestions(false);
       }
+      if (
+        partnerSuggestionsRef.current && !partnerSuggestionsRef.current.contains(e.target) &&
+        partnerInputRef.current && !partnerInputRef.current.contains(e.target)
+      ) {
+        setShowPartnerSuggestions(false);
+        setShowCreateNewPartner(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -81,6 +125,8 @@ const TransactionFormModal = ({
 
   useEffect(() => {
     if (editingTransaction) {
+      // Backward compat: if taxRate is missing, default to 19%
+      const existingTaxRate = editingTransaction.taxRate ?? TAX_RATES.STANDARD;
       setFormData({
         date: editingTransaction.date,
         description: editingTransaction.description,
@@ -94,8 +140,15 @@ const TransactionFormModal = ({
         notes: editingTransaction.notes || [],
         isRecurring: editingTransaction.isRecurring || false,
         recurringFrequency: editingTransaction.recurringFrequency || 'monthly',
-        recurringEndDate: editingTransaction.recurringEndDate || ''
+        recurringEndDate: editingTransaction.recurringEndDate || '',
+        taxRate: existingTaxRate,
+        counterpartyId: editingTransaction.counterpartyId || '',
+        counterpartyName: editingTransaction.counterpartyName || '',
       });
+      // Pre-fill partner input if editing a transaction with a known counterparty
+      setPartnerInput(editingTransaction.counterpartyName || '');
+      setShowPartnerSuggestions(false);
+      setShowCreateNewPartner(false);
     } else {
       const firstProject = activeProjects[0]?.displayName || activeProjects[0]?.name || '';
       const initialType = defaultType || 'expense';
@@ -113,8 +166,14 @@ const TransactionFormModal = ({
         notes: [],
         isRecurring: false,
         recurringFrequency: 'monthly',
-        recurringEndDate: ''
+        recurringEndDate: '',
+        taxRate: TAX_RATES.STANDARD,
+        counterpartyId: '',
+        counterpartyName: '',
       });
+      setPartnerInput('');
+      setShowPartnerSuggestions(false);
+      setShowCreateNewPartner(false);
     }
     setShowSuggestions(false);
   }, [isOpen, editingTransaction]);
@@ -142,7 +201,9 @@ const TransactionFormModal = ({
       description: transaction.description,
       category: transaction.category || formData.category,
       project: transaction.project || formData.project,
-      amount: transaction.amount || formData.amount
+      amount: transaction.amount || formData.amount,
+      // Carry forward tax rate from suggestion if available
+      taxRate: transaction.taxRate ?? formData.taxRate ?? TAX_RATES.STANDARD,
     });
     setShowSuggestions(false);
   };
@@ -164,6 +225,76 @@ const TransactionFormModal = ({
       e.preventDefault();
       handleSelectSuggestion(suggestions[activeSuggestionIndex]);
     }
+  };
+
+  const handlePartnerInputChange = (e) => {
+    const value = e.target.value;
+    setPartnerInput(value);
+    setShowPartnerSuggestions(value.trim().length >= 1);
+    setActivePartnerIndex(-1);
+    setShowCreateNewPartner(false);
+    // Clear counterparty if user clears the input
+    if (!value.trim()) {
+      setFormData(prev => ({ ...prev, counterpartyId: '', counterpartyName: '' }));
+    }
+  };
+
+  const handleSelectPartner = (partner) => {
+    setPartnerInput(partner.name);
+    setFormData(prev => ({
+      ...prev,
+      counterpartyId: partner.id,
+      counterpartyName: partner.name,
+      // Auto-fill partner's default tax rate if current tax rate is still the default
+      taxRate: prev.taxRate === TAX_RATES.STANDARD
+        ? (partner.defaultTaxRate ?? TAX_RATES.STANDARD)
+        : prev.taxRate,
+    }));
+    setShowPartnerSuggestions(false);
+    setShowCreateNewPartner(false);
+  };
+
+  const handlePartnerKeyDown = (e) => {
+    const totalItems = partnerSuggestions.length + (typedPartnerNotInList ? 1 : 0);
+    if (!showPartnerSuggestions || totalItems === 0) return;
+
+    if (e.key === 'Escape') {
+      setShowPartnerSuggestions(false);
+      setShowCreateNewPartner(false);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActivePartnerIndex(prev => Math.min(prev + 1, totalItems - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActivePartnerIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activePartnerIndex >= 0 && activePartnerIndex < partnerSuggestions.length) {
+        handleSelectPartner(partnerSuggestions[activePartnerIndex]);
+      } else if (activePartnerIndex === partnerSuggestions.length && typedPartnerNotInList) {
+        // "Crear nuevo" selected via keyboard
+        handleSelectPartner({
+          id: '__new__',
+          name: partnerInput.trim(),
+          defaultTaxRate: TAX_RATES.STANDARD,
+        });
+      }
+    }
+  };
+
+  const handleCreateNewPartner = () => {
+    // Signal that user wants to create a new partner — store typed name
+    setFormData(prev => ({
+      ...prev,
+      counterpartyId: '__new__',
+      counterpartyName: partnerInput.trim(),
+    }));
+    setShowPartnerSuggestions(false);
+    setShowCreateNewPartner(false);
+    // Parent should detect counterpartyId === '__new__' and open partner creation modal
+    // For now we just store the name; partner will be created on first transaction save
   };
 
   const handleSubmit = async (e) => {
@@ -191,6 +322,12 @@ const TransactionFormModal = ({
   };
 
   if (!isOpen) return null;
+
+  // Compute net amount from gross for display
+  const grossAmount = parseFloat(formData.amount) || 0;
+  const taxRate = formData.taxRate ?? TAX_RATES.STANDARD;
+  const netAmount = taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount;
+  const taxAmount = grossAmount - netAmount;
 
   const currentCategories = getCategoriesByType(formData.type);
 
@@ -258,8 +395,8 @@ const TransactionFormModal = ({
             <div className="h-px flex-1 bg-[#e2ebfb]" />
           </div>
 
-          {/* Date & Amount */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Date & Amount & VAT */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#4b5d83]">
                 Fecha <span className="text-[#ff453a]">*</span>
@@ -274,7 +411,7 @@ const TransactionFormModal = ({
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#4b5d83]">
-                Monto (EUR) <span className="text-[#ff453a]">*</span>
+                Bruto (EUR) <span className="text-[#ff453a]">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-[#7a879d]">€</span>
@@ -290,6 +427,123 @@ const TransactionFormModal = ({
                 />
               </div>
             </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#4b5d83]">
+                IVA (USt) <span className="text-[#ff453a]">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  required
+                  className="w-full rounded-2xl border border-[#d8e3f7] bg-[rgba(247,250,255,0.95)] px-3 py-3 text-sm text-[#22304f] outline-none transition focus:border-[#7aa2ff] focus:ring-2 focus:ring-[rgba(59,130,246,0.12)]"
+                  value={formData.taxRate}
+                  onChange={e => setFormData({...formData, taxRate: parseFloat(e.target.value)})}
+                >
+                  <option value={TAX_RATES.STANDARD}>19% Std.</option>
+                  <option value={TAX_RATES.REDUCED}>7% Red.</option>
+                  <option value={TAX_RATES.ZERO}>0% Ex.</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Net/Bruto breakdown — shown when amount > 0 and tax > 0 */}
+          {grossAmount > 0 && taxRate > 0 && (
+            <div className="rounded-2xl border border-[#d8e3f7] bg-[rgba(245,248,255,0.94)] px-4 py-3">
+              <div className="mb-2 flex items-center gap-1.5">
+                <Calculator size={13} className="text-[#70819f]" />
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#70819f]">Desglose IVA</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-[10px] text-[#93a0b6]]">Neto (netto)</p>
+                  <p className="font-semibold text-[#22304f]">{formatCurrency(netAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#93a0b6]]">IVA {formatTaxRate(taxRate)}</p>
+                  <p className="font-semibold text-[#d97706]">{formatCurrency(taxAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#93a0b6]]">Bruto (brutto)</p>
+                  <p className="font-semibold text-[#22304f]">{formatCurrency(grossAmount)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Partner / Geschäftspartner autocomplete */}
+          <div className="relative">
+            <label className="mb-2 flex items-center gap-2 block text-sm font-semibold text-[#4b5d83]">
+              <Building2 size={14} className="text-[#70819f]" />
+              {formData.type === 'income' ? 'Cliente' : 'Proveedor'}
+              <span className="text-xs font-normal text-[#93a0b6]">(opcional — autocompletado)</span>
+            </label>
+            {partnersLoading ? (
+              <div className="flex w-full items-center gap-2 rounded-2xl border border-[#d8e3f7] bg-[rgba(247,250,255,0.95)] px-4 py-3 text-sm text-[#6b7a99]">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Cargando partners...
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={partnerInputRef}
+                  type="text"
+                  placeholder={
+                    formData.type === 'income'
+                      ? "Buscar o crear cliente..."
+                      : "Buscar o crear proveedor..."
+                  }
+                  className="w-full rounded-2xl border border-[#d8e3f7] bg-[rgba(247,250,255,0.95)] px-4 py-3 text-sm text-[#22304f] outline-none transition focus:border-[#7aa2ff] focus:ring-2 focus:ring-[rgba(59,130,246,0.12)]"
+                  value={partnerInput}
+                  onChange={handlePartnerInputChange}
+                  onKeyDown={handlePartnerKeyDown}
+                  onFocus={() => partnerInput.trim().length >= 1 && setShowPartnerSuggestions(true)}
+                  autoComplete="off"
+                />
+                {showPartnerSuggestions && (partnerSuggestions.length > 0 || typedPartnerNotInList) && (
+                  <div
+                    ref={partnerSuggestionsRef}
+                    className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-2xl border border-[#dce6f8] bg-white/98"
+                    style={{ boxShadow: '0 18px 48px rgba(87, 112, 153, 0.18)' }}
+                  >
+                    {partnerSuggestions.map((p, idx) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectPartner(p)}
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                          idx === activePartnerIndex ? 'bg-[rgba(59,130,246,0.08)]' : 'hover:bg-[rgba(241,246,255,0.86)]'
+                        } ${idx > 0 ? 'border-t border-[#eef2fb]' : ''}`}
+                      >
+                        <span className="font-medium text-[#1f2a44]">{p.name}</span>
+                        {p.email && <span className="ml-2 text-xs text-[#70819f]">{p.email}</span>}
+                        {p.defaultTaxRate != null && p.defaultTaxRate !== 0.19 && (
+                          <span className="ml-2 rounded bg-[rgba(214,149,44,0.1)] px-1.5 py-0.5 text-xs text-[#c98717]">
+                            IVA {(p.defaultTaxRate * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    {typedPartnerNotInList && (
+                      <button
+                        type="button"
+                        onClick={handleCreateNewPartner}
+                        className={`w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors border-t border-[#eef2fb] hover:bg-[rgba(241,246,255,0.86)] ${
+                          activePartnerIndex === partnerSuggestions.length ? 'bg-[rgba(59,130,246,0.08)]' : ''
+                        }`}
+                      >
+                        <span className="flex items-center gap-2 font-medium text-[#3156d3]">
+                          <UserPlus size={14} />
+                          Crear nuevo: "{partnerInput.trim()}"
+                        </span>
+                        <span className="ml-6 text-xs text-[#70819f]">
+                          Se creará automáticamente al guardar la transacción
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="relative">
