@@ -30,6 +30,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useBudgets } from '../../hooks/useBudgets';
 import { useCategories } from '../../hooks/useCategories';
 import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useAllTransactions } from '../../hooks/useAllTransactions';
 import { useProjects } from '../../hooks/useProjects';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
@@ -397,6 +398,7 @@ const BudgetVsActual = ({ user, userRole }) => {
   const { projects } = useProjects(user);
   const categories = useCategories(user);
   const ledger = useFinanceLedger(user);
+  const { allTransactions } = useAllTransactions(user);
 
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [selectedProject, setSelectedProject] = useState(null); // null = empresa
@@ -423,7 +425,7 @@ const BudgetVsActual = ({ user, userRole }) => {
     );
   }, [budgets, selectedYear, selectedProject]);
 
-  // Build actuals from postedMovements (NET amounts, grouped by category + direction + month)
+  // Build actuals from BOTH postedMovements (bankMovements) AND allTransactions (categorized)
   // Uses CATEGORY_MAPPING to map transaction categories → budget categories
   const actuals = useMemo(() => {
     const map = new Map(); // key: "categoryName|income|month"
@@ -480,6 +482,7 @@ const BudgetVsActual = ({ user, userRole }) => {
       return best.score >= 40 ? best.cat : null;
     };
 
+    // Source 1: bankMovements (categorized) + legacyMovements from postedMovements
     ledger.postedMovements.forEach((m) => {
       if (Number(m.postedDate?.slice(0, 4)) !== Number(selectedYear)) return;
       if (selectedProject && m.projectName !== projects.find((p) => p.id === selectedProject)?.name) return;
@@ -488,15 +491,51 @@ const BudgetVsActual = ({ user, userRole }) => {
       const rawCat = m.categoryName || '';
       const dir = m.direction === 'in' ? 'income' : 'expense';
 
-      // Map transaction category → budget category
       const cat = matchCategory(rawCat, m.direction);
-      if (!cat) return; // Skip unmapped movements (bankMovements without category)
+      if (!cat) return;
       const key = `${cat}|${dir}|${month}`;
       const netAmt = Math.abs(m.netAmount ?? m.amount);
 
       const existing = map.get(key) || { income: 0, expense: 0 };
       if (dir === 'income') existing.income += netAmt;
       else existing.expense += netAmt;
+      map.set(key, existing);
+    });
+
+    // Source 2: allTransactions (Firebase transactions collection — always have categoryName)
+    // This covers 2026 entries that may not yet appear as bankMovements
+    const postedLegacyIds = new Set(
+      ledger.postedMovements
+        .filter(m => m.source === 'legacy-transaction')
+        .map(m => m.legacyTransactionId)
+        .filter(Boolean)
+    );
+
+    allTransactions.forEach((t) => {
+      const year = Number(t.date?.slice(0, 4));
+      if (year !== Number(selectedYear)) return;
+
+      // Skip if already counted via legacyMovements above
+      if (postedLegacyIds.has(t.id)) return;
+
+      // Only count settled/paid/completed transactions (not pending/issued)
+      const status = String(t.status || '').toLowerCase();
+      const isSettled = status === 'paid' || status === 'completed' || status === 'settled';
+      if (!isSettled) return;
+
+      const month = Number(t.date?.slice(5, 7)) - 1;
+      const rawCat = t.category || t.categoryName || '';
+      const txDir = t.type === 'income' ? 'in' : 'out';
+      const dir = t.type === 'income' ? 'income' : 'expense';
+
+      const cat = matchCategory(rawCat, txDir);
+      if (!cat) return;
+
+      const key = `${cat}|${dir}|${month}`;
+      const amount = Math.abs(t.amount || 0);
+      const existing = map.get(key) || { income: 0, expense: 0 };
+      if (dir === 'income') existing.income += amount;
+      else existing.expense += amount;
       map.set(key, existing);
     });
 
