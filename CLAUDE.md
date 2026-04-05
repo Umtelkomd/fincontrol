@@ -75,3 +75,10 @@ Firestore docs have a `viewedBy` field that's a plain object (not a Firestore ty
 
 ### 4. PartialPaymentModal
 Uses wrapper pattern (inner component + outer wrapper) for hooks safety. Don't flatten it.
+
+## Design System
+This project uses the **Nothing Design System**. Before making any UI changes, read the agent skill:
+`.claude/agents/nothing-design.md`
+
+Key rule: ALL cards/panels use `bg-[var(--surface)]` — NEVER colored backgrounds.
+Colors are for text/borders only (positive=nd-success, negative=nd-accent).
