@@ -15,6 +15,7 @@ import {
  Scale,
  Settings,
  SlidersHorizontal,
+ TableProperties,
  WalletCards,
 } from 'lucide-react';
 import { auth } from '../../services/firebase';
@@ -23,6 +24,7 @@ import { formatCurrency } from '../../utils/formatters';
 const NAV_ITEMS = [
  { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
  { path: '/cashflow', label: 'Tesoreria', icon: WalletCards, permission: 'reports' },
+ { path: '/flujo-caja-anual', label: 'Flujo Anual', icon: TableProperties, permission: 'reports' },
  { path: '/transactions', label: 'Transacciones', icon: Landmark, permission: 'dashboard' },
  { path: '/cxc', label: 'CXC', icon: ReceiptText, permission: 'cxc' },
  { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },

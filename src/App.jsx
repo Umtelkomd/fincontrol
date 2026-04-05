@@ -18,6 +18,7 @@ const Ingresos = lazy(() => import('./features/ingresos/Ingresos'));
 const Gastos = lazy(() => import('./features/gastos/Gastos'));
 const TransactionList = lazy(() => import('./features/transactions/TransactionList'));
 const CashFlow = lazy(() => import('./features/cashflow/CashFlow'));
+const FlujoCajaAnual = lazy(() => import('./features/cashflow/FlujoCajaAnual'));
 const ReportesUnified = lazy(() => import('./features/reportes/ReportesUnified'));
 const ConfiguracionUnified = lazy(() => import('./features/configuracion/ConfiguracionUnified'));
 const CXCIndependiente = lazy(() => import('./features/cxc/CXCIndependiente'));
@@ -46,6 +47,7 @@ const VIEW_TITLES = {
  '/gastos': 'Gastos',
  '/transactions': 'Transacciones',
  '/cashflow': 'Tesorería',
+ '/flujo-caja-anual': 'Flujo Anual',
  '/tesoreria': 'Tesorería',
  '/reportes': 'Reportes',
  '/configuracion': 'Configuración',
@@ -234,6 +236,7 @@ function AppContent() {
  }
  />
  <Route path="/cashflow" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><CashFlow user={user} /></ProtectedRoute>} />
+             <Route path="/flujo-caja-anual" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><FlujoCajaAnual user={user} /></ProtectedRoute>} />
  <Route path="/tesoreria" element={<Navigate to="/cashflow" replace />} />
  <Route path="/reportes" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ReportesUnified user={user} /></ProtectedRoute>} />
  <Route path="/configuracion" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ConfiguracionUnified user={user} transactions={filteredTransactions} /></ProtectedRoute>} />
