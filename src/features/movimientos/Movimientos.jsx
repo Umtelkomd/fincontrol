@@ -21,6 +21,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useClassifier } from '../../hooks/useClassifier';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
+import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
 import MovementDetailModal from '../../components/ui/MovementDetailModal';
 import CategorizeModal from '../../components/ui/CategorizeModal';
@@ -289,7 +290,7 @@ const Movimientos = ({ user }) => {
  const isVoid = m.status === 'void';
  const isRecurring = !!m.recurringCostId;
  return (
- <tr key={m.id} className="cursor-pointer" onClick={() => setDetailMovement(m)}>
+  <tr key={m.id} {...rowButtonProps(() => setDetailMovement(m))}>
  <td className="nd-mono text-[var(--text-secondary)] whitespace-nowrap">{m.postedDate}</td>
  <td>
  <div className="flex items-start gap-2">
