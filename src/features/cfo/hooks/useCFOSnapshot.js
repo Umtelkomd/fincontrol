@@ -30,8 +30,11 @@ import { logError } from '../../../utils/logger';
  *       receivables: [],
  *       payables: [],
  *       projects: [],
+ *       costCenters: [],
  *       recurringCosts: [],
  *       employees: [],
+ *       budgets: [],
+ *       transactions: [],
  *       categories: { expense: [], income: [] },
  *     } | null,
  *     loading: boolean,
@@ -45,7 +48,7 @@ import { logError } from '../../../utils/logger';
  * the CFO views are intentionally read-mostly.
  */
 
-export const CFO_SNAPSHOT_CACHE_KEY = 'cfo:snapshot:v1';
+export const CFO_SNAPSHOT_CACHE_KEY = 'cfo:snapshot:v2';
 export const CFO_SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 1 hour
 export const CFO_BANKMOVEMENTS_LOOKBACK_DAYS = 120;
 
@@ -110,32 +113,52 @@ export const fetchCFOSnapshot = async () => {
     receivablesSnap,
     payablesSnap,
     projectsSnap,
+    costCentersSnap,
     recurringCostsSnap,
     employeesSnap,
+    budgetsSnap,
+    transactionsSnap,
     categoriesDocSnap,
+    bankAccountDocSnap,
   ] = await Promise.all([
     getDocs(bankMovementsQuery),
     getDocs(dataPath('receivables')),
     getDocs(dataPath('payables')),
     getDocs(dataPath('projects')),
+    getDocs(dataPath('costCenters')),
     getDocs(dataPath('recurringCosts')),
     getDocs(dataPath('employees')),
+    getDocs(dataPath('budgets')),
+    getDocs(dataPath('transactions')),
     getDoc(settingsDoc('categories')),
+    getDoc(settingsDoc('bankAccount')),
   ]);
 
   const categoriesData = categoriesDocSnap.exists() ? categoriesDocSnap.data() : {};
+  const bankAccountData = bankAccountDocSnap.exists() ? bankAccountDocSnap.data() : null;
 
   return {
     bankMovements: mapDocs(bankMovementsSnap),
     receivables: mapDocs(receivablesSnap),
     payables: mapDocs(payablesSnap),
     projects: mapDocs(projectsSnap),
+    costCenters: mapDocs(costCentersSnap),
     recurringCosts: mapDocs(recurringCostsSnap),
     employees: mapDocs(employeesSnap),
+    budgets: mapDocs(budgetsSnap),
+    transactions: mapDocs(transactionsSnap),
     categories: {
       expense: categoriesData.expenseCategories || EXPENSE_CATEGORIES,
       income: categoriesData.incomeCategories || INCOME_CATEGORIES,
     },
+    bankAccount: bankAccountData
+      ? {
+          bankName: bankAccountData.bankName || '',
+          balance: Number(bankAccountData.balance) || 0,
+          balanceDate: bankAccountData.balanceDate || null,
+          creditLineLimit: Number(bankAccountData.creditLineLimit) || 0,
+        }
+      : null,
     meta: {
       bankMovementsLookbackDays: CFO_BANKMOVEMENTS_LOOKBACK_DAYS,
       bankMovementsCutoffDate: cutoffDate,
@@ -145,10 +168,11 @@ export const fetchCFOSnapshot = async () => {
 };
 
 export const useCFOSnapshot = (user) => {
+  const hasUser = Boolean(user);
   const [snapshot, setSnapshot] = useState(null);
   const [fetchedAt, setFetchedAt] = useState(null);
   const [fromCache, setFromCache] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Track latest invocation so a stale fetch can't overwrite a fresh one
@@ -193,16 +217,28 @@ export const useCFOSnapshot = (user) => {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    runFetch();
-  }, [user, runFetch]);
+    if (!hasUser) return undefined;
+
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) runFetch();
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [hasUser, runFetch]);
 
   const refetch = useCallback(() => runFetch({ skipCache: true }), [runFetch]);
 
-  return { snapshot, loading, error, fetchedAt, fromCache, refetch };
+  return {
+    snapshot: hasUser ? snapshot : null,
+    loading: hasUser ? loading : false,
+    error: hasUser ? error : null,
+    fetchedAt: hasUser ? fetchedAt : null,
+    fromCache: hasUser ? fromCache : false,
+    refetch,
+  };
 };
 
 export default useCFOSnapshot;

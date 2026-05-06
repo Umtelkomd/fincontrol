@@ -2,17 +2,16 @@ import { useMemo } from 'react';
 import {
   AlertTriangle,
   BarChart3,
-  Briefcase,
   CalendarRange,
   Clock,
   Coins,
   RefreshCw,
   TrendingUp,
-  Wallet,
 } from 'lucide-react';
-import { Badge, Button, KPI, KPIGrid, Panel } from '@/components/ui/nexus';
+import { Badge, Button, Panel } from '@/components/ui/nexus';
 import { useCFOSnapshot } from './hooks/useCFOSnapshot';
-import { formatCurrency } from '../../utils/formatters';
+import CashPositionPanel from './panels/CashPositionPanel';
+import FinancialOrderPanel from './panels/FinancialOrderPanel';
 
 /**
  * CFODashboard — CFO entry point at /cfo.
@@ -27,13 +26,6 @@ import { formatCurrency } from '../../utils/formatters';
  */
 
 const PANELS = [
-  {
-    key: 'cash',
-    title: 'Cash Position',
-    description: 'Efectivo hoy + burn 30/90d + runway',
-    icon: Wallet,
-    phase: 'Fase B',
-  },
   {
     key: 'forecast',
     title: 'Forecast 13 semanas',
@@ -98,21 +90,12 @@ const CFODashboard = ({ user }) => {
       receivables: snapshot.receivables?.length || 0,
       payables: snapshot.payables?.length || 0,
       projects: snapshot.projects?.length || 0,
+      costCenters: snapshot.costCenters?.length || 0,
       recurringCosts: snapshot.recurringCosts?.length || 0,
       employees: snapshot.employees?.length || 0,
+      budgets: snapshot.budgets?.length || 0,
+      transactions: snapshot.transactions?.length || 0,
     };
-  }, [snapshot]);
-
-  // Quick-look totals — kept light here; Phase B replaces with proper KPIs.
-  const cashHints = useMemo(() => {
-    if (!snapshot) return null;
-    const openReceivables = (snapshot.receivables || [])
-      .filter((r) => r.status !== 'settled' && r.status !== 'cancelled')
-      .reduce((sum, r) => sum + Number(r.openAmount || r.grossAmount || r.amount || 0), 0);
-    const openPayables = (snapshot.payables || [])
-      .filter((p) => p.status !== 'settled' && p.status !== 'cancelled')
-      .reduce((sum, p) => sum + Number(p.openAmount || p.grossAmount || p.amount || 0), 0);
-    return { openReceivables, openPayables };
   }, [snapshot]);
 
   return (
@@ -124,8 +107,8 @@ const CFODashboard = ({ user }) => {
             CFO<span className="text-[var(--accent)]">.OS</span> — Vista ejecutiva
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
-            Una pantalla, una decisión. Cash position, forecast 13 semanas, margen por proyecto,
-            aging, variance y alertas que mueven la aguja. Read-mostly, single-fetch, exportable.
+            Caja real, pagos urgentes, cobros pendientes y calidad de datos. Primero control
+            operativo; después forecast bonito. Read-only, single-fetch, cacheado.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -166,34 +149,9 @@ const CFODashboard = ({ user }) => {
         </Panel>
       )}
 
-      {snapshot && (
-        <KPIGrid cols={4}>
-          <KPI
-            label="Movimientos bancarios"
-            value={counts?.bankMovements ?? 0}
-            meta={`Lookback ${snapshot.meta?.bankMovementsLookbackDays || 120}d`}
-            icon={Wallet}
-          />
-          <KPI
-            label="CXC abiertas (€)"
-            value={formatCurrency(cashHints?.openReceivables || 0)}
-            meta={`${counts?.receivables ?? 0} totales`}
-            tone="ok"
-          />
-          <KPI
-            label="CXP abiertas (€)"
-            value={formatCurrency(cashHints?.openPayables || 0)}
-            meta={`${counts?.payables ?? 0} totales`}
-            tone="warn"
-          />
-          <KPI
-            label="Proyectos activos"
-            value={counts?.projects ?? 0}
-            meta={`${counts?.recurringCosts ?? 0} reglas recurrentes`}
-            icon={Briefcase}
-          />
-        </KPIGrid>
-      )}
+      {snapshot && <FinancialOrderPanel snapshot={snapshot} />}
+
+      {snapshot && <CashPositionPanel snapshot={snapshot} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {PANELS.map((p) => {
@@ -216,15 +174,18 @@ const CFODashboard = ({ user }) => {
         })}
       </div>
 
-      {!loading && !error && snapshot && (
-        <Panel title="Snapshot diagnostics" meta="Solo para verificar Fase A">
+      {import.meta.env.DEV && !loading && !error && snapshot && (
+        <Panel title="Snapshot diagnostics" meta="Solo desarrollo">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 nd-mono text-[12px] text-[var(--text-secondary)]">
             <DiagRow label="bankMovements" value={counts.bankMovements} />
             <DiagRow label="receivables" value={counts.receivables} />
             <DiagRow label="payables" value={counts.payables} />
             <DiagRow label="projects" value={counts.projects} />
+            <DiagRow label="costCenters" value={counts.costCenters} />
             <DiagRow label="recurringCosts" value={counts.recurringCosts} />
             <DiagRow label="employees" value={counts.employees} />
+            <DiagRow label="budgets" value={counts.budgets} />
+            <DiagRow label="transactions" value={counts.transactions} />
             <DiagRow
               label="categories.expense"
               value={(snapshot.categories?.expense || []).length}

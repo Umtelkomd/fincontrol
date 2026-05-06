@@ -14,7 +14,7 @@
  * the runner lands.
  */
 
-import { describe, expect, it, beforeEach, vi } from 'vitest'; // eslint-disable-line import/no-unresolved
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 // ── Firestore mocks ────────────────────────────────────────────────────────
 vi.mock('firebase/firestore', () => {
@@ -23,8 +23,8 @@ vi.mock('firebase/firestore', () => {
     doc: (...args) => ({ __kind: 'doc', path: args.slice(2).join('/') }),
     getDocs: vi.fn(),
     getDoc: vi.fn(),
-    query: (...args) => ({ __kind: 'query', args }),
-    where: (...args) => ({ __kind: 'where', args }),
+    query: vi.fn((...args) => ({ __kind: 'query', args })),
+    where: vi.fn((...args) => ({ __kind: 'where', args })),
   };
 });
 
@@ -64,8 +64,11 @@ describe('fetchCFOSnapshot', () => {
       if (path?.includes('receivables')) return flushDocs([{ id: 'r1', openAmount: 500 }]);
       if (path?.includes('payables')) return flushDocs([{ id: 'p1', openAmount: 200 }]);
       if (path?.includes('projects')) return flushDocs([{ id: 'pr1', name: 'NE3' }]);
+      if (path?.includes('costCenters')) return flushDocs([{ id: 'cc1', name: 'Operaciones' }]);
       if (path?.includes('recurringCosts')) return flushDocs([{ id: 'rc1', amount: 1000 }]);
       if (path?.includes('employees')) return flushDocs([{ id: 'e1', fullName: 'JR' }]);
+      if (path?.includes('budgets')) return flushDocs([{ id: 'b1', year: 2026 }]);
+      if (path?.includes('transactions')) return flushDocs([{ id: 't1', amount: 100 }]);
       return flushDocs([]);
     });
     firestore.getDoc.mockResolvedValue(
@@ -79,8 +82,11 @@ describe('fetchCFOSnapshot', () => {
     expect(snapshot.receivables).toHaveLength(1);
     expect(snapshot.payables).toHaveLength(1);
     expect(snapshot.projects).toHaveLength(1);
+    expect(snapshot.costCenters).toHaveLength(1);
     expect(snapshot.recurringCosts).toHaveLength(1);
     expect(snapshot.employees).toHaveLength(1);
+    expect(snapshot.budgets).toHaveLength(1);
+    expect(snapshot.transactions).toHaveLength(1);
     expect(snapshot.categories.expense).toEqual(['Sueldos']);
     expect(snapshot.categories.income).toEqual(['Ventas']);
     expect(snapshot.meta.bankMovementsLookbackDays).toBe(120);

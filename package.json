@@ -7,6 +7,7 @@
     "backup:firestore": "node scripts/exportFirestoreBackup.mjs",
     "dev": "vite",
     "build": "vite build",
+    "test": "vitest run",
     "lint": "eslint .",
     "preview": "vite preview",
     "migrate:legacy": "node scripts/migrateLegacyTransactions.mjs"
@@ -31,9 +32,11 @@
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
-    "globals": "^16.5.0",
-    "tailwindcss": "^4.1.18",
     "firebase-admin": "^13.7.0",
-    "vite": "^7.2.4"
+    "globals": "^16.5.0",
+    "jsdom": "^29.1.1",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.2.4",
+    "vitest": "^4.1.5"
   }
 }
