@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ui/ErrorBoundary';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Sidebar from './components/layout/Sidebar';
 import MobileMenu, { MobileMenuButton } from './components/layout/MobileMenu';
+import NexusMark from './components/brand/NexusMark';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import Login from './features/auth/Login';
 import { useAuth } from './hooks/useAuth';
@@ -172,8 +173,9 @@ function AppContent() {
  };
 
  return (
- <div className="flex h-full flex-col overflow-hidden bg-[var(--color-bg-0)] font-sans text-[14px] text-[var(--color-fg-1)]">
- <Sidebar
+ <div className="relative flex h-full flex-col overflow-hidden bg-[var(--color-bg-0)] font-sans text-[14px] text-[var(--color-fg-1)]">
+  <div aria-hidden="true" className="fixed inset-x-0 top-0 z-[300] h-[3px] bg-[var(--color-accent)]" />
+  <Sidebar
  user={user}
  userRole={userRole}
  hasPermission={hasPermission}
@@ -183,17 +185,22 @@ function AppContent() {
  />
 
  <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
- <div className="z-20 flex-shrink-0 px-4 pb-0 pt-4 md:px-8 md:pt-6">
- <div className="mx-auto flex max-w-[1280px] flex-wrap items-end justify-between gap-4 border-b border-[var(--color-line)] px-2 pb-5 md:px-0">
- <div className="flex items-center gap-3">
- <MobileMenuButton onClick={() => setIsMobileMenuOpen(true)} />
- <div>
- <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">§ Executive Finance Control</p>
- <h1
- className="mt-1 text-[32px] leading-[1] text-[var(--color-fg-1)] md:text-[40px]"
- style={{ fontFamily: 'var(--font-display)', fontWeight: 300, letterSpacing: '-0.03em' }}
- >
- {currentTitle}
+  <div className="z-20 flex-shrink-0 px-4 pb-0 pt-4 md:px-8 md:pt-6">
+  <div className="relative mx-auto flex max-w-[1280px] flex-wrap items-end justify-between gap-4 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-5">
+  <div aria-hidden="true" className="absolute bottom-[-18px] right-5 font-display text-[86px] font-medium leading-none tracking-[-0.08em] text-[var(--color-fg-1)] opacity-[0.025] md:text-[124px]">
+  NEXUS
+  </div>
+  <div className="relative flex items-center gap-4">
+  <MobileMenuButton onClick={() => setIsMobileMenuOpen(true)} />
+  <div className="hidden h-14 w-14 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-0)] md:flex">
+  <NexusMark size={34} title="NEXUS" />
+  </div>
+  <div>
+  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-accent)]">NEXUS.OS // UMTELKOMD FINANCE</p>
+  <h1
+  className="mt-1 font-display text-[34px] font-light leading-[0.95] tracking-[-0.04em] text-[var(--color-fg-1)] md:text-[46px]"
+  >
+  {currentTitle}
  </h1>
  <p className="mt-2 hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)] md:block">
  {new Date().toLocaleDateString('es-ES', {
@@ -207,16 +214,16 @@ function AppContent() {
  </div>
 
  {!loading && (
- <div className="hidden items-center gap-2 md:flex">
+  <div className="relative hidden items-center gap-2 md:flex">
  {bankBalanceData && (
- <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3.5 py-2">
+  <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3.5 py-2">
  <Landmark size={12} className={bankBalanceData.currentBalance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'} />
  <span className={`font-mono text-[12px] font-medium tabular-nums ${bankBalanceData.currentBalance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
  {formatCurrency(bankBalanceData.currentBalance)}
  </span>
  </div>
  )}
- <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3.5 py-2">
+  <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3.5 py-2">
  <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-ok)]" />
  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">
  {transactions.length} registros

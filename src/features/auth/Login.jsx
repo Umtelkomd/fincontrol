@@ -29,43 +29,52 @@ const Login = () => {
  };
 
  return (
- <div className="min-h-screen bg-[var(--color-bg-0)] text-[var(--color-fg-1)]">
- <div className="mx-auto flex min-h-screen w-full max-w-[1240px]">
- <section className="hidden flex-1 flex-col justify-between border-r border-[var(--color-line)] p-10 lg:flex">
- <div>
- <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-2)]">
- <NexusMark size={28} title="NEXUS" />
- </div>
- <p className="label-mono text-[var(--color-accent)]">Secure access</p>
- <h1 className="mt-3 font-display text-[52px] font-light leading-[0.95] tracking-[-0.04em] text-[var(--color-fg-1)]">
- NEXUS<span className="text-[var(--color-accent)]">.OS</span>
- </h1>
- <p className="mt-4 max-w-[420px] text-[15px] leading-7 text-[var(--color-fg-2)]">
- Plataforma financiera para operación diaria, control de caja y seguimiento de cuentas por cobrar y pagar.
- </p>
- </div>
+  <div className="relative min-h-screen overflow-hidden bg-[var(--color-bg-0)] text-[var(--color-fg-1)]">
+  <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[4px] bg-[var(--color-accent)]" />
+  <div aria-hidden="true" className="absolute -right-10 top-10 font-display text-[160px] font-medium leading-none tracking-[-0.08em] text-[var(--color-fg-1)] opacity-[0.025] lg:text-[240px]">
+  NEXUS
+  </div>
+  <div className="mx-auto flex min-h-screen w-full max-w-[1240px]">
+  <section className="relative hidden flex-1 flex-col justify-between overflow-hidden border-r border-[var(--color-line)] bg-[var(--color-bg-1)] p-10 lg:flex">
+  <div aria-hidden="true" className="absolute inset-y-0 left-0 w-[4px] bg-[var(--color-accent)]" />
+  <div aria-hidden="true" className="absolute bottom-[-42px] left-10 font-display text-[110px] font-medium leading-none tracking-[-0.08em] text-[var(--color-fg-1)] opacity-[0.035]">
+  SOFTWARE
+  </div>
+  <div className="relative">
+  <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-0)]">
+  <NexusMark size={40} title="NEXUS" />
+  </div>
+  <p className="label-mono text-[var(--color-accent)]">Secure access</p>
+  <h1 className="mt-4 max-w-[560px] font-display text-[72px] font-light leading-[0.88] tracking-[-0.055em] text-[var(--color-fg-1)]">
+  NEXUS<br /><em className="font-normal italic">finance</em><span className="text-[var(--color-accent)]">.OS</span>
+  </h1>
+  <p className="mt-6 max-w-[460px] text-[15px] leading-7 text-[var(--color-fg-2)]">
+  Operator UI para control financiero: caja, cuentas por cobrar, cuentas por pagar y trazabilidad operativa sobre una sola marca.
+  </p>
+  </div>
 
- <div className="space-y-4">
- <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
- <p className="label-mono text-[var(--color-fg-3)]">Entorno</p>
- <p className="mt-1 font-mono text-[14px] text-[var(--color-fg-1)]">UMTELKOMD GmbH</p>
- </div>
- <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
- <p className="label-mono text-[var(--color-fg-3)]">Modo</p>
- <p className="mt-1 font-mono text-[14px] text-[var(--color-fg-1)]">Finance Operations Console</p>
+  <div className="relative grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-line)]">
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+  <p className="label-mono text-[var(--color-fg-3)]">Entorno</p>
+  <p className="mt-1 font-mono text-[14px] text-[var(--color-fg-1)]">UMTELKOMD GmbH</p>
+  </div>
+  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+  <p className="label-mono text-[var(--color-fg-3)]">Modo</p>
+  <p className="mt-1 font-mono text-[14px] text-[var(--color-fg-1)]">Finance Operations Console</p>
  </div>
  </div>
  </section>
 
- <section className="flex flex-1 items-center justify-center p-4 sm:p-8">
- <div className="w-full max-w-md rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] p-8">
- <div className="mb-8 flex flex-col items-center gap-3 text-center">
- <div className="flex h-14 w-14 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-0)]">
- <NexusMark size={32} title="NEXUS" />
- </div>
- <div>
- <h2 className="font-display text-[28px] font-light tracking-[-0.02em] text-[var(--color-fg-1)]">Acceso</h2>
- <p className="mt-1 label-mono text-[var(--color-fg-4)]">UMTELKOMD · NEXUS.OS</p>
+  <section className="relative flex flex-1 items-center justify-center p-4 sm:p-8">
+  <div className="relative w-full max-w-md overflow-hidden rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] p-8">
+  <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-[var(--color-accent)]" />
+  <div className="mb-8 flex flex-col items-center gap-3 text-center">
+  <div className="flex h-16 w-16 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-0)]">
+  <NexusMark size={40} title="NEXUS" />
+  </div>
+  <div>
+  <h2 className="font-display text-[34px] font-light tracking-[-0.04em] text-[var(--color-fg-1)]">NEXUS.OS</h2>
+  <p className="mt-1 label-mono text-[var(--color-accent)]">UMTELKOMD · secure finance</p>
  </div>
  </div>
 
@@ -112,7 +121,7 @@ placeholder="********"
  </form>
 
  <p className="mt-6 text-center font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--color-fg-4)]">
- Sistema de Gestión Financiera {new Date().getFullYear()}
+  Rebuilt around software · {new Date().getFullYear()}
  </p>
 </div>
 </section>

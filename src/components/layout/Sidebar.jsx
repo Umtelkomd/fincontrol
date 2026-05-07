@@ -25,23 +25,24 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  };
 
  return (
- <header className="hidden border-b border-[var(--color-line)] bg-[var(--color-bg-0)] text-[var(--color-fg-1)] md:block">
- <div className="mx-auto max-w-[1280px] px-5 py-4">
+  <header className="relative hidden border-b border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)] md:block">
+  <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[2px] bg-[var(--color-accent)]" />
+  <div className="mx-auto max-w-[1280px] px-5 py-4">
  {/* Top row: brand + actions */}
  <div className="flex items-center justify-between gap-4">
- <button type="button" onClick={() => navigate('/')} className="flex min-w-0 items-center gap-3">
- <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-2)]">
- <NexusMark size={22} title="NEXUS" />
- </div>
- <div className="min-w-0 text-left">
- <h1
- className="truncate text-[18px] leading-none text-[var(--color-fg-1)]"
+  <button type="button" onClick={() => navigate('/')} className="group flex min-w-0 items-center gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 transition-colors hover:border-[var(--color-line-s)]">
+  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-2)]">
+  <NexusMark size={30} title="NEXUS" />
+  </div>
+  <div className="min-w-0 text-left">
+  <h1
+  className="truncate text-[22px] leading-none text-[var(--color-fg-1)]"
  style={{ fontFamily: 'var(--font-display)', fontWeight: 500, letterSpacing: '-0.02em' }}
  >
  NEXUS<span style={{ color: 'var(--color-accent)' }}>.OS</span>
  </h1>
- <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">
- Finance Operations Console
+  <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent)]">
+  Rebuilt around software
  </p>
  </div>
  </button>
@@ -105,10 +106,11 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  </div>
 
  {/* Nav row */}
- <nav className="-mx-5 mt-4 border-t border-[var(--color-line)] px-5 pt-2 relative">
+  <nav className="relative -mx-5 mt-4 border-t border-[var(--color-line)] px-5 pt-2">
  {/* Right-side fade hint that there is more to scroll */}
  <span aria-hidden="true" className="pointer-events-none absolute right-0 top-2 bottom-0 w-12 bg-gradient-to-l from-[var(--color-bg-0)] to-transparent z-10" />
- <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide pb-0.5">
+  <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-fg-4)]">NEXUS ROUTES</div>
+  <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide pb-0.5">
  {visibleItems.map((item) => {
  const Icon = item.icon;
  const active = location.pathname === item.path;
