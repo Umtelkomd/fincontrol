@@ -161,11 +161,11 @@ const Movimientos = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Banco · Movimientos</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Banco · Movimientos</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Revisión de movimientos
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Historial completo de bankMovements (DATEV + recurrentes generadas + manuales).
  Filtros por año/mes, dirección y estado de clasificación.
  </p>
@@ -197,7 +197,7 @@ const Movimientos = ({ user }) => {
  </KPIGrid>
 
  {/* ─── Filters Bar ─── */}
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3 flex flex-wrap items-end gap-3">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 flex flex-wrap items-end gap-3">
  <FilterSelect
  label="Año"
  value={year}
@@ -236,11 +236,11 @@ const Movimientos = ({ user }) => {
  ]}
  />
  <div className="relative ml-auto">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)] w-48"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)] w-48"
  value={searchQuery}
  onChange={(e) => resetFilter(() => setSearchQuery(e.target.value))}
  />
@@ -258,7 +258,7 @@ const Movimientos = ({ user }) => {
  padding={false}
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="nd-label">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={Filter}
@@ -291,29 +291,29 @@ const Movimientos = ({ user }) => {
  const isRecurring = !!m.recurringCostId;
  return (
   <tr key={m.id} {...rowButtonProps(() => setDetailMovement(m))}>
- <td className="nd-mono text-[var(--text-secondary)] whitespace-nowrap">{m.postedDate}</td>
+ <td className="font-mono text-[var(--color-fg-3)] whitespace-nowrap">{m.postedDate}</td>
  <td>
  <div className="flex items-start gap-2">
  {isIn ? (
- <ArrowUpRight size={14} className="flex-shrink-0 mt-0.5 text-[var(--success)]" />
+ <ArrowUpRight size={14} className="flex-shrink-0 mt-0.5 text-[var(--color-ok)]" />
  ) : (
- <ArrowDownRight size={14} className="flex-shrink-0 mt-0.5 text-[var(--accent)]" />
+ <ArrowDownRight size={14} className="flex-shrink-0 mt-0.5 text-[var(--color-accent)]" />
  )}
  <div className="min-w-0">
- <p className="text-[13px] text-[var(--text-primary)] truncate max-w-[280px]">{m.description || '—'}</p>
+ <p className="text-[13px] text-[var(--color-fg-1)] truncate max-w-[280px]">{m.description || '—'}</p>
  {isRecurring && (
- <p className="nd-mono text-[10px] text-[var(--text-disabled)] flex items-center gap-1 mt-0.5">
+ <p className="font-mono text-[10px] text-[var(--color-fg-4)] flex items-center gap-1 mt-0.5">
  <Repeat size={10} /> {m.recurringPeriod || 'recurrente'}
  </p>
  )}
  </div>
  </div>
  </td>
- <td className="text-[var(--text-secondary)] truncate max-w-[180px]">{m.counterpartyName || '—'}</td>
- <td className="text-[var(--text-secondary)]">{m.categoryName || <span className="text-[var(--text-disabled)]">—</span>}</td>
- <td className="text-[var(--text-secondary)] nd-mono text-[12px]">{m.costCenterId || <span className="text-[var(--text-disabled)]">—</span>}</td>
- <td className="text-[var(--text-secondary)] truncate max-w-[140px]">{m.projectName || m.projectId || <span className="text-[var(--text-disabled)]">—</span>}</td>
- <td className={`text-right nd-mono tabular-nums ${isIn ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <td className="text-[var(--color-fg-3)] truncate max-w-[180px]">{m.counterpartyName || '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{m.categoryName || <span className="text-[var(--color-fg-4)]">—</span>}</td>
+ <td className="text-[var(--color-fg-3)] font-mono text-[12px]">{m.costCenterId || <span className="text-[var(--color-fg-4)]">—</span>}</td>
+ <td className="text-[var(--color-fg-3)] truncate max-w-[140px]">{m.projectName || m.projectId || <span className="text-[var(--color-fg-4)]">—</span>}</td>
+ <td className={`text-right font-mono tabular-nums ${isIn ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {isIn ? '+' : '-'}{formatCurrency(m.amount)}
  </td>
  <td className="text-center">
@@ -355,8 +355,8 @@ const Movimientos = ({ user }) => {
 
  {/* Pagination */}
  {totalPages > 1 && (
- <div className="px-4 py-3 border-t border-[var(--border)] flex items-center justify-between gap-3">
- <p className="text-[12px] text-[var(--text-disabled)]">
+ <div className="px-4 py-3 border-t border-[var(--color-line)] flex items-center justify-between gap-3">
+ <p className="text-[12px] text-[var(--color-fg-4)]">
  Mostrando {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} de {filtered.length}
  </p>
  <div className="flex items-center gap-2">
@@ -369,7 +369,7 @@ const Movimientos = ({ user }) => {
  >
  Anterior
  </Button>
- <span className="nd-mono text-[12px] text-[var(--text-secondary)] min-w-[72px] text-center">
+ <span className="font-mono text-[12px] text-[var(--color-fg-3)] min-w-[72px] text-center">
  {safePage} / {totalPages}
  </span>
  <Button
@@ -430,9 +430,9 @@ const Movimientos = ({ user }) => {
 
 const FilterSelect = ({ label, value, onChange, options }) => (
  <label className="block">
- <span className="mb-1 block nd-label text-[var(--text-disabled)]">{label}</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-4)]">{label}</span>
  <select
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1.5 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={value}
  onChange={(e) => onChange(e.target.value)}
  >

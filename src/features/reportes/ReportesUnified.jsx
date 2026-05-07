@@ -36,7 +36,7 @@ const ReportesUnified = ({ user }) => {
 
  return (
  <div className="space-y-6 animate-fadeIn">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-2 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-2 ">
  <div className="flex items-center gap-1 overflow-x-auto">
  {TABS.map(tab => {
  const Icon = tab.icon;
@@ -47,8 +47,8 @@ const ReportesUnified = ({ user }) => {
  onClick={() => setActiveTab(tab.key)}
  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
  isActive
- ? 'border border-[var(--border-visible)] bg-[var(--surface)] text-[var(--text-primary)] '
- : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]'
+ ? 'border border-[var(--color-line-s)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)] '
+ : 'text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)] hover:bg-[var(--color-bg-1)]'
  }`}
  >
  <Icon size={16} />
@@ -61,8 +61,8 @@ const ReportesUnified = ({ user }) => {
 
  <Suspense
  fallback={
- <div className="flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] py-16 ">
- <p className="nd-mono text-xs text-[var(--text-secondary)] tracking-[0.08em] uppercase">[LOADING...]</p>
+ <div className="flex items-center justify-center rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-16 ">
+ <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
  </div>
  }
  >

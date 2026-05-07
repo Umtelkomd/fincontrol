@@ -1,11 +1,11 @@
 import { signOut } from 'firebase/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
- Briefcase,
  Globe,
  LogOut,
  Plus,
 } from 'lucide-react';
+import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
 import { formatCurrency } from '../../utils/formatters';
 import { NAV_ITEMS } from './navItems';
@@ -31,17 +31,17 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  <div className="flex items-center justify-between gap-4">
  <button type="button" onClick={() => navigate('/')} className="flex min-w-0 items-center gap-3">
  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-2)]">
- <Briefcase size={16} className="text-[var(--color-fg-1)]" />
+ <NexusMark size={22} title="NEXUS" />
  </div>
  <div className="min-w-0 text-left">
  <h1
  className="truncate text-[18px] leading-none text-[var(--color-fg-1)]"
  style={{ fontFamily: 'var(--font-display)', fontWeight: 500, letterSpacing: '-0.02em' }}
  >
- FinControl<span style={{ color: 'var(--color-accent)' }}>.OS</span>
+ NEXUS<span style={{ color: 'var(--color-accent)' }}>.OS</span>
  </h1>
  <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">
- Financial Control System
+ Finance Operations Console
  </p>
  </div>
  </button>

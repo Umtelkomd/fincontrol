@@ -104,17 +104,17 @@ const CXC = ({
  <Panel title="Cuentas por cobrar" meta={`${sorted.length} facturas pendientes`} padding={false}>
  <div className="overflow-x-auto">
  <table className="w-full text-left">
- <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
+ <thead className="bg-[var(--color-bg-1)] border-b border-[var(--color-line)]">
  <tr>
- <th className="px-4 py-4 nd-label text-[var(--text-secondary)]">Fecha</th>
- <th className="px-4 py-4 nd-label text-[var(--text-secondary)]">Descripción</th>
- <th className="px-4 py-4 nd-label text-[var(--text-secondary)] hidden md:table-cell">Categoría</th>
- <th className="px-4 py-4 nd-label text-[var(--text-secondary)] text-right">Monto</th>
- <th className="px-4 py-4 nd-label text-[var(--text-secondary)] text-center">Estado</th>
- {canAct && <th className="px-4 py-4 nd-label text-[var(--text-secondary)] text-center">Acciones</th>}
+ <th className="px-4 py-4 label-mono text-[var(--color-fg-3)]">Fecha</th>
+ <th className="px-4 py-4 label-mono text-[var(--color-fg-3)]">Descripción</th>
+ <th className="px-4 py-4 label-mono text-[var(--color-fg-3)] hidden md:table-cell">Categoría</th>
+ <th className="px-4 py-4 label-mono text-[var(--color-fg-3)] text-right">Monto</th>
+ <th className="px-4 py-4 label-mono text-[var(--color-fg-3)] text-center">Estado</th>
+ {canAct && <th className="px-4 py-4 label-mono text-[var(--color-fg-3)] text-center">Acciones</th>}
  </tr>
  </thead>
- <tbody className="divide-y divide-[var(--border)]">
+ <tbody className="divide-y divide-[var(--color-line)]">
  {sorted.map((t) => {
  const isOverdue = getDaysOverdue(t.date) > 0;
  const isPartial = t.status === 'partial';
@@ -123,32 +123,32 @@ const CXC = ({
  const paidPct = t.amount > 0 ? (paidAmount / t.amount) * 100 : 0;
  const isLoading = loadingId === t.id;
  return (
- <tr key={t.id} className={`group transition-all duration-200 ${isOverdue ? 'bg-transparent' : 'hover:bg-[var(--surface)]'}`}>
+ <tr key={t.id} className={`group transition-all duration-200 ${isOverdue ? 'bg-transparent' : 'hover:bg-[var(--color-bg-1)]'}`}>
  <td className="px-4 py-4 whitespace-nowrap">
  <div className="flex flex-col">
- <span className="text-sm font-medium text-[var(--text-secondary)]">{formatDate(t.date)}</span>
- {isOverdue && <span className="text-[10px] text-[var(--accent)] font-medium">Vencido {getDaysOverdue(t.date)}d</span>}
+ <span className="text-sm font-medium text-[var(--color-fg-3)]">{formatDate(t.date)}</span>
+ {isOverdue && <span className="text-[10px] text-[var(--color-accent)] font-medium">Vencido {getDaysOverdue(t.date)}d</span>}
  </div>
  </td>
  <td className="px-4 py-4">
  <div className="flex items-start gap-3">
  <div className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-transparent">
- <ArrowUpCircle className="w-5 h-5 text-[var(--success)]" />
+ <ArrowUpCircle className="w-5 h-5 text-[var(--color-ok)]" />
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2 flex-wrap">
- <span className="text-sm font-medium text-[var(--text-display)]">{safe(t.description)}</span>
+ <span className="text-sm font-medium text-[var(--color-fg-1)]">{safe(t.description)}</span>
  {t.isRecurring && (
  <Badge variant="neutral" dot>Recurrente</Badge>
  )}
  </div>
- <span className="text-xs text-[var(--text-disabled)] block mt-0.5">{safe(t.project)}</span>
+ <span className="text-xs text-[var(--color-fg-4)] block mt-0.5">{safe(t.project)}</span>
  {isPartial && (
  <div className="mt-1.5">
- <div className="w-full max-w-[160px] h-1.5 bg-[var(--surface-raised)] rounded-full overflow-hidden">
- <div className="h-full bg-[var(--success)] rounded-full" style={{ width: `${paidPct}%` }} />
+ <div className="w-full max-w-[160px] h-1.5 bg-[var(--color-bg-2)] rounded-full overflow-hidden">
+ <div className="h-full bg-[var(--color-ok)] rounded-full" style={{ width: `${paidPct}%` }} />
  </div>
- <span className="text-[10px] text-[var(--text-secondary)] mt-0.5 block">Cobrado: {formatCurrency(paidAmount)} / {formatCurrency(t.amount)}</span>
+ <span className="text-[10px] text-[var(--color-fg-3)] mt-0.5 block">Cobrado: {formatCurrency(paidAmount)} / {formatCurrency(t.amount)}</span>
  </div>
  )}
  </div>
@@ -159,8 +159,8 @@ const CXC = ({
  </td>
  <td className="px-4 py-4 text-right whitespace-nowrap">
  <div className="flex flex-col items-end">
- <span className="nd-mono text-sm tabular-nums text-[var(--success)]">+{formatCurrency(t.amount)}</span>
- {isPartial && <span className="text-xs text-[var(--warning)]">Restante: {formatCurrency(remaining)}</span>}
+ <span className="font-mono text-sm tabular-nums text-[var(--color-ok)]">+{formatCurrency(t.amount)}</span>
+ {isPartial && <span className="text-xs text-[var(--color-warn)]">Restante: {formatCurrency(remaining)}</span>}
  </div>
  </td>
  <td className="px-4 py-4 text-center">

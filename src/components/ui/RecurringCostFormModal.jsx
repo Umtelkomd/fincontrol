@@ -97,16 +97,16 @@ const RecurringCostFormModal = ({
  };
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={onClose}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
- <header className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={onClose}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+ <header className="px-6 py-4 border-b border-[var(--color-line)] flex items-center justify-between">
  <div className="flex items-center gap-3">
- <Repeat size={18} className="text-[var(--text-disabled)]" />
- <h2 className="text-lg font-medium text-[var(--text-primary)]">
+ <Repeat size={18} className="text-[var(--color-fg-4)]" />
+ <h2 className="text-lg font-medium text-[var(--color-fg-1)]">
  {editingCost ? 'Editar costo recurrente' : 'Nuevo costo recurrente'}
  </h2>
  </div>
- <button type="button" onClick={onClose} className="text-[var(--text-disabled)] hover:text-[var(--text-primary)]">
+ <button type="button" onClick={onClose} className="text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]">
  <X size={20} />
  </button>
  </header>
@@ -114,9 +114,9 @@ const RecurringCostFormModal = ({
  <form onSubmit={handleSubmit} className="overflow-y-auto px-6 py-5 flex-1 space-y-4">
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Tipo de propietario *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Tipo de propietario *</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.ownerType}
  onChange={(e) => setOwnerType(e.target.value)}
  >
@@ -128,9 +128,9 @@ const RecurringCostFormModal = ({
 
  {form.ownerType !== 'general' && (
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">{OWNER_TYPE_LABELS[form.ownerType]} *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">{OWNER_TYPE_LABELS[form.ownerType]} *</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.ownerId || ''}
  onChange={(e) => setOwner(e.target.value)}
  >
@@ -143,11 +143,11 @@ const RecurringCostFormModal = ({
  )}
 
  <label className="block md:col-span-2">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Concepto *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Concepto *</span>
  <input
  list="concept-suggestions"
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.concept}
  onChange={(e) => set('concept', e.target.value)}
  placeholder="Ej: Salario neto, Leasing, Alquiler, Seguro Kasko"
@@ -160,10 +160,10 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block md:col-span-2">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Contraparte (a quién se paga)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Contraparte (a quién se paga)</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.counterpartyName}
  onChange={(e) => set('counterpartyName', e.target.value)}
  placeholder="Ej: Sixt, BARMER, Bank Deutsches Kraftfahrzeuggewerbe"
@@ -171,12 +171,12 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Monto € *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Monto € *</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.amount || ''}
  onChange={(e) => set('amount', e.target.value)}
  placeholder="0.00"
@@ -184,9 +184,9 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Frecuencia</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Frecuencia</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.frequency}
  onChange={(e) => set('frequency', e.target.value)}
  >
@@ -197,21 +197,21 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Día de pago (1–31)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Día de pago (1–31)</span>
  <input
  type="number"
  min="1"
  max="31"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.dayOfMonth || 1}
  onChange={(e) => set('dayOfMonth', e.target.value)}
  />
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Centro de costo</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Centro de costo</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.costCenterId}
  onChange={(e) => set('costCenterId', e.target.value)}
  >
@@ -227,9 +227,9 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Proyecto</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Proyecto</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.projectId}
  onChange={(e) => set('projectId', e.target.value)}
  >
@@ -245,20 +245,20 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Inicio</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Inicio</span>
  <input
  type="date"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.startDate}
  onChange={(e) => set('startDate', e.target.value)}
  />
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Fin (opcional)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Fin (opcional)</span>
  <input
  type="date"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.endDate}
  onChange={(e) => set('endDate', e.target.value)}
  />
@@ -271,26 +271,26 @@ const RecurringCostFormModal = ({
  checked={form.active}
  onChange={(e) => set('active', e.target.checked)}
  />
- <span className="text-sm text-[var(--text-primary)]">
+ <span className="text-sm text-[var(--color-fg-1)]">
  Activo (genera instancias mensuales)
  </span>
  </label>
  </div>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Notas</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Notas</span>
  <textarea
  rows={2}
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.notes}
  onChange={(e) => set('notes', e.target.value)}
  />
  </label>
 
- {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+ {error && <p className="text-sm text-[var(--color-err)]">{error}</p>}
  </form>
 
- <footer className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+ <footer className="px-6 py-4 border-t border-[var(--color-line)] flex justify-end gap-3">
  <Button variant="ghost" onClick={onClose} disabled={submitting}>Cancelar</Button>
  <Button variant="primary" icon={Save} loading={submitting} disabled={submitting} onClick={handleSubmit}>
  {editingCost ? 'Guardar cambios' : 'Crear costo'}

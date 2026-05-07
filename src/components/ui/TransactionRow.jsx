@@ -27,7 +27,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  const parts = str.split(new RegExp(`(${escaped})`, 'gi'));
  return parts.map((part, index) =>
  part.toLowerCase() === searchTerm.toLowerCase()
- ? <mark key={index} className="bg-transparent text-[var(--text-display)] font-medium">{part}</mark>
+ ? <mark key={index} className="bg-transparent text-[var(--color-fg-1)] font-medium">{part}</mark>
  : part,
  );
  };
@@ -64,50 +64,50 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
 
  return (
  <tr
- className={`group border-b border-[var(--border)] transition-colors last:border-0 cursor-pointer ${
- isOverdue ? 'border-l-2 border-l-[var(--accent)]' : ''
- } hover:bg-[var(--surface-raised)]`}
+ className={`group border-b border-[var(--color-line)] transition-colors last:border-0 cursor-pointer ${
+ isOverdue ? 'border-l-2 border-l-[var(--color-accent)]' : ''
+ } hover:bg-[var(--color-bg-2)]`}
  onClick={() => onViewDetail?.(t)}
  >
  {/* Date */}
  <td className="px-4 py-3.5 whitespace-nowrap">
- <span className="nd-mono text-[13px] tabular-nums text-[var(--text-primary)]">{formatDate(t.date)}</span>
- <span className="block nd-mono text-[10px] uppercase tracking-[0.08em] text-[var(--text-disabled)] mt-0.5">{t.recordFamilyLabel}</span>
+ <span className="font-mono text-[13px] tabular-nums text-[var(--color-fg-1)]">{formatDate(t.date)}</span>
+ <span className="block font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--color-fg-4)] mt-0.5">{t.recordFamilyLabel}</span>
  </td>
 
  {/* Description */}
  <td className="px-4 py-3.5">
  <div className="flex items-start gap-2.5">
  {isIncome ? (
- <ArrowUpCircle size={14} className="flex-shrink-0 mt-0.5 text-[var(--text-secondary)]" />
+ <ArrowUpCircle size={14} className="flex-shrink-0 mt-0.5 text-[var(--color-fg-3)]" />
  ) : (
- <ArrowDownCircle size={14} className="flex-shrink-0 mt-0.5 text-[var(--text-secondary)]" />
+ <ArrowDownCircle size={14} className="flex-shrink-0 mt-0.5 text-[var(--color-fg-3)]" />
  )}
 
  <div className="min-w-0 flex-1">
  <div className="flex flex-wrap items-center gap-1.5">
- {isNew && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--text-display)]" />}
- <span className="text-[13px] text-[var(--text-primary)]">{highlightText(t.description)}</span>
+ {isNew && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-fg-1)]" />}
+ <span className="text-[13px] text-[var(--color-fg-1)]">{highlightText(t.description)}</span>
 
- <span className="nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--border-visible)] rounded-sm px-1.5 py-0.5 text-[var(--text-disabled)]">
+ <span className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-sm px-1.5 py-0.5 text-[var(--color-fg-4)]">
  {t.sourceLabel}
  </span>
 
  {isNew && (
- <span className="nd-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-display)]">
+ <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--color-fg-1)]">
  [NEW]
  </span>
  )}
 
  {t.isRecurring && (
- <span className="inline-flex items-center gap-1 nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--border)] rounded-sm px-1.5 py-0.5 text-[var(--text-disabled)]">
+ <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line)] rounded-sm px-1.5 py-0.5 text-[var(--color-fg-4)]">
  <RefreshCw size={9} />
  Rec
  </span>
  )}
 
  {commentCount > 0 && (
- <span className="inline-flex items-center gap-1 nd-mono text-[10px] text-[var(--text-disabled)]">
+ <span className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--color-fg-4)]">
  <MessageSquare size={10} />
  {commentCount}
  </span>
@@ -115,18 +115,18 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  </div>
 
  <div className="mt-1 flex flex-wrap items-center gap-1.5">
- <span className="text-[11px] text-[var(--text-disabled)]">{safe(t.project || t.secondaryMeta)}</span>
+ <span className="text-[11px] text-[var(--color-fg-4)]">{safe(t.project || t.secondaryMeta)}</span>
  {t.costCenter ? (
- <span className="nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--border)] rounded-sm px-1.5 py-0.5 text-[var(--text-disabled)]">
+ <span className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line)] rounded-sm px-1.5 py-0.5 text-[var(--color-fg-4)]">
  {safe(t.costCenter)}
  </span>
  ) : (t.type === 'expense' || t.type === 'income') && (
- <span className="nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--warning)] rounded-sm px-1.5 py-0.5 text-[var(--warning)]">
+ <span className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-warn)] rounded-sm px-1.5 py-0.5 text-[var(--color-warn)]">
  Sin CC
  </span>
  )}
  {t.documentNumber && (
- <span className="nd-mono text-[10px] tracking-[0.04em] border border-[var(--border)] rounded-sm px-1.5 py-0.5 text-[var(--text-disabled)]">
+ <span className="font-mono text-[10px] tracking-[0.04em] border border-[var(--color-line)] rounded-sm px-1.5 py-0.5 text-[var(--color-fg-4)]">
  {t.documentNumber}
  </span>
  )}
@@ -139,11 +139,11 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  <div
  key={i}
  className="flex-1 h-[4px]"
- style={{ background: i < Math.round(paidPct / 10) ? 'var(--success)' : 'var(--border)' }}
+ style={{ background: i < Math.round(paidPct / 10) ? 'var(--color-ok)' : 'var(--color-line)' }}
  />
  ))}
  </div>
- <span className="nd-mono text-[10px] text-[var(--text-disabled)] mt-0.5 block">
+ <span className="font-mono text-[10px] text-[var(--color-fg-4)] mt-0.5 block">
  {formatCurrency(paidAmount)} / {formatCurrency(t.amount)}
  </span>
  </div>
@@ -154,14 +154,14 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
 
  {/* Category */}
  <td className="px-4 py-3.5">
- <span className="nd-label border border-[var(--border-visible)] rounded-sm px-2 py-1 text-[var(--text-secondary)]">
+ <span className="label-mono border border-[var(--color-line-s)] rounded-sm px-2 py-1 text-[var(--color-fg-3)]">
  {safe(t.categoryLabel || t.category)}
  </span>
  </td>
 
  {/* Amount */}
  <td className="px-4 py-3.5 text-right whitespace-nowrap">
- <span className="nd-mono text-[14px] tabular-nums text-[var(--text-primary)]">
+ <span className="font-mono text-[14px] tabular-nums text-[var(--color-fg-1)]">
  {isIncome ? '+' : '-'}{formatCurrency(t.amount)}
  </span>
  </td>
@@ -177,7 +177,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canRegisterPayment && (
  <button
  onClick={() => onRegisterPayment(t)}
- className="nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--border-visible)] rounded-full px-2.5 py-1.5 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-display)] hover:border-[var(--text-display)]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-full px-2.5 py-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
  title={t.paymentActionLabel || 'Abono'}
  >
  {t.paymentActionLabel || 'Abono'}
@@ -187,7 +187,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canChangeStatus && (
  <button
  onClick={() => onChangeStatus(t)}
- className="nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--border-visible)] rounded-full px-2.5 py-1.5 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-display)] hover:border-[var(--text-display)]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-full px-2.5 py-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
  title="Cambiar estado"
  >
  Estado
@@ -197,7 +197,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canViewNotes && (
  <button
  onClick={() => onViewNotes(t)}
- className="p-1.5 text-[var(--text-disabled)] transition-colors hover:text-[var(--text-primary)]"
+ className="p-1.5 text-[var(--color-fg-4)] transition-colors hover:text-[var(--color-fg-1)]"
  title="Notas"
  >
  <MessageSquare size={14} />
@@ -207,7 +207,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canEdit && (
  <button
  onClick={() => onEdit(t)}
- className="p-1.5 text-[var(--text-disabled)] transition-colors hover:text-[var(--text-primary)]"
+ className="p-1.5 text-[var(--color-fg-4)] transition-colors hover:text-[var(--color-fg-1)]"
  title="Editar"
  >
  <Edit2 size={14} />
@@ -217,7 +217,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canViewAuditTrail && (
  <button
  onClick={() => onViewAuditTrail(t)}
- className="p-1.5 text-[var(--text-disabled)] transition-colors hover:text-[var(--text-primary)]"
+ className="p-1.5 text-[var(--color-fg-4)] transition-colors hover:text-[var(--color-fg-1)]"
  title="Trazabilidad"
  >
  <History size={14} />
@@ -227,7 +227,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canVoid && (
  <button
  onClick={() => onVoid(t)}
- className="nd-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--error)] rounded-full px-2.5 py-1.5 text-[var(--error)] transition-colors hover:text-[var(--text-display)] hover:border-[var(--text-display)]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-err)] rounded-full px-2.5 py-1.5 text-[var(--color-err)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
  title={t.voidActionLabel || 'Anular'}
  >
  {t.voidActionLabel || 'Anular'}
@@ -237,7 +237,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canDelete && (
  <button
  onClick={() => onDelete(t)}
- className="p-1.5 text-[var(--text-disabled)] transition-colors hover:text-[var(--accent)]"
+ className="p-1.5 text-[var(--color-fg-4)] transition-colors hover:text-[var(--color-accent)]"
  title="Eliminar"
  >
  <Trash2 size={14} />

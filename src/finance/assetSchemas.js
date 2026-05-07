@@ -1,7 +1,7 @@
 /**
  * Asset & RecurringCost Schemas
  * ─────────────────────────────────
- * Source of truth for the FinControl asset-management model.
+ * Source of truth for the NEXUS.OS asset-management model.
  *
  *   employees      — payroll-bearing people (UMTELKOMD GmbH staff)
  *   properties     — properties: rented or owned (housing, offices)

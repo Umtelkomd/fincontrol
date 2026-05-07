@@ -48,20 +48,20 @@ const StatCard = ({ title, value, subtitle, accent, icon, delta }) => {
 
  return (
  <div
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 "
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 "
  >
  <div className="mb-4 flex items-start justify-between">
  <div>
- <p className="nd-label text-[var(--text-disabled)]">{title}</p>
- <p className="mt-2 nd-display text-[28px] font-medium tracking-tight text-[var(--text-primary)]">{value}</p>
+ <p className="label-mono text-[var(--color-fg-4)]">{title}</p>
+ <p className="mt-2 font-display text-[28px] font-medium tracking-tight text-[var(--color-fg-1)]">{value}</p>
  </div>
  <div className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ color: accent }}>
  <IconComponent size={18} />
  </div>
  </div>
- <p className="text-sm text-[var(--text-secondary)]">{subtitle}</p>
+ <p className="text-sm text-[var(--color-fg-3)]">{subtitle}</p>
  {delta != null && (
- <div className={`mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${delta >= 0 ? 'bg-transparent text-[var(--success)]' : 'bg-transparent text-[var(--accent)]'}`}>
+ <div className={`mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${delta >= 0 ? 'bg-transparent text-[var(--color-ok)]' : 'bg-transparent text-[var(--color-accent)]'}`}>
  {delta >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
  {Math.abs(delta).toFixed(1)}% vs período anterior
  </div>
@@ -272,18 +272,18 @@ const Reports = ({ user }) => {
  if (ledger.loading) {
  return (
  <div className="flex items-center justify-center py-28">
- <p className="nd-mono text-xs text-[var(--text-secondary)] tracking-[0.08em] uppercase">[LOADING...]</p>
+ <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
  </div>
  );
  }
 
  return (
  <div className="space-y-6 pb-12">
- <section className="rounded-md border border-[var(--border)] bg-[var(--black)] px-6 py-7 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-6 py-7 ">
  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
  <div>
- <p className="mb-3 nd-label text-[var(--text-secondary)]">Estado de resultados</p>
- <h2 className="nd-display text-[32px] font-medium tracking-tight text-[var(--text-display)]">
+ <p className="mb-3 label-mono text-[var(--color-fg-3)]">Estado de resultados</p>
+ <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">
  Resultado realizado y compromisos abiertos del periodo.{' '}
  <HelpButton title="Estado de resultados">
  <p><strong>Ingresos realizados</strong> — Cobros reales registrados como movimientos bancarios en el periodo seleccionado. No incluye CXC pendientes.</p>
@@ -292,14 +292,14 @@ const Reports = ({ user }) => {
  <p><strong>Compromisos del periodo</strong> — CXC y CXP emitidas en este periodo que aun estan abiertas.</p>
  </HelpButton>
  </h2>
- <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--text-disabled)]">
+ <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--color-fg-4)]">
  Consulta los ingresos y gastos ya registrados, y mantén aparte los documentos que siguen pendientes de cobro o pago.
  </p>
  </div>
  </div>
  </section>
 
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex flex-wrap items-center justify-between gap-4">
  <div className="flex items-center gap-2 flex-wrap">
  <div className="relative" ref={dropdownRef}>
@@ -308,7 +308,7 @@ const Reports = ({ user }) => {
  type="button"
  onClick={() => navigateMonth(-1)}
  disabled={!canNavigatePrev}
- className="rounded-l-2xl border border-r-0 border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text-primary)] disabled:opacity-30"
+ className="rounded-l-2xl border border-r-0 border-[var(--color-line)] bg-[var(--color-bg-1)] p-3 text-[var(--color-fg-3)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)] disabled:opacity-30"
  >
  <ChevronLeft size={16} />
  </button>
@@ -317,8 +317,8 @@ const Reports = ({ user }) => {
  onClick={() => setMonthDropdownOpen((value) => !value)}
  className={`flex items-center gap-2 border px-4 py-3 text-sm font-medium transition-all ${
  periodType === 'month'
- ? 'border-[var(--border-visible)] bg-[var(--surface)] text-[var(--text-primary)]'
- : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)]'
  }`}
  >
  <Calendar size={16} />
@@ -331,17 +331,17 @@ const Reports = ({ user }) => {
  type="button"
  onClick={() => navigateMonth(1)}
  disabled={!canNavigateNext}
- className="rounded-r-2xl border border-l-0 border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text-primary)] disabled:opacity-30"
+ className="rounded-r-2xl border border-l-0 border-[var(--color-line)] bg-[var(--color-bg-1)] p-3 text-[var(--color-fg-3)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)] disabled:opacity-30"
  >
  <ChevronRight size={16} />
  </button>
  </div>
 
  {monthDropdownOpen && (
- <div className="absolute left-0 top-full z-20 mt-2 max-h-[320px] min-w-[220px] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-2 ">
+ <div className="absolute left-0 top-full z-20 mt-2 max-h-[320px] min-w-[220px] overflow-y-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] py-2 ">
  {monthsByYear.map(([year, months]) => (
  <div key={year}>
- <div className="px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-[var(--text-disabled)]">
+ <div className="px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-fg-4)]">
  {year}
  </div>
  {months.map((key) => (
@@ -354,8 +354,8 @@ const Reports = ({ user }) => {
  }}
  className={`block w-full px-4 py-2 text-left text-sm transition-colors ${
  selectedMonthKey === key
- ? 'bg-[var(--surface)] text-[var(--text-primary)]'
- : 'text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]'
+ ? 'bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
+ : 'text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]'
  }`}
  >
  {MONTH_NAMES[Number(key.slice(5, 7)) - 1]} {key.slice(0, 4)}
@@ -374,8 +374,8 @@ const Reports = ({ user }) => {
  onClick={() => setSelectedPeriod(value)}
  className={`rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
  periodType === value
- ? 'border-[var(--border-visible)] bg-[var(--surface)] text-[var(--text-primary)]'
- : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]'
  }`}
  >
  {value === 'quarter' ? 'Trimestre' : 'Año'}
@@ -392,7 +392,7 @@ const Reports = ({ user }) => {
  setSelectedPeriod(`month:${newDefault}`);
  }
  }}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] outline-none transition-all focus:border-[var(--border-visible)] focus:bg-[var(--surface)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-3)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)]"
  >
  {YEAR_OPTIONS.map((opt) => (
  <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -401,19 +401,19 @@ const Reports = ({ user }) => {
  </div>
 
  <div className="flex flex-wrap items-center gap-3">
- <label className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+ <label className="inline-flex items-center gap-2 text-sm text-[var(--color-fg-3)]">
  <input
  type="checkbox"
  checked={compareMode}
  onChange={(event) => setCompareMode(event.target.checked)}
- className="h-4 w-4 rounded border-[var(--border)]bg-[var(--surface)]"
+ className="h-4 w-4 rounded border-[var(--color-line)]bg-[var(--color-bg-1)]"
  />
  Comparar con período anterior
  </label>
  <button
  type="button"
  onClick={() => exportReportToPDF(exportRows, 'general')}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface)]"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-1)] transition-colors hover:bg-[var(--color-bg-1)]"
  >
  <Download size={16} />
  Exportar PDF
@@ -421,9 +421,9 @@ const Reports = ({ user }) => {
  </div>
  </div>
 
- <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)]">
- <span>Actual: <span className="font-medium text-[var(--text-primary)]">{currentRange.label}</span></span>
- {compareMode && periodType !== 'all' && <span>Anterior: <span className="font-medium text-[var(--text-primary)]">{previousRange.label}</span></span>}
+ <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[var(--color-fg-3)]">
+ <span>Actual: <span className="font-medium text-[var(--color-fg-1)]">{currentRange.label}</span></span>
+ {compareMode && periodType !== 'all' && <span>Anterior: <span className="font-medium text-[var(--color-fg-1)]">{previousRange.label}</span></span>}
  </div>
  </section>
 
@@ -432,7 +432,7 @@ const Reports = ({ user }) => {
  title="Ingresos realizados"
  value={formatCurrency(currentTotals.inflows)}
  subtitle={`${currentMovements.filter((entry) => entry.direction === 'in').length} cobros o entradas reales`}
- accent="var(--success)"
+ accent="var(--color-ok)"
  icon={TrendingUp}
  delta={compareMode ? variation(currentTotals.inflows, previousTotals.inflows) : null}
  />
@@ -440,7 +440,7 @@ const Reports = ({ user }) => {
  title="Gastos realizados"
  value={formatCurrency(currentTotals.outflows)}
  subtitle={`${currentMovements.filter((entry) => entry.direction === 'out').length} pagos o salidas reales`}
- accent="var(--accent)"
+ accent="var(--color-accent)"
  icon={TrendingDown}
  delta={compareMode ? variation(currentTotals.outflows, previousTotals.outflows) : null}
  />
@@ -448,7 +448,7 @@ const Reports = ({ user }) => {
  title="Resultado de caja"
  value={formatCurrency(currentTotals.net)}
  subtitle="Ingresos realizados menos gastos realizados"
- accent={currentTotals.net >= 0 ? 'var(--text-secondary)' : 'var(--accent)'}
+ accent={currentTotals.net >= 0 ? 'var(--color-fg-3)' : 'var(--color-accent)'}
  icon={Wallet}
  delta={compareMode ? variation(currentTotals.net, previousTotals.net) : null}
  />
@@ -456,57 +456,57 @@ const Reports = ({ user }) => {
  title="Compromisos del período"
  value={formatCurrency(outstandingFromPeriod.net)}
  subtitle={`${formatCurrency(outstandingFromPeriod.cxc)} CXC y ${formatCurrency(outstandingFromPeriod.cxp)} CXP emitidas en este período`}
- accent={outstandingFromPeriod.net >= 0 ? 'var(--warning)' : 'var(--text-secondary)'}
+ accent={outstandingFromPeriod.net >= 0 ? 'var(--color-warn)' : 'var(--color-fg-3)'}
  icon={Calendar}
  />
  </div>
 
  <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4">
- <p className="nd-label text-[var(--text-disabled)]">Tendencia</p>
- <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Caja realizada {trendYear}</h3>
+ <p className="label-mono text-[var(--color-fg-4)]">Tendencia</p>
+ <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Caja realizada {trendYear}</h3>
  </div>
  <ResponsiveContainer width="100%" height={320}>
  <ComposedChart data={trendData}>
- <CartesianGrid stroke="var(--border)" vertical={false} />
- <XAxis dataKey="label" tick={{ fill: 'var(--text-disabled)', fontSize: 11 }} tickLine={false} axisLine={false} />
- <YAxis tick={{ fill: 'var(--text-disabled)', fontSize: 11 }} tickFormatter={(value) => `${Math.round(value / 1000)}k`} tickLine={false} axisLine={false} />
+ <CartesianGrid stroke="var(--color-line)" vertical={false} />
+ <XAxis dataKey="label" tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickLine={false} axisLine={false} />
+ <YAxis tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickFormatter={(value) => `${Math.round(value / 1000)}k`} tickLine={false} axisLine={false} />
  <Tooltip
  formatter={(value) => formatCurrency(value)}
- contentStyle={{ backgroundColor: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 18 }}
+ contentStyle={{ backgroundColor: 'var(--color-bg-2)', color: 'var(--color-fg-1)', border: '1px solid var(--color-line)', borderRadius: 18 }}
  />
  <Legend />
- <Bar dataKey="ingresos" fill="var(--success)" radius={0} name="Ingresos" />
- <Bar dataKey="gastos" fill="var(--accent)" radius={0} name="Gastos" />
- <Line type="monotone" dataKey="neto" stroke="var(--text-secondary)" strokeWidth={2.5} dot={{ r: 3 }} name="Neto" />
+ <Bar dataKey="ingresos" fill="var(--color-ok)" radius={0} name="Ingresos" />
+ <Bar dataKey="gastos" fill="var(--color-accent)" radius={0} name="Gastos" />
+ <Line type="monotone" dataKey="neto" stroke="var(--color-fg-3)" strokeWidth={2.5} dot={{ r: 3 }} name="Neto" />
  </ComposedChart>
  </ResponsiveContainer>
  </section>
 
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4">
- <p className="nd-label text-[var(--text-disabled)]">Top proyectos</p>
- <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Margen realizado por proyecto</h3>
+ <p className="label-mono text-[var(--color-fg-4)]">Top proyectos</p>
+ <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Margen realizado por proyecto</h3>
  </div>
  <div className="space-y-3">
  {projectMargins.map((project) => (
- <div key={project.name} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+ <div key={project.name} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
  <div className="flex items-center justify-between gap-4">
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">{project.name}</p>
- <p className="mt-1 text-xs text-[var(--text-secondary)]">
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{project.name}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-3)]">
  Ingresos {formatCurrency(project.inflows)} · Gastos {formatCurrency(project.outflows)}
  </p>
  </div>
- <span className={`text-sm font-medium ${project.net >= 0 ? 'text-[var(--success)]' : 'text-[var(--negative)]'}`}>
+ <span className={`text-sm font-medium ${project.net >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
  {project.net >= 0 ? '+' : ''}{formatCurrency(project.net)}
  </span>
  </div>
  </div>
  ))}
  {projectMargins.length === 0 && (
- <div className="rounded-lg border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+ <div className="rounded-lg border border-dashed border-[var(--color-line)] px-4 py-8 text-center text-sm text-[var(--color-fg-3)]">
  No hay movimientos realizados con proyecto en este período.
  </div>
  )}
@@ -515,97 +515,97 @@ const Reports = ({ user }) => {
  </div>
 
  <div className="grid gap-6 xl:grid-cols-2">
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4 flex items-center justify-between">
  <div>
- <p className="nd-label text-[var(--text-disabled)]">Ingresos</p>
- <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Desglose de entradas realizadas</h3>
+ <p className="label-mono text-[var(--color-fg-4)]">Ingresos</p>
+ <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Desglose de entradas realizadas</h3>
  </div>
- <span className="rounded-full border border-[var(--border-visible)] px-3 py-1 text-xs font-medium text-[var(--success)]">
+ <span className="rounded-full border border-[var(--color-line-s)] px-3 py-1 text-xs font-medium text-[var(--color-ok)]">
  {formatCurrency(currentTotals.inflows)}
  </span>
  </div>
  <div className="space-y-3">
  {groupedInflows.map((row) => (
- <div key={row.name} className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
- <span className="text-sm text-[var(--text-primary)]">{row.name}</span>
- <span className="text-sm font-medium text-[var(--success)]">{formatCurrency(row.amount)}</span>
+ <div key={row.name} className="flex items-center justify-between rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+ <span className="text-sm text-[var(--color-fg-1)]">{row.name}</span>
+ <span className="text-sm font-medium text-[var(--color-ok)]">{formatCurrency(row.amount)}</span>
  </div>
  ))}
- {groupedInflows.length === 0 && <p className="text-sm text-[var(--text-secondary)]">No hay ingresos realizados en este período.</p>}
+ {groupedInflows.length === 0 && <p className="text-sm text-[var(--color-fg-3)]">No hay ingresos realizados en este período.</p>}
  </div>
  </section>
 
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4 flex items-center justify-between">
  <div>
- <p className="nd-label text-[var(--text-disabled)]">Gastos</p>
- <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Desglose de salidas realizadas</h3>
+ <p className="label-mono text-[var(--color-fg-4)]">Gastos</p>
+ <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Desglose de salidas realizadas</h3>
  </div>
- <span className="rounded-full border border-[var(--border-visible)] px-3 py-1 text-xs font-medium text-[var(--accent)]">
+ <span className="rounded-full border border-[var(--color-line-s)] px-3 py-1 text-xs font-medium text-[var(--color-accent)]">
  {formatCurrency(currentTotals.outflows)}
  </span>
  </div>
  <div className="space-y-3">
  {groupedOutflows.map((row) => (
- <div key={row.name} className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
- <span className="text-sm text-[var(--text-primary)]">{row.name}</span>
- <span className="text-sm font-medium text-[var(--accent)]">{formatCurrency(row.amount)}</span>
+ <div key={row.name} className="flex items-center justify-between rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+ <span className="text-sm text-[var(--color-fg-1)]">{row.name}</span>
+ <span className="text-sm font-medium text-[var(--color-accent)]">{formatCurrency(row.amount)}</span>
  </div>
  ))}
- {groupedOutflows.length === 0 && <p className="text-sm text-[var(--text-secondary)]">No hay gastos realizados en este período.</p>}
+ {groupedOutflows.length === 0 && <p className="text-sm text-[var(--color-fg-3)]">No hay gastos realizados en este período.</p>}
  </div>
  </section>
  </div>
 
  {/* VAT Summary Section */}
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4 flex items-center justify-between">
  <div>
- <p className="nd-label text-[var(--text-disabled)]">IVA Alemán (Umsatzsteuer)</p>
- <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Resumen VAT del período</h3>
+ <p className="label-mono text-[var(--color-fg-4)]">IVA Alemán (Umsatzsteuer)</p>
+ <h3 className="mt-1 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Resumen VAT del período</h3>
  </div>
  <div className="flex gap-3">
- <div className="rounded-lg border border-[var(--border-visible)] bg-transparent px-3 py-2 text-center">
- <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--warning)]">USt (输出)</p>
- <p className="text-sm font-medium text-[var(--warning)]">{formatCurrency(currentVAT.outputVAT)}</p>
+ <div className="rounded-lg border border-[var(--color-line-s)] bg-transparent px-3 py-2 text-center">
+ <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-warn)]">USt (输出)</p>
+ <p className="text-sm font-medium text-[var(--color-warn)]">{formatCurrency(currentVAT.outputVAT)}</p>
  </div>
- <div className="rounded-lg border border-[var(--border-visible)] bg-transparent px-3 py-2 text-center">
- <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-primary)]">Vorsteuer (输入)</p>
- <p className="text-sm font-medium text-[var(--text-primary)]">{formatCurrency(currentVAT.inputVAT)}</p>
+ <div className="rounded-lg border border-[var(--color-line-s)] bg-transparent px-3 py-2 text-center">
+ <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-fg-1)]">Vorsteuer (输入)</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{formatCurrency(currentVAT.inputVAT)}</p>
  </div>
- <div className={`rounded-lg border px-3 py-2 text-center ${currentVAT.netVAT >= 0 ? 'border-[var(--border-visible)] bg-transparent' : 'border-[var(--border-visible)] bg-transparent'}`}>
- <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-disabled)]">Neto VAT</p>
- <p className={`text-sm font-medium ${currentVAT.netVAT >= 0 ? 'text-[var(--accent)]' : 'text-[var(--success)]'}`}>
+ <div className={`rounded-lg border px-3 py-2 text-center ${currentVAT.netVAT >= 0 ? 'border-[var(--color-line-s)] bg-transparent' : 'border-[var(--color-line-s)] bg-transparent'}`}>
+ <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-fg-4)]">Neto VAT</p>
+ <p className={`text-sm font-medium ${currentVAT.netVAT >= 0 ? 'text-[var(--color-accent)]' : 'text-[var(--color-ok)]'}`}>
  {currentVAT.netVAT >= 0 ? '+' : ''}{formatCurrency(currentVAT.netVAT)}
  </p>
  </div>
  </div>
  </div>
- <p className="text-xs text-[var(--text-secondary)]">
- <span className="font-medium text-[var(--warning)]">USt (Umsatzsteuer)</span> = IVA cobrado en ingresos (acreedor).{' '}
- <span className="font-medium text-[var(--text-primary)]">Vorsteuer</span> = IVA pagado en gastos (reclamable).{' '}
+ <p className="text-xs text-[var(--color-fg-3)]">
+ <span className="font-medium text-[var(--color-warn)]">USt (Umsatzsteuer)</span> = IVA cobrado en ingresos (acreedor).{' '}
+ <span className="font-medium text-[var(--color-fg-1)]">Vorsteuer</span> = IVA pagado en gastos (reclamable).{' '}
  <span className="font-medium">Neto +</span> = debe pagar a Finanzamt. <span className="font-medium">Neto −</span> = saldo a favor.
  </p>
  {compareMode && (previousVAT.outputVAT > 0 || previousVAT.inputVAT > 0) && (
- <div className="mt-3 flex gap-4 text-xs text-[var(--text-secondary)]">
+ <div className="mt-3 flex gap-4 text-xs text-[var(--color-fg-3)]">
  <span>vs. período anterior: USt {formatCurrency(previousVAT.outputVAT)}, Vorsteuer {formatCurrency(previousVAT.inputVAT)}, Neto {formatCurrency(previousVAT.netVAT)}</span>
  </div>
  )}
  <div className="mt-4">
- <p className="mb-2 text-[11px] font-medium uppercase tracking-widest text-[var(--text-disabled)]">Resultado neto (excluye IVA)</p>
+ <p className="mb-2 text-[11px] font-medium uppercase tracking-widest text-[var(--color-fg-4)]">Resultado neto (excluye IVA)</p>
  <div className="grid grid-cols-3 gap-4">
- <div className="rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-3">
- <p className="text-[10px] text-[var(--text-secondary)]">Ingresos netos</p>
- <p className="text-base font-medium text-[var(--success)]">{formatCurrency(currentTotalsNet.inflows)}</p>
+ <div className="rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-3">
+ <p className="text-[10px] text-[var(--color-fg-3)]">Ingresos netos</p>
+ <p className="text-base font-medium text-[var(--color-ok)]">{formatCurrency(currentTotalsNet.inflows)}</p>
  </div>
- <div className="rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-3">
- <p className="text-[10px] text-[var(--text-secondary)]">Gastos netos</p>
- <p className="text-base font-medium text-[var(--accent)]">{formatCurrency(currentTotalsNet.outflows)}</p>
+ <div className="rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-3">
+ <p className="text-[10px] text-[var(--color-fg-3)]">Gastos netos</p>
+ <p className="text-base font-medium text-[var(--color-accent)]">{formatCurrency(currentTotalsNet.outflows)}</p>
  </div>
- <div className={`rounded-lg border px-4 py-3 ${currentTotalsNet.net >= 0 ? 'border-[var(--border-visible)] bg-transparent' : 'border-[var(--border-visible)] bg-transparent'}`}>
- <p className="text-[10px] text-[var(--text-secondary)]">Resultado neto</p>
- <p className={`text-base font-medium ${currentTotalsNet.net >= 0 ? 'text-[var(--success)]' : 'text-[var(--negative)]'}`}>
+ <div className={`rounded-lg border px-4 py-3 ${currentTotalsNet.net >= 0 ? 'border-[var(--color-line-s)] bg-transparent' : 'border-[var(--color-line-s)] bg-transparent'}`}>
+ <p className="text-[10px] text-[var(--color-fg-3)]">Resultado neto</p>
+ <p className={`text-base font-medium ${currentTotalsNet.net >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
  {currentTotalsNet.net >= 0 ? '+' : ''}{formatCurrency(currentTotalsNet.net)}
  </p>
  </div>

@@ -164,30 +164,30 @@ const BackupManager = ({ user }) => {
  {/* Header */}
  <div className="flex items-center gap-3">
  <div className="p-3 bg-transparent rounded-md">
- <Database className="text-[var(--success)]" size={24} />
+ <Database className="text-[var(--color-ok)]" size={24} />
  </div>
  <div>
- <h2 className="text-xl font-medium text-[var(--text-primary)]">Backup & Restauracion</h2>
- <p className="text-sm text-[var(--text-secondary)]">Exporta e importa los datos de FinControl</p>
+ <h2 className="text-xl font-medium text-[var(--color-fg-1)]">Backup & Restauracion</h2>
+ <p className="text-sm text-[var(--color-fg-3)]">Exporta e importa los datos de NEXUS.OS</p>
  </div>
  </div>
 
  {/* Export Section */}
- <div className="bg-[var(--surface)] rounded-lg p-6 border border-[var(--border)]">
+ <div className="bg-[var(--color-bg-1)] rounded-lg p-6 border border-[var(--color-line)]">
  <div className="flex items-center gap-2 mb-4">
- <Download className="text-[var(--interactive)]" size={20} />
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Exportar Backup</h3>
+ <Download className="text-[var(--color-accent)]" size={20} />
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Exportar Backup</h3>
  </div>
- <p className="text-sm text-[var(--text-secondary)] mb-4">
+ <p className="text-sm text-[var(--color-fg-3)] mb-4">
  Descarga todos los datos de Firestore como un archivo JSON. Incluye: {COLLECTIONS.join(', ')}.
  </p>
 
  {/* Collections preview */}
  <div className="grid grid-cols-3 md:grid-cols-5 gap-2 mb-6">
  {COLLECTIONS.map((col) => (
- <div key={col} className="bg-[var(--surface-raised)] rounded-lg p-2.5 text-center">
- <FileJson className="mx-auto text-[var(--interactive)] mb-1" size={16} />
- <p className="text-xs text-[var(--text-secondary)] truncate">{col}</p>
+ <div key={col} className="bg-[var(--color-bg-2)] rounded-lg p-2.5 text-center">
+ <FileJson className="mx-auto text-[var(--color-accent)] mb-1" size={16} />
+ <p className="text-xs text-[var(--color-fg-3)] truncate">{col}</p>
  </div>
  ))}
  </div>
@@ -196,32 +196,32 @@ const BackupManager = ({ user }) => {
  <button
  onClick={handleExport}
  disabled={exporting}
- className="flex items-center gap-2 px-6 py-2.5 bg-[var(--interactive)] hover:opacity-80 text-[var(--text-primary)] rounded-lg font-medium transition-colors disabled:opacity-50"
+ className="flex items-center gap-2 px-6 py-2.5 bg-[var(--color-accent)] hover:opacity-80 text-[var(--color-fg-1)] rounded-lg font-medium transition-colors disabled:opacity-50"
  >
  {exporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
  {exporting ? 'Exportando...' : 'Descargar Backup Completo'}
  </button>
  {exportProgress && (
- <span className="text-sm text-[var(--text-secondary)] n-mono">[{exportProgress}]</span>
+ <span className="text-sm text-[var(--color-fg-3)] font-mono">[{exportProgress}]</span>
  )}
  </div>
  </div>
 
  {/* Import Section */}
- <div className="bg-[var(--surface)] rounded-lg p-6 border border-[var(--border)]">
+ <div className="bg-[var(--color-bg-1)] rounded-lg p-6 border border-[var(--color-line)]">
  <div className="flex items-center gap-2 mb-4">
- <Upload className="text-[var(--warning)]" size={20} />
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Restaurar desde Backup</h3>
+ <Upload className="text-[var(--color-warn)]" size={20} />
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Restaurar desde Backup</h3>
  </div>
- <p className="text-sm text-[var(--text-secondary)] mb-4">
+ <p className="text-sm text-[var(--color-fg-3)] mb-4">
  Selecciona un archivo JSON de backup generado previamente para previsualizar y restaurar los datos.
  </p>
 
  {!importPreview ? (
- <div className="border-2 border-dashed border-[var(--border)] rounded-md p-8 text-center hover:border-[var(--border-visible)] transition-colors">
- <HardDrive className="mx-auto text-[var(--text-disabled)] mb-3" size={36} />
- <p className="text-sm text-[var(--text-secondary)] mb-3">Arrastra un archivo o haz clic para seleccionar</p>
- <label className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-raised)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-lg cursor-pointer transition-colors text-sm font-medium">
+ <div className="border-2 border-dashed border-[var(--color-line)] rounded-md p-8 text-center hover:border-[var(--color-line-s)] transition-colors">
+ <HardDrive className="mx-auto text-[var(--color-fg-4)] mb-3" size={36} />
+ <p className="text-sm text-[var(--color-fg-3)] mb-3">Arrastra un archivo o haz clic para seleccionar</p>
+ <label className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-bg-2)] hover:bg-[var(--color-line)] text-[var(--color-fg-1)] rounded-lg cursor-pointer transition-colors text-sm font-medium">
  <Upload size={16} />
  Seleccionar Archivo
  <input
@@ -236,23 +236,23 @@ const BackupManager = ({ user }) => {
  ) : (
  <div className="space-y-4">
  {/* Preview */}
- <div className="bg-[var(--surface-raised)] rounded-md p-4 border border-[var(--border)]">
+ <div className="bg-[var(--color-bg-2)] rounded-md p-4 border border-[var(--color-line)]">
  <div className="flex items-center gap-2 mb-3">
- <Eye className="text-[var(--warning)]" size={18} />
- <h4 className="text-sm font-medium text-[var(--text-primary)]">Vista Previa del Backup</h4>
+ <Eye className="text-[var(--color-warn)]" size={18} />
+ <h4 className="text-sm font-medium text-[var(--color-fg-1)]">Vista Previa del Backup</h4>
  </div>
  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
  <div>
- <p className="text-xs text-[var(--text-disabled)]">Archivo</p>
- <p className="text-sm text-[var(--text-primary)] font-medium truncate">{importPreview.filename}</p>
+ <p className="text-xs text-[var(--color-fg-4)]">Archivo</p>
+ <p className="text-sm text-[var(--color-fg-1)] font-medium truncate">{importPreview.filename}</p>
  </div>
  <div>
- <p className="text-xs text-[var(--text-disabled)]">Tamano</p>
- <p className="text-sm text-[var(--text-primary)] font-medium">{importPreview.fileSize} KB</p>
+ <p className="text-xs text-[var(--color-fg-4)]">Tamano</p>
+ <p className="text-sm text-[var(--color-fg-1)] font-medium">{importPreview.fileSize} KB</p>
  </div>
  <div>
- <p className="text-xs text-[var(--text-disabled)]">Fecha de export</p>
- <p className="text-sm text-[var(--text-primary)] font-medium">
+ <p className="text-xs text-[var(--color-fg-4)]">Fecha de export</p>
+ <p className="text-sm text-[var(--color-fg-1)] font-medium">
  {importPreview.exportDate
  ? new Date(importPreview.exportDate).toLocaleDateString('es-ES')
  : '—'
@@ -260,8 +260,8 @@ const BackupManager = ({ user }) => {
  </p>
  </div>
  <div>
- <p className="text-xs text-[var(--text-disabled)]">Total documentos</p>
- <p className="text-sm text-[var(--success)] font-medium">{importPreview.totalDocs}</p>
+ <p className="text-xs text-[var(--color-fg-4)]">Total documentos</p>
+ <p className="text-sm text-[var(--color-ok)] font-medium">{importPreview.totalDocs}</p>
  </div>
  </div>
 
@@ -269,16 +269,16 @@ const BackupManager = ({ user }) => {
  <div className="overflow-x-auto">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border)]">
- <th className="pb-2 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Coleccion</th>
- <th className="pb-2 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide text-right">Documentos</th>
+ <tr className="border-b border-[var(--color-line)]">
+ <th className="pb-2 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Coleccion</th>
+ <th className="pb-2 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide text-right">Documentos</th>
  </tr>
  </thead>
  <tbody>
  {importPreview.collections.map((col) => (
- <tr key={col.name} className="border-b border-[var(--border)]">
- <td className="py-2 text-sm text-[var(--text-secondary)]">{col.name}</td>
- <td className="py-2 text-sm text-[var(--text-primary)] font-medium text-right">{col.count}</td>
+ <tr key={col.name} className="border-b border-[var(--color-line)]">
+ <td className="py-2 text-sm text-[var(--color-fg-3)]">{col.name}</td>
+ <td className="py-2 text-sm text-[var(--color-fg-1)] font-medium text-right">{col.count}</td>
  </tr>
  ))}
  </tbody>
@@ -287,9 +287,9 @@ const BackupManager = ({ user }) => {
  </div>
 
  {/* Warning */}
- <div className="bg-transparent border border-[var(--border-visible)] rounded-lg p-3 flex items-start gap-2">
- <AlertTriangle className="text-[var(--accent)] flex-shrink-0 mt-0.5" size={18} />
- <p className="text-sm text-[var(--accent)]">
+ <div className="bg-transparent border border-[var(--color-line-s)] rounded-lg p-3 flex items-start gap-2">
+ <AlertTriangle className="text-[var(--color-accent)] flex-shrink-0 mt-0.5" size={18} />
+ <p className="text-sm text-[var(--color-accent)]">
  La restauracion sobrescribira los datos existentes. Asegurate de tener un backup actual antes de continuar.
  </p>
  </div>
@@ -299,14 +299,14 @@ const BackupManager = ({ user }) => {
  <button
  onClick={handleImport}
  disabled={importing}
- className="flex items-center gap-2 px-6 py-2.5 bg-[var(--warning)] hover:opacity-80 text-[var(--text-primary)] rounded-lg font-medium transition-colors disabled:opacity-50"
+ className="flex items-center gap-2 px-6 py-2.5 bg-[var(--color-warn)] hover:opacity-80 text-[var(--color-fg-1)] rounded-lg font-medium transition-colors disabled:opacity-50"
  >
  {importing ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
  {importing ? 'Procesando...' : 'Restaurar Datos'}
  </button>
  <button
  onClick={cancelImport}
- className="px-4 py-2.5 bg-[var(--surface-raised)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-lg text-sm font-medium transition-colors"
+ className="px-4 py-2.5 bg-[var(--color-bg-2)] hover:bg-[var(--color-line)] text-[var(--color-fg-1)] rounded-lg text-sm font-medium transition-colors"
  >
  Cancelar
  </button>
@@ -316,48 +316,48 @@ const BackupManager = ({ user }) => {
  </div>
 
  {/* Backup History */}
- <div className="bg-[var(--surface)] rounded-lg p-6 border border-[var(--border)]">
+ <div className="bg-[var(--color-bg-1)] rounded-lg p-6 border border-[var(--color-line)]">
  <div className="flex items-center gap-2 mb-4">
- <Clock className="text-[var(--text-secondary)]" size={20} />
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Historial de Backups</h3>
+ <Clock className="text-[var(--color-fg-3)]" size={20} />
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Historial de Backups</h3>
  </div>
 
  <div className="overflow-x-auto">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border)]">
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Fecha</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Tipo</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Estado</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Tamano</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Usuario</th>
+ <tr className="border-b border-[var(--color-line)]">
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Fecha</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Tipo</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Estado</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Tamano</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Usuario</th>
  </tr>
  </thead>
  <tbody>
  {backupHistory.map((entry, i) => (
- <tr key={i} className="border-b border-[var(--border)]">
- <td className="py-3 text-[var(--text-disabled)] text-sm">{entry.date}</td>
- <td className="py-3 text-[var(--text-disabled)] text-sm">{entry.type}</td>
- <td className="py-3 text-[var(--text-disabled)] text-sm italic">Pendiente de implementacion</td>
- <td className="py-3 text-[var(--text-disabled)] text-sm">{entry.size}</td>
- <td className="py-3 text-[var(--text-disabled)] text-sm">{entry.user}</td>
+ <tr key={i} className="border-b border-[var(--color-line)]">
+ <td className="py-3 text-[var(--color-fg-4)] text-sm">{entry.date}</td>
+ <td className="py-3 text-[var(--color-fg-4)] text-sm">{entry.type}</td>
+ <td className="py-3 text-[var(--color-fg-4)] text-sm italic">Pendiente de implementacion</td>
+ <td className="py-3 text-[var(--color-fg-4)] text-sm">{entry.size}</td>
+ <td className="py-3 text-[var(--color-fg-4)] text-sm">{entry.user}</td>
  </tr>
  ))}
  </tbody>
  </table>
  </div>
 
- <p className="text-xs text-[var(--text-disabled)] mt-3 italic">
+ <p className="text-xs text-[var(--color-fg-4)] mt-3 italic">
  El historial automatico se habilitara cuando se configuren Cloud Functions para backups programados.
  </p>
  </div>
 
  {/* Info Box */}
- <div className="bg-transparent border border-[var(--border-visible)] rounded-md p-4 flex items-start gap-3">
- <Info className="text-[var(--interactive)] flex-shrink-0 mt-0.5" size={20} />
+ <div className="bg-transparent border border-[var(--color-line-s)] rounded-md p-4 flex items-start gap-3">
+ <Info className="text-[var(--color-accent)] flex-shrink-0 mt-0.5" size={20} />
  <div>
- <p className="text-sm text-[var(--interactive)] font-medium">Backups automaticos</p>
- <p className="text-xs text-[var(--text-secondary)] mt-1">
+ <p className="text-sm text-[var(--color-accent)] font-medium">Backups automaticos</p>
+ <p className="text-xs text-[var(--color-fg-3)] mt-1">
  Para backups automaticos semanales, configurar Firebase Cloud Functions con un trigger programado (cron) que exporte los datos a Cloud Storage. Contacta al administrador para activar esta funcionalidad.
  </p>
  </div>

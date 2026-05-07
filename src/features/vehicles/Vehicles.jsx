@@ -81,11 +81,11 @@ const Vehicles = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Assets · Vehículos</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Assets · Vehículos</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Flota
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Gestiona la flota y sus costos recurrentes (leasing, alquiler, seguros, combustible).
  </p>
  </div>
@@ -113,11 +113,11 @@ const Vehicles = ({ user }) => {
  padding={false}
  actions={
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  />
@@ -125,7 +125,7 @@ const Vehicles = ({ user }) => {
  }
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="nd-label">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={Car}
@@ -152,12 +152,12 @@ const Vehicles = ({ user }) => {
  <tbody>
  {filtered.map((v) => (
   <tr key={v.id} {...rowButtonProps(() => openEdit(v))}>
- <td className="font-medium text-[var(--text-primary)]">{v.name}</td>
- <td className="text-[var(--text-secondary)]">{v.model || '—'}</td>
- <td className="nd-mono text-[var(--text-secondary)]">{v.plate || '—'}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">{v.name}</td>
+ <td className="text-[var(--color-fg-3)]">{v.model || '—'}</td>
+ <td className="font-mono text-[var(--color-fg-3)]">{v.plate || '—'}</td>
  <td>{TYPE_LABELS[v.type] || v.type}</td>
- <td className="text-[var(--text-secondary)]">{v.assignedDriver || '—'}</td>
- <td className="text-right nd-mono tabular-nums">{v.currentKm ? v.currentKm.toLocaleString('de-DE') + ' km' : '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{v.assignedDriver || '—'}</td>
+ <td className="text-right font-mono tabular-nums">{v.currentKm ? v.currentKm.toLocaleString('de-DE') + ' km' : '—'}</td>
  <td className="text-center">
  <Badge variant="neutral">{stats.costsByVehicle[v.id] || 0}</Badge>
  </td>

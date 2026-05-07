@@ -890,8 +890,8 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  <div
  className={`fixed right-6 top-6 z-[100] flex items-center gap-2 rounded-full border px-4 py-2.5 text-[13px] font-medium animate-fadeIn ${
  toast.type === 'success'
- ? 'border-[var(--border-visible)] bg-transparent text-[var(--success)]'
- : 'border-[var(--border-visible)] bg-transparent text-[var(--accent)]'
+ ? 'border-[var(--color-line-s)] bg-transparent text-[var(--color-ok)]'
+ : 'border-[var(--color-line-s)] bg-transparent text-[var(--color-accent)]'
  }`}
  >
  <CheckCircle size={15} />
@@ -899,12 +899,12 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  </div>
  )}
 
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 md:p-6">
  <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
  <div className="max-w-3xl">
- <p className="nd-label text-[var(--text-secondary)]">Control operativo</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)] md:text-[32px]">Mesa central de registros financieros</h2>
- <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-disabled)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Control operativo</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)] md:text-[32px]">Mesa central de registros financieros</h2>
+ <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--color-fg-4)]">
  Revisa en una sola vista movimientos bancarios, facturas por cobrar, facturas por pagar y registros históricos sin duplicados.
  </p>
  </div>
@@ -940,17 +940,17 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  />
 
  <div className="flex items-center justify-between px-1">
- <p className="text-[13px] text-[var(--text-secondary)]">
- Mostrando <span className="font-medium text-[var(--text-primary)]">{formatCount(filteredRecords.length)}</span> registros
+ <p className="text-[13px] text-[var(--color-fg-3)]">
+ Mostrando <span className="font-medium text-[var(--color-fg-1)]">{formatCount(filteredRecords.length)}</span> registros
  {filteredRecords.length !== unifiedRecords.length && (
- <span className="text-[var(--text-secondary)]"> de {formatCount(unifiedRecords.length)}</span>
+ <span className="text-[var(--color-fg-3)]"> de {formatCount(unifiedRecords.length)}</span>
  )}
  </p>
  {(activeFiltersCount > 0 || quickFilter !== 'all' || searchTerm) && (
  <button
  type="button"
  onClick={resetFilters}
- className="text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:text-[var(--text-primary)]"
+ className="text-[12px] font-medium text-[var(--color-fg-1)] transition-colors hover:text-[var(--color-fg-1)]"
  >
  Limpiar selección
  </button>
@@ -963,13 +963,13 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
 
  {/* Bulk categorize panel */}
  {bulkCatOpen && uncategorizedMovements.length > 0 && (
- <section className="rounded-md border border-[var(--border-visible)] bg-transparent p-5 space-y-4">
+ <section className="rounded-md border border-[var(--color-line-s)] bg-transparent p-5 space-y-4">
  <div className="flex items-center justify-between">
  <div>
- <h3 className="text-[15px] font-medium text-[var(--text-primary)]">Categorización en lote</h3>
- <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{uncategorizedMovements.length} movimientos bancarios sin categoría. Selecciona y asigna.</p>
+ <h3 className="text-[15px] font-medium text-[var(--color-fg-1)]">Categorización en lote</h3>
+ <p className="mt-0.5 text-xs text-[var(--color-fg-3)]">{uncategorizedMovements.length} movimientos bancarios sin categoría. Selecciona y asigna.</p>
  </div>
- <button onClick={() => setBulkCatOpen(false)} className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+ <button onClick={() => setBulkCatOpen(false)} className="rounded-lg p-1.5 text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]">
  <X size={16} />
  </button>
  </div>
@@ -977,9 +977,9 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  {/* Controls */}
  <div className="flex flex-wrap items-end gap-3">
  <label className="block flex-1 min-w-[180px]">
- <span className="mb-1 block nd-label text-[var(--text-disabled)]">Categoría</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-4)]">Categoría</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--text-secondary)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm outline-none focus:border-[var(--color-fg-3)]"
  value={bulkCategory}
  onChange={(e) => setBulkCategory(e.target.value)}
  >
@@ -993,9 +993,9 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  </select>
  </label>
  <label className="block min-w-[160px]">
- <span className="mb-1 block nd-label text-[var(--text-disabled)]">Centro de costo</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-4)]">Centro de costo</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--text-secondary)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm outline-none focus:border-[var(--color-fg-3)]"
  value={bulkCostCenter}
  onChange={(e) => setBulkCostCenter(e.target.value)}
  >
@@ -1016,26 +1016,26 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  {/* Select all / none */}
  <div className="flex items-center gap-3 text-xs">
  <button
- className="font-medium text-[var(--text-primary)] hover:underline"
+ className="font-medium text-[var(--color-fg-1)] hover:underline"
  onClick={() => setBulkSelected(new Set(uncategorizedMovements.map((m) => m.id)))}
  >
  Seleccionar todos
  </button>
- <span className="text-[var(--text-secondary)]">|</span>
+ <span className="text-[var(--color-fg-3)]">|</span>
  <button
- className="font-medium text-[var(--text-primary)] hover:underline"
+ className="font-medium text-[var(--color-fg-1)] hover:underline"
  onClick={() => setBulkSelected(new Set())}
  >
  Ninguno
  </button>
- <span className="text-[var(--text-secondary)]">{bulkSelected.size} de {uncategorizedMovements.length} seleccionados</span>
+ <span className="text-[var(--color-fg-3)]">{bulkSelected.size} de {uncategorizedMovements.length} seleccionados</span>
  </div>
 
  {/* Movement list */}
- <div className="max-h-[340px] overflow-y-auto rounded-md border border-[var(--border)] bg-[var(--surface)]">
+ <div className="max-h-[340px] overflow-y-auto rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
  <table className="w-full text-left text-sm">
- <thead className="sticky top-0 bg-[var(--surface)] ">
- <tr className="border-b border-[var(--border)] nd-label text-[var(--text-disabled)]">
+ <thead className="sticky top-0 bg-[var(--color-bg-1)] ">
+ <tr className="border-b border-[var(--color-line)] label-mono text-[var(--color-fg-4)]">
  <th className="w-10 px-3 py-2 text-center">
  <input
  type="checkbox"
@@ -1054,11 +1054,11 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  <th className="px-3 py-2">Dir</th>
  </tr>
  </thead>
- <tbody className="divide-y divide-[var(--border)]">
+ <tbody className="divide-y divide-[var(--color-line)]">
  {uncategorizedMovements.slice(0, 100).map((m) => (
  <tr
  key={m.id}
- className={`cursor-pointer hover:bg-[var(--surface)] ${bulkSelected.has(m.id) ? 'bg-[var(--surface)]' : ''}`}
+ className={`cursor-pointer hover:bg-[var(--color-bg-1)] ${bulkSelected.has(m.id) ? 'bg-[var(--color-bg-1)]' : ''}`}
  onClick={() => setBulkSelected((prev) => {
  const next = new Set(prev);
  if (next.has(m.id)) next.delete(m.id);
@@ -1074,19 +1074,19 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  className="rounded pointer-events-none"
  />
  </td>
- <td className="px-3 py-2 whitespace-nowrap text-[var(--text-secondary)]">{m.postedDate?.slice(0, 10) || '—'}</td>
- <td className="px-3 py-2 max-w-[280px] truncate text-[var(--text-primary)]">{m.description || '—'}</td>
- <td className="px-3 py-2 text-[var(--text-secondary)]">{m.counterpartyName || '—'}</td>
- <td className={`px-3 py-2 text-right nd-mono tabular-nums ${m.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <td className="px-3 py-2 whitespace-nowrap text-[var(--color-fg-3)]">{m.postedDate?.slice(0, 10) || '—'}</td>
+ <td className="px-3 py-2 max-w-[280px] truncate text-[var(--color-fg-1)]">{m.description || '—'}</td>
+ <td className="px-3 py-2 text-[var(--color-fg-3)]">{m.counterpartyName || '—'}</td>
+ <td className={`px-3 py-2 text-right font-mono tabular-nums ${m.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {m.direction === 'in' ? '+' : '-'}{formatCurrency(Math.abs(m.netAmount ?? m.amount))}
  </td>
- <td className="px-3 py-2 text-xs text-[var(--text-secondary)]">{m.direction === 'in' ? 'Entrada' : 'Salida'}</td>
+ <td className="px-3 py-2 text-xs text-[var(--color-fg-3)]">{m.direction === 'in' ? 'Entrada' : 'Salida'}</td>
  </tr>
  ))}
  </tbody>
  </table>
  {uncategorizedMovements.length > 100 && (
- <p className="px-3 py-2 text-xs italic text-[var(--text-secondary)]">Mostrando los primeros 100 de {uncategorizedMovements.length}</p>
+ <p className="px-3 py-2 text-xs italic text-[var(--color-fg-3)]">Mostrando los primeros 100 de {uncategorizedMovements.length}</p>
  )}
  </div>
  </section>
@@ -1253,29 +1253,29 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
 
  const Field = ({ label, value }) => value ? (
  <div>
- <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-disabled)]">{label}</p>
- <p className="mt-0.5 text-sm text-[var(--text-primary)]">{value}</p>
+ <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)]">{label}</p>
+ <p className="mt-0.5 text-sm text-[var(--color-fg-1)]">{value}</p>
  </div>
  ) : null;
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={() => setDetailRecord(null)}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-xl max-h-[85vh] overflow-hidden animate-scaleIn flex flex-col" onClick={(e) => e.stopPropagation()}>
- <div className="px-6 py-4 border-b border-[var(--border)] flex justify-between items-start shrink-0">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={() => setDetailRecord(null)}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-xl max-h-[85vh] overflow-hidden animate-scaleIn flex flex-col" onClick={(e) => e.stopPropagation()}>
+ <div className="px-6 py-4 border-b border-[var(--color-line)] flex justify-between items-start shrink-0">
  <div className="min-w-0 flex-1">
  <Badge variant={r.type === 'income' ? 'ok' : 'err'}>
  {r.type === 'income' ? 'Ingreso' : 'Egreso'} · {familyLabels[r.recordFamily] || r.recordFamily}
  </Badge>
- <h3 className="mt-2 text-lg font-medium text-[var(--text-primary)] break-words">{r.description}</h3>
+ <h3 className="mt-2 text-lg font-medium text-[var(--color-fg-1)] break-words">{r.description}</h3>
  </div>
- <button onClick={() => setDetailRecord(null)} className="ml-3 shrink-0 text-[var(--text-disabled)] hover:text-[var(--text-secondary)] transition-colors">
+ <button onClick={() => setDetailRecord(null)} className="ml-3 shrink-0 text-[var(--color-fg-4)] hover:text-[var(--color-fg-3)] transition-colors">
  <X size={20} />
  </button>
  </div>
 
  <div className="overflow-y-auto px-6 py-5 space-y-5">
  <div className="flex items-baseline justify-between">
- <span className={`nd-display text-[32px] font-light tabular-nums tracking-tight ${r.type === 'income' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <span className={`font-display text-[32px] font-light tabular-nums tracking-tight ${r.type === 'income' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {r.type === 'income' ? '+' : '-'}{formatCurrency(r.amount)}
  </span>
  <Badge variant={
@@ -1290,14 +1290,14 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
 
  {r.status === 'partial' && (
  <div>
- <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-raised)]">
- <div className="h-full rounded-full bg-[var(--success)]" style={{ width: `${Number(r.amount) > 0 ? ((Number(r.paidAmount) || 0) / Number(r.amount)) * 100 : 0}%` }} />
+ <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-2)]">
+ <div className="h-full rounded-full bg-[var(--color-ok)]" style={{ width: `${Number(r.amount) > 0 ? ((Number(r.paidAmount) || 0) / Number(r.amount)) * 100 : 0}%` }} />
  </div>
- <p className="mt-1 text-xs text-[var(--text-secondary)]">Pagado: {formatCurrency(r.paidAmount || 0)} / {formatCurrency(r.amount)}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-3)]">Pagado: {formatCurrency(r.paidAmount || 0)} / {formatCurrency(r.amount)}</p>
  </div>
  )}
 
- <div className="grid grid-cols-2 gap-4 rounded-md border border-[var(--border)] bg-[var(--black)] p-4">
+ <div className="grid grid-cols-2 gap-4 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-4">
  <Field label="Fecha" value={r.date} />
  <Field label="Origen" value={r.sourceLabel} />
  <Field label="Proyecto" value={r.project || raw.projectName} />
@@ -1314,15 +1314,15 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
 
  {payments.length > 0 && (
  <div>
- <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--text-disabled)]">Pagos registrados ({payments.length})</p>
+ <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)]">Pagos registrados ({payments.length})</p>
  <div className="space-y-1.5">
  {payments.map((p, idx) => (
- <div key={idx} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--black)] px-3 py-2">
+ <div key={idx} className="flex items-center justify-between rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2">
  <div>
- <p className="text-sm text-[var(--text-primary)]">{p.method || 'Pago'}</p>
- <p className="text-[11px] text-[var(--text-disabled)]">{p.date} {p.user ? `· ${p.user}` : ''}</p>
+ <p className="text-sm text-[var(--color-fg-1)]">{p.method || 'Pago'}</p>
+ <p className="text-[11px] text-[var(--color-fg-4)]">{p.date} {p.user ? `· ${p.user}` : ''}</p>
  </div>
- <span className="nd-mono text-sm tabular-nums text-[var(--success)]">{formatCurrency(p.amount)}</span>
+ <span className="font-mono text-sm tabular-nums text-[var(--color-ok)]">{formatCurrency(p.amount)}</span>
  </div>
  ))}
  </div>
@@ -1331,12 +1331,12 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
 
  {notes.length > 0 && (
  <div>
- <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--text-disabled)]">Notas ({notes.length})</p>
+ <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)]">Notas ({notes.length})</p>
  <div className="space-y-1.5">
  {notes.map((n, idx) => (
- <div key={idx} className={`rounded-lg border px-3 py-2 text-sm ${n.type === 'system' ? 'border-[var(--border)] bg-[var(--black)] text-[var(--text-disabled)]' : 'border-[var(--border-visible)] bg-transparent text-[var(--text-secondary)]'}`}>
+ <div key={idx} className={`rounded-lg border px-3 py-2 text-sm ${n.type === 'system' ? 'border-[var(--color-line)] bg-[var(--color-bg-0)] text-[var(--color-fg-4)]' : 'border-[var(--color-line-s)] bg-transparent text-[var(--color-fg-3)]'}`}>
  <p>{n.text}</p>
- <p className="mt-1 text-[10px] text-[var(--text-disabled)]">{n.timestamp ? new Date(n.timestamp).toLocaleString('es-ES') : ''} {n.user ? `· ${n.user}` : ''}</p>
+ <p className="mt-1 text-[10px] text-[var(--color-fg-4)]">{n.timestamp ? new Date(n.timestamp).toLocaleString('es-ES') : ''} {n.user ? `· ${n.user}` : ''}</p>
  </div>
  ))}
  </div>
@@ -1344,14 +1344,14 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  )}
  </div>
 
- <div className="shrink-0 border-t border-[var(--border)] px-6 py-3 flex gap-2">
+ <div className="shrink-0 border-t border-[var(--color-line)] px-6 py-3 flex gap-2">
  {r.canEdit && userRole === 'admin' && (
- <button type="button" onClick={() => { setDetailRecord(null); handleEdit(r); }} className="flex-1 rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border)]">Editar</button>
+ <button type="button" onClick={() => { setDetailRecord(null); handleEdit(r); }} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">Editar</button>
  )}
  {r.canChangeStatus && userRole === 'admin' && (
- <button type="button" onClick={() => { setDetailRecord(null); handleChangeStatus(r); }} className="flex-1 rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--warning)] hover:bg-[var(--border)]">Cambiar estado</button>
+ <button type="button" onClick={() => { setDetailRecord(null); handleChangeStatus(r); }} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-warn)] hover:bg-[var(--color-line)]">Cambiar estado</button>
  )}
- <button type="button" onClick={() => setDetailRecord(null)} className="flex-1 rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border)]">Cerrar</button>
+ <button type="button" onClick={() => setDetailRecord(null)} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">Cerrar</button>
  </div>
  </div>
  </div>
@@ -1374,19 +1374,19 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  const showCancel = status !== 'cancelled' && status !== 'void';
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" role="dialog" aria-modal="true" onClick={() => setStatusChangeRecord(null)}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-md overflow-hidden animate-scaleIn" onClick={(e) => e.stopPropagation()}>
- <div className="px-6 py-4 border-b border-[var(--border)] flex justify-between items-center">
- <h3 className="font-medium text-lg text-[var(--text-primary)]">Cambiar estado</h3>
- <button onClick={() => setStatusChangeRecord(null)} className="text-[var(--text-disabled)] hover:text-[var(--text-secondary)] transition-colors">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" role="dialog" aria-modal="true" onClick={() => setStatusChangeRecord(null)}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-md overflow-hidden animate-scaleIn" onClick={(e) => e.stopPropagation()}>
+ <div className="px-6 py-4 border-b border-[var(--color-line)] flex justify-between items-center">
+ <h3 className="font-medium text-lg text-[var(--color-fg-1)]">Cambiar estado</h3>
+ <button onClick={() => setStatusChangeRecord(null)} className="text-[var(--color-fg-4)] hover:text-[var(--color-fg-3)] transition-colors">
  <X size={20} />
  </button>
  </div>
 
  <div className="p-6">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3 mb-5">
- <p className="text-sm font-medium text-[var(--text-primary)]">{statusChangeRecord.description}</p>
- <p className="mt-1 text-xs text-[var(--text-secondary)]">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] p-3 mb-5">
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{statusChangeRecord.description}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-3)]">
  {familyLabels[family]} · {statusLabels[status] || status} · {formatCurrency(statusChangeRecord.amount)}
  </p>
  </div>
@@ -1396,14 +1396,14 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  <button
  type="button"
  onClick={() => confirmStatusChange('pending')}
- className="flex w-full items-center gap-3 rounded-md border border-[var(--border-visible)] bg-transparent px-4 py-3 text-left transition-all hover:bg-transparent"
+ className="flex w-full items-center gap-3 rounded-md border border-[var(--color-line-s)] bg-transparent px-4 py-3 text-left transition-all hover:bg-transparent"
  >
  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-transparent">
- <span className="nd-mono text-[var(--warning)] text-sm">CXC</span>
+ <span className="font-mono text-[var(--color-warn)] text-sm">CXC</span>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Revertir a Pendiente</p>
- <p className="text-xs text-[var(--text-secondary)]">
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Revertir a Pendiente</p>
+ <p className="text-xs text-[var(--color-fg-3)]">
  {isMovement ? 'Revierte el cobro — vuelve a cuenta por cobrar' : 'Pasa a CXC abierta'}
  </p>
  </div>
@@ -1413,14 +1413,14 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  <button
  type="button"
  onClick={() => confirmStatusChange('paid')}
- className="flex w-full items-center gap-3 rounded-md border border-[var(--border-visible)] bg-transparent px-4 py-3 text-left transition-all hover:bg-transparent"
+ className="flex w-full items-center gap-3 rounded-md border border-[var(--color-line-s)] bg-transparent px-4 py-3 text-left transition-all hover:bg-transparent"
  >
  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-transparent">
- <span className="text-[var(--success)] text-lg">&#10003;</span>
+ <span className="text-[var(--color-ok)] text-lg">&#10003;</span>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Marcar como Liquidado</p>
- <p className="text-xs text-[var(--text-secondary)]">Confirma cobro/pago completo</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Marcar como Liquidado</p>
+ <p className="text-xs text-[var(--color-fg-3)]">Confirma cobro/pago completo</p>
  </div>
  </button>
  )}
@@ -1428,14 +1428,14 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  <button
  type="button"
  onClick={() => confirmStatusChange(isMovement ? 'void' : 'cancelled')}
- className="flex w-full items-center gap-3 rounded-md border border-[var(--border-visible)] bg-transparent px-4 py-3 text-left transition-all hover:bg-transparent"
+ className="flex w-full items-center gap-3 rounded-md border border-[var(--color-line-s)] bg-transparent px-4 py-3 text-left transition-all hover:bg-transparent"
  >
  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-transparent">
- <span className="text-[var(--accent)] text-lg">&#10005;</span>
+ <span className="text-[var(--color-accent)] text-lg">&#10005;</span>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Anular</p>
- <p className="text-xs text-[var(--text-secondary)]">Cancela — no afecta caja ni compromisos</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Anular</p>
+ <p className="text-xs text-[var(--color-fg-3)]">Cancela — no afecta caja ni compromisos</p>
  </div>
  </button>
  )}
@@ -1444,7 +1444,7 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  <button
  type="button"
  onClick={() => setStatusChangeRecord(null)}
- className="mt-5 w-full rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--border)]"
+ className="mt-5 w-full rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] transition-colors hover:bg-[var(--color-line)]"
  >
  Cerrar
  </button>

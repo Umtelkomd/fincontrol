@@ -114,14 +114,14 @@ const PeriodSelector = ({
  else setPeriodValue(null);
  };
 
- const btnBase = 'px-3 py-1.5 rounded-sm nd-label transition-colors duration-150';
- const btnActive = 'bg-[var(--surface)] text-[var(--text-primary)]';
- const btnInactive = 'text-[var(--text-disabled)] hover:text-[var(--text-secondary)]';
+ const btnBase = 'px-3 py-1.5 rounded-sm label-mono transition-colors duration-150';
+ const btnActive = 'bg-[var(--color-bg-1)] text-[var(--color-fg-1)]';
+ const btnInactive = 'text-[var(--color-fg-4)] hover:text-[var(--color-fg-3)]';
 
  return (
  <div className={`flex items-center gap-2 flex-wrap ${compact ? 'gap-1.5' : 'gap-2'}`}>
  {/* Year selector */}
- <div className="flex items-center border border-[var(--border)] rounded-lg p-0.5">
+ <div className="flex items-center border border-[var(--color-line)] rounded-lg p-0.5">
  {[2025, 2026, 'all'].map((y) => (
  <button
  key={y}
@@ -133,10 +133,10 @@ const PeriodSelector = ({
  ))}
  </div>
 
- <div className="w-px h-5 bg-[var(--border)] hidden sm:block" />
+ <div className="w-px h-5 bg-[var(--color-line)] hidden sm:block" />
 
  {/* Period type selector */}
- <div className="flex items-center border border-[var(--border)] rounded-lg p-0.5">
+ <div className="flex items-center border border-[var(--color-line)] rounded-lg p-0.5">
  {Object.values(PERIOD_OPTIONS).map((opt) => (
  <button
  key={opt.key}
@@ -153,22 +153,22 @@ const PeriodSelector = ({
  <div className="relative" ref={subRef}>
  <button
  onClick={() => setSubOpen(!subOpen)}
- className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg nd-label border border-[var(--border-visible)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-primary)] transition-colors"
+ className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg label-mono border border-[var(--color-line-s)] text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)] transition-colors"
  >
  <Calendar size={12} />
  {subOptions.find((o) => o.value === periodValue)?.label || 'Seleccionar'}
  <ChevronDown size={12} className={`transition-transform ${subOpen ? 'rotate-180' : ''}`} />
  </button>
  {subOpen && (
- <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--surface-raised)] rounded-lg border border-[var(--border-visible)] py-1 min-w-[140px] max-h-[240px] overflow-y-auto">
+ <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--color-bg-2)] rounded-lg border border-[var(--color-line-s)] py-1 min-w-[140px] max-h-[240px] overflow-y-auto">
  {subOptions.map((opt) => (
  <button
  key={opt.value}
  onClick={() => { setPeriodValue(opt.value); setSubOpen(false); }}
- className={`w-full text-left px-3 py-1.5 nd-label transition-colors ${
+ className={`w-full text-left px-3 py-1.5 label-mono transition-colors ${
  periodValue === opt.value
- ? 'bg-[var(--surface)] text-[var(--text-primary)]'
- : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]'
+ ? 'bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
+ : 'text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)] hover:bg-[var(--color-bg-1)]'
  }`}
  >
  {opt.label}

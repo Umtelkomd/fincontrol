@@ -126,11 +126,11 @@ const RecurringCosts = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Proyección · Costos recurrentes</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Proyección · Costos recurrentes</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Costos mensuales fijos
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Reglas que generan cuentas por pagar automáticas cada período.
  Aplican a empleados, viviendas, vehículos o costos generales.
  </p>
@@ -179,8 +179,8 @@ const RecurringCosts = ({ user }) => {
  onClick={() => setFilter(c.key)}
   className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-all ${
  filter === c.key
- ? 'border border-[var(--accent)] bg-transparent text-[var(--accent)]'
- : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--text-disabled)] hover:text-[var(--text-primary)]'
+ ? 'border border-[var(--color-accent)] bg-transparent text-[var(--color-accent)]'
+ : 'border border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]'
  }`}
  >
  {c.label}
@@ -188,7 +188,7 @@ const RecurringCosts = ({ user }) => {
  </button>
  ))}
  </div>
- <label className="inline-flex items-center gap-2 cursor-pointer text-[12px] text-[var(--text-secondary)]">
+ <label className="inline-flex items-center gap-2 cursor-pointer text-[12px] text-[var(--color-fg-3)]">
  <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
  Mostrar inactivos
  </label>
@@ -200,11 +200,11 @@ const RecurringCosts = ({ user }) => {
  padding={false}
  actions={
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  />
@@ -212,7 +212,7 @@ const RecurringCosts = ({ user }) => {
  }
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="nd-label">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={Repeat}
@@ -239,13 +239,13 @@ const RecurringCosts = ({ user }) => {
  <tbody>
  {filtered.map((c) => (
   <tr key={c.id} {...rowButtonProps(() => openEdit(c))}>
- <td className="font-medium text-[var(--text-primary)]">{c.concept || '—'}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">{c.concept || '—'}</td>
  <td>{OWNER_TYPE_LABELS[c.ownerType] || c.ownerType}</td>
- <td className="text-[var(--text-secondary)]">{c.ownerName || '—'}</td>
- <td className="text-[var(--text-secondary)]">{c.counterpartyName || '—'}</td>
- <td className="text-right nd-mono tabular-nums">{formatCurrency(c.amount)}</td>
+ <td className="text-[var(--color-fg-3)]">{c.ownerName || '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{c.counterpartyName || '—'}</td>
+ <td className="text-right font-mono tabular-nums">{formatCurrency(c.amount)}</td>
  <td>{FREQUENCY_LABELS[c.frequency] || c.frequency}</td>
- <td className="text-right nd-mono tabular-nums text-[var(--warning)]">
+ <td className="text-right font-mono tabular-nums text-[var(--color-warn)]">
  {formatCurrency(monthlyEquivalent(c))}
  </td>
  <td className="text-center">

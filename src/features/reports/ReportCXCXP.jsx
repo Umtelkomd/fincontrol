@@ -19,8 +19,8 @@ const CONFIG = {
  title: 'Reporte de Cuentas por Cobrar',
  detailTitle: 'Detalle de cartera abierta',
  totalLabel: 'Total por Cobrar',
- primaryColor: 'var(--success)',
- accentClass: 'text-[var(--success)]',
+ primaryColor: 'var(--color-ok)',
+ accentClass: 'text-[var(--color-ok)]',
  TrendIcon: TrendingUp,
  exportFn: exportCXCToPDF,
  emptyMessage: 'No hay cuentas por cobrar abiertas',
@@ -29,8 +29,8 @@ const CONFIG = {
  title: 'Reporte de Cuentas por Pagar',
  detailTitle: 'Detalle de deuda abierta',
  totalLabel: 'Total por Pagar',
- primaryColor: 'var(--accent)',
- accentClass: 'text-[var(--accent)]',
+ primaryColor: 'var(--color-accent)',
+ accentClass: 'text-[var(--color-accent)]',
  TrendIcon: TrendingDown,
  exportFn: exportCXPToPDF,
  emptyMessage: 'No hay cuentas por pagar abiertas',
@@ -106,7 +106,7 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  if (metrics.loading) {
  return (
  <div className="flex items-center justify-center py-24">
- <p className="nd-mono text-xs text-[var(--text-secondary)] tracking-[0.08em] uppercase">[LOADING...]</p>
+ <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
  </div>
  );
  }
@@ -117,13 +117,13 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  <div className="space-y-6">
  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
  <div>
- <h2 className="text-xl font-medium text-[var(--text-primary)]">{cfg.title}</h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Documentos abiertos pendientes de cobro o pago.</p>
+ <h2 className="text-xl font-medium text-[var(--color-fg-1)]">{cfg.title}</h2>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Documentos abiertos pendientes de cobro o pago.</p>
  </div>
  <button
  type="button"
  onClick={() => cfg.exportFn(exportRows)}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface)]"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-1)] transition-colors hover:bg-[var(--color-bg-1)]"
  >
  <Download size={16} />
  Exportar PDF
@@ -131,65 +131,65 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  </div>
 
  <div className="grid gap-4 md:grid-cols-4">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-2 flex items-center justify-between">
- <span className="text-sm font-medium text-[var(--text-secondary)]">{cfg.totalLabel}</span>
+ <span className="text-sm font-medium text-[var(--color-fg-3)]">{cfg.totalLabel}</span>
  <TrendIcon size={18} style={{ color: cfg.primaryColor }} />
  </div>
  <p className={`text-2xl font-medium ${cfg.accentClass}`}>{formatCurrency(totals.totalAmount)}</p>
- <p className="mt-1 text-xs text-[var(--text-disabled)]">{rows.length} documentos abiertos</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-4)]">{rows.length} documentos abiertos</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-2 flex items-center justify-between">
- <span className="text-sm font-medium text-[var(--text-secondary)]">Vencido</span>
- <AlertCircle size={18} className="text-[var(--warning)]" />
+ <span className="text-sm font-medium text-[var(--color-fg-3)]">Vencido</span>
+ <AlertCircle size={18} className="text-[var(--color-warn)]" />
  </div>
- <p className="text-2xl font-medium text-[var(--warning)]">{formatCurrency(totals.overdueAmount)}</p>
- <p className="mt-1 text-xs text-[var(--text-disabled)]">{totals.overdueCount} documentos</p>
+ <p className="text-2xl font-medium text-[var(--color-warn)]">{formatCurrency(totals.overdueAmount)}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-4)]">{totals.overdueCount} documentos</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-2 flex items-center justify-between">
- <span className="text-sm font-medium text-[var(--text-secondary)]">Crítico (+90d)</span>
- <Clock size={18} className="text-[var(--warning)]" />
+ <span className="text-sm font-medium text-[var(--color-fg-3)]">Crítico (+90d)</span>
+ <Clock size={18} className="text-[var(--color-warn)]" />
  </div>
- <p className="text-2xl font-medium text-[var(--warning)]">{formatCurrency(totals.criticalAmount)}</p>
- <p className="mt-1 text-xs text-[var(--text-disabled)]">{totals.criticalCount} documentos</p>
+ <p className="text-2xl font-medium text-[var(--color-warn)]">{formatCurrency(totals.criticalAmount)}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-4)]">{totals.criticalCount} documentos</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-2 flex items-center justify-between">
- <span className="text-sm font-medium text-[var(--text-secondary)]">Al corriente</span>
- <TrendIcon size={18} className="text-[var(--text-primary)]" />
+ <span className="text-sm font-medium text-[var(--color-fg-3)]">Al corriente</span>
+ <TrendIcon size={18} className="text-[var(--color-fg-1)]" />
  </div>
- <p className="text-2xl font-medium text-[var(--text-primary)]">{formatCurrency(totals.currentAmount)}</p>
- <p className="mt-1 text-xs text-[var(--text-disabled)]">{totals.currentCount} documentos</p>
+ <p className="text-2xl font-medium text-[var(--color-fg-1)]">{formatCurrency(totals.currentAmount)}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-4)]">{totals.currentCount} documentos</p>
  </div>
  </div>
 
  <div className="grid gap-6 lg:grid-cols-2">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
- <h3 className="mb-4 text-lg font-medium text-[var(--text-primary)]">Antigüedad</h3>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
+ <h3 className="mb-4 text-lg font-medium text-[var(--color-fg-1)]">Antigüedad</h3>
  <ResponsiveContainer width="100%" height={260}>
  <BarChart data={agingData}>
- <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
- <XAxis dataKey="name" tick={{ fill: 'var(--text-disabled)', fontSize: 11 }} tickLine={false} axisLine={false} />
- <YAxis tick={{ fill: 'var(--text-disabled)', fontSize: 11 }} tickFormatter={(value) => `${Math.round(value / 1000)}k`} tickLine={false} axisLine={false} />
+ <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+ <XAxis dataKey="name" tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickLine={false} axisLine={false} />
+ <YAxis tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickFormatter={(value) => `${Math.round(value / 1000)}k`} tickLine={false} axisLine={false} />
  <Tooltip
  formatter={(value) => formatCurrency(value)}
- contentStyle={{ backgroundColor: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 18 }}
+ contentStyle={{ backgroundColor: 'var(--color-bg-2)', color: 'var(--color-fg-1)', border: '1px solid var(--color-line)', borderRadius: 18 }}
  />
  <Bar dataKey="amount" fill={cfg.primaryColor} radius={0} />
  </BarChart>
  </ResponsiveContainer>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
- <h3 className="mb-4 text-lg font-medium text-[var(--text-primary)]">Resumen por antigüedad</h3>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
+ <h3 className="mb-4 text-lg font-medium text-[var(--color-fg-1)]">Resumen por antigüedad</h3>
  <div className="space-y-3">
  {agingData.map((bucket) => (
- <div key={bucket.name} className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+ <div key={bucket.name} className="flex items-center justify-between rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">{bucket.name}</p>
- <p className="text-xs text-[var(--text-secondary)]">{bucket.count} documentos</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{bucket.name}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">{bucket.count} documentos</p>
  </div>
  <span className={`text-sm font-medium ${cfg.accentClass}`}>{formatCurrency(bucket.amount)}</span>
  </div>
@@ -198,14 +198,14 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  </div>
  </div>
 
- <div className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] ">
- <div className="border-b border-[var(--border)] px-5 py-4">
- <h3 className="text-lg font-medium text-[var(--text-primary)]">{cfg.detailTitle}</h3>
+ <div className="overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] ">
+ <div className="border-b border-[var(--color-line)] px-5 py-4">
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">{cfg.detailTitle}</h3>
  </div>
  <div className="overflow-x-auto">
  <table className="w-full min-w-[860px] text-left">
  <thead>
- <tr className="border-b border-[var(--border)] nd-label text-[var(--text-disabled)]">
+ <tr className="border-b border-[var(--color-line)] label-mono text-[var(--color-fg-4)]">
  <th className="px-4 py-3">Vence</th>
  <th className="px-4 py-3">Contraparte</th>
  <th className="px-4 py-3">Documento</th>
@@ -214,19 +214,19 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  <th className="px-4 py-3 text-center">Días</th>
  </tr>
  </thead>
- <tbody className="divide-y divide-[var(--border)]">
+ <tbody className="divide-y divide-[var(--color-line)]">
  {rows.map((entry) => (
- <tr key={entry.id} className="hover:bg-[var(--surface)]">
- <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{entry.dueDate ? formatDate(entry.dueDate) : 'Sin fecha'}</td>
+ <tr key={entry.id} className="hover:bg-[var(--color-bg-1)]">
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{entry.dueDate ? formatDate(entry.dueDate) : 'Sin fecha'}</td>
  <td className="px-4 py-3">
- <p className="text-sm font-medium text-[var(--text-primary)]">{entry.counterpartyName}</p>
- <p className="text-xs text-[var(--text-secondary)]">{entry.description || 'Sin descripción'}</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{entry.counterpartyName}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">{entry.description || 'Sin descripción'}</p>
  </td>
- <td className="px-4 py-3 text-sm text-[var(--text-primary)]">{entry.documentNumber || 'Sin documento'}</td>
- <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{entry.projectName || 'Sin proyecto'}</td>
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-1)]">{entry.documentNumber || 'Sin documento'}</td>
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{entry.projectName || 'Sin proyecto'}</td>
  <td className={`px-4 py-3 text-right text-sm font-medium ${cfg.accentClass}`}>{formatCurrency(entry.openAmount)}</td>
  <td className="px-4 py-3 text-center">
- <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${entry.daysOverdue > 90 ? 'bg-transparent text-[var(--warning)]' : entry.daysOverdue > 30 ? 'bg-transparent text-[var(--warning)]' : 'bg-transparent text-[var(--success)]'}`}>
+ <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${entry.daysOverdue > 90 ? 'bg-transparent text-[var(--color-warn)]' : entry.daysOverdue > 30 ? 'bg-transparent text-[var(--color-warn)]' : 'bg-transparent text-[var(--color-ok)]'}`}>
  {entry.daysOverdue} d
  </span>
  </td>
@@ -234,7 +234,7 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  ))}
  {rows.length === 0 && (
  <tr>
- <td colSpan="6" className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+ <td colSpan="6" className="px-4 py-8 text-center text-sm text-[var(--color-fg-3)]">
  {cfg.emptyMessage}
  </td>
  </tr>

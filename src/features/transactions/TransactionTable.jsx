@@ -21,10 +21,10 @@ const TransactionTable = ({
 }) => {
  const totalsActions = !loadingLedger && filteredRecords.length > 0 ? (
  <>
- <span className="nd-mono text-[11px] tabular-nums text-[var(--success)]">
+ <span className="font-mono text-[11px] tabular-nums text-[var(--color-ok)]">
  +{formatCurrency(filteredRecords.filter(r => r.type === 'income').reduce((s, r) => s + Number(r.amount || 0), 0))}
  </span>
- <span className="nd-mono text-[11px] tabular-nums text-[var(--negative)]">
+ <span className="font-mono text-[11px] tabular-nums text-[var(--color-err)]">
  -{formatCurrency(filteredRecords.filter(r => r.type !== 'income').reduce((s, r) => s + Number(r.amount || 0), 0))}
  </span>
  </>
@@ -40,13 +40,13 @@ const TransactionTable = ({
  <div className="hidden lg:block">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border-visible)]">
- <th className="px-4 py-3 nd-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--text-secondary)]">Fecha</th>
- <th className="px-4 py-3 nd-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--text-secondary)]">Registro</th>
- <th className="px-4 py-3 nd-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--text-secondary)]">Categoria</th>
- <th className="px-4 py-3 text-right nd-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--text-secondary)]">Monto</th>
- <th className="px-4 py-3 text-center nd-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--text-secondary)]">Estado</th>
- <th className="px-4 py-3 text-center nd-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--text-secondary)]">Acciones</th>
+ <tr className="border-b border-[var(--color-line-s)]">
+ <th className="px-4 py-3 font-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--color-fg-3)]">Fecha</th>
+ <th className="px-4 py-3 font-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--color-fg-3)]">Registro</th>
+ <th className="px-4 py-3 font-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--color-fg-3)]">Categoria</th>
+ <th className="px-4 py-3 text-right font-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--color-fg-3)]">Monto</th>
+ <th className="px-4 py-3 text-center font-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--color-fg-3)]">Estado</th>
+ <th className="px-4 py-3 text-center font-mono text-[11px] font-normal uppercase tracking-[0.08em] text-[var(--color-fg-3)]">Acciones</th>
  </tr>
  </thead>
  <tbody>
@@ -92,29 +92,29 @@ const TransactionTable = ({
  const isIncome = record.type === 'income';
  const normalizedStatus = (record.status || '').toLowerCase();
  const statusColor =
- normalizedStatus === 'paid' ? 'var(--success)'
- : normalizedStatus === 'partial' ? 'var(--warning)'
- : ['overdue'].includes(normalizedStatus) ? 'var(--accent)'
- : 'var(--text-secondary)';
+ normalizedStatus === 'paid' ? 'var(--color-ok)'
+ : normalizedStatus === 'partial' ? 'var(--color-warn)'
+ : ['overdue'].includes(normalizedStatus) ? 'var(--color-accent)'
+ : 'var(--color-fg-3)';
  return (
  <div
  key={record.id}
- className={`px-4 py-3.5 transition-colors hover:bg-[var(--surface-raised)] ${i > 0 ? 'border-t border-[var(--border)]' : ''}`}
+ className={`px-4 py-3.5 transition-colors hover:bg-[var(--color-bg-2)] ${i > 0 ? 'border-t border-[var(--color-line)]' : ''}`}
  onClick={() => onViewDetail?.(record)}
  >
  <div className="flex items-start justify-between gap-3">
  <div className="min-w-0 flex-1">
- <p className="text-[13px] text-[var(--text-primary)] leading-snug">{record.description}</p>
- <p className="mt-1 nd-mono text-[11px] text-[var(--text-disabled)]">
+ <p className="text-[13px] text-[var(--color-fg-1)] leading-snug">{record.description}</p>
+ <p className="mt-1 font-mono text-[11px] text-[var(--color-fg-4)]">
  {record.date ? new Date(record.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : ''} · {record.categoryLabel || record.category}
  </p>
  </div>
  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
- <span className="nd-mono text-[14px] tabular-nums text-[var(--text-primary)]">
+ <span className="font-mono text-[14px] tabular-nums text-[var(--color-fg-1)]">
  {isIncome ? '+' : '-'}{formatCurrency(record.amount)}
  </span>
  <span
- className="nd-mono text-[10px] uppercase tracking-[0.06em]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em]"
  style={{ color: statusColor }}
  >
  {record.statusLabel || record.status}

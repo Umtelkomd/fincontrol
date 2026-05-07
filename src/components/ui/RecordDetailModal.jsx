@@ -3,8 +3,8 @@ import { formatCurrency } from '../../utils/formatters';
 
 const Field = ({ label, value }) => value ? (
  <div>
- <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-disabled)]">{label}</p>
- <p className="mt-0.5 text-sm text-[var(--text-primary)]">{String(value)}</p>
+ <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)]">{label}</p>
+ <p className="mt-0.5 text-sm text-[var(--color-fg-1)]">{String(value)}</p>
  </div>
 ) : null;
 
@@ -37,30 +37,30 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
  const notes = (Array.isArray(rawNotes) ? rawNotes : []).filter((n) => typeof n === 'object');
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={onClose}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-xl max-h-[85vh] overflow-hidden animate-scaleIn flex flex-col" onClick={(e) => e.stopPropagation()}>
- <div className="px-6 py-4 border-b border-[var(--border)] flex justify-between items-start shrink-0">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={onClose}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-xl max-h-[85vh] overflow-hidden animate-scaleIn flex flex-col" onClick={(e) => e.stopPropagation()}>
+ <div className="px-6 py-4 border-b border-[var(--color-line)] flex justify-between items-start shrink-0">
  <div className="min-w-0 flex-1">
- <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${isIncome ? 'bg-transparent text-[var(--success)]' : 'bg-transparent text-[var(--accent)]'}`}>
+ <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${isIncome ? 'bg-transparent text-[var(--color-ok)]' : 'bg-transparent text-[var(--color-accent)]'}`}>
  {isIncome ? 'Ingreso' : 'Egreso'} · {FAMILY_LABELS[family] || family}
  </span>
- <h3 className="mt-2 text-lg font-medium text-[var(--text-primary)] break-words">{description}</h3>
+ <h3 className="mt-2 text-lg font-medium text-[var(--color-fg-1)] break-words">{description}</h3>
  </div>
- <button onClick={onClose} className="ml-3 shrink-0 text-[var(--text-disabled)] hover:text-[var(--text-secondary)] transition-colors">
+ <button onClick={onClose} className="ml-3 shrink-0 text-[var(--color-fg-4)] hover:text-[var(--color-fg-3)] transition-colors">
  <X size={20} />
  </button>
  </div>
 
  <div className="overflow-y-auto px-6 py-5 space-y-5">
  <div className="flex items-baseline justify-between">
- <span className={`text-[32px] font-medium tracking-tight ${isIncome ? 'text-[var(--success)]' : 'text-[var(--negative)]'}`}>
+ <span className={`text-[32px] font-medium tracking-tight ${isIncome ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
  {isIncome ? '+' : '-'}{formatCurrency(amount)}
  </span>
  <span className={`rounded-full px-3 py-1 text-xs font-medium ${
- status === 'paid' || status === 'settled' ? 'bg-transparent text-[var(--success)]' :
- status === 'void' || status === 'cancelled' ? 'bg-[var(--surface)] text-[var(--text-secondary)]' :
- status === 'overdue' ? 'bg-transparent text-[var(--accent)]' :
- 'bg-transparent text-[var(--warning)]'
+ status === 'paid' || status === 'settled' ? 'bg-transparent text-[var(--color-ok)]' :
+ status === 'void' || status === 'cancelled' ? 'bg-[var(--color-bg-1)] text-[var(--color-fg-3)]' :
+ status === 'overdue' ? 'bg-transparent text-[var(--color-accent)]' :
+ 'bg-transparent text-[var(--color-warn)]'
  }`}>
  {STATUS_LABELS[status] || status}
  </span>
@@ -68,14 +68,14 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
 
  {paidAmount > 0 && openAmount > 0 && (
  <div>
- <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-raised)]">
- <div className="h-full rounded-full bg-[var(--success)]" style={{ width: `${amount > 0 ? (paidAmount / amount) * 100 : 0}%` }} />
+ <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-2)]">
+ <div className="h-full rounded-full bg-[var(--color-ok)]" style={{ width: `${amount > 0 ? (paidAmount / amount) * 100 : 0}%` }} />
  </div>
- <p className="mt-1 text-xs text-[var(--text-secondary)]">Pagado: {formatCurrency(paidAmount)} / {formatCurrency(amount)} · Abierto: {formatCurrency(openAmount)}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-3)]">Pagado: {formatCurrency(paidAmount)} / {formatCurrency(amount)} · Abierto: {formatCurrency(openAmount)}</p>
  </div>
  )}
 
- <div className="grid grid-cols-2 gap-4 rounded-md border border-[var(--border)] bg-[var(--black)] p-4">
+ <div className="grid grid-cols-2 gap-4 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-4">
  <Field label="Fecha" value={date} />
  <Field label="Origen" value={r.sourceLabel || r.source} />
  <Field label="Proyecto" value={project} />
@@ -91,15 +91,15 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
 
  {payments.length > 0 && (
  <div>
- <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--text-disabled)]">Pagos registrados ({payments.length})</p>
+ <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)]">Pagos registrados ({payments.length})</p>
  <div className="space-y-1.5">
  {payments.map((p, idx) => (
- <div key={idx} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--black)] px-3 py-2">
+ <div key={idx} className="flex items-center justify-between rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2">
  <div>
- <p className="text-sm text-[var(--text-primary)]">{p.method || 'Pago'}</p>
- <p className="text-[11px] text-[var(--text-disabled)]">{p.date} {p.user ? `· ${p.user}` : ''}</p>
+ <p className="text-sm text-[var(--color-fg-1)]">{p.method || 'Pago'}</p>
+ <p className="text-[11px] text-[var(--color-fg-4)]">{p.date} {p.user ? `· ${p.user}` : ''}</p>
  </div>
- <span className="text-sm font-medium text-[var(--success)]">{formatCurrency(p.amount)}</span>
+ <span className="text-sm font-medium text-[var(--color-ok)]">{formatCurrency(p.amount)}</span>
  </div>
  ))}
  </div>
@@ -108,12 +108,12 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
 
  {notes.length > 0 && (
  <div>
- <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--text-disabled)]">Notas ({notes.length})</p>
+ <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)]">Notas ({notes.length})</p>
  <div className="space-y-1.5">
  {notes.map((n, idx) => (
- <div key={idx} className={`rounded-lg border px-3 py-2 text-sm ${n.type === 'system' ? 'border-[var(--border)] bg-[var(--black)] text-[var(--text-disabled)]' : 'border-[var(--border-visible)] bg-transparent text-[var(--text-secondary)]'}`}>
+ <div key={idx} className={`rounded-lg border px-3 py-2 text-sm ${n.type === 'system' ? 'border-[var(--color-line)] bg-[var(--color-bg-0)] text-[var(--color-fg-4)]' : 'border-[var(--color-line-s)] bg-transparent text-[var(--color-fg-3)]'}`}>
  <p>{n.text}</p>
- <p className="mt-1 text-[10px] text-[var(--text-disabled)]">{n.timestamp ? new Date(n.timestamp).toLocaleString('es-ES') : ''} {n.user ? `· ${n.user}` : ''}</p>
+ <p className="mt-1 text-[10px] text-[var(--color-fg-4)]">{n.timestamp ? new Date(n.timestamp).toLocaleString('es-ES') : ''} {n.user ? `· ${n.user}` : ''}</p>
  </div>
  ))}
  </div>
@@ -121,14 +121,14 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
  )}
  </div>
 
- <div className="shrink-0 border-t border-[var(--border)] px-6 py-3 flex gap-2">
+ <div className="shrink-0 border-t border-[var(--color-line)] px-6 py-3 flex gap-2">
  {onEdit && userRole === 'admin' && (
- <button type="button" onClick={() => { onClose(); onEdit(record); }} className="flex-1 rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border)]">Editar</button>
+ <button type="button" onClick={() => { onClose(); onEdit(record); }} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">Editar</button>
  )}
  {onChangeStatus && userRole === 'admin' && (
- <button type="button" onClick={() => { onClose(); onChangeStatus(record); }} className="flex-1 rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--warning)] hover:bg-[var(--border)]">Cambiar estado</button>
+ <button type="button" onClick={() => { onClose(); onChangeStatus(record); }} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-warn)] hover:bg-[var(--color-line)]">Cambiar estado</button>
  )}
- <button type="button" onClick={onClose} className="flex-1 rounded-lg bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border)]">Cerrar</button>
+ <button type="button" onClick={onClose} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">Cerrar</button>
  </div>
  </div>
  </div>

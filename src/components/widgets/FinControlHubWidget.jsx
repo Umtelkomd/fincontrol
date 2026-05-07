@@ -1,4 +1,4 @@
-// FinControl Widget Component for Nexus Hub
+// NEXUS.OS finance widget component for Nexus Hub
 // Componente React para mostrar en el Hub de Work Manager
 
 import React, { useEffect, useState } from 'react';
@@ -12,7 +12,7 @@ import {
  Bell
 } from 'lucide-react';
 
-const FinControlHubWidget = () => {
+const NexusFinanceHubWidget = () => {
  const [summary, setSummary] = useState(null);
  const [loading, setLoading] = useState(true);
  const [error, _setError] = useState(null);
@@ -26,8 +26,8 @@ const FinControlHubWidget = () => {
 
  const fetchSummary = async () => {
  try {
- // Intentar cargar desde la API de FinControl
- // Esto requiere que el usuario esté autenticado en FinControl
+ // Intentar cargar desde la API de NEXUS.OS
+ // Esto requiere que el usuario esté autenticado en NEXUS.OS
  const response = await fetch('https://umtelkomd-finance.web.app/api/hub-summary', {
  credentials: 'include',
  headers: {
@@ -50,7 +50,7 @@ const FinControlHubWidget = () => {
  }
  }
  } catch (err) {
- console.error('Error fetching FinControl summary:', err);
+ console.error('Error fetching NEXUS.OS summary:', err);
  // Usar datos de demo si no hay conexión
  setSummary(getDemoData());
  } finally {
@@ -95,10 +95,10 @@ const FinControlHubWidget = () => {
  return (
  <div className="nexus-widget nexus-widget-fincontrol">
  <div className="nexus-widget-header">
- <span>FinControl</span>
+ <span>NEXUS.OS</span>
  </div>
- <div className="n-empty" style={{ padding: '16px' }}>
- <p>[LOADING...]</p>
+ <div className="px-4 py-8 text-center font-mono text-[12px] text-[var(--color-fg-4)]">
+ <p>Cargando…</p>
  </div>
  </div>
  );
@@ -108,7 +108,7 @@ const FinControlHubWidget = () => {
  return (
  <div className="nexus-widget nexus-widget-fincontrol">
  <div className="nexus-widget-header">
- <span>FinControl</span>
+ <span>NEXUS.OS</span>
  </div>
  <div className="nexus-widget-error">
  No se pudieron cargar los datos
@@ -124,7 +124,7 @@ const FinControlHubWidget = () => {
  <div className={`nexus-widget nexus-widget-fincontrol ${hasAlerts ? 'has-alerts' : ''}`}>
  <div className="nexus-widget-header">
  <div className="nexus-widget-title">
- <span>FinControl</span>
+ <span>NEXUS.OS</span>
  {hasAlerts && (
  <span className="nexus-alert-badge">
  <Bell size={12} />
@@ -133,7 +133,7 @@ const FinControlHubWidget = () => {
  )}
  </div>
  <button 
- className="nexus-btn nexus-btn-ghost nexus-btn-sm"
+  className="nx-btn nx-btn-ghost nx-btn-sm"
  onClick={() => window.open('https://umtelkomd-finance.web.app', '_blank')}
  >
  Abrir ↗
@@ -225,15 +225,15 @@ const _widgetStyles = `
 }
 
 .nexus-widget-fincontrol.has-alerts {
- border-color: var(--negative);
+ border-color: var(--color-err);
 }
 
 .nexus-alert-badge {
  display: flex;
  align-items: center;
  gap: 4px;
- background: var(--error-50);
- color: var(--negative);
+ background: rgba(255, 77, 46, 0.12);
+ color: var(--color-err);
  padding: 2px 8px;
  border-radius: var(--radius-lg);
  font-size: 11px;
@@ -252,7 +252,7 @@ const _widgetStyles = `
  align-items: center;
  gap: 10px;
  padding: 12px;
- background: var(--surface);
+ background: var(--color-bg-1);
  border-radius: var(--radius-md);
 }
 
@@ -266,18 +266,18 @@ const _widgetStyles = `
 }
 
 .nexus-fin-income {
- background: var(--success-50);
- color: var(--success);
+ background: rgba(74, 222, 128, 0.12);
+ color: var(--color-ok);
 }
 
 .nexus-fin-expense {
- background: var(--error-50);
- color: var(--negative);
+ background: rgba(255, 77, 46, 0.12);
+ color: var(--color-err);
 }
 
 .nexus-fin-label {
  font-size: 11px;
- color: var(--text-disabled);
+ color: var(--color-fg-4);
  text-transform: uppercase;
  letter-spacing: 0.5px;
 }
@@ -287,15 +287,15 @@ const _widgetStyles = `
  font-weight: 700;
 }
 
-.nexus-text-success { color: var(--success); }
-.nexus-text-danger { color: var(--negative); }
+.nexus-text-success { color: var(--color-ok); }
+.nexus-text-danger { color: var(--color-err); }
 
 .nexus-fin-balance {
  display: flex;
  align-items: center;
  gap: 12px;
  padding: 16px;
- background: var(--surface);
+ background: var(--color-bg-1);
  border-radius: var(--radius-md);
  margin-bottom: 16px;
 }
@@ -306,7 +306,7 @@ const _widgetStyles = `
 
 .nexus-fin-balance-label {
  font-size: 12px;
- color: var(--text-disabled);
+ color: var(--color-fg-4);
 }
 
 .nexus-fin-balance-value {
@@ -314,8 +314,8 @@ const _widgetStyles = `
  font-weight: 700;
 }
 
-.nexus-fin-balance-value.positive { color: var(--success); }
-.nexus-fin-balance-value.negative { color: var(--negative); }
+.nexus-fin-balance-value.positive { color: var(--color-ok); }
+.nexus-fin-balance-value.negative { color: var(--color-err); }
 
 .nexus-fin-pending {
  display: flex;
@@ -328,13 +328,13 @@ const _widgetStyles = `
  align-items: center;
  justify-content: space-between;
  padding: 10px 12px;
- background: var(--surface);
+ background: var(--color-bg-1);
  border-radius: var(--radius-sm);
 }
 
 .nexus-pending-label {
  font-size: 12px;
- color: var(--text-secondary);
+ color: var(--color-fg-3);
 }
 
 .nexus-pending-values {
@@ -346,8 +346,8 @@ const _widgetStyles = `
 .nexus-pending-overdue {
  font-size: 10px;
  font-weight: 600;
- color: var(--negative);
- background: var(--error-50);
+ color: var(--color-err);
+ background: rgba(255, 77, 46, 0.12);
  padding: 2px 6px;
  border-radius: var(--radius-sm);
 }
@@ -355,13 +355,13 @@ const _widgetStyles = `
 .nexus-pending-total {
  font-size: 13px;
  font-weight: 600;
- color: var(--text-display);
+ color: var(--color-fg-1);
 }
 
 .nexus-fin-alerts {
  margin-top: 12px;
  padding-top: 12px;
- border-top: 1px solid var(--border);
+ border-top: 1px solid var(--color-line);
 }
 
 .nexus-alert-item {
@@ -374,14 +374,14 @@ const _widgetStyles = `
 }
 
 .nexus-alert-high {
- background: var(--error-50);
- color: var(--negative);
+ background: rgba(255, 77, 46, 0.12);
+ color: var(--color-err);
 }
 
 .nexus-alert-medium {
- background: var(--warning-50);
- color: var(--warning);
+ background: rgba(255, 176, 32, 0.12);
+ color: var(--color-warn);
 }
 `;
 
-export default FinControlHubWidget;
+export default NexusFinanceHubWidget;

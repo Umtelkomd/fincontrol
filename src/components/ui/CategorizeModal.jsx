@@ -61,23 +61,23 @@ const CategorizeModal = ({
  });
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={onClose}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
- <header className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={onClose}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+ <header className="px-6 py-4 border-b border-[var(--color-line)] flex items-center justify-between">
  <div className="flex items-center gap-3">
- <Tag size={18} className="text-[var(--text-disabled)]" />
- <h2 className="text-lg font-medium text-[var(--text-primary)]">Categorizar movimiento</h2>
+ <Tag size={18} className="text-[var(--color-fg-4)]" />
+ <h2 className="text-lg font-medium text-[var(--color-fg-1)]">Categorizar movimiento</h2>
  </div>
- <button type="button" onClick={onClose} className="text-[var(--text-disabled)] hover:text-[var(--text-primary)]">
+ <button type="button" onClick={onClose} className="text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]">
  <X size={20} />
  </button>
  </header>
 
- <div className="px-6 py-3 border-b border-[var(--border)] bg-[var(--surface-raised)]">
- <p className="text-sm text-[var(--text-primary)] truncate">{movement.description || '—'}</p>
- <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+ <div className="px-6 py-3 border-b border-[var(--color-line)] bg-[var(--color-bg-2)]">
+ <p className="text-sm text-[var(--color-fg-1)] truncate">{movement.description || '—'}</p>
+ <p className="mt-1 text-[12px] text-[var(--color-fg-3)]">
  {movement.postedDate} · {movement.counterpartyName || '—'} ·{' '}
- <span className={movement.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>
+ <span className={movement.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}>
  {movement.direction === 'in' ? '+' : '-'}€{movement.amount?.toFixed(2)}
  </span>
  </p>
@@ -85,9 +85,9 @@ const CategorizeModal = ({
 
  <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Categoría *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Categoría *</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.categoryName}
  onChange={(e) => set('categoryName', e.target.value)}
  autoFocus
@@ -104,9 +104,9 @@ const CategorizeModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Centro de costo</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Centro de costo</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.costCenterId}
  onChange={(e) => set('costCenterId', e.target.value)}
  >
@@ -120,9 +120,9 @@ const CategorizeModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Proyecto</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Proyecto</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.projectId}
  onChange={(e) => {
  const id = e.target.value;
@@ -140,9 +140,9 @@ const CategorizeModal = ({
  </select>
  </label>
 
- {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+ {error && <p className="text-sm text-[var(--color-err)]">{error}</p>}
 
- <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border)]">
+ <div className="flex justify-end gap-3 pt-3 border-t border-[var(--color-line)]">
  <Button variant="ghost" onClick={onClose} disabled={submitting} type="button">Cancelar</Button>
  <Button variant="primary" icon={Save} loading={submitting} disabled={submitting} type="submit">
  Guardar

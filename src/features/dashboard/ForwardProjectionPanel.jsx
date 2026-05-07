@@ -24,18 +24,18 @@ const ChartTooltip = ({ active, payload }) => {
  if (!active || !payload?.length) return null;
  const d = payload[0].payload;
  return (
- <div className="border border-[var(--border-visible)] bg-[var(--surface)] px-3 py-2.5 rounded-md">
- <p className="nd-mono text-[11px] text-[var(--text-secondary)] mb-1.5">{d.date}</p>
- <p className="nd-mono text-[13px] tabular-nums" style={{ color: 'var(--text-display)' }}>
+ <div className="border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-3 py-2.5 rounded-md">
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)] mb-1.5">{d.date}</p>
+ <p className="font-mono text-[13px] tabular-nums" style={{ color: 'var(--color-fg-1)' }}>
  Saldo: {formatCurrency(d.balance)}
  </p>
  {d.inflow > 0 && (
- <p className="nd-mono text-[11px] tabular-nums text-[var(--success)]">
+ <p className="font-mono text-[11px] tabular-nums text-[var(--color-ok)]">
  +{formatCurrency(d.inflow)} entrada
  </p>
  )}
  {d.outflow > 0 && (
- <p className="nd-mono text-[11px] tabular-nums text-[var(--accent)]">
+ <p className="font-mono text-[11px] tabular-nums text-[var(--color-accent)]">
  -{formatCurrency(d.outflow)} salida
  </p>
  )}
@@ -61,8 +61,8 @@ const ForwardProjectionPanel = ({ user }) => {
  <section className="space-y-4">
  <div className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Proyección de caja</p>
- <h3 className="mt-1 nd-display text-[20px] font-light text-[var(--text-display)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Proyección de caja</p>
+ <h3 className="mt-1 font-display text-[20px] font-light text-[var(--color-fg-1)]">
  Próximos {horizon} días
  </h3>
  </div>
@@ -110,51 +110,51 @@ const ForwardProjectionPanel = ({ user }) => {
  </KPIGrid>
 
  {proj.firstNegativeDay && (
- <div className="rounded-md border border-[var(--error)]/40 bg-[rgba(255,77,46,0.05)] px-4 py-3 flex items-start gap-3">
- <AlertTriangle size={16} className="text-[var(--error)] flex-shrink-0 mt-0.5" />
+ <div className="rounded-md border border-[var(--color-err)]/40 bg-[rgba(255,77,46,0.05)] px-4 py-3 flex items-start gap-3">
+ <AlertTriangle size={16} className="text-[var(--color-err)] flex-shrink-0 mt-0.5" />
  <div>
- <p className="text-sm text-[var(--text-primary)]">
- Alerta: la caja cae a <span className="nd-mono tabular-nums text-[var(--error)]">{formatCurrency(proj.firstNegativeDay.balance)}</span> el día <span className="nd-mono">{proj.firstNegativeDay.date}</span>
+ <p className="text-sm text-[var(--color-fg-1)]">
+ Alerta: la caja cae a <span className="font-mono tabular-nums text-[var(--color-err)]">{formatCurrency(proj.firstNegativeDay.balance)}</span> el día <span className="font-mono">{proj.firstNegativeDay.date}</span>
  </p>
- <p className="mt-1 text-[12px] text-[var(--text-disabled)]">
+ <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
  Considerá adelantar cobros, retrasar pagos o ajustar los costos recurrentes.
  </p>
  </div>
  </div>
  )}
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
  <div style={{ width: '100%', height: 280, minHeight: 280, minWidth: 0 }}>
  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
  <AreaChart data={proj.series} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
  <defs>
  <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
- <stop offset="0%" stopColor="var(--text-display)" stopOpacity={0.25} />
- <stop offset="100%" stopColor="var(--text-display)" stopOpacity={0} />
+ <stop offset="0%" stopColor="var(--color-fg-1)" stopOpacity={0.25} />
+ <stop offset="100%" stopColor="var(--color-fg-1)" stopOpacity={0} />
  </linearGradient>
  </defs>
- <CartesianGrid stroke="var(--border)" vertical={false} />
+ <CartesianGrid stroke="var(--color-line)" vertical={false} />
  <XAxis
  dataKey="date"
- stroke="var(--text-disabled)"
+ stroke="var(--color-fg-4)"
  tickLine={false}
  axisLine={false}
  minTickGap={28}
  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
  />
  <YAxis
- stroke="var(--text-disabled)"
+ stroke="var(--color-fg-4)"
  tickLine={false}
  axisLine={false}
  tickFormatter={(v) => `${Math.round(v / 1000)}k`}
  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
  />
  <Tooltip content={<ChartTooltip />} />
- <ReferenceLine y={0} stroke="var(--error)" strokeDasharray="3 3" />
+ <ReferenceLine y={0} stroke="var(--color-err)" strokeDasharray="3 3" />
  <Area
  type="monotone"
  dataKey="balance"
- stroke="var(--text-display)"
+ stroke="var(--color-fg-1)"
  strokeWidth={2}
  fill="url(#balanceGradient)"
  />
@@ -164,9 +164,9 @@ const ForwardProjectionPanel = ({ user }) => {
  </div>
 
  <div className="grid gap-4 lg:grid-cols-2">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
  <div className="flex items-center justify-between mb-3">
- <p className="nd-label text-[var(--text-secondary)]">Hitos del horizonte</p>
+ <p className="label-mono text-[var(--color-fg-3)]">Hitos del horizonte</p>
  </div>
  <div className="space-y-2">
  <Row label="Saldo a 30 días" value={proj.next30Balance} />
@@ -175,19 +175,19 @@ const ForwardProjectionPanel = ({ user }) => {
  </div>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
  <div className="flex items-center justify-between mb-3">
- <p className="nd-label text-[var(--text-secondary)]">Top contrapartes (salidas)</p>
- <span className="nd-label text-[var(--text-disabled)]">{proj.horizonDays}d</span>
+ <p className="label-mono text-[var(--color-fg-3)]">Top contrapartes (salidas)</p>
+ <span className="label-mono text-[var(--color-fg-4)]">{proj.horizonDays}d</span>
  </div>
  {proj.topOutflowCounterparties.length === 0 ? (
- <p className="text-[12px] text-[var(--text-disabled)]">Sin salidas proyectadas.</p>
+ <p className="text-[12px] text-[var(--color-fg-4)]">Sin salidas proyectadas.</p>
  ) : (
  <div className="space-y-1.5">
  {proj.topOutflowCounterparties.map((cp) => (
  <div key={cp.name} className="flex items-center justify-between gap-3 text-[13px]">
- <span className="text-[var(--text-primary)] truncate">{cp.name}</span>
- <span className="nd-mono tabular-nums text-[var(--warning)] flex-shrink-0">
+ <span className="text-[var(--color-fg-1)] truncate">{cp.name}</span>
+ <span className="font-mono tabular-nums text-[var(--color-warn)] flex-shrink-0">
  {formatCurrency(cp.amount)}
  </span>
  </div>
@@ -208,23 +208,23 @@ const ForwardProjectionPanel = ({ user }) => {
 
 const Row = ({ label, value }) => (
  <div className="flex items-center justify-between text-[13px]">
- <span className="text-[var(--text-secondary)]">{label}</span>
- <span className={`nd-mono tabular-nums ${value < 0 ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'}`}>
+ <span className="text-[var(--color-fg-3)]">{label}</span>
+ <span className={`font-mono tabular-nums ${value < 0 ? 'text-[var(--color-err)]' : 'text-[var(--color-fg-1)]'}`}>
  {formatCurrency(value)}
  </span>
  </div>
 );
 
 const Mini = ({ icon: Icon, label, value, amount, tone = 'warn' }) => (
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
  <div className="flex items-center justify-between gap-2">
- <p className="nd-label text-[var(--text-secondary)] truncate">{label}</p>
- {Icon && <Icon size={14} className="text-[var(--text-disabled)]" />}
+ <p className="label-mono text-[var(--color-fg-3)] truncate">{label}</p>
+ {Icon && <Icon size={14} className="text-[var(--color-fg-4)]" />}
  </div>
- <p className={`nd-display text-[22px] font-light tabular-nums mt-2 ${tone === 'ok' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <p className={`font-display text-[22px] font-light tabular-nums mt-2 ${tone === 'ok' ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {value}
  </p>
- <p className="nd-mono text-[11px] tabular-nums text-[var(--text-disabled)] mt-1">
+ <p className="font-mono text-[11px] tabular-nums text-[var(--color-fg-4)] mt-1">
  {formatCurrency(amount)}
  </p>
  </div>
