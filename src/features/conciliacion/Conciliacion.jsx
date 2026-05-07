@@ -275,8 +275,8 @@ const Conciliacion = ({ user }) => {
  return (
  <div className="flex items-center justify-center py-28">
  <div className="flex flex-col items-center gap-3">
- <Scale size={24} className="text-[var(--text-disabled)]" />
- <p className="nd-mono text-xs text-[var(--text-secondary)] tracking-[0.08em] uppercase">[LOADING...]</p>
+ <Scale size={24} className="text-[var(--color-fg-4)]" />
+ <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
  </div>
  </div>
  );
@@ -285,19 +285,19 @@ const Conciliacion = ({ user }) => {
  return (
  <div className="space-y-6 pb-12">
  {/* Header */}
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-7">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-7">
  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
  <div>
- <p className="nd-label text-[var(--text-secondary)] mb-3">Conciliación bancaria</p>
- <h2 className="nd-display text-[28px] font-medium text-[var(--text-display)]">Banco vs. Sistema</h2>
- <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--text-disabled)]">
- Compara los movimientos importados del banco con las transacciones registradas en FinControl.
+ <p className="label-mono text-[var(--color-fg-3)] mb-3">Conciliación bancaria</p>
+ <h2 className="font-display text-[28px] font-medium text-[var(--color-fg-1)]">Banco vs. Sistema</h2>
+ <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--color-fg-4)]">
+ Compara los movimientos importados del banco con las transacciones registradas en NEXUS.OS.
  Vincula registros por monto, fecha y descripción.
  </p>
  </div>
  <div className="flex items-center gap-3">
  <select
- className="rounded-full border border-[var(--border-visible)] bg-[var(--surface-raised)] px-4 py-2.5 nd-mono text-xs text-[var(--text-primary)] outline-none focus:border-[var(--text-primary)]"
+ className="rounded-full border border-[var(--color-line-s)] bg-[var(--color-bg-2)] px-4 py-2.5 font-mono text-xs text-[var(--color-fg-1)] outline-none focus:border-[var(--color-fg-1)]"
  value={month}
  onChange={e => setMonth(e.target.value)}
  >
@@ -308,7 +308,7 @@ const Conciliacion = ({ user }) => {
  </select>
  <button
  onClick={autoMatch}
- className="btn btn-primary"
+  className="nx-btn nx-btn-primary"
  >
  <Link2 size={16} />
  Auto-conciliar
@@ -319,73 +319,73 @@ const Conciliacion = ({ user }) => {
 
  {/* Stats */}
  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
- <p className="nd-label text-[var(--text-secondary)]">Mov. banco</p>
- <p className="mt-2 nd-display text-[24px] font-medium text-[var(--text-display)]">{monthMovements.length}</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
+ <p className="label-mono text-[var(--color-fg-3)]">Mov. banco</p>
+ <p className="mt-2 font-display text-[24px] font-medium text-[var(--color-fg-1)]">{monthMovements.length}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
- <p className="nd-label text-[var(--text-secondary)]">Transacciones</p>
- <p className="mt-2 nd-display text-[24px] font-medium text-[var(--text-display)]">{monthTransactions.length}</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
+ <p className="label-mono text-[var(--color-fg-3)]">Transacciones</p>
+ <p className="mt-2 font-display text-[24px] font-medium text-[var(--color-fg-1)]">{monthTransactions.length}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
- <p className="nd-label text-[var(--text-secondary)]">Conciliados</p>
- <p className="mt-2 nd-display text-[24px] font-medium text-[var(--success)]">{matchedPairs.length}</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
+ <p className="label-mono text-[var(--color-fg-3)]">Conciliados</p>
+ <p className="mt-2 font-display text-[24px] font-medium text-[var(--color-ok)]">{matchedPairs.length}</p>
  </div>
  <div
-className="cursor-pointer rounded-md border border-[var(--border-visible)] bg-transparent p-4 transition-colors duration-200 hover:border-[var(--text-primary)] hover:bg-[var(--surface)]"
+className="cursor-pointer rounded-md border border-[var(--color-line-s)] bg-transparent p-4 transition-colors duration-200 hover:border-[var(--color-fg-1)] hover:bg-[var(--color-bg-1)]"
  onClick={() => bankColumnRef.current?.scrollIntoView({ behavior: 'smooth' })}
  role="button"
  tabIndex={0}
  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bankColumnRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}
  >
- <p className="nd-label text-[var(--text-secondary)]">Sin conciliar (banco)</p>
- <p className="mt-2 nd-display text-[24px] font-medium text-[var(--accent)]">{unmatchedMovements.length}</p>
+ <p className="label-mono text-[var(--color-fg-3)]">Sin conciliar (banco)</p>
+ <p className="mt-2 font-display text-[24px] font-medium text-[var(--color-accent)]">{unmatchedMovements.length}</p>
  </div>
  <div
-className="cursor-pointer rounded-md border border-[var(--border-visible)] bg-transparent p-4 transition-colors duration-200 hover:border-[var(--text-primary)] hover:bg-[var(--surface)]"
+className="cursor-pointer rounded-md border border-[var(--color-line-s)] bg-transparent p-4 transition-colors duration-200 hover:border-[var(--color-fg-1)] hover:bg-[var(--color-bg-1)]"
  onClick={() => systemColumnRef.current?.scrollIntoView({ behavior: 'smooth' })}
  role="button"
  tabIndex={0}
  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); systemColumnRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}
  >
- <p className="nd-label text-[var(--text-secondary)]">Sin conciliar (sistema)</p>
- <p className="mt-2 nd-display text-[24px] font-medium text-[var(--warning)]">{unmatchedTransactions.length}</p>
+ <p className="label-mono text-[var(--color-fg-3)]">Sin conciliar (sistema)</p>
+ <p className="mt-2 font-display text-[24px] font-medium text-[var(--color-warn)]">{unmatchedTransactions.length}</p>
  </div>
  </div>
 
  {/* Totals comparison */}
  <div className="grid gap-4 sm:grid-cols-2">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5">
- <p className="nd-label text-[var(--text-secondary)]">Banco — {month}</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5">
+ <p className="label-mono text-[var(--color-fg-3)]">Banco — {month}</p>
  <div className="mt-3 flex gap-6">
  <div>
- <p className="text-[10px] text-[var(--success)]">Entradas</p>
- <p className="text-sm font-medium text-[var(--success)]">+€{formatCurrency(totalBankIn)}</p>
+ <p className="text-[10px] text-[var(--color-ok)]">Entradas</p>
+ <p className="text-sm font-medium text-[var(--color-ok)]">+€{formatCurrency(totalBankIn)}</p>
  </div>
  <div>
- <p className="text-[10px] text-[var(--text-secondary)]">Salidas</p>
- <p className="text-sm font-medium text-[var(--accent)]">-€{formatCurrency(totalBankOut)}</p>
+ <p className="text-[10px] text-[var(--color-fg-3)]">Salidas</p>
+ <p className="text-sm font-medium text-[var(--color-accent)]">-€{formatCurrency(totalBankOut)}</p>
  </div>
  <div>
- <p className="text-[10px] text-[var(--text-disabled)]">Neto</p>
- <p className="text-sm font-medium text-[var(--text-primary)]">€{formatCurrency(totalBankIn - totalBankOut)}</p>
+ <p className="text-[10px] text-[var(--color-fg-4)]">Neto</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">€{formatCurrency(totalBankIn - totalBankOut)}</p>
  </div>
  </div>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5">
- <p className="nd-label text-[var(--text-secondary)]">Sistema — {month}</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5">
+ <p className="label-mono text-[var(--color-fg-3)]">Sistema — {month}</p>
  <div className="mt-3 flex gap-6">
  <div>
- <p className="text-[10px] text-[var(--success)]">Ingresos</p>
- <p className="text-sm font-medium text-[var(--success)]">+€{formatCurrency(totalTxIncome)}</p>
+ <p className="text-[10px] text-[var(--color-ok)]">Ingresos</p>
+ <p className="text-sm font-medium text-[var(--color-ok)]">+€{formatCurrency(totalTxIncome)}</p>
  </div>
  <div>
- <p className="text-[10px] text-[var(--text-secondary)]">Gastos</p>
- <p className="text-sm font-medium text-[var(--accent)]">-€{formatCurrency(totalTxExpense)}</p>
+ <p className="text-[10px] text-[var(--color-fg-3)]">Gastos</p>
+ <p className="text-sm font-medium text-[var(--color-accent)]">-€{formatCurrency(totalTxExpense)}</p>
  </div>
  <div>
- <p className="text-[10px] text-[var(--text-disabled)]">Neto</p>
- <p className="text-sm font-medium text-[var(--text-primary)]">€{formatCurrency(totalTxIncome - totalTxExpense)}</p>
+ <p className="text-[10px] text-[var(--color-fg-4)]">Neto</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">€{formatCurrency(totalTxIncome - totalTxExpense)}</p>
  </div>
  </div>
  </div>
@@ -393,16 +393,16 @@ className="cursor-pointer rounded-md border border-[var(--border-visible)] bg-tr
 
  {/* Matched pairs */}
  {matchedPairs.length > 0 && (
- <section className="rounded-md border border-[var(--border-visible)] bg-transparent p-5">
+ <section className="rounded-md border border-[var(--color-line-s)] bg-transparent p-5">
  <button
  onClick={() => setShowMatched(!showMatched)}
  className="flex w-full items-center justify-between"
  >
  <div className="flex items-center gap-2">
- <CheckCircle2 size={18} className="text-[var(--success)]" />
- <h3 className="nd-mono text-[15px] font-medium text-[var(--text-display)]">Conciliados ({matchedPairs.length})</h3>
+ <CheckCircle2 size={18} className="text-[var(--color-ok)]" />
+ <h3 className="font-mono text-[15px] font-medium text-[var(--color-fg-1)]">Conciliados ({matchedPairs.length})</h3>
  </div>
- <ChevronDown size={18} className={`text-[var(--text-secondary)] transition ${showMatched ? 'rotate-180' : ''}`} />
+ <ChevronDown size={18} className={`text-[var(--color-fg-3)] transition ${showMatched ? 'rotate-180' : ''}`} />
  </button>
  {showMatched && (
  <div className="mt-4 space-y-2">
@@ -411,23 +411,23 @@ className="cursor-pointer rounded-md border border-[var(--border-visible)] bg-tr
  const tx = allTransactions.find(t => t.id === pair.transactionId);
  if (!mov || !tx) return null;
  return (
- <div key={pair.movementId} className="flex items-center gap-3 rounded-lg border border-[var(--border-visible)] bg-[var(--surface)] px-4 py-3">
- <Check size={16} className="flex-shrink-0 text-[var(--success)]" />
+ <div key={pair.movementId} className="flex items-center gap-3 rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-3">
+ <Check size={16} className="flex-shrink-0 text-[var(--color-ok)]" />
  <div className="flex-1 min-w-0">
- <p className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+ <p className="truncate text-[12px] font-medium text-[var(--color-fg-1)]">
  {mov.counterpartyName || mov.description}
  </p>
- <p className="truncate text-[11px] text-[var(--text-secondary)]">{mov.postedDate}</p>
+ <p className="truncate text-[11px] text-[var(--color-fg-3)]">{mov.postedDate}</p>
  </div>
- <Link2 size={14} className="flex-shrink-0 text-[var(--text-secondary)]" />
+ <Link2 size={14} className="flex-shrink-0 text-[var(--color-fg-3)]" />
  <div className="flex-1 min-w-0">
- <p className="truncate text-[12px] font-medium text-[var(--text-primary)]">{tx.description}</p>
- <p className="truncate text-[11px] text-[var(--text-secondary)]">{tx.date} · {tx.project}</p>
+ <p className="truncate text-[12px] font-medium text-[var(--color-fg-1)]">{tx.description}</p>
+ <p className="truncate text-[11px] text-[var(--color-fg-3)]">{tx.date} · {tx.project}</p>
  </div>
- <span className={`flex-shrink-0 text-[13px] font-medium ${mov.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <span className={`flex-shrink-0 text-[13px] font-medium ${mov.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  €{formatCurrency(mov.amount)}
  </span>
- <button onClick={() => removeMatch(pair.movementId)} className="flex-shrink-0 rounded-lg p-1 text-[var(--text-secondary)] hover:text-[var(--accent)]">
+ <button onClick={() => removeMatch(pair.movementId)} className="flex-shrink-0 rounded-lg p-1 text-[var(--color-fg-3)] hover:text-[var(--color-accent)]">
  <X size={14} />
  </button>
  </div>
@@ -441,27 +441,27 @@ className="cursor-pointer rounded-md border border-[var(--border-visible)] bg-tr
  {/* Two-column comparison */}
  <div className="grid gap-6 xl:grid-cols-2">
  {/* Bank movements */}
- <section ref={bankColumnRef} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section ref={bankColumnRef} className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4 flex items-center justify-between">
  <div className="flex items-center gap-2">
- <Landmark size={18} className="text-[var(--text-primary)]" />
- <h3 className="nd-mono text-[14px] font-medium text-[var(--text-display)]">Movimientos banco</h3>
- <span className="text-[11px] text-[var(--text-secondary)]">({unmatchedMovements.length})</span>
+ <Landmark size={18} className="text-[var(--color-fg-1)]" />
+ <h3 className="font-mono text-[14px] font-medium text-[var(--color-fg-1)]">Movimientos banco</h3>
+ <span className="text-[11px] text-[var(--color-fg-3)]">({unmatchedMovements.length})</span>
  </div>
  </div>
  <div className="relative mb-3">
- <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+ <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-3)]" />
  <input
  type="text"
  placeholder="Buscar movimiento..."
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-2 pl-9 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchBank}
  onChange={e => setSearchBank(e.target.value)}
  />
  </div>
  <div className="max-h-[500px] space-y-2 overflow-y-auto">
  {unmatchedMovements.length === 0 && (
- <p className="py-8 text-center text-sm text-[var(--text-secondary)]">
+ <p className="py-8 text-center text-sm text-[var(--color-fg-3)]">
  {monthMovements.length === 0 ? 'No hay movimientos bancarios para este mes. Importa un CSV en la sección de Importar.' : 'Todos los movimientos están conciliados.'}
  </p>
  )}
@@ -474,25 +474,25 @@ className="cursor-pointer rounded-md border border-[var(--border-visible)] bg-tr
  onClick={() => setSelectedMovement(isSelected ? null : m)}
  className={`flex-1 min-w-0 rounded-lg border px-4 py-3 text-left transition-all ${
  isSelected
- ? 'border-[var(--border-visible)] bg-[var(--surface)] '
-: 'border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] '
+: 'border-[var(--color-line)] bg-[var(--color-bg-1)] hover:bg-[var(--color-bg-2)]'
  }`}
  >
  <div className="flex items-center justify-between gap-2">
- <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+ <span className="truncate text-[12px] font-medium text-[var(--color-fg-1)]">
  {m.counterpartyName || m.description || 'Sin descripción'}
  </span>
- <span className={`flex-shrink-0 text-[13px] font-medium ${m.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <span className={`flex-shrink-0 text-[13px] font-medium ${m.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {m.direction === 'in' ? '+' : '-'}€{formatCurrency(m.amount)}
  </span>
  </div>
- <p className="mt-1 truncate text-[11px] text-[var(--text-secondary)]">
+ <p className="mt-1 truncate text-[11px] text-[var(--color-fg-3)]">
  {m.postedDate} · {m.description?.slice(0, 60)}
  </p>
  </button>
  <button
  onClick={() => handleCreateFromMovement(m)}
-className="flex-shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] p-2 text-[var(--text-secondary)] transition hover:border-[var(--border-visible)] hover:bg-[var(--surface-raised)] hover:text-[var(--text-primary)]"
+className="flex-shrink-0 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-2 text-[var(--color-fg-3)] transition hover:border-[var(--color-line-s)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]"
  title="Crear transacción desde este movimiento"
  >
  <Plus size={14} />
@@ -504,24 +504,24 @@ className="flex-shrink-0 rounded-md border border-[var(--border)] bg-[var(--surf
  </section>
 
  {/* Transactions / Suggestions */}
- <section ref={systemColumnRef} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section ref={systemColumnRef} className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  {selectedMovement ? (
  <>
  <div className="mb-4">
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-2">
- <Link2 size={18} className="text-[var(--warning)]" />
- <h3 className="nd-mono text-[14px] font-medium text-[var(--text-display)]">Sugerencias de coincidencia</h3>
+ <Link2 size={18} className="text-[var(--color-warn)]" />
+ <h3 className="font-mono text-[14px] font-medium text-[var(--color-fg-1)]">Sugerencias de coincidencia</h3>
  </div>
- <button onClick={() => setSelectedMovement(null)} className="rounded-lg p-1 text-[var(--text-secondary)] hover:text-[var(--accent)]">
+ <button onClick={() => setSelectedMovement(null)} className="rounded-lg p-1 text-[var(--color-fg-3)] hover:text-[var(--color-accent)]">
  <X size={16} />
  </button>
  </div>
- <div className="mt-2 rounded-md border border-[var(--border-visible)] bg-[var(--surface)] px-3 py-2">
- <p className="text-[11px] text-[var(--text-primary)]">Buscando coincidencias para:</p>
- <p className="text-[13px] font-medium text-[var(--text-primary)]">
+ <div className="mt-2 rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-3 py-2">
+ <p className="text-[11px] text-[var(--color-fg-1)]">Buscando coincidencias para:</p>
+ <p className="text-[13px] font-medium text-[var(--color-fg-1)]">
  {selectedMovement.counterpartyName || selectedMovement.description} —{' '}
- <span className={selectedMovement.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>
+ <span className={selectedMovement.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}>
  {selectedMovement.direction === 'in' ? '+' : '-'}€{formatCurrency(selectedMovement.amount)}
  </span>
  </p>
@@ -529,36 +529,36 @@ className="flex-shrink-0 rounded-md border border-[var(--border)] bg-[var(--surf
  </div>
  <div className="space-y-2">
  {suggestions.length === 0 && (
- <p className="py-8 text-center text-sm text-[var(--text-secondary)]">
+ <p className="py-8 text-center text-sm text-[var(--color-fg-3)]">
  No se encontraron coincidencias para este movimiento.
  </p>
  )}
  {suggestions.map(({ transaction: t, score }) => (
  <div
  key={t.id}
-className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:bg-[var(--surface-raised)]"
+className="flex items-center gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 transition hover:bg-[var(--color-bg-2)]"
  >
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-2">
- <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">{t.description}</span>
+ <span className="truncate text-[12px] font-medium text-[var(--color-fg-1)]">{t.description}</span>
  <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
- score >= 150 ? 'bg-transparent text-[var(--success)]' :
- score >= 100 ? 'bg-transparent text-[var(--warning)]' :
- 'bg-transparent text-[var(--text-secondary)]'
+ score >= 150 ? 'bg-transparent text-[var(--color-ok)]' :
+ score >= 100 ? 'bg-transparent text-[var(--color-warn)]' :
+ 'bg-transparent text-[var(--color-fg-3)]'
  }`}>
  {score >= 150 ? 'Exacto' : score >= 100 ? 'Probable' : 'Posible'}
  </span>
  </div>
- <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+ <p className="mt-1 text-[11px] text-[var(--color-fg-3)]">
  {t.date} · {t.project || 'Sin proyecto'} · {t.category}
  </p>
  </div>
- <span className={`flex-shrink-0 text-[13px] font-medium ${t.type === 'income' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <span className={`flex-shrink-0 text-[13px] font-medium ${t.type === 'income' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  €{formatCurrency(t.amount)}
  </span>
  <button
  onClick={() => manualMatch(selectedMovement.id, t.id)}
- className="flex-shrink-0 rounded-full bg-[var(--text-display)] px-3 py-1.5 nd-mono text-[10px] uppercase tracking-[0.06em] text-[var(--black)] transition hover:opacity-85"
+ className="flex-shrink-0 rounded-full bg-[var(--color-fg-1)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--color-bg-0)] transition hover:opacity-85"
  >
  Vincular
  </button>
@@ -570,37 +570,37 @@ className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[
  <>
  <div className="mb-4 flex items-center justify-between">
  <div className="flex items-center gap-2">
- <Scale size={18} className="text-[var(--warning)]" />
- <h3 className="nd-mono text-[14px] font-medium text-[var(--text-display)]">Transacciones sistema</h3>
- <span className="text-[11px] text-[var(--text-secondary)]">({unmatchedTransactions.length})</span>
+ <Scale size={18} className="text-[var(--color-warn)]" />
+ <h3 className="font-mono text-[14px] font-medium text-[var(--color-fg-1)]">Transacciones sistema</h3>
+ <span className="text-[11px] text-[var(--color-fg-3)]">({unmatchedTransactions.length})</span>
  </div>
  </div>
  <div className="relative mb-3">
- <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+ <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-3)]" />
  <input
  type="text"
  placeholder="Buscar transacción..."
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-2 pl-9 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchTx}
  onChange={e => setSearchTx(e.target.value)}
  />
  </div>
  <div className="max-h-[500px] space-y-2 overflow-y-auto">
  {unmatchedTransactions.length === 0 && (
- <p className="py-8 text-center text-sm text-[var(--text-secondary)]">No hay transacciones sin conciliar para este mes.</p>
+ <p className="py-8 text-center text-sm text-[var(--color-fg-3)]">No hay transacciones sin conciliar para este mes.</p>
  )}
  {unmatchedTransactions.map(t => (
  <div
  key={t.id}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3"
  >
  <div className="flex items-center justify-between gap-2">
- <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">{t.description}</span>
- <span className={`flex-shrink-0 text-[13px] font-medium ${t.type === 'income' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <span className="truncate text-[12px] font-medium text-[var(--color-fg-1)]">{t.description}</span>
+ <span className={`flex-shrink-0 text-[13px] font-medium ${t.type === 'income' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {t.type === 'income' ? '+' : '-'}€{formatCurrency(t.amount)}
  </span>
  </div>
- <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+ <p className="mt-1 text-[11px] text-[var(--color-fg-3)]">
  {t.date} · {t.project || 'Sin proyecto'} · {t.category} · {t.status}
  </p>
  </div>
@@ -612,8 +612,8 @@ className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[
  </div>
 
  {/* Help text */}
- <div className="rounded-lg border border-dashed border-[var(--border)] px-5 py-4 text-center">
- <p className="text-[12px] text-[var(--text-secondary)]">
+ <div className="rounded-lg border border-dashed border-[var(--color-line)] px-5 py-4 text-center">
+ <p className="text-[12px] text-[var(--color-fg-3)]">
  <strong>Cómo usar:</strong> Haz clic en un movimiento bancario (izquierda) para ver sugerencias de coincidencia.
  Usa <strong>"Auto-conciliar"</strong> para vincular automáticamente los que coinciden por monto y dirección.
  Los movimientos del banco se importan desde <strong>Importar → Importar movimientos bancarios</strong>.

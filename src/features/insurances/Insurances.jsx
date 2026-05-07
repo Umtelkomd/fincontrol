@@ -109,11 +109,11 @@ const Insurances = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Assets · Seguros</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Assets · Seguros</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Pólizas y seguros
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Gestiona pólizas (responsabilidad civil, Kasko, equipos) y sus cuotas recurrentes.
  Pueden estar atadas a vehículos, viviendas o ser independientes.
  </p>
@@ -152,11 +152,11 @@ const Insurances = ({ user }) => {
  padding={false}
  actions={
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  />
@@ -164,7 +164,7 @@ const Insurances = ({ user }) => {
  }
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="nd-label">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={Shield}
@@ -195,16 +195,16 @@ const Insurances = ({ user }) => {
  const expired = days !== null && days < 0;
  return (
   <tr key={i.id} {...rowButtonProps(() => openEdit(i))}>
- <td className="font-medium text-[var(--text-primary)]">{i.name}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">{i.name}</td>
  <td>{TYPE_LABELS[i.type] || i.type}</td>
- <td className="text-[var(--text-secondary)]">{i.insurer || '—'}</td>
- <td className="nd-mono text-[var(--text-secondary)]">{i.policyNumber || '—'}</td>
- <td className="nd-mono text-[var(--text-secondary)]">
+ <td className="text-[var(--color-fg-3)]">{i.insurer || '—'}</td>
+ <td className="font-mono text-[var(--color-fg-3)]">{i.policyNumber || '—'}</td>
+ <td className="font-mono text-[var(--color-fg-3)]">
  {i.renewalDate || i.endDate || '—'}
  {expired && <Badge variant="err" className="ml-2">Vencido</Badge>}
  {!expired && expiringSoon && <Badge variant="warn" className="ml-2">{days}d</Badge>}
  </td>
- <td className="text-right nd-mono tabular-nums">
+ <td className="text-right font-mono tabular-nums">
  {i.premiumAnnual ? formatCurrency(i.premiumAnnual) : '—'}
  </td>
  <td className="text-center">

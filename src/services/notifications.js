@@ -1,7 +1,7 @@
-// Notification System for FinControl
+// Notification System for NEXUS.OS
 // Gestiona alertas de CXP/CXC y notificaciones push
 
-class FinControlNotifications {
+class NexusNotifications {
   constructor() {
     this.permission = false;
     this.initialized = false;
@@ -19,7 +19,7 @@ class FinControlNotifications {
     }
 
     this.initialized = true;
-    console.log('FinControlNotifications initialized:', this.permission);
+    console.log('NEXUS.OS notifications initialized:', this.permission);
   }
 
   // Verificar pagos próximos y vencidos
@@ -217,6 +217,6 @@ class FinControlNotifications {
 }
 
 // Singleton
-export const finControlNotifications = new FinControlNotifications();
+export const nexusNotifications = new NexusNotifications();
 
-export default FinControlNotifications;
+export default NexusNotifications;

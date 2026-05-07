@@ -604,7 +604,7 @@ const Projects = ({ user }) => {
 
  {/* Add/Edit Modal */}
  {showAddModal && (
- <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
+ <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,8,10,0.62)] p-4 animate-fadeIn">
   <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] animate-scaleIn">
   <div className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-bg-2)] px-6 py-5">
  <div>

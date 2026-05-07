@@ -131,8 +131,8 @@ const MultiMoneda = ({ user }) => {
  if (loading) {
  return (
  <div className="flex items-center justify-center py-12">
- <Loader2 className="w-8 h-8 text-[var(--interactive)] animate-spin" />
- <span className="ml-3 text-[var(--text-secondary)]">Cargando tasas de cambio...</span>
+ <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
+ <span className="ml-3 text-[var(--color-fg-3)]">Cargando tasas de cambio...</span>
  </div>
  );
  }
@@ -141,12 +141,12 @@ const MultiMoneda = ({ user }) => {
  <div className="space-y-6">
  {/* Header */}
  <div className="flex items-center gap-3">
- <div className="p-3 bg-[var(--surface)] rounded-md">
- <DollarSign className="text-[var(--text-secondary)]" size={24} />
+ <div className="p-3 bg-[var(--color-bg-1)] rounded-md">
+ <DollarSign className="text-[var(--color-fg-3)]" size={24} />
  </div>
  <div>
- <h2 className="text-xl font-medium text-[var(--text-primary)]">Multi-Moneda</h2>
- <p className="text-sm text-[var(--text-secondary)]">Gestiona tasas de cambio y convierte entre monedas</p>
+ <h2 className="text-xl font-medium text-[var(--color-fg-1)]">Multi-Moneda</h2>
+ <p className="text-sm text-[var(--color-fg-3)]">Gestiona tasas de cambio y convierte entre monedas</p>
  </div>
  </div>
 
@@ -156,15 +156,15 @@ const MultiMoneda = ({ user }) => {
  const rate = getRate(pair);
  const storedRate = rates.find((r) => r.pair === pair);
  return (
- <div key={pair} className="bg-[var(--surface)] rounded-md p-5 border border-[var(--border)]">
+ <div key={pair} className="bg-[var(--color-bg-1)] rounded-md p-5 border border-[var(--color-line)]">
  <div className="flex items-center justify-between mb-2">
- <h3 className="nd-label text-[var(--text-secondary)]">{pair}</h3>
- <ArrowRightLeft className="text-[var(--text-secondary)]" size={18} />
+ <h3 className="label-mono text-[var(--color-fg-3)]">{pair}</h3>
+ <ArrowRightLeft className="text-[var(--color-fg-3)]" size={18} />
  </div>
- <p className="text-2xl font-medium text-[var(--text-primary)]">
+ <p className="text-2xl font-medium text-[var(--color-fg-1)]">
  {rate ? rate.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—'}
  </p>
- <p className="text-xs text-[var(--text-disabled)] mt-1">
+ <p className="text-xs text-[var(--color-fg-4)] mt-1">
  {storedRate
  ? `Actualizado: ${storedRate.updatedAt?.toDate?.()?.toLocaleDateString('es-ES') || 'Reciente'}`
  : rate ? 'Tasa por defecto' : 'Sin datos'
@@ -176,13 +176,13 @@ const MultiMoneda = ({ user }) => {
  </div>
 
  {/* Rate Entry Form */}
- <div className="bg-[var(--surface)] rounded-lg p-6 border border-[var(--border)]">
- <h3 className="text-lg font-medium text-[var(--text-primary)] mb-4">Agregar / Actualizar Tasa</h3>
+ <div className="bg-[var(--color-bg-1)] rounded-lg p-6 border border-[var(--color-line)]">
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)] mb-4">Agregar / Actualizar Tasa</h3>
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
  <div>
- <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Par de monedas</label>
+ <label className="block text-sm font-medium text-[var(--color-fg-3)] mb-1">Par de monedas</label>
  <select
- className="w-full px-4 py-2.5 bg-[var(--surface-raised)] border border-[var(--border-visible)] rounded-lg text-[var(--text-primary)] outline-none focus:border-[var(--text-primary)]"
+ className="w-full px-4 py-2.5 bg-[var(--color-bg-2)] border border-[var(--color-line-s)] rounded-lg text-[var(--color-fg-1)] outline-none focus:border-[var(--color-fg-1)]"
  value={form.pair}
  onChange={(e) => setForm({ ...form, pair: e.target.value })}
  >
@@ -192,11 +192,11 @@ const MultiMoneda = ({ user }) => {
  </select>
  </div>
  <div>
- <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Tasa de cambio</label>
+ <label className="block text-sm font-medium text-[var(--color-fg-3)] mb-1">Tasa de cambio</label>
  <input
  type="number"
  step="0.0001"
- className="w-full px-4 py-2.5 bg-[var(--surface-raised)] border border-[var(--border-visible)] rounded-lg text-[var(--text-primary)] outline-none focus:border-[var(--text-primary)]"
+ className="w-full px-4 py-2.5 bg-[var(--color-bg-2)] border border-[var(--color-line-s)] rounded-lg text-[var(--color-fg-1)] outline-none focus:border-[var(--color-fg-1)]"
  value={form.rate}
  onChange={(e) => setForm({ ...form, rate: e.target.value })}
  placeholder={`Ej: ${DEFAULT_RATES[form.pair] || '1.00'}`}
@@ -206,7 +206,7 @@ const MultiMoneda = ({ user }) => {
  <button
  onClick={handleSaveRate}
  disabled={saving}
- className="flex items-center gap-2 px-6 py-2.5 bg-[var(--text-secondary)] hover:bg-[var(--text-secondary)] text-[var(--text-primary)] rounded-lg font-medium transition-colors disabled:opacity-50 w-full justify-center"
+ className="flex items-center gap-2 px-6 py-2.5 bg-[var(--color-fg-3)] hover:bg-[var(--color-fg-3)] text-[var(--color-fg-1)] rounded-lg font-medium transition-colors disabled:opacity-50 w-full justify-center"
  >
  {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
  {saving ? 'Guardando...' : 'Guardar Tasa'}
@@ -216,44 +216,44 @@ const MultiMoneda = ({ user }) => {
  </div>
 
  {/* Exchange Rates Table */}
- <div className="bg-[var(--surface)] rounded-lg p-6 border border-[var(--border)]">
- <h3 className="text-lg font-medium text-[var(--text-primary)] mb-4">Tasas Guardadas</h3>
+ <div className="bg-[var(--color-bg-1)] rounded-lg p-6 border border-[var(--color-line)]">
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)] mb-4">Tasas Guardadas</h3>
  {rates.length === 0 ? (
  <div className="text-center py-8">
- <RefreshCw className="mx-auto text-[var(--text-disabled)] mb-3" size={32} />
- <p className="text-[var(--text-secondary)]">No hay tasas guardadas. Se usan las tasas por defecto.</p>
- <p className="text-xs text-[var(--text-disabled)] mt-1">EUR/USD = 1.08 | EUR/COP = 4,500</p>
+ <RefreshCw className="mx-auto text-[var(--color-fg-4)] mb-3" size={32} />
+ <p className="text-[var(--color-fg-3)]">No hay tasas guardadas. Se usan las tasas por defecto.</p>
+ <p className="text-xs text-[var(--color-fg-4)] mt-1">EUR/USD = 1.08 | EUR/COP = 4,500</p>
  </div>
  ) : (
  <div className="overflow-x-auto">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border)]">
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Par</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Tasa</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Ultima actualizacion</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Actualizado por</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide text-right">Acciones</th>
+ <tr className="border-b border-[var(--color-line)]">
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Par</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Tasa</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Ultima actualizacion</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide">Actualizado por</th>
+ <th className="pb-3 text-xs font-medium text-[var(--color-fg-3)] uppercase tracking-wide text-right">Acciones</th>
  </tr>
  </thead>
  <tbody>
  {rates.map((r) => (
- <tr key={r.id} className="border-b border-[var(--border)] hover:bg-[var(--surface)]">
- <td className="py-3 text-[var(--text-primary)] font-medium">{r.pair}</td>
- <td className="py-3 text-[var(--text-primary)]">
+ <tr key={r.id} className="border-b border-[var(--color-line)] hover:bg-[var(--color-bg-1)]">
+ <td className="py-3 text-[var(--color-fg-1)] font-medium">{r.pair}</td>
+ <td className="py-3 text-[var(--color-fg-1)]">
  {r.rate?.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
  </td>
- <td className="py-3 text-[var(--text-secondary)] text-sm">
+ <td className="py-3 text-[var(--color-fg-3)] text-sm">
  {r.updatedAt?.toDate?.()?.toLocaleString('es-ES') || '—'}
  </td>
- <td className="py-3 text-[var(--text-secondary)] text-sm">{r.updatedBy || '—'}</td>
+ <td className="py-3 text-[var(--color-fg-3)] text-sm">{r.updatedBy || '—'}</td>
  <td className="py-3 text-right">
  <button
  onClick={() => handleDeleteRate(r.id)}
  className="p-2 hover:bg-transparent rounded-lg transition-colors"
  title="Eliminar"
  >
- <Trash2 className="text-[var(--accent)]" size={16} />
+ <Trash2 className="text-[var(--color-accent)]" size={16} />
  </button>
  </td>
  </tr>
@@ -265,24 +265,24 @@ const MultiMoneda = ({ user }) => {
  </div>
 
  {/* Currency Converter */}
- <div className="bg-[var(--surface)] rounded-lg p-6 border border-[var(--border)]">
- <h3 className="text-lg font-medium text-[var(--text-primary)] mb-4">Calculadora de Conversion</h3>
+ <div className="bg-[var(--color-bg-1)] rounded-lg p-6 border border-[var(--color-line)]">
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)] mb-4">Calculadora de Conversion</h3>
  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
  <div>
- <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Monto</label>
+ <label className="block text-sm font-medium text-[var(--color-fg-3)] mb-1">Monto</label>
  <input
  type="number"
  step="0.01"
- className="w-full px-4 py-2.5 bg-[var(--surface-raised)] border border-[var(--border-visible)] rounded-lg text-[var(--text-primary)] outline-none focus:border-[var(--text-primary)]"
+ className="w-full px-4 py-2.5 bg-[var(--color-bg-2)] border border-[var(--color-line-s)] rounded-lg text-[var(--color-fg-1)] outline-none focus:border-[var(--color-fg-1)]"
  value={converter.amount}
  onChange={(e) => setConverter({ ...converter, amount: e.target.value })}
  placeholder="1000.00"
  />
  </div>
  <div>
- <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">De</label>
+ <label className="block text-sm font-medium text-[var(--color-fg-3)] mb-1">De</label>
  <select
- className="w-full px-4 py-2.5 bg-[var(--surface-raised)] border border-[var(--border-visible)] rounded-lg text-[var(--text-primary)] outline-none focus:border-[var(--text-primary)]"
+ className="w-full px-4 py-2.5 bg-[var(--color-bg-2)] border border-[var(--color-line-s)] rounded-lg text-[var(--color-fg-1)] outline-none focus:border-[var(--color-fg-1)]"
  value={converter.from}
  onChange={(e) => setConverter({ ...converter, from: e.target.value })}
  >
@@ -292,9 +292,9 @@ const MultiMoneda = ({ user }) => {
  </select>
  </div>
  <div>
- <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">A</label>
+ <label className="block text-sm font-medium text-[var(--color-fg-3)] mb-1">A</label>
  <select
- className="w-full px-4 py-2.5 bg-[var(--surface-raised)] border border-[var(--border-visible)] rounded-lg text-[var(--text-primary)] outline-none focus:border-[var(--text-primary)]"
+ className="w-full px-4 py-2.5 bg-[var(--color-bg-2)] border border-[var(--color-line-s)] rounded-lg text-[var(--color-fg-1)] outline-none focus:border-[var(--color-fg-1)]"
  value={converter.to}
  onChange={(e) => setConverter({ ...converter, to: e.target.value })}
  >
@@ -303,9 +303,9 @@ const MultiMoneda = ({ user }) => {
  ))}
  </select>
  </div>
- <div className="bg-[var(--surface-raised)] rounded-lg p-3 border border-[var(--border)]">
- <p className="text-xs text-[var(--text-secondary)] mb-1">Resultado</p>
- <p className="text-xl font-medium text-[var(--success)]">
+ <div className="bg-[var(--color-bg-2)] rounded-lg p-3 border border-[var(--color-line)]">
+ <p className="text-xs text-[var(--color-fg-3)] mb-1">Resultado</p>
+ <p className="text-xl font-medium text-[var(--color-ok)]">
  {converter.amount && convertedAmount !== null
  ? `${CURRENCIES.find((c) => c.code === converter.to)?.symbol || ''} ${convertedAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
  : '—'
@@ -316,11 +316,11 @@ const MultiMoneda = ({ user }) => {
  </div>
 
  {/* Info Box */}
- <div className="bg-transparent border border-[var(--border-visible)] rounded-md p-4 flex items-start gap-3">
- <Info className="text-[var(--interactive)] flex-shrink-0 mt-0.5" size={20} />
+ <div className="bg-transparent border border-[var(--color-line-s)] rounded-md p-4 flex items-start gap-3">
+ <Info className="text-[var(--color-accent)] flex-shrink-0 mt-0.5" size={20} />
  <div>
- <p className="text-sm text-[var(--interactive)] font-medium">Soporte multi-moneda en transacciones</p>
- <p className="text-xs text-[var(--text-secondary)] mt-1">
+ <p className="text-sm text-[var(--color-accent)] font-medium">Soporte multi-moneda en transacciones</p>
+ <p className="text-xs text-[var(--color-fg-3)] mt-1">
  En una futura actualizacion se podra asignar una moneda a cada transaccion y ver los reportes convertidos automaticamente a EUR (moneda base). Por ahora, las tasas se pueden usar como referencia para conversiones manuales.
  </p>
  </div>

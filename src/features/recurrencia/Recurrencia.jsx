@@ -147,7 +147,7 @@ const Recurrencia = ({ user }) => {
  if (loading) {
  return (
  <div className="flex items-center justify-center py-20">
- <div className="w-6 h-6 border-2 border-[var(--interactive)] border-t-transparent rounded-full animate-spin" />
+ <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
  </div>
  );
  }
@@ -155,18 +155,18 @@ const Recurrencia = ({ user }) => {
  return (
  <div className="space-y-6 animate-fadeIn">
  <div className="flex items-center justify-between">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-5 ">
- <p className="nd-label text-[var(--text-primary)]">Automatización</p>
- <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[var(--text-primary)]">Recurrencia automática</h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Controla los movimientos periódicos y genera los pendientes del mes con un solo paso.</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-5 ">
+ <p className="label-mono text-[var(--color-fg-1)]">Automatización</p>
+ <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">Recurrencia automática</h2>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Controla los movimientos periódicos y genera los pendientes del mes con un solo paso.</p>
  </div>
  <button
  onClick={handleGeneratePending}
  disabled={generating}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-2 text-[12px] font-medium text-[var(--success)] transition hover:bg-transparent disabled:opacity-50"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-2 text-[12px] font-medium text-[var(--color-ok)] transition hover:bg-transparent disabled:opacity-50"
  >
  {generating ? (
- <div className="h-3.5 w-3.5 rounded-full border-2 border-[var(--success)] border-t-transparent animate-spin" />
+ <div className="h-3.5 w-3.5 rounded-full border-2 border-[var(--color-ok)] border-t-transparent animate-spin" />
  ) : (
  <Play size={14} />
  )}
@@ -175,26 +175,26 @@ const Recurrencia = ({ user }) => {
  </div>
 
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center justify-between mb-2">
- <p className="nd-label text-[var(--text-secondary)]">Total recurrentes</p>
- <RefreshCw size={18} className="text-[var(--text-primary)]" />
+ <p className="label-mono text-[var(--color-fg-3)]">Total recurrentes</p>
+ <RefreshCw size={18} className="text-[var(--color-fg-1)]" />
  </div>
- <p className="nd-display text-[28px] font-medium tracking-[-0.03em] text-[var(--text-primary)]">{totalRecurring}</p>
+ <p className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">{totalRecurring}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center justify-between mb-2">
- <p className="nd-label text-[var(--text-secondary)]">Próximas este mes</p>
- <CalendarClock size={18} className="text-[var(--warning)]" />
+ <p className="label-mono text-[var(--color-fg-3)]">Próximas este mes</p>
+ <CalendarClock size={18} className="text-[var(--color-warn)]" />
  </div>
- <p className="nd-display text-[28px] font-medium tracking-[-0.03em] text-[var(--warning)]">{dueThisMonth}</p>
+ <p className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--color-warn)]">{dueThisMonth}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center justify-between mb-2">
- <p className="nd-label text-[var(--text-secondary)]">Monto mensual estimado</p>
- <TrendingUp size={18} className="text-[var(--success)]" />
+ <p className="label-mono text-[var(--color-fg-3)]">Monto mensual estimado</p>
+ <TrendingUp size={18} className="text-[var(--color-ok)]" />
  </div>
- <p className="nd-display text-[28px] font-medium tracking-[-0.03em] text-[var(--success)]">{formatCurrency(monthlyEstimate)}</p>
+ <p className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--color-ok)]">{formatCurrency(monthlyEstimate)}</p>
  </div>
  </div>
 
@@ -208,71 +208,71 @@ const Recurrencia = ({ user }) => {
  <button key={tab.id} onClick={() => setFilter(tab.id)}
  className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
  filter === tab.id
- ? 'border border-[var(--text-primary)] bg-transparent text-[var(--text-primary)]'
- : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-transparent'
+ ? 'border border-[var(--color-fg-1)] bg-transparent text-[var(--color-fg-1)]'
+ : 'border border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] hover:bg-transparent'
  }`}>
  {tab.label}
  </button>
  ))}
  </div>
 
- <div className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] ">
+ <div className="overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] ">
  <div className="overflow-x-auto">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border)] bg-[var(--surface-raised)]">
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Descripción</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Tipo</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Frecuencia</th>
- <th className="px-4 py-3 text-right nd-label text-[var(--text-secondary)]">Monto</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Próxima fecha</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Estado</th>
+ <tr className="border-b border-[var(--color-line)] bg-[var(--color-bg-2)]">
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Descripción</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Tipo</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Frecuencia</th>
+ <th className="px-4 py-3 text-right label-mono text-[var(--color-fg-3)]">Monto</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Próxima fecha</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Estado</th>
  </tr>
  </thead>
  <tbody>
  {filtered.map((t) => (
- <tr key={t.id} className="border-b border-[var(--surface)] transition-colors hover:bg-[var(--surface)]">
+ <tr key={t.id} className="border-b border-[var(--color-bg-1)] transition-colors hover:bg-[var(--color-bg-1)]">
  <td className="px-4 py-3">
- <p className="max-w-[220px] truncate text-[13px] font-medium text-[var(--text-primary)]">{t.description}</p>
- <p className="text-[11px] text-[var(--text-secondary)]">{t.project || 'Sin proyecto'}</p>
+ <p className="max-w-[220px] truncate text-[13px] font-medium text-[var(--color-fg-1)]">{t.description}</p>
+ <p className="text-[11px] text-[var(--color-fg-3)]">{t.project || 'Sin proyecto'}</p>
  </td>
  <td className="px-4 py-3">
  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
  t.type === 'income'
- ? 'bg-transparent text-[var(--success)]'
- : 'bg-transparent text-[var(--accent)]'
+ ? 'bg-transparent text-[var(--color-ok)]'
+ : 'bg-transparent text-[var(--color-accent)]'
  }`}>
  {t.type === 'income' ? 'Ingreso' : 'Gasto'}
  </span>
  </td>
  <td className="px-4 py-3">
- <span className="text-[12px] text-[var(--text-secondary)]">
+ <span className="text-[12px] text-[var(--color-fg-3)]">
  {FREQUENCY_LABELS[t.recurringFrequency] || 'Mensual'}
  </span>
  </td>
  <td className="px-4 py-3 text-right">
  <span className={`text-[13px] font-medium ${
- t.type === 'income' ? 'text-[var(--success)]' : 'text-[var(--accent)]'
+ t.type === 'income' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'
  }`}>
  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
  </span>
  </td>
  <td className="px-4 py-3">
- <span className="text-[12px] text-[var(--text-secondary)]">
+ <span className="text-[12px] text-[var(--color-fg-3)]">
  {formatDate(t.nextDate.toISOString())}
  </span>
  </td>
  <td className="px-4 py-3">
  {t.isExpired ? (
- <span className="inline-flex items-center gap-1 rounded-full bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+ <span className="inline-flex items-center gap-1 rounded-full bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--color-fg-3)]">
  <Pause size={10} /> Expirada
  </span>
  ) : t.isDueThisMonth ? (
- <span className="inline-flex items-center gap-1 rounded-full bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--warning)]">
+ <span className="inline-flex items-center gap-1 rounded-full bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--color-warn)]">
  <AlertTriangle size={10} /> Pendiente
  </span>
  ) : (
- <span className="inline-flex items-center gap-1 rounded-full bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--success)]">
+ <span className="inline-flex items-center gap-1 rounded-full bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--color-ok)]">
  <CheckCircle2 size={10} /> Activa
  </span>
  )}
@@ -285,9 +285,9 @@ const Recurrencia = ({ user }) => {
 
  {filtered.length === 0 && (
  <div className="text-center py-16">
- <RefreshCw className="mx-auto mb-3 h-8 w-8 text-[var(--text-secondary)]" />
- <p className="mb-1 text-sm text-[var(--text-secondary)]">No hay transacciones recurrentes</p>
- <p className="text-[11px] text-[var(--text-secondary)]">Marca una transacción como recurrente al crearla o editarla.</p>
+ <RefreshCw className="mx-auto mb-3 h-8 w-8 text-[var(--color-fg-3)]" />
+ <p className="mb-1 text-sm text-[var(--color-fg-3)]">No hay transacciones recurrentes</p>
+ <p className="text-[11px] text-[var(--color-fg-3)]">Marca una transacción como recurrente al crearla o editarla.</p>
  </div>
  )}
  </div>

@@ -180,11 +180,11 @@ const Classifier = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Bandeja semanal</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Bandeja semanal</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Clasificar movimientos
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Cada viernes después del DATEV semanal, conciliá ingresos con CXC, vinculá gastos con CXP cuando corresponda
  y categorizá los gastos espontáneos.
  </p>
@@ -258,11 +258,11 @@ const Classifier = ({ user }) => {
  })}
  </div>
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  />
@@ -279,7 +279,7 @@ const Classifier = ({ user }) => {
  description="Todos los ingresos están conciliados con CXC."
  />
  ) : (
- <div className="divide-y divide-[var(--border)]">
+ <div className="divide-y divide-[var(--color-line)]">
  {incomeFiltered.map((m) => {
  const matches = suggestMatches(m);
  return (
@@ -310,7 +310,7 @@ const Classifier = ({ user }) => {
  description="No hay gastos cuyo monto coincida exactamente con una CXP abierta."
  />
  ) : (
- <div className="divide-y divide-[var(--border)]">
+ <div className="divide-y divide-[var(--color-line)]">
  {expenseSuggestedFiltered.map(({ movement, matches }) => (
  <MovementRow
  key={movement.id}
@@ -338,7 +338,7 @@ const Classifier = ({ user }) => {
  description="Todos los gastos están conciliados o categorizados."
  />
  ) : (
- <div className="divide-y divide-[var(--border)]">
+ <div className="divide-y divide-[var(--color-line)]">
  {expenseSpontaneousFiltered.map(({ movement, matches }) => (
  <MovementRow
  key={movement.id}
@@ -386,7 +386,7 @@ const Classifier = ({ user }) => {
 
 const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize, onCreateRule }) => {
  const ArrowIcon = direction === 'in' ? ArrowUpRight : ArrowDownRight;
- const colorClass = direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]';
+ const colorClass = direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]';
  const top = matches?.[0];
  const tooLate = matches?.some?.((m) => m.daysDiff > 14);
 
@@ -395,18 +395,18 @@ const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize,
  <ArrowIcon size={16} className={`flex-shrink-0 mt-1 ${colorClass}`} />
  <div className="flex-1 min-w-0">
  <div className="flex items-center justify-between gap-3">
- <p className="text-[14px] text-[var(--text-primary)] truncate">{movement.description || 'Sin descripción'}</p>
- <span className={`nd-mono text-[14px] tabular-nums flex-shrink-0 ${colorClass}`}>
+ <p className="text-[14px] text-[var(--color-fg-1)] truncate">{movement.description || 'Sin descripción'}</p>
+ <span className={`font-mono text-[14px] tabular-nums flex-shrink-0 ${colorClass}`}>
  {direction === 'in' ? '+' : '-'}{formatCurrency(movement.amount)}
  </span>
  </div>
- <p className="mt-1 nd-mono text-[11px] text-[var(--text-disabled)]">
+ <p className="mt-1 font-mono text-[11px] text-[var(--color-fg-4)]">
  {movement.postedDate} · {movement.counterpartyName || 'Sin contraparte'}
  </p>
 
  {/* Top match suggestion */}
  {top && (
- <div className="mt-3 rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-3 py-2">
+ <div className="mt-3 rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-2)] px-3 py-2">
  <div className="flex items-center justify-between gap-3 flex-wrap">
  <div className="min-w-0 flex-1">
  <div className="flex items-center gap-2 flex-wrap">
@@ -415,10 +415,10 @@ const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize,
  </Badge>
  {tooLate && <Badge variant="warn">+14 días de diferencia</Badge>}
  </div>
- <p className="mt-1.5 text-[13px] text-[var(--text-primary)] truncate">
+ <p className="mt-1.5 text-[13px] text-[var(--color-fg-1)] truncate">
  {top.item.description || top.item.counterpartyName || top.item.documentNumber || top.item.id}
  </p>
- <p className="mt-0.5 nd-mono text-[11px] text-[var(--text-disabled)]">
+ <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
  Vence {top.item.dueDate || top.item.issueDate || '—'} ·
  abierto {formatCurrency(top.item.openAmount || top.item.grossAmount || top.item.amount)}
  {top.daysDiff !== Infinity && ` · ${Math.round(top.daysDiff)}d de diferencia`}
@@ -437,19 +437,19 @@ const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize,
  </div>
  {matches.length > 1 && (
  <details className="mt-2">
- <summary className="text-[11px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)]">
+ <summary className="text-[11px] text-[var(--color-fg-3)] cursor-pointer hover:text-[var(--color-fg-1)]">
  Ver {matches.length - 1} alternativa(s)
  </summary>
  <div className="mt-2 space-y-1.5">
  {matches.slice(1).map((alt) => (
  <div key={alt.item.id} className="flex items-center justify-between gap-2 text-[12px]">
- <span className="truncate text-[var(--text-secondary)]">
+ <span className="truncate text-[var(--color-fg-3)]">
  {alt.item.description || alt.item.counterpartyName || alt.item.id} ·{' '}
  {formatCurrency(alt.item.openAmount || alt.item.grossAmount || alt.item.amount)}
  </span>
  <button
  type="button"
- className="text-[var(--accent)] hover:underline flex-shrink-0"
+ className="text-[var(--color-accent)] hover:underline flex-shrink-0"
  onClick={() => onLink && onLink(alt.item)}
  >
  vincular

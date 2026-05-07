@@ -108,25 +108,25 @@ const LinkBankMovementModal = ({
   };
 
   const ArrowIcon = direction === 'in' ? ArrowUpRight : ArrowDownRight;
-  const colorClass = direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]';
+  const colorClass = direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]';
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="bg-[var(--surface)] rounded-lg w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col"
+        className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+        <header className="px-6 py-4 border-b border-[var(--color-line)] flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <Database size={18} className="text-[var(--accent)] flex-shrink-0" />
+            <Database size={18} className="text-[var(--color-accent)] flex-shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-lg font-medium text-[var(--text-primary)] truncate">
+              <h2 className="text-lg font-medium text-[var(--color-fg-1)] truncate">
                 Vincular {docKind === 'receivable' ? 'CXC' : 'CXP'} con movimiento bancario
               </h2>
-              <p className="text-[12px] text-[var(--text-secondary)] truncate">
+              <p className="text-[12px] text-[var(--color-fg-3)] truncate">
                 {doc.documentNumber || doc.counterpartyName || doc.description || doc.id} · abierto{' '}
                 {formatCurrency(open)}
                 {refDate && ` · vence ${formatDate(refDate)}`}
@@ -136,15 +136,15 @@ const LinkBankMovementModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-[var(--text-disabled)] hover:text-[var(--text-primary)]"
+            className="text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]"
           >
             <X size={20} />
           </button>
         </header>
 
-        <div className="px-6 py-3 border-b border-[var(--border)] bg-[var(--surface-raised)]">
-          <p className="text-[12px] text-[var(--text-secondary)] flex items-start gap-2">
-            <AlertTriangle size={12} className="text-[var(--warning)] flex-shrink-0 mt-0.5" />
+        <div className="px-6 py-3 border-b border-[var(--color-line)] bg-[var(--color-bg-2)]">
+          <p className="text-[12px] text-[var(--color-fg-3)] flex items-start gap-2">
+            <AlertTriangle size={12} className="text-[var(--color-warn)] flex-shrink-0 mt-0.5" />
             <span>
               Política UMTELKOMD: cambiar status requiere un movimiento bancario real (DATEV).
               Si el extracto aún no llegó, esperá al DATEV semanal.
@@ -152,18 +152,18 @@ const LinkBankMovementModal = ({
           </p>
         </div>
 
-        <div className="px-6 py-3 border-b border-[var(--border)] flex items-center justify-between gap-3">
+        <div className="px-6 py-3 border-b border-[var(--color-line)] flex items-center justify-between gap-3">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
             <input
               type="text"
               placeholder="Filtrar por contraparte, descripción o monto..."
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+              className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+          <div className="flex items-center gap-2 text-[12px] text-[var(--color-fg-3)]">
             <Badge variant={exactMatches > 0 ? 'ok' : 'neutral'}>
               {exactMatches} match exacto(s)
             </Badge>
@@ -181,7 +181,7 @@ const LinkBankMovementModal = ({
               } correspondientes. Después volvé acá para vincularlos.`}
             />
           ) : (
-            <div className="divide-y divide-[var(--border)]">
+            <div className="divide-y divide-[var(--color-line)]">
               {top.map(({ movement, amount, amountDiff, daysDiff, score }) => {
                 const isSelected = selectedId === movement.id;
                 const tone = score >= 130 ? 'ok' : score >= 100 ? 'info' : 'warn';
@@ -192,8 +192,8 @@ const LinkBankMovementModal = ({
                     onClick={() => setSelectedId(movement.id)}
                     className={`w-full text-left px-5 py-3 flex items-start gap-4 transition-colors ${
                       isSelected
-                        ? 'bg-[var(--surface-raised)] border-l-2 border-l-[var(--accent)]'
-                        : 'hover:bg-[var(--surface-raised)]'
+                        ? 'bg-[var(--color-bg-2)] border-l-2 border-l-[var(--color-accent)]'
+                        : 'hover:bg-[var(--color-bg-2)]'
                     }`}
                   >
                     <ArrowIcon size={14} className={`flex-shrink-0 mt-1 ${colorClass}`} />
@@ -208,20 +208,20 @@ const LinkBankMovementModal = ({
                           <Badge variant="neutral">±{Math.round(daysDiff)}d</Badge>
                         )}
                       </div>
-                      <p className="mt-1.5 text-[13px] text-[var(--text-primary)] truncate">
+                      <p className="mt-1.5 text-[13px] text-[var(--color-fg-1)] truncate">
                         {movement.description || 'Sin descripción'}
                       </p>
-                      <p className="mt-0.5 nd-mono text-[11px] text-[var(--text-disabled)]">
+                      <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
                         {movement.postedDate} · {movement.counterpartyName || 'Sin contraparte'}
                       </p>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0">
-                      <span className={`nd-mono tabular-nums text-[14px] ${colorClass}`}>
+                      <span className={`font-mono tabular-nums text-[14px] ${colorClass}`}>
                         {direction === 'in' ? '+' : '-'}
                         {formatCurrency(amount)}
                       </span>
                       {amountDiff > 0.01 && (
-                        <span className="nd-mono text-[10px] text-[var(--text-disabled)]">
+                        <span className="font-mono text-[10px] text-[var(--color-fg-4)]">
                           dif {formatCurrency(amountDiff)}
                         </span>
                       )}
@@ -234,12 +234,12 @@ const LinkBankMovementModal = ({
         </div>
 
         {error && (
-          <div className="px-6 py-2 border-t border-[var(--border)]">
-            <p className="text-sm text-[var(--error)]">{error}</p>
+          <div className="px-6 py-2 border-t border-[var(--color-line)]">
+            <p className="text-sm text-[var(--color-err)]">{error}</p>
           </div>
         )}
 
-        <footer className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+        <footer className="px-6 py-4 border-t border-[var(--color-line)] flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>

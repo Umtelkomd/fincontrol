@@ -502,36 +502,36 @@ const ImportExport = ({ user }) => {
  if (loading) {
  return (
  <div className="flex items-center justify-center py-20">
- <div className="w-6 h-6 border-2 border-[var(--interactive)] border-t-transparent rounded-full animate-spin" />
+ <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
  </div>
  );
  }
 
  return (
  <div className="space-y-6 animate-fadeIn">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-5 ">
- <p className="nd-label text-[var(--text-primary)]">Operación de datos</p>
- <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[var(--text-primary)]">Importación y exportación</h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Mueve registros en bloque con control previo de columnas y duplicados.</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-5 ">
+ <p className="label-mono text-[var(--color-fg-1)]">Operación de datos</p>
+ <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">Importación y exportación</h2>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Mueve registros en bloque con control previo de columnas y duplicados.</p>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
  <div className="flex items-center gap-2 mb-4">
- <Download size={18} className="text-[var(--success)]" />
- <h3 className="text-[15px] font-medium text-[var(--text-primary)]">Exportar transacciones</h3>
- <span className="ml-auto text-[11px] text-[var(--text-secondary)]">{allTransactions.length} transacciones disponibles</span>
+ <Download size={18} className="text-[var(--color-ok)]" />
+ <h3 className="text-[15px] font-medium text-[var(--color-fg-1)]">Exportar transacciones</h3>
+ <span className="ml-auto text-[11px] text-[var(--color-fg-3)]">{allTransactions.length} transacciones disponibles</span>
  </div>
  <div className="flex gap-3">
  <button
  onClick={handleExportCSV}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-2.5 text-[12px] font-medium text-[var(--success)] transition hover:bg-transparent"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-2.5 text-[12px] font-medium text-[var(--color-ok)] transition hover:bg-transparent"
  >
  <FileText size={14} />
  Exportar CSV
  </button>
  <button
  onClick={handleExportExcel}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-2.5 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-transparent"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-2.5 text-[12px] font-medium text-[var(--color-fg-1)] transition hover:bg-transparent"
  >
  <FileSpreadsheet size={14} />
  Exportar Excel
@@ -539,10 +539,10 @@ const ImportExport = ({ user }) => {
  </div>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
  <div className="flex items-center gap-2 mb-4">
- <Upload size={18} className="text-[var(--warning)]" />
- <h3 className="text-[15px] font-medium text-[var(--text-primary)]">Importar transacciones</h3>
+ <Upload size={18} className="text-[var(--color-warn)]" />
+ <h3 className="text-[15px] font-medium text-[var(--color-fg-1)]">Importar transacciones</h3>
  </div>
 
  {!importData ? (
@@ -554,15 +554,15 @@ const ImportExport = ({ user }) => {
  onClick={() => fileInputRef.current?.click()}
  className={`cursor-pointer rounded-md border-2 border-dashed p-10 text-center transition-all ${
  isDragging
- ? 'border-[var(--warning)] bg-transparent'
- : 'border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--border)]'
+ ? 'border-[var(--color-warn)] bg-transparent'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-2)] hover:border-[var(--color-line)]'
  }`}
  >
- <Upload size={32} className={`mx-auto mb-3 ${isDragging ? 'text-[var(--warning)]' : 'text-[var(--text-secondary)]'}`} />
- <p className="mb-1 text-[14px] font-medium text-[var(--text-primary)]">
+ <Upload size={32} className={`mx-auto mb-3 ${isDragging ? 'text-[var(--color-warn)]' : 'text-[var(--color-fg-3)]'}`} />
+ <p className="mb-1 text-[14px] font-medium text-[var(--color-fg-1)]">
  {isDragging ? 'Suelta el archivo aquí' : 'Arrastra un CSV o haz clic para seleccionar'}
  </p>
- <p className="text-[12px] text-[var(--text-secondary)]">Columnas esperadas: fecha, monto, descripción, categoría y tipo.</p>
+ <p className="text-[12px] text-[var(--color-fg-3)]">Columnas esperadas: fecha, monto, descripción, categoría y tipo.</p>
  </div>
  <input
  ref={fileInputRef}
@@ -574,18 +574,18 @@ const ImportExport = ({ user }) => {
  </>
  ) : (
  <div className="space-y-4">
- <div className="flex items-center justify-between rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-3">
+ <div className="flex items-center justify-between rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-3">
  <div className="flex items-center gap-2">
- <FileText size={16} className="text-[var(--warning)]" />
- <span className="text-[13px] font-medium text-[var(--text-primary)]">{importData.fileName}</span>
- <span className="text-[11px] text-[var(--text-secondary)]">{importData.rows.length} filas</span>
+ <FileText size={16} className="text-[var(--color-warn)]" />
+ <span className="text-[13px] font-medium text-[var(--color-fg-1)]">{importData.fileName}</span>
+ <span className="text-[11px] text-[var(--color-fg-3)]">{importData.rows.length} filas</span>
  {duplicates.size > 0 && (
- <span className="rounded-full bg-transparent px-2 py-0.5 text-[11px] text-[var(--accent)]">
+ <span className="rounded-full bg-transparent px-2 py-0.5 text-[11px] text-[var(--color-accent)]">
  {duplicates.size} posibles duplicados
  </span>
  )}
  </div>
- <button onClick={handleClearImport} className="p-1.5 text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]">
+ <button onClick={handleClearImport} className="p-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-accent)]">
  <X size={16} />
  </button>
  </div>
@@ -593,13 +593,13 @@ const ImportExport = ({ user }) => {
  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
  {REQUIRED_COLUMNS.map(col => (
  <div key={col}>
- <label className="mb-1 block nd-label text-[var(--text-secondary)]">
- {col} {!columnMapping[col] && <span className="text-[var(--accent)]">*</span>}
+ <label className="mb-1 block label-mono text-[var(--color-fg-3)]">
+ {col} {!columnMapping[col] && <span className="text-[var(--color-accent)]">*</span>}
  </label>
  <select
  value={columnMapping[col] || ''}
  onChange={(e) => setColumnMapping(prev => ({ ...prev, [col]: e.target.value }))}
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-2 py-1.5 text-[12px] text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  >
  <option value="">-- Seleccionar --</option>
  {importData.headers.map(h => (
@@ -612,48 +612,48 @@ const ImportExport = ({ user }) => {
 
  <div>
  <div className="flex items-center gap-2 mb-2">
- <Eye size={14} className="text-[var(--text-secondary)]" />
- <span className="nd-label text-[var(--text-secondary)]">
+ <Eye size={14} className="text-[var(--color-fg-3)]" />
+ <span className="label-mono text-[var(--color-fg-3)]">
  Vista previa (primeras {Math.min(previewRows.length, 10)} filas)
  </span>
  </div>
- <div className="overflow-x-auto rounded-md border border-[var(--border)] bg-[var(--surface)]">
+ <div className="overflow-x-auto rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border)] bg-[var(--surface-raised)]">
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">#</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Fecha</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Descripción</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Categoría</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Tipo</th>
- <th className="px-3 py-2 text-right nd-label text-[var(--text-secondary)]">Monto</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Estado</th>
+ <tr className="border-b border-[var(--color-line)] bg-[var(--color-bg-2)]">
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">#</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Fecha</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Descripción</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Categoría</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Tipo</th>
+ <th className="px-3 py-2 text-right label-mono text-[var(--color-fg-3)]">Monto</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Estado</th>
  </tr>
  </thead>
  <tbody>
  {previewRows.map((row, idx) => {
  const isDupe = duplicates.has(idx);
  return (
- <tr key={idx} className={`border-b border-[var(--surface)] ${isDupe ? 'opacity-55' : ''}`}>
- <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{idx + 1}</td>
- <td className="px-3 py-2 text-[12px] text-[var(--text-secondary)]">{row.fecha}</td>
- <td className="max-w-[200px] truncate px-3 py-2 text-[12px] text-[var(--text-primary)]">{row.descripcion}</td>
- <td className="px-3 py-2 text-[12px] text-[var(--text-secondary)]">{row.categoria}</td>
+ <tr key={idx} className={`border-b border-[var(--color-bg-1)] ${isDupe ? 'opacity-55' : ''}`}>
+ <td className="px-3 py-2 text-[11px] text-[var(--color-fg-3)]">{idx + 1}</td>
+ <td className="px-3 py-2 text-[12px] text-[var(--color-fg-3)]">{row.fecha}</td>
+ <td className="max-w-[200px] truncate px-3 py-2 text-[12px] text-[var(--color-fg-1)]">{row.descripcion}</td>
+ <td className="px-3 py-2 text-[12px] text-[var(--color-fg-3)]">{row.categoria}</td>
  <td className="px-3 py-2">
  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
  normalizeType(row.tipo) === 'income'
- ? 'bg-transparent text-[var(--success)]'
- : 'bg-transparent text-[var(--accent)]'
+ ? 'bg-transparent text-[var(--color-ok)]'
+ : 'bg-transparent text-[var(--color-accent)]'
  }`}>
  {normalizeType(row.tipo) === 'income' ? 'Ingreso' : 'Gasto'}
  </span>
  </td>
- <td className="px-3 py-2 text-right font-mono text-[12px] text-[var(--text-primary)]">{row.monto}</td>
+ <td className="px-3 py-2 text-right font-mono text-[12px] text-[var(--color-fg-1)]">{row.monto}</td>
  <td className="px-3 py-2">
  {isDupe ? (
- <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--accent)]">Duplicado</span>
+ <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">Duplicado</span>
  ) : (
- <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--success)]">Nuevo</span>
+ <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--color-ok)]">Nuevo</span>
  )}
  </td>
  </tr>
@@ -663,21 +663,21 @@ const ImportExport = ({ user }) => {
  </table>
  </div>
  {importData.rows.length > 10 && (
- <p className="mt-2 text-center text-[11px] text-[var(--text-secondary)]">
+ <p className="mt-2 text-center text-[11px] text-[var(--color-fg-3)]">
  ... y {importData.rows.length - 10} filas más
  </p>
  )}
  </div>
 
  {importResult && (
- <div className="flex items-center gap-3 rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-3">
- <CheckCircle2 size={18} className="text-[var(--success)]" />
- <div className="text-[12px] text-[var(--text-primary)]">
+ <div className="flex items-center gap-3 rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-3">
+ <CheckCircle2 size={18} className="text-[var(--color-ok)]" />
+ <div className="text-[12px] text-[var(--color-fg-1)]">
  <span className="font-medium">Importación completada:</span>{' '}
- <span className="text-[var(--success)]">{importResult.imported} creadas</span>,{' '}
- <span className="text-[var(--warning)]">{importResult.skipped} omitidas</span>
+ <span className="text-[var(--color-ok)]">{importResult.imported} creadas</span>,{' '}
+ <span className="text-[var(--color-warn)]">{importResult.skipped} omitidas</span>
  {importResult.errors > 0 && (
- <>, <span className="text-[var(--accent)]">{importResult.errors} errores</span></>
+ <>, <span className="text-[var(--color-accent)]">{importResult.errors} errores</span></>
  )}
  </div>
  </div>
@@ -686,14 +686,14 @@ const ImportExport = ({ user }) => {
  <div className="flex justify-end gap-3">
  <button
  onClick={handleClearImport}
- className="rounded-lg px-4 py-2 text-[12px] font-medium text-[var(--text-secondary)] transition hover:bg-transparent"
+ className="rounded-lg px-4 py-2 text-[12px] font-medium text-[var(--color-fg-3)] transition hover:bg-transparent"
  >
  Cancelar
  </button>
  <button
  onClick={handleImport}
  disabled={importing || !!importResult}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-visible)] bg-transparent px-5 py-2 text-[12px] font-medium text-[var(--warning)] transition hover:bg-transparent disabled:opacity-50"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-s)] bg-transparent px-5 py-2 text-[12px] font-medium text-[var(--color-warn)] transition hover:bg-transparent disabled:opacity-50"
  >
  {importing ? (
  <Loader2 size={14} className="animate-spin" />
@@ -708,13 +708,13 @@ const ImportExport = ({ user }) => {
  </div>
 
  {/* Bank Movements Import */}
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
  <div className="flex items-center gap-2 mb-4">
- <Landmark size={18} className="text-[var(--text-primary)]" />
- <h3 className="text-[15px] font-medium text-[var(--text-primary)]">Importar movimientos bancarios</h3>
- <span className="ml-auto text-[11px] text-[var(--text-secondary)]">{bankMovements.length} movimientos en sistema</span>
+ <Landmark size={18} className="text-[var(--color-fg-1)]" />
+ <h3 className="text-[15px] font-medium text-[var(--color-fg-1)]">Importar movimientos bancarios</h3>
+ <span className="ml-auto text-[11px] text-[var(--color-fg-3)]">{bankMovements.length} movimientos en sistema</span>
  </div>
- <p className="mb-4 text-[12px] text-[var(--text-secondary)]">
+ <p className="mb-4 text-[12px] text-[var(--color-fg-3)]">
  Importa el CSV de tu banco (formato alemán: Buchungsdatum, Empfängername, Betrag in EUR).
  Los movimientos se usan para conciliación bancaria.
  </p>
@@ -728,15 +728,15 @@ const ImportExport = ({ user }) => {
  onClick={() => bankFileInputRef.current?.click()}
  className={`cursor-pointer rounded-md border-2 border-dashed p-10 text-center transition-all ${
  bankIsDragging
- ? 'border-[var(--text-primary)] bg-[var(--surface)]'
- : 'border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--border)]'
+ ? 'border-[var(--color-fg-1)] bg-[var(--color-bg-1)]'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-2)] hover:border-[var(--color-line)]'
  }`}
  >
- <Landmark size={32} className={`mx-auto mb-3 ${bankIsDragging ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`} />
- <p className="mb-1 text-[14px] font-medium text-[var(--text-primary)]">
+ <Landmark size={32} className={`mx-auto mb-3 ${bankIsDragging ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-fg-3)]'}`} />
+ <p className="mb-1 text-[14px] font-medium text-[var(--color-fg-1)]">
  {bankIsDragging ? 'Suelta el archivo aquí' : 'Arrastra el CSV del banco o haz clic para seleccionar'}
  </p>
- <p className="text-[12px] text-[var(--text-secondary)]">Formato esperado: Kontobewegungen export (CSV con separador ;)</p>
+ <p className="text-[12px] text-[var(--color-fg-3)]">Formato esperado: Kontobewegungen export (CSV con separador ;)</p>
  </div>
  <input
  ref={bankFileInputRef}
@@ -748,51 +748,51 @@ const ImportExport = ({ user }) => {
  </>
  ) : (
  <div className="space-y-4">
- <div className="flex items-center justify-between rounded-lg border border-[var(--border-visible)] bg-[var(--surface)] px-4 py-3">
+ <div className="flex items-center justify-between rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-3">
  <div className="flex items-center gap-2 flex-wrap">
- <Landmark size={16} className="text-[var(--text-primary)]" />
- <span className="text-[13px] font-medium text-[var(--text-primary)]">{bankImportData.fileName}</span>
- <span className="text-[11px] text-[var(--text-secondary)]">{bankImportData.movements.length} movimientos</span>
- <span className="text-[11px] text-[var(--text-secondary)]">{bankImportData.dateRange}</span>
+ <Landmark size={16} className="text-[var(--color-fg-1)]" />
+ <span className="text-[13px] font-medium text-[var(--color-fg-1)]">{bankImportData.fileName}</span>
+ <span className="text-[11px] text-[var(--color-fg-3)]">{bankImportData.movements.length} movimientos</span>
+ <span className="text-[11px] text-[var(--color-fg-3)]">{bankImportData.dateRange}</span>
  {bankImportData.dupes.size > 0 && (
- <span className="rounded-full bg-transparent px-2 py-0.5 text-[11px] text-[var(--accent)]">
+ <span className="rounded-full bg-transparent px-2 py-0.5 text-[11px] text-[var(--color-accent)]">
  {bankImportData.dupes.size} duplicados
  </span>
  )}
  </div>
- <button onClick={handleClearBankImport} className="p-1.5 text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]">
+ <button onClick={handleClearBankImport} className="p-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-accent)]">
  <X size={16} />
  </button>
  </div>
 
  {/* Preview table */}
- <div className="overflow-x-auto rounded-md border border-[var(--border)] bg-[var(--surface)]">
+ <div className="overflow-x-auto rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
  <table className="w-full text-left">
  <thead>
- <tr className="border-b border-[var(--border)] bg-[var(--surface-raised)]">
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Fecha</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Contrapartida</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Descripción</th>
- <th className="px-3 py-2 text-right nd-label text-[var(--text-secondary)]">Monto</th>
- <th className="px-3 py-2 nd-label text-[var(--text-secondary)]">Estado</th>
+ <tr className="border-b border-[var(--color-line)] bg-[var(--color-bg-2)]">
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Fecha</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Contrapartida</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Descripción</th>
+ <th className="px-3 py-2 text-right label-mono text-[var(--color-fg-3)]">Monto</th>
+ <th className="px-3 py-2 label-mono text-[var(--color-fg-3)]">Estado</th>
  </tr>
  </thead>
  <tbody>
  {bankImportData.movements.slice(0, 15).map((m, idx) => {
  const isDupe = bankImportData.dupes.has(idx);
  return (
- <tr key={idx} className={`border-b border-[var(--surface)] ${isDupe ? 'opacity-55' : ''}`}>
- <td className="px-3 py-2 text-[12px] text-[var(--text-secondary)]">{m.postedDate}</td>
- <td className="max-w-[160px] truncate px-3 py-2 text-[12px] text-[var(--text-primary)]">{m.counterparty || '—'}</td>
- <td className="max-w-[220px] truncate px-3 py-2 text-[12px] text-[var(--text-secondary)]">{m.description}</td>
- <td className={`px-3 py-2 text-right font-mono text-[12px] ${m.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+ <tr key={idx} className={`border-b border-[var(--color-bg-1)] ${isDupe ? 'opacity-55' : ''}`}>
+ <td className="px-3 py-2 text-[12px] text-[var(--color-fg-3)]">{m.postedDate}</td>
+ <td className="max-w-[160px] truncate px-3 py-2 text-[12px] text-[var(--color-fg-1)]">{m.counterparty || '—'}</td>
+ <td className="max-w-[220px] truncate px-3 py-2 text-[12px] text-[var(--color-fg-3)]">{m.description}</td>
+ <td className={`px-3 py-2 text-right font-mono text-[12px] ${m.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {m.direction === 'in' ? '+' : '-'}€{m.amount.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
  </td>
  <td className="px-3 py-2">
  {isDupe ? (
- <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--accent)]">Duplicado</span>
+ <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--color-accent)]">Duplicado</span>
  ) : (
- <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--success)]">Nuevo</span>
+ <span className="rounded-full bg-transparent px-1.5 py-0.5 text-[10px] text-[var(--color-ok)]">Nuevo</span>
  )}
  </td>
  </tr>
@@ -802,42 +802,42 @@ const ImportExport = ({ user }) => {
  </table>
  </div>
  {bankImportData.movements.length > 15 && (
- <p className="text-center text-[11px] text-[var(--text-secondary)]">
+ <p className="text-center text-[11px] text-[var(--color-fg-3)]">
  ... y {bankImportData.movements.length - 15} movimientos más
  </p>
  )}
 
  {/* Summary stats */}
  <div className="grid grid-cols-3 gap-3">
- <div className="rounded-md border border-[var(--border-visible)] bg-transparent p-3 text-center">
- <p className="text-[10px] font-medium uppercase text-[var(--success)]">Entradas</p>
- <p className="text-sm font-medium text-[var(--success)]">
+ <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-3 text-center">
+ <p className="text-[10px] font-medium uppercase text-[var(--color-ok)]">Entradas</p>
+ <p className="text-sm font-medium text-[var(--color-ok)]">
  €{bankImportData.movements.filter(m => m.direction === 'in').reduce((s, m) => s + m.amount, 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
  </p>
  </div>
- <div className="rounded-md border border-[var(--border-visible)] bg-transparent p-3 text-center">
- <p className="text-[10px] font-medium uppercase text-[var(--text-secondary)]">Salidas</p>
- <p className="text-sm font-medium text-[var(--accent)]">
+ <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-3 text-center">
+ <p className="text-[10px] font-medium uppercase text-[var(--color-fg-3)]">Salidas</p>
+ <p className="text-sm font-medium text-[var(--color-accent)]">
  €{bankImportData.movements.filter(m => m.direction === 'out').reduce((s, m) => s + m.amount, 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
  </p>
  </div>
- <div className="rounded-md border border-[var(--border-visible)] bg-[var(--surface)] p-3 text-center">
- <p className="text-[10px] font-medium uppercase text-[var(--text-primary)]">Nuevos</p>
- <p className="text-sm font-medium text-[var(--text-primary)]">
+ <div className="rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] p-3 text-center">
+ <p className="text-[10px] font-medium uppercase text-[var(--color-fg-1)]">Nuevos</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">
  {bankImportData.movements.length - bankImportData.dupes.size} de {bankImportData.movements.length}
  </p>
  </div>
  </div>
 
  {bankImportResult && (
- <div className="flex items-center gap-3 rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-3">
- <CheckCircle2 size={18} className="text-[var(--success)]" />
- <div className="text-[12px] text-[var(--text-primary)]">
+ <div className="flex items-center gap-3 rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-3">
+ <CheckCircle2 size={18} className="text-[var(--color-ok)]" />
+ <div className="text-[12px] text-[var(--color-fg-1)]">
  <span className="font-medium">Importación completada:</span>{' '}
- <span className="text-[var(--success)]">{bankImportResult.imported} creados</span>,{' '}
- <span className="text-[var(--warning)]">{bankImportResult.skipped} omitidos</span>
+ <span className="text-[var(--color-ok)]">{bankImportResult.imported} creados</span>,{' '}
+ <span className="text-[var(--color-warn)]">{bankImportResult.skipped} omitidos</span>
  {bankImportResult.errors > 0 && (
- <>, <span className="text-[var(--accent)]">{bankImportResult.errors} errores</span></>
+ <>, <span className="text-[var(--color-accent)]">{bankImportResult.errors} errores</span></>
  )}
  </div>
  </div>
@@ -846,14 +846,14 @@ const ImportExport = ({ user }) => {
  <div className="flex justify-end gap-3">
  <button
  onClick={handleClearBankImport}
- className="rounded-lg px-4 py-2 text-[12px] font-medium text-[var(--text-secondary)] transition hover:bg-transparent"
+ className="rounded-lg px-4 py-2 text-[12px] font-medium text-[var(--color-fg-3)] transition hover:bg-transparent"
  >
  Cancelar
  </button>
  <button
  onClick={handleBankImport}
  disabled={bankImporting || !!bankImportResult}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-visible)] bg-[var(--surface)] px-5 py-2 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface)] disabled:opacity-50"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-5 py-2 text-[12px] font-medium text-[var(--color-fg-1)] transition hover:bg-[var(--color-bg-1)] disabled:opacity-50"
  >
  {bankImporting ? (
  <Loader2 size={14} className="animate-spin" />

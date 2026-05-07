@@ -124,13 +124,13 @@ const Employees = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Assets · Empleados</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Assets · Empleados</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Personal
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Equipo interno con nómina alemana (Brutto / Netto / SV) + colaboradores externos.
- Los costos mensuales se gestionan en <span className="text-[var(--text-primary)]">Costos recurrentes</span>.
+ Los costos mensuales se gestionan en <span className="text-[var(--color-fg-1)]">Costos recurrentes</span>.
  </p>
  </div>
  <Button variant="primary" icon={Plus} onClick={openCreate}>
@@ -181,7 +181,7 @@ const Employees = ({ user }) => {
  );
  })}
  </div>
- <label className="inline-flex items-center gap-2 cursor-pointer text-[12px] text-[var(--text-secondary)]">
+ <label className="inline-flex items-center gap-2 cursor-pointer text-[12px] text-[var(--color-fg-3)]">
  <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
  Mostrar inactivos
  </label>
@@ -193,11 +193,11 @@ const Employees = ({ user }) => {
  padding={false}
  actions={
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  />
@@ -205,7 +205,7 @@ const Employees = ({ user }) => {
  }
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="nd-label">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={HardHat}
@@ -244,20 +244,20 @@ const Employees = ({ user }) => {
  <tbody>
  {filtered.map((e) => (
   <tr key={e.id} {...rowButtonProps(() => openEdit(e))}>
- <td className="font-medium text-[var(--text-primary)]">{e.fullName || '—'}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">{e.fullName || '—'}</td>
  <td>
  <Badge variant={e.type === 'internal' ? 'info' : 'neutral'}>
  {TYPE_LABELS[e.type] || e.type}
  </Badge>
  </td>
- <td className="text-[var(--text-secondary)]">{e.role || '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{e.role || '—'}</td>
  {isInternalTab && (
  <>
- <td className="nd-mono text-[var(--text-secondary)]">{e.taxClass || '—'}</td>
- <td className="text-[var(--text-secondary)]">{e.krankenkasse || '—'}</td>
- <td className="text-right nd-mono tabular-nums">{e.bruttoMonthly ? formatCurrency(e.bruttoMonthly) : '—'}</td>
- <td className="text-right nd-mono tabular-nums text-[var(--success)]">{e.nettoMonthly ? formatCurrency(e.nettoMonthly) : '—'}</td>
- <td className="text-right nd-mono tabular-nums text-[var(--warning)]">{e.gesamtkostenMonthly ? formatCurrency(e.gesamtkostenMonthly) : '—'}</td>
+ <td className="font-mono text-[var(--color-fg-3)]">{e.taxClass || '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{e.krankenkasse || '—'}</td>
+ <td className="text-right font-mono tabular-nums">{e.bruttoMonthly ? formatCurrency(e.bruttoMonthly) : '—'}</td>
+ <td className="text-right font-mono tabular-nums text-[var(--color-ok)]">{e.nettoMonthly ? formatCurrency(e.nettoMonthly) : '—'}</td>
+ <td className="text-right font-mono tabular-nums text-[var(--color-warn)]">{e.gesamtkostenMonthly ? formatCurrency(e.gesamtkostenMonthly) : '—'}</td>
  </>
  )}
  <td className="text-center">

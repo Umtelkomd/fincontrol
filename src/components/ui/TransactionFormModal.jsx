@@ -463,20 +463,20 @@ const TransactionFormModal = ({
  ];
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" role="dialog" aria-modal="true">
- <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-md border border-[var(--border)] bg-[var(--surface)] animate-scaleIn">
- <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-raised)] px-6 py-5">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" role="dialog" aria-modal="true">
+ <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] animate-scaleIn">
+ <div className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-bg-2)] px-6 py-5">
  <div>
- <h3 className="text-xl font-medium tracking-[-0.03em] text-[var(--text-primary)]">
+ <h3 className="text-xl font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">
  {editingTransaction ? 'Editar transacción' : 'Nueva transacción'}
  </h3>
- <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+ <p className="mt-0.5 text-sm text-[var(--color-fg-3)]">
  {editingTransaction ? 'Actualiza los datos del registro seleccionado' : 'Ingresa los datos del nuevo registro'}
  </p>
  </div>
  <button
  onClick={onClose}
- className="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-transparent hover:text-[var(--text-disabled)]"
+ className="rounded-lg p-2 text-[var(--color-fg-3)] transition hover:bg-transparent hover:text-[var(--color-fg-4)]"
  aria-label="Cerrar"
  >
  <X size={20} />
@@ -484,15 +484,15 @@ const TransactionFormModal = ({
  </div>
 
  <form onSubmit={handleSubmit} className="p-6 space-y-5">
- <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1.5">
+ <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] p-1.5">
  <button
  type="button"
  onClick={() => handleTypeChange('income')}
  className={`
  flex items-center justify-center gap-2 py-3 text-sm font-medium rounded-md transition-all
- ${formData.type === 'income' 
- ? 'bg-[var(--surface-raised)] text-[var(--success)] ' 
- : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}
+  ${formData.type === 'income'
+  ? 'bg-[var(--color-bg-2)] text-[var(--color-ok)]'
+ : 'text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]'}
  `}
  >
  <ArrowUpCircle size={18} />
@@ -503,9 +503,9 @@ const TransactionFormModal = ({
  onClick={() => handleTypeChange('expense')}
  className={`
  flex items-center justify-center gap-2 py-3 text-sm font-medium rounded-md transition-all
- ${formData.type === 'expense' 
- ? 'bg-[var(--surface-raised)] text-[var(--accent)] ' 
- : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}
+  ${formData.type === 'expense'
+  ? 'bg-[var(--color-bg-2)] text-[var(--color-accent)]'
+ : 'text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]'}
  `}
  >
  <ArrowDownCircle size={18} />
@@ -514,50 +514,50 @@ const TransactionFormModal = ({
  </div>
 
  <div className="flex items-center gap-2 pt-1">
- <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-secondary)]">Detalles</span>
- <div className="h-px flex-1 bg-[var(--border)]" />
+ <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-fg-3)]">Detalles</span>
+ <div className="h-px flex-1 bg-[var(--color-line)]" />
  </div>
 
  {/* Date & Amount & VAT */}
  <div className="grid grid-cols-3 gap-4">
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">
- Fecha <span className="text-[var(--accent)]">*</span>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ Fecha <span className="text-[var(--color-accent)]">*</span>
  </label>
  <input
  type="date"
  required
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.date}
  onChange={e => setFormData({...formData, date: e.target.value})}
  />
  </div>
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">
- Bruto (EUR) <span className="text-[var(--accent)]">*</span>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ Bruto (EUR) <span className="text-[var(--color-accent)]">*</span>
  </label>
  <div className="relative">
- <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-[var(--text-secondary)]">€</span>
+ <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-[var(--color-fg-3)]">€</span>
  <input
  type="number"
  step="0.01"
  min="0.01"
  required
  placeholder="0.00"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] py-3 pl-8 pr-4 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] py-3 pl-8 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.amount}
  onChange={e => setFormData({...formData, amount: e.target.value})}
  />
  </div>
  </div>
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">
- IVA (USt) <span className="text-[var(--accent)]">*</span>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ IVA (USt) <span className="text-[var(--color-accent)]">*</span>
  </label>
  <div className="relative">
  <select
  required
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.taxRate}
  onChange={e => setFormData({...formData, taxRate: parseFloat(e.target.value)})}
  >
@@ -571,23 +571,23 @@ const TransactionFormModal = ({
 
  {/* Net/Bruto breakdown — shown when amount > 0 and tax > 0 */}
  {grossAmount > 0 && taxRate > 0 && (
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
  <div className="mb-2 flex items-center gap-1.5">
- <Calculator size={13} className="text-[var(--text-secondary)]" />
- <span className="text-[11px] font-medium uppercase tracking-widest text-[var(--text-secondary)]">Desglose IVA</span>
+ <Calculator size={13} className="text-[var(--color-fg-3)]" />
+ <span className="text-[11px] font-medium uppercase tracking-widest text-[var(--color-fg-3)]">Desglose IVA</span>
  </div>
  <div className="grid grid-cols-3 gap-3 text-sm">
  <div>
- <p className="text-[10px] text-[var(--text-secondary)]]">Neto (netto)</p>
- <p className="font-medium text-[var(--text-primary)]">{formatCurrency(netAmount)}</p>
+ <p className="text-[10px] text-[var(--color-fg-3)]]">Neto (netto)</p>
+ <p className="font-medium text-[var(--color-fg-1)]">{formatCurrency(netAmount)}</p>
  </div>
  <div>
- <p className="text-[10px] text-[var(--text-secondary)]]">IVA {formatTaxRate(taxRate)}</p>
- <p className="font-medium text-[var(--warning)]">{formatCurrency(taxAmount)}</p>
+ <p className="text-[10px] text-[var(--color-fg-3)]]">IVA {formatTaxRate(taxRate)}</p>
+ <p className="font-medium text-[var(--color-warn)]">{formatCurrency(taxAmount)}</p>
  </div>
  <div>
- <p className="text-[10px] text-[var(--text-secondary)]]">Bruto (brutto)</p>
- <p className="font-medium text-[var(--text-primary)]">{formatCurrency(grossAmount)}</p>
+ <p className="text-[10px] text-[var(--color-fg-3)]]">Bruto (brutto)</p>
+ <p className="font-medium text-[var(--color-fg-1)]">{formatCurrency(grossAmount)}</p>
  </div>
  </div>
  </div>
@@ -595,13 +595,13 @@ const TransactionFormModal = ({
 
  {/* Partner / Geschäftspartner autocomplete */}
  <div className="relative">
- <label className="mb-2 flex items-center gap-2 block text-sm font-medium text-[var(--text-disabled)]">
- <Building2 size={14} className="text-[var(--text-secondary)]" />
+ <label className="mb-2 flex items-center gap-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ <Building2 size={14} className="text-[var(--color-fg-3)]" />
  {formData.type === 'income' ? 'Cliente' : 'Proveedor'}
- <span className="text-xs font-normal text-[var(--text-secondary)]">(opcional — autocompletado)</span>
+ <span className="text-xs font-normal text-[var(--color-fg-3)]">(opcional — autocompletado)</span>
  </label>
  {partnersLoading ? (
- <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+ <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-3)]">
  <Loader2 className="w-4 h-4 animate-spin" />
  Cargando partners...
  </div>
@@ -615,7 +615,7 @@ const TransactionFormModal = ({
  ? "Buscar o crear cliente..."
  : "Buscar o crear proveedor..."
  }
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={partnerInput}
  onChange={handlePartnerInputChange}
  onKeyDown={handlePartnerKeyDown}
@@ -625,7 +625,7 @@ const TransactionFormModal = ({
  {showPartnerSuggestions && (partnerSuggestions.length > 0 || typedPartnerNotInList) && (
  <div
  ref={partnerSuggestionsRef}
- className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]"
+ className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)]"
  style={{ boxShadow: 'none' }}
  >
  {partnerSuggestions.map((p, idx) => (
@@ -634,13 +634,13 @@ const TransactionFormModal = ({
  type="button"
  onClick={() => handleSelectPartner(p)}
  className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
- idx === activePartnerIndex ? 'bg-transparent' : 'hover:bg-[var(--surface)]'
- } ${idx > 0 ? 'border-t border-[var(--surface)]' : ''}`}
+ idx === activePartnerIndex ? 'bg-transparent' : 'hover:bg-[var(--color-bg-1)]'
+ } ${idx > 0 ? 'border-t border-[var(--color-bg-1)]' : ''}`}
  >
- <span className="font-medium text-[var(--text-primary)]">{p.name}</span>
- {p.email && <span className="ml-2 text-xs text-[var(--text-secondary)]">{p.email}</span>}
+ <span className="font-medium text-[var(--color-fg-1)]">{p.name}</span>
+ {p.email && <span className="ml-2 text-xs text-[var(--color-fg-3)]">{p.email}</span>}
  {p.defaultTaxRate != null && p.defaultTaxRate !== 0.19 && (
- <span className="ml-2 rounded bg-transparent px-1.5 py-0.5 text-xs text-[var(--warning)]">
+ <span className="ml-2 rounded bg-transparent px-1.5 py-0.5 text-xs text-[var(--color-warn)]">
  IVA {(p.defaultTaxRate * 100).toFixed(0)}%
  </span>
  )}
@@ -650,15 +650,15 @@ const TransactionFormModal = ({
  <button
  type="button"
  onClick={handleCreateNewPartner}
- className={`w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors border-t border-[var(--surface)] hover:bg-[var(--surface)] ${
+ className={`w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors border-t border-[var(--color-bg-1)] hover:bg-[var(--color-bg-1)] ${
  activePartnerIndex === partnerSuggestions.length ? 'bg-transparent' : ''
  }`}
  >
- <span className="flex items-center gap-2 font-medium text-[var(--text-primary)]">
+ <span className="flex items-center gap-2 font-medium text-[var(--color-fg-1)]">
  <UserPlus size={14} />
  Crear nuevo: "{partnerInput.trim()}"
  </span>
- <span className="ml-6 text-xs text-[var(--text-secondary)]">
+ <span className="ml-6 text-xs text-[var(--color-fg-3)]">
  Se creará automáticamente al guardar la transacción
  </span>
  </button>
@@ -670,8 +670,8 @@ const TransactionFormModal = ({
  </div>
 
  <div className="relative">
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">
- Descripción <span className="text-[var(--accent)]">*</span>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ Descripción <span className="text-[var(--color-accent)]">*</span>
  </label>
  <input
  ref={descriptionRef}
@@ -680,7 +680,7 @@ const TransactionFormModal = ({
  placeholder={formData.type === 'income' 
  ? "ej. Venta de servicios, Factura #123..." 
  : "ej. Compra de materiales, Pago proveedor..."}
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.description}
  onChange={handleDescriptionChange}
  onKeyDown={handleDescriptionKeyDown}
@@ -690,7 +690,7 @@ const TransactionFormModal = ({
  {showSuggestions && suggestions.length > 0 && (
  <div
  ref={suggestionsRef}
- className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]"
+ className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)]"
  style={{ boxShadow: 'none' }}
  >
  {suggestions.map((s, idx) => (
@@ -699,11 +699,11 @@ const TransactionFormModal = ({
  type="button"
  onClick={() => handleSelectSuggestion(s)}
  className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
- idx === activeSuggestionIndex ? 'bg-transparent' : 'hover:bg-[var(--surface)]'
- } ${idx > 0 ? 'border-t border-[var(--surface)]' : ''}`}
+ idx === activeSuggestionIndex ? 'bg-transparent' : 'hover:bg-[var(--color-bg-1)]'
+ } ${idx > 0 ? 'border-t border-[var(--color-bg-1)]' : ''}`}
  >
- <span className="font-medium text-[var(--text-primary)]">{s.description}</span>
- <span className="ml-2 text-xs text-[var(--text-secondary)]">
+ <span className="font-medium text-[var(--color-fg-1)]">{s.description}</span>
+ <span className="ml-2 text-xs text-[var(--color-fg-3)]">
  {s.category} · €{Number(s.amount).toFixed(2)}
  </span>
  </button>
@@ -721,21 +721,21 @@ const TransactionFormModal = ({
  checked={formData.isRecurring}
  onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
  />
- <div className="h-5 w-10 rounded-full bg-[var(--border)] transition-colors peer-checked:bg-transparent"></div>
- <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-[var(--surface)] transition-transform peer-checked:translate-x-5"></div>
+ <div className="h-5 w-10 rounded-full bg-[var(--color-line)] transition-colors peer-checked:bg-transparent"></div>
+ <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-[var(--color-bg-1)] transition-transform peer-checked:translate-x-5"></div>
  </div>
  <div className="flex items-center gap-2">
- <RefreshCw size={16} className="text-[var(--text-secondary)]" />
- <span className="text-sm font-medium text-[var(--text-disabled)]">Transacción recurrente</span>
+ <RefreshCw size={16} className="text-[var(--color-fg-3)]" />
+ <span className="text-sm font-medium text-[var(--color-fg-4)]">Transacción recurrente</span>
  </div>
  </label>
 
  {formData.isRecurring && (
  <div className="grid grid-cols-2 gap-4 pl-1 animate-fadeIn">
  <div>
- <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">Frecuencia</label>
+ <label className="mb-1.5 block text-xs font-medium text-[var(--color-fg-3)]">Frecuencia</label>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.recurringFrequency}
  onChange={e => setFormData({ ...formData, recurringFrequency: e.target.value })}
  >
@@ -745,10 +745,10 @@ const TransactionFormModal = ({
  </select>
  </div>
  <div>
- <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">Fecha fin (opcional)</label>
+ <label className="mb-1.5 block text-xs font-medium text-[var(--color-fg-3)]">Fecha fin (opcional)</label>
  <input
  type="date"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.recurringEndDate}
  onChange={e => setFormData({ ...formData, recurringEndDate: e.target.value })}
  />
@@ -758,28 +758,28 @@ const TransactionFormModal = ({
  </div>
 
  <div className="flex items-center gap-2 pt-1">
- <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-secondary)]">Clasificación</span>
- <div className="h-px flex-1 bg-[var(--border)]" />
+ <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-fg-3)]">Clasificación</span>
+ <div className="h-px flex-1 bg-[var(--color-line)]" />
  </div>
 
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">
- Proyecto <span className="text-[var(--accent)]">*</span>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ Proyecto <span className="text-[var(--color-accent)]">*</span>
  </label>
  <div className="relative">
  {projectsLoading ? (
- <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-[var(--text-secondary)]">
+ <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-[var(--color-fg-3)]">
  <Loader2 className="w-4 h-4 animate-spin" />
  Cargando proyectos...
  </div>
  ) : activeProjects.length === 0 ? (
- <div className="w-full rounded-lg border border-[var(--border-visible)] bg-transparent px-4 py-3 text-sm text-[var(--warning)]">
+ <div className="w-full rounded-lg border border-[var(--color-line-s)] bg-transparent px-4 py-3 text-sm text-[var(--color-warn)]">
  No hay proyectos activos. Crea uno primero en Configuración → Proyectos.
  </div>
  ) : (
  <select
  required
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.projectId}
  onChange={(e) => {
  const id = e.target.value;
@@ -805,7 +805,7 @@ const TransactionFormModal = ({
  )}
  {/* Legacy data warning: shown when editing an old transaction whose project string doesn't resolve to a current project */}
  {editingTransaction && formData.project && !formData.projectId && activeProjects.length > 0 && (
- <p className="mt-1 text-xs text-[var(--warning)]">
+ <p className="mt-1 text-xs text-[var(--color-warn)]">
  ⚠ Esta transacción tiene un proyecto legacy (&ldquo;{formData.project}&rdquo;) que no coincide con ningún proyecto actual. Selecciona uno arriba para migrarla.
  </p>
  )}
@@ -813,9 +813,9 @@ const TransactionFormModal = ({
  </div>
 
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">Categoría</label>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">Categoría</label>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.category}
  onChange={e => setFormData({...formData, category: e.target.value})}
  >
@@ -824,9 +824,9 @@ const TransactionFormModal = ({
  </div>
 
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">Centro de costo</label>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">Centro de costo</label>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.costCenter}
  onChange={e => setFormData({...formData, costCenter: e.target.value})}
  >
@@ -839,10 +839,10 @@ const TransactionFormModal = ({
 
  {/* Employee picker — multi-select typeahead with chips */}
  <div className="relative">
- <label className="mb-2 flex items-center gap-2 block text-sm font-medium text-[var(--text-disabled)]">
- <HardHat size={14} className="text-[var(--text-secondary)]" />
+ <label className="mb-2 flex items-center gap-2 block text-sm font-medium text-[var(--color-fg-4)]">
+ <HardHat size={14} className="text-[var(--color-fg-3)]" />
  Técnicos / Empleados
- <span className="text-xs font-normal text-[var(--text-secondary)]">(opcional — uno o varios)</span>
+ <span className="text-xs font-normal text-[var(--color-fg-3)]">(opcional — uno o varios)</span>
  </label>
 
  {/* Selected chips */}
@@ -857,17 +857,17 @@ const TransactionFormModal = ({
  key={id}
  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
  isOrphan
- ? 'border-[var(--warning)] text-[var(--warning)]'
- : 'border-[var(--border-visible)] bg-[var(--surface-raised)] text-[var(--text-primary)]'
+ ? 'border-[var(--color-warn)] text-[var(--color-warn)]'
+ : 'border-[var(--color-line-s)] bg-[var(--color-bg-2)] text-[var(--color-fg-1)]'
  }`}
  >
  {!isOrphan && <HardHat size={11} />}
  {label}
- {emp?.role && <span className="text-[var(--text-secondary)]">· {emp.role}</span>}
+ {emp?.role && <span className="text-[var(--color-fg-3)]">· {emp.role}</span>}
  <button
  type="button"
  onClick={() => handleRemoveEmployee(id)}
- className="ml-0.5 rounded-full p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--accent)]"
+ className="ml-0.5 rounded-full p-0.5 text-[var(--color-fg-3)] transition hover:text-[var(--color-accent)]"
  aria-label={`Quitar ${label}`}
  >
  <X size={11} />
@@ -879,12 +879,12 @@ const TransactionFormModal = ({
  )}
 
  {employeesLoading ? (
- <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+ <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-3)]">
  <Loader2 className="w-4 h-4 animate-spin" />
  Cargando empleados...
  </div>
  ) : activeEmployees.length === 0 ? (
- <div className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+ <div className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-xs text-[var(--color-fg-3)]">
  Aún no hay empleados activos. Crea uno en /empleados para poder asociarlo.
  </div>
  ) : (
@@ -892,7 +892,7 @@ const TransactionFormModal = ({
  ref={employeeInputRef}
  type="text"
  placeholder="Buscar técnico por nombre o alias..."
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)]"
  value={employeeInput}
  onChange={handleEmployeeInputChange}
  onKeyDown={handleEmployeeKeyDown}
@@ -904,7 +904,7 @@ const TransactionFormModal = ({
  {showEmployeeSuggestions && employeeSuggestions.length > 0 && (
  <div
  ref={employeeSuggestionsRef}
- className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]"
+ className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)]"
  style={{ boxShadow: 'none' }}
  >
  {employeeSuggestions.map((emp, idx) => (
@@ -913,19 +913,19 @@ const TransactionFormModal = ({
  type="button"
  onClick={() => handleSelectEmployee(emp)}
  className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
- idx === activeEmployeeIndex ? 'bg-transparent' : 'hover:bg-[var(--surface)]'
- } ${idx > 0 ? 'border-t border-[var(--surface)]' : ''}`}
+ idx === activeEmployeeIndex ? 'bg-transparent' : 'hover:bg-[var(--color-bg-1)]'
+ } ${idx > 0 ? 'border-t border-[var(--color-bg-1)]' : ''}`}
  >
  <div className="flex items-center gap-2">
- <HardHat size={12} className="text-[var(--text-secondary)]" />
- <span className="font-medium text-[var(--text-primary)]">{emp.fullName}</span>
- <span className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+ <HardHat size={12} className="text-[var(--color-fg-3)]" />
+ <span className="font-medium text-[var(--color-fg-1)]">{emp.fullName}</span>
+ <span className="text-[10px] uppercase tracking-wide text-[var(--color-fg-3)]">
  {emp.type === 'external' ? 'Externo' : 'Interno'}
  </span>
- {emp.role && <span className="text-xs text-[var(--text-secondary)]">· {emp.role}</span>}
+ {emp.role && <span className="text-xs text-[var(--color-fg-3)]">· {emp.role}</span>}
  </div>
  {emp.aliases && emp.aliases.length > 0 && (
- <p className="ml-5 text-[10px] text-[var(--text-secondary)]">
+ <p className="ml-5 text-[10px] text-[var(--color-fg-3)]">
  alias: {emp.aliases.slice(0, 3).join(', ')}
  </p>
  )}
@@ -936,12 +936,12 @@ const TransactionFormModal = ({
  </div>
 
  <div className="flex items-center gap-2 pt-1">
- <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-secondary)]">Estado y notas</span>
- <div className="h-px flex-1 bg-[var(--border)]" />
+ <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-fg-3)]">Estado y notas</span>
+ <div className="h-px flex-1 bg-[var(--color-line)]" />
  </div>
 
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">Estado de pago</label>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">Estado de pago</label>
  <div className="flex gap-3">
  <button
  type="button"
@@ -949,8 +949,8 @@ const TransactionFormModal = ({
  className={`
  flex-1 py-3 px-4 rounded-md text-sm font-medium border-2 transition-all
  ${formData.status === 'pending'
- ? 'border-[var(--warning)] bg-transparent text-[var(--warning)]'
- : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-visible)]'}
+ ? 'border-[var(--color-warn)] bg-transparent text-[var(--color-warn)]'
+ : 'border-[var(--color-line)] text-[var(--color-fg-3)] hover:border-[var(--color-line-s)]'}
  `}
  >
  Pendiente
@@ -961,8 +961,8 @@ const TransactionFormModal = ({
  className={`
  flex-1 py-3 px-4 rounded-md text-sm font-medium border-2 transition-all
  ${formData.status === 'paid'
- ? 'border-[var(--success)] bg-transparent text-[var(--success)]'
- : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-visible)]'}
+ ? 'border-[var(--color-ok)] bg-transparent text-[var(--color-ok)]'
+ : 'border-[var(--color-line)] text-[var(--color-fg-3)] hover:border-[var(--color-line-s)]'}
  `}
  >
  Pagado
@@ -971,7 +971,7 @@ const TransactionFormModal = ({
  </div>
 
  <div>
- <label className="mb-2 block text-sm font-medium text-[var(--text-disabled)]">
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
  Comentario {editingTransaction ? '(agregar nota)' : '(opcional)'}
  </label>
  <textarea
@@ -979,7 +979,7 @@ const TransactionFormModal = ({
  placeholder={editingTransaction 
  ? "Agregar comentario sobre esta modificación..." 
  : "Agregar comentario inicial (opcional)..."}
- className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={formData.comment}
  onChange={e => setFormData({...formData, comment: e.target.value})}
  />
@@ -989,7 +989,7 @@ const TransactionFormModal = ({
  <button
  type="button"
  onClick={onClose}
- className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] py-3.5 font-medium text-[var(--text-secondary)] transition hover:bg-transparent hover:text-[var(--text-disabled)]"
+ className="flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] py-3.5 font-medium text-[var(--color-fg-3)] transition hover:bg-transparent hover:text-[var(--color-fg-4)]"
  >
  Cancelar
  </button>

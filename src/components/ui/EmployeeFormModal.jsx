@@ -79,22 +79,22 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  };
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={onClose}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
- <header className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={onClose}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+ <header className="px-6 py-4 border-b border-[var(--color-line)] flex items-center justify-between">
  <div className="flex items-center gap-3">
- <HardHat size={18} className="text-[var(--text-disabled)]" />
- <h2 className="text-lg font-medium text-[var(--text-primary)]">
+ <HardHat size={18} className="text-[var(--color-fg-4)]" />
+ <h2 className="text-lg font-medium text-[var(--color-fg-1)]">
  {editingEmployee ? 'Editar empleado' : 'Nuevo empleado'}
  </h2>
  </div>
- <button type="button" onClick={onClose} className="text-[var(--text-disabled)] hover:text-[var(--text-primary)]">
+ <button type="button" onClick={onClose} className="text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]">
  <X size={20} />
  </button>
  </header>
 
  {/* Tabs */}
- <div className="px-6 border-b border-[var(--border)]">
+ <div className="px-6 border-b border-[var(--color-line)]">
  <div className="nx-tabs">
  <button type="button" onClick={() => setSection('basic')} className={`nx-tab ${section === 'basic' ? 'active' : ''}`}>
  Datos básicos
@@ -115,10 +115,10 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  {section === 'basic' && (
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  <label className="block md:col-span-2">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Nombre completo *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Nombre completo *</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.fullName}
  onChange={(e) => set('fullName', e.target.value)}
  placeholder="Ej: Juan Dios Lesmes Linares"
@@ -127,28 +127,28 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Nombre</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Nombre</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.firstName}
  onChange={(e) => set('firstName', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Apellidos</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Apellidos</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.lastName}
  onChange={(e) => set('lastName', e.target.value)}
  />
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Tipo *</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Tipo *</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.type}
  onChange={(e) => set('type', e.target.value)}
  >
@@ -159,9 +159,9 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Estado</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Estado</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.status}
  onChange={(e) => set('status', e.target.value)}
  >
@@ -172,10 +172,10 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Cargo / Rol</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Cargo / Rol</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.role}
  onChange={(e) => set('role', e.target.value)}
  placeholder="Ej: Técnico, Administración, Dirección"
@@ -183,49 +183,49 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Email</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Email</span>
  <input
  type="email"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.email}
  onChange={(e) => set('email', e.target.value)}
  />
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Teléfono</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Teléfono</span>
  <input
  type="tel"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.phone}
  onChange={(e) => set('phone', e.target.value)}
  />
  </label>
 
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Inicio</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Inicio</span>
  <input
  type="date"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.startDate}
  onChange={(e) => set('startDate', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Fin (si aplica)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Fin (si aplica)</span>
  <input
  type="date"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.endDate}
  onChange={(e) => set('endDate', e.target.value)}
  />
  </label>
 
  <label className="block md:col-span-2">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Aliases (separados por coma)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Aliases (separados por coma)</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={Array.isArray(form.aliases) ? form.aliases.join(', ') : ''}
  onChange={(e) => set('aliases', e.target.value.split(',').map((a) => a.trim()).filter(Boolean))}
  placeholder="Ej: Pedro, P. Pizarro"
@@ -233,10 +233,10 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <label className="block md:col-span-2">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Notas</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Notas</span>
  <textarea
  rows={3}
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.notes}
  onChange={(e) => set('notes', e.target.value)}
  />
@@ -247,26 +247,26 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  {/* ───── PAYROLL (solo internos) ───── */}
  {section === 'payroll' && isInternal && (
  <div className="space-y-5">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
- <p className="nd-label text-[var(--text-secondary)] flex items-center gap-2">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+ <p className="label-mono text-[var(--color-fg-3)] flex items-center gap-2">
  <Wallet size={14} /> Datos bancarios
  </p>
  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">IBAN</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">IBAN</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono uppercase"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono uppercase"
  value={form.iban}
  onChange={(e) => set('iban', e.target.value)}
  placeholder="DE00 0000 0000 0000 0000 00"
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">BIC</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">BIC</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono uppercase"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono uppercase"
  value={form.bic}
  onChange={(e) => set('bic', e.target.value)}
  />
@@ -274,15 +274,15 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </div>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
- <p className="nd-label text-[var(--text-secondary)] flex items-center gap-2">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+ <p className="label-mono text-[var(--color-fg-3)] flex items-center gap-2">
  <Briefcase size={14} /> Datos fiscales y SS
  </p>
  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Steuerklasse (StKl)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Steuerklasse (StKl)</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.taxClass}
  onChange={(e) => set('taxClass', e.target.value)}
  >
@@ -293,9 +293,9 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </select>
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Krankenkasse</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Krankenkasse</span>
  <select
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.krankenkasse}
  onChange={(e) => set('krankenkasse', e.target.value)}
  >
@@ -308,79 +308,79 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </div>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
- <p className="nd-label text-[var(--text-secondary)]">Salario mensual €</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+ <p className="label-mono text-[var(--color-fg-3)]">Salario mensual €</p>
  <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-4">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Brutto</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Brutto</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.bruttoMonthly || ''}
  onChange={(e) => set('bruttoMonthly', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Netto (al empleado)</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Netto (al empleado)</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.nettoMonthly || ''}
  onChange={(e) => set('nettoMonthly', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">LSt + KiSt</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">LSt + KiSt</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.lstKistMonthly || ''}
  onChange={(e) => set('lstKistMonthly', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">SV-AN</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">SV-AN</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.svAnMonthly || ''}
  onChange={(e) => set('svAnMonthly', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">SV-AG</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">SV-AG</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.svAgMonthly || ''}
  onChange={(e) => set('svAgMonthly', e.target.value)}
  />
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Gesamtkosten</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Gesamtkosten</span>
  <input
  type="number"
  step="0.01"
  min="0"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none nd-mono tabular-nums"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono tabular-nums"
  value={form.gesamtkostenMonthly || ''}
  onChange={(e) => set('gesamtkostenMonthly', e.target.value)}
  />
  </label>
  </div>
- <p className="mt-3 text-[11px] text-[var(--text-disabled)] leading-relaxed">
+ <p className="mt-3 text-[11px] text-[var(--color-fg-4)] leading-relaxed">
  Estos valores son referencia. Los pagos reales se generan desde
- <span className="text-[var(--text-secondary)]"> Costos recurrentes</span> con
+ <span className="text-[var(--color-fg-3)]"> Costos recurrentes</span> con
  reglas tipo "Salario neto" / "SV BARMER" / etc.
  </p>
  </div>
@@ -391,10 +391,10 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  {section === 'assignment' && (
  <div className="space-y-4">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Centro de costo por defecto</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Centro de costo por defecto</span>
  <input
  type="text"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.defaultCostCenter}
  onChange={(e) => set('defaultCostCenter', e.target.value)}
  placeholder="Ej: CC-NOM, CC-OPE, OPE"
@@ -402,15 +402,15 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <div>
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">Proyectos asignados</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Proyectos asignados</span>
  {activeProjects.length === 0 ? (
- <p className="text-[12px] text-[var(--text-disabled)] italic">No hay proyectos activos para asignar.</p>
+ <p className="text-[12px] text-[var(--color-fg-4)] italic">No hay proyectos activos para asignar.</p>
  ) : (
  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
  {activeProjects.map((p) => {
  const checked = (form.projectIds || []).includes(p.id);
  return (
- <label key={p.id} className="flex items-center gap-2 cursor-pointer text-[13px] text-[var(--text-primary)]">
+ <label key={p.id} className="flex items-center gap-2 cursor-pointer text-[13px] text-[var(--color-fg-1)]">
  <input
  type="checkbox"
  checked={checked}
@@ -427,10 +427,10 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </div>
  )}
 
- {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+ {error && <p className="text-sm text-[var(--color-err)]">{error}</p>}
  </form>
 
- <footer className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+ <footer className="px-6 py-4 border-t border-[var(--color-line)] flex justify-end gap-3">
  <Button variant="ghost" onClick={onClose} disabled={submitting}>Cancelar</Button>
  <Button variant="primary" icon={Save} loading={submitting} disabled={submitting} onClick={handleSubmit}>
  {editingEmployee ? 'Guardar cambios' : 'Crear empleado'}

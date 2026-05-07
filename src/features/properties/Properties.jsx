@@ -73,11 +73,11 @@ const Properties = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">Assets · Viviendas</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">Assets · Viviendas</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Viviendas y oficinas
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Gestiona inmuebles activos y sus costos recurrentes (alquiler, servicios, impuestos).
  </p>
  </div>
@@ -105,11 +105,11 @@ const Properties = ({ user }) => {
  padding={false}
  actions={
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" size={14} />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
  type="text"
  placeholder="Buscar..."
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  />
@@ -117,7 +117,7 @@ const Properties = ({ user }) => {
  }
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="nd-label">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={Home}
@@ -142,10 +142,10 @@ const Properties = ({ user }) => {
  <tbody>
  {filtered.map((p) => (
   <tr key={p.id} {...rowButtonProps(() => openEdit(p))}>
- <td className="font-medium text-[var(--text-primary)]">{p.name}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">{p.name}</td>
  <td>{TYPE_LABELS[p.type] || p.type}</td>
  <td>{USE_LABELS[p.use] || p.use}</td>
- <td className="text-[var(--text-secondary)]">{[p.address, p.city].filter(Boolean).join(', ') || '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{[p.address, p.city].filter(Boolean).join(', ') || '—'}</td>
  <td className="text-center">
  <Badge variant="neutral">{stats.costsByProperty[p.id] || 0}</Badge>
  </td>

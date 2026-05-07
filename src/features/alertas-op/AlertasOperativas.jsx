@@ -194,11 +194,11 @@ const AlertasOperativas = ({ user }) => {
     <div className="space-y-6 pb-12">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <p className="nd-label text-[var(--text-secondary)]">Operación · Alertas</p>
-          <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+          <p className="label-mono text-[var(--color-fg-3)]">Operación · Alertas</p>
+          <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
             Alertas operativas
           </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+          <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
             Lo urgente para hoy: vencimientos, bandeja sin clasificar, proyección negativa,
             y costos recurrentes que aún no se generaron este mes.
           </p>
@@ -263,9 +263,9 @@ const AlertasOperativas = ({ user }) => {
           meta={`${cxpBuckets.due7.length} en 7d · ${cxpBuckets.due14.length} en 14d`}
           padding={false}
         >
-          <div className="px-5 py-2 nd-label text-[var(--text-secondary)]">Próximos 7 días</div>
+          <div className="px-5 py-2 label-mono text-[var(--color-fg-3)]">Próximos 7 días</div>
           {cxpBuckets.due7.length === 0 ? (
-            <p className="px-5 pb-3 text-[12px] text-[var(--text-disabled)]">Sin vencimientos en 7 días.</p>
+            <p className="px-5 pb-3 text-[12px] text-[var(--color-fg-4)]">Sin vencimientos en 7 días.</p>
           ) : (
             <DocList
               docs={cxpBuckets.due7}
@@ -277,7 +277,7 @@ const AlertasOperativas = ({ user }) => {
           )}
           {cxpBuckets.due14.length > 0 && (
             <>
-              <div className="px-5 py-2 nd-label text-[var(--text-secondary)] border-t border-[var(--border)]">
+              <div className="px-5 py-2 label-mono text-[var(--color-fg-3)] border-t border-[var(--color-line)]">
                 8–14 días
               </div>
               <DocList
@@ -316,14 +316,14 @@ const AlertasOperativas = ({ user }) => {
           title="Saldo proyectado a negativo"
           meta={`En ${negativeAlert.daysFromNow}d (${negativeAlert.date})`}
         >
-          <div className="flex items-start gap-4 p-4 rounded-md border border-[var(--error)] bg-[var(--surface)]">
-            <TrendingDown className="text-[var(--error)] flex-shrink-0 mt-1" size={20} />
+          <div className="flex items-start gap-4 p-4 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-1)]">
+            <TrendingDown className="text-[var(--color-err)] flex-shrink-0 mt-1" size={20} />
             <div className="flex-1">
-              <p className="text-[14px] text-[var(--text-primary)]">
+              <p className="text-[14px] text-[var(--color-fg-1)]">
                 Si los CXP/recurrentes salen como están programados, la caja queda en negativo
                 a partir del <strong>{negativeAlert.date}</strong>.
               </p>
-              <p className="mt-2 nd-mono text-[12px] text-[var(--text-disabled)]">
+              <p className="mt-2 font-mono text-[12px] text-[var(--color-fg-4)]">
                 Saldo proyectado fin de horizonte (90d): {formatCurrency(negativeAlert.endBalance)}
               </p>
             </div>
@@ -351,19 +351,19 @@ const AlertasOperativas = ({ user }) => {
             </Button>
           }
         >
-          <div className="divide-y divide-[var(--border)]">
+          <div className="divide-y divide-[var(--color-line)]">
             {recurringPending.slice(0, 12).map((r) => (
               <div key={r.id} className="px-5 py-3 flex items-center gap-3">
-                <Repeat size={14} className="text-[var(--text-disabled)] flex-shrink-0" />
+                <Repeat size={14} className="text-[var(--color-fg-4)] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[var(--text-primary)] truncate">
+                  <p className="text-[13px] text-[var(--color-fg-1)] truncate">
                     {r.concept || 'Sin concepto'}
                   </p>
-                  <p className="nd-mono text-[11px] text-[var(--text-disabled)] truncate">
+                  <p className="font-mono text-[11px] text-[var(--color-fg-4)] truncate">
                     {r.ownerName || '—'} · {r.counterpartyName || '—'} · día {r.dayOfMonth}
                   </p>
                 </div>
-                <span className="nd-mono tabular-nums text-[13px] text-[var(--accent)] flex-shrink-0">
+                <span className="font-mono tabular-nums text-[13px] text-[var(--color-accent)] flex-shrink-0">
                   -{formatCurrency(r.amount)}
                 </span>
               </div>
@@ -384,14 +384,14 @@ const AlertasOperativas = ({ user }) => {
             </Button>
           }
         >
-          <div className="divide-y divide-[var(--border)]">
+          <div className="divide-y divide-[var(--color-line)]">
             {counterpartySuggestions.map((cp) => (
               <div key={cp.counterparty} className="px-5 py-3 flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[var(--text-primary)] truncate">
+                  <p className="text-[13px] text-[var(--color-fg-1)] truncate">
                     {cp.counterparty}
                   </p>
-                  <p className="mt-0.5 nd-mono text-[11px] text-[var(--text-disabled)]">
+                  <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
                     {cp.count} movimiento(s) sin clasificar
                     {cp.totalIn > 0 && ` · +${formatCurrency(cp.totalIn)}`}
                     {cp.totalOut > 0 && ` · -${formatCurrency(cp.totalOut)}`}
@@ -439,7 +439,7 @@ const AlertasOperativas = ({ user }) => {
 const DocList = ({ docs, tone = 'warn', renderMeta }) => {
   const navigate = useNavigate();
   return (
-    <div className="divide-y divide-[var(--border)]">
+    <div className="divide-y divide-[var(--color-line)]">
       {docs.map((d) => {
         const open = Number(d.openAmount || d.grossAmount || d.amount || 0);
         return (
@@ -448,25 +448,25 @@ const DocList = ({ docs, tone = 'warn', renderMeta }) => {
               size={14}
               className={`flex-shrink-0 ${
                 tone === 'err'
-                  ? 'text-[var(--error)]'
+                  ? 'text-[var(--color-err)]'
                   : tone === 'warn'
-                  ? 'text-[var(--warning)]'
-                  : 'text-[var(--text-disabled)]'
+                  ? 'text-[var(--color-warn)]'
+                  : 'text-[var(--color-fg-4)]'
               }`}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] text-[var(--text-primary)] truncate">
+              <p className="text-[13px] text-[var(--color-fg-1)] truncate">
                 {d.description ||
                   d.counterpartyName ||
                   d.documentNumber ||
                   d.id}
               </p>
-              <p className="mt-0.5 nd-mono text-[11px] text-[var(--text-disabled)] truncate">
+              <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)] truncate">
                 {renderMeta ? renderMeta(d) : d.dueDate}
                 {d.documentNumber && ` · ${d.documentNumber}`}
               </p>
             </div>
-            <span className="nd-mono tabular-nums text-[13px] text-[var(--text-primary)] flex-shrink-0">
+            <span className="font-mono tabular-nums text-[13px] text-[var(--color-fg-1)] flex-shrink-0">
               {formatCurrency(open)}
             </span>
           </div>

@@ -10,16 +10,16 @@ import { useToast } from '../../contexts/ToastContext';
 
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder, icon: Icon }) => (
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">{label}</label>
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">{label}</label>
  <div className="relative">
- {Icon && <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" />}
+ {Icon && <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" />}
  <input
  type={type}
  value={value}
  onChange={onChange}
  disabled={disabled}
  placeholder={placeholder}
- className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--interactive)] focus:border-[var(--text-primary)] transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+ className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] placeholder-[var(--color-fg-4)] focus:outline-none focus:border-[var(--color-accent)] focus:border-[var(--color-fg-1)] transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
  />
  </div>
  </div>
@@ -133,9 +133,9 @@ const UserProfile = ({ user, userRole }) => {
  const pwMatch = newPassword && confirmPassword ? newPassword === confirmPassword : null;
 
  const roleBadge = {
- admin: { label: 'Administrador', color: 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border-visible)]' },
- manager: { label: 'Manager', color: 'bg-transparent text-[var(--interactive)] border-[var(--border-visible)]' },
- editor: { label: 'Editor', color: 'bg-transparent text-[var(--warning)] border-[var(--border-visible)]' },
+ admin: { label: 'Administrador', color: 'bg-[var(--color-bg-1)] text-[var(--color-fg-3)] border-[var(--color-line-s)]' },
+ manager: { label: 'Manager', color: 'bg-transparent text-[var(--color-accent)] border-[var(--color-line-s)]' },
+ editor: { label: 'Editor', color: 'bg-transparent text-[var(--color-warn)] border-[var(--color-line-s)]' },
  };
  const role = roleBadge[userRole] || roleBadge.editor;
 
@@ -145,18 +145,18 @@ const UserProfile = ({ user, userRole }) => {
  <div className="flex flex-col items-center text-center">
  <div className="relative group">
  {photoPreview ? (
- <img src={photoPreview} alt="Avatar" className="w-20 h-20 rounded-full object-cover border-2 border-[var(--border)]" />
+ <img src={photoPreview} alt="Avatar" className="w-20 h-20 rounded-full object-cover border-2 border-[var(--color-line)]" />
  ) : (
- <div className="w-20 h-20 rounded-full bg-[var(--surface-raised)] flex items-center justify-center border-2 border-[var(--border)]">
- <span className="text-2xl font-medium text-[var(--text-primary)]">{initials}</span>
+ <div className="w-20 h-20 rounded-full bg-[var(--color-bg-2)] flex items-center justify-center border-2 border-[var(--color-line)]">
+ <span className="text-2xl font-medium text-[var(--color-fg-1)]">{initials}</span>
  </div>
  )}
- <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
- <Camera size={20} className="text-[var(--text-primary)]" />
+ <label className="absolute inset-0 flex items-center justify-center bg-[rgba(7,8,10,0.62)] rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+ <Camera size={20} className="text-[var(--color-fg-1)]" />
  <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
  </label>
  </div>
- <h2 className="text-lg font-medium text-[var(--text-primary)] mt-3">{user?.displayName || user?.email}</h2>
+ <h2 className="text-lg font-medium text-[var(--color-fg-1)] mt-3">{user?.displayName || user?.email}</h2>
  <span className={`mt-1.5 inline-flex px-3 py-1 rounded-full text-[11px] font-medium border ${role.color}`}>
  <Shield size={12} className="mr-1.5" /> {role.label}
  </span>
@@ -164,10 +164,10 @@ const UserProfile = ({ user, userRole }) => {
 
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
  {/* Personal Info */}
- <div className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden">
- <div className="px-5 py-3.5 border-b border-[var(--border)] flex items-center gap-2">
- <User size={15} className="text-[var(--interactive)]" />
- <h3 className="text-[13px] font-medium text-[var(--text-secondary)]">Información Personal</h3>
+ <div className="bg-[var(--color-bg-1)] rounded-md border border-[var(--color-line)] overflow-hidden">
+ <div className="px-5 py-3.5 border-b border-[var(--color-line)] flex items-center gap-2">
+ <User size={15} className="text-[var(--color-accent)]" />
+ <h3 className="text-[13px] font-medium text-[var(--color-fg-3)]">Información Personal</h3>
  </div>
  <div className="p-5 space-y-4">
  <InputField
@@ -192,7 +192,7 @@ const UserProfile = ({ user, userRole }) => {
  <button
  onClick={handleSaveProfile}
  disabled={saving}
- className="flex items-center justify-center gap-2 w-full bg-[var(--interactive)] hover:opacity-80 disabled:opacity-50 text-[var(--text-primary)] px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all"
+ className="flex items-center justify-center gap-2 w-full bg-[var(--color-accent)] hover:opacity-80 disabled:opacity-50 text-[var(--color-fg-1)] px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all"
  >
  {saving ? 'Guardando...' : <><Save size={14} /> Guardar Cambios</>}
  </button>
@@ -200,73 +200,73 @@ const UserProfile = ({ user, userRole }) => {
  </div>
 
  {/* Change Password */}
- <div className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden">
- <div className="px-5 py-3.5 border-b border-[var(--border)] flex items-center gap-2">
- <Lock size={15} className="text-[var(--warning)]" />
- <h3 className="text-[13px] font-medium text-[var(--text-secondary)]">Cambiar Contraseña</h3>
+ <div className="bg-[var(--color-bg-1)] rounded-md border border-[var(--color-line)] overflow-hidden">
+ <div className="px-5 py-3.5 border-b border-[var(--color-line)] flex items-center gap-2">
+ <Lock size={15} className="text-[var(--color-warn)]" />
+ <h3 className="text-[13px] font-medium text-[var(--color-fg-3)]">Cambiar Contraseña</h3>
  </div>
  <div className="p-5 space-y-4">
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Contraseña Actual</label>
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">Contraseña Actual</label>
  <div className="relative">
- <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" />
+ <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" />
  <input
  type={showCurrentPw ? 'text' : 'password'}
  value={currentPassword}
  onChange={(e) => setCurrentPassword(e.target.value)}
  placeholder="********"
- className="w-full pl-9 pr-10 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--interactive)] focus:border-[var(--text-primary)] transition-all"
+ className="w-full pl-9 pr-10 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] placeholder-[var(--color-fg-4)] focus:outline-none focus:border-[var(--color-accent)] focus:border-[var(--color-fg-1)] transition-all"
  />
- <button onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)] hover:text-[var(--text-secondary)]">
+ <button onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)] hover:text-[var(--color-fg-3)]">
  {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
  </button>
  </div>
  </div>
 
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Nueva Contraseña</label>
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">Nueva Contraseña</label>
  <div className="relative">
- <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" />
+ <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" />
  <input
  type={showNewPw ? 'text' : 'password'}
  value={newPassword}
  onChange={(e) => setNewPassword(e.target.value)}
  placeholder="Min. 8 caracteres"
- className="w-full pl-9 pr-10 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--interactive)] focus:border-[var(--text-primary)] transition-all"
+ className="w-full pl-9 pr-10 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] placeholder-[var(--color-fg-4)] focus:outline-none focus:border-[var(--color-accent)] focus:border-[var(--color-fg-1)] transition-all"
  />
- <button onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)] hover:text-[var(--text-secondary)]">
+ <button onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)] hover:text-[var(--color-fg-3)]">
  {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
  </button>
  </div>
  {newPassword && (
  <div className="flex items-center gap-1.5 mt-1.5">
  {pwValidation ? (
- <><AlertTriangle size={11} className="text-[var(--warning)]" /><span className="text-[10px] text-[var(--warning)]">{pwValidation}</span></>
+ <><AlertTriangle size={11} className="text-[var(--color-warn)]" /><span className="text-[10px] text-[var(--color-warn)]">{pwValidation}</span></>
  ) : (
- <><Check size={11} className="text-[var(--success)]" /><span className="text-[10px] text-[var(--success)]">Contraseña válida</span></>
+ <><Check size={11} className="text-[var(--color-ok)]" /><span className="text-[10px] text-[var(--color-ok)]">Contraseña válida</span></>
  )}
  </div>
  )}
  </div>
 
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Confirmar Contraseña</label>
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">Confirmar Contraseña</label>
  <div className="relative">
- <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" />
+ <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" />
  <input
  type="password"
  value={confirmPassword}
  onChange={(e) => setConfirmPassword(e.target.value)}
  placeholder="Repetir contraseña"
- className="w-full pl-9 pr-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--interactive)] focus:border-[var(--text-primary)] transition-all"
+ className="w-full pl-9 pr-3 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] placeholder-[var(--color-fg-4)] focus:outline-none focus:border-[var(--color-accent)] focus:border-[var(--color-fg-1)] transition-all"
  />
  </div>
  {confirmPassword && (
  <div className="flex items-center gap-1.5 mt-1.5">
  {pwMatch ? (
- <><Check size={11} className="text-[var(--success)]" /><span className="text-[10px] text-[var(--success)]">Coinciden</span></>
+ <><Check size={11} className="text-[var(--color-ok)]" /><span className="text-[10px] text-[var(--color-ok)]">Coinciden</span></>
  ) : (
- <><AlertTriangle size={11} className="text-[var(--accent)]" /><span className="text-[10px] text-[var(--accent)]">No coinciden</span></>
+ <><AlertTriangle size={11} className="text-[var(--color-accent)]" /><span className="text-[10px] text-[var(--color-accent)]">No coinciden</span></>
  )}
  </div>
  )}
@@ -275,7 +275,7 @@ const UserProfile = ({ user, userRole }) => {
  <button
  onClick={handleChangePassword}
  disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword || !!pwValidation || !pwMatch}
- className="flex items-center justify-center gap-2 w-full bg-[var(--warning)] hover:opacity-80 disabled:opacity-40 text-black px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all"
+ className="flex items-center justify-center gap-2 w-full bg-[var(--color-warn)] hover:opacity-80 disabled:opacity-40 text-[var(--color-bg-0)] px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all"
  >
  {changingPassword ? 'Cambiando...' : <><Lock size={14} /> Cambiar Contraseña</>}
  </button>
@@ -284,26 +284,26 @@ const UserProfile = ({ user, userRole }) => {
  </div>
 
  {/* Preferences */}
- <div className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden">
- <div className="px-5 py-3.5 border-b border-[var(--border)]">
- <h3 className="text-[13px] font-medium text-[var(--text-secondary)]">Preferencias</h3>
+ <div className="bg-[var(--color-bg-1)] rounded-md border border-[var(--color-line)] overflow-hidden">
+ <div className="px-5 py-3.5 border-b border-[var(--color-line)]">
+ <h3 className="text-[13px] font-medium text-[var(--color-fg-3)]">Preferencias</h3>
  </div>
  <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Idioma</label>
- <select disabled className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] opacity-50 cursor-not-allowed">
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">Idioma</label>
+ <select disabled className="w-full px-3 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] opacity-50 cursor-not-allowed">
  <option>Español</option>
  </select>
  </div>
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Moneda</label>
- <select disabled className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] opacity-50 cursor-not-allowed">
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">Moneda</label>
+ <select disabled className="w-full px-3 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] opacity-50 cursor-not-allowed">
  <option>EUR (€)</option>
  </select>
  </div>
  <div>
- <label className="block text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Zona Horaria</label>
- <select disabled className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[13px] text-[var(--text-primary)] opacity-50 cursor-not-allowed">
+ <label className="block text-[11px] font-medium text-[var(--color-fg-3)] uppercase tracking-wider mb-1.5">Zona Horaria</label>
+ <select disabled className="w-full px-3 py-2.5 bg-[var(--color-bg-1)] border border-[var(--color-line)] rounded-lg text-[13px] text-[var(--color-fg-1)] opacity-50 cursor-not-allowed">
  <option>Europe/Berlin (CET)</option>
  </select>
  </div>

@@ -163,14 +163,14 @@ const CostCenters = ({ user }) => {
  const ytdPercent = ytdBudget > 0 ? (ytdExecuted / ytdBudget * 100) : 0;
 
  return (
- <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface)] p-4 animate-fadeIn ">
+ <div className="mt-3 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4 animate-fadeIn ">
  <div className="flex items-center justify-between mb-4">
  <div className="flex items-center gap-2">
- <Calendar className="text-[var(--text-secondary)]" size={18} />
+ <Calendar className="text-[var(--color-fg-3)]" size={18} />
  <select
  value={selectedYear}
  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] outline-none"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-1)] outline-none"
  >
  {[2024, 2025, 2026].map(year => (
  <option key={year} value={year}>{year}</option>
@@ -178,16 +178,16 @@ const CostCenters = ({ user }) => {
  </select>
  </div>
  <div className="flex items-center gap-4 text-sm">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
- <span className="text-[var(--text-secondary)]">Ppto. mensual: </span>
- <span className="font-medium text-[var(--text-primary)]">{formatCurrency(monthlyBudget)}</span>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2">
+ <span className="text-[var(--color-fg-3)]">Ppto. mensual: </span>
+ <span className="font-medium text-[var(--color-fg-1)]">{formatCurrency(monthlyBudget)}</span>
  </div>
  <div className={`rounded-md px-3 py-2 ${getProgressBgColor(ytdPercent)}`}>
- <span className="text-[var(--text-secondary)]">YTD: </span>
- <span className={`font-medium ${ytdPercent > 100 ? 'text-[var(--accent)]' : ytdPercent > 80 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+ <span className="text-[var(--color-fg-3)]">YTD: </span>
+ <span className={`font-medium ${ytdPercent > 100 ? 'text-[var(--color-accent)]' : ytdPercent > 80 ? 'text-[var(--color-warn)]' : 'text-[var(--color-ok)]'}`}>
  {formatCurrency(ytdExecuted)} / {formatCurrency(ytdBudget)}
  </span>
- <span className={`ml-2 text-xs font-medium ${ytdPercent > 100 ? 'text-[var(--accent)]' : ytdPercent > 80 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+ <span className={`ml-2 text-xs font-medium ${ytdPercent > 100 ? 'text-[var(--color-accent)]' : ytdPercent > 80 ? 'text-[var(--color-warn)]' : 'text-[var(--color-ok)]'}`}>
  ({ytdPercent.toFixed(0)}%)
  </span>
  </div>
@@ -204,25 +204,25 @@ const CostCenters = ({ user }) => {
  <div
  key={index}
  className={`relative rounded-md p-2 transition-all ${
- isCurrentMonth ? 'ring-2 ring-[var(--text-primary)] bg-transparent' :
- isFutureMonth ? 'bg-[var(--surface)] opacity-70' :
- 'border border-[var(--border)] bg-[var(--surface)]'
+ isCurrentMonth ? 'ring-2 ring-[var(--color-fg-1)] bg-transparent' :
+ isFutureMonth ? 'bg-[var(--color-bg-1)] opacity-70' :
+ 'border border-[var(--color-line)] bg-[var(--color-bg-1)]'
  }`}
  >
  <div className="text-center mb-2">
- <p className={`text-xs font-medium ${isCurrentMonth ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+ <p className={`text-xs font-medium ${isCurrentMonth ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-fg-3)]'}`}>
  {data.month}
  </p>
  </div>
 
- <div className="relative h-16 w-full overflow-hidden rounded-lg bg-[var(--surface)]">
+ <div className="relative h-16 w-full overflow-hidden rounded-lg bg-[var(--color-bg-1)]">
  <div
  className={`absolute bottom-0 left-0 right-0 transition-all ${getProgressColor(percent)}`}
  style={{ height: `${Math.min(percent, 100)}%` }}
  />
  {percent > 100 && (
  <div
- className="absolute bottom-0 left-0 right-0 bg-[var(--accent)] opacity-50"
+ className="absolute bottom-0 left-0 right-0 bg-[var(--color-accent)] opacity-50"
  style={{ height: `${Math.min(percent - 100, 100)}%`, bottom: '100%' }}
  />
  )}
@@ -230,14 +230,14 @@ const CostCenters = ({ user }) => {
 
  <div className="mt-2 text-center">
  <p className={`text-xs font-medium ${
- percent > 100 ? 'text-[var(--accent)]' :
- percent > 80 ? 'text-[var(--warning)]' :
- percent > 0 ? 'text-[var(--success)]' :
- 'text-[var(--text-secondary)]'
+ percent > 100 ? 'text-[var(--color-accent)]' :
+ percent > 80 ? 'text-[var(--color-warn)]' :
+ percent > 0 ? 'text-[var(--color-ok)]' :
+ 'text-[var(--color-fg-3)]'
  }`}>
  {percent > 0 ? `${percent.toFixed(0)}%` : '-'}
  </p>
- <p className="truncate text-[10px] text-[var(--text-secondary)]">
+ <p className="truncate text-[10px] text-[var(--color-fg-3)]">
  {data.executed > 0 ? formatCurrency(data.executed).replace('€', '') : '-'}
  </p>
  </div>
@@ -248,16 +248,16 @@ const CostCenters = ({ user }) => {
 
  <div className="flex items-center justify-center gap-6 mt-4 text-xs">
  <div className="flex items-center gap-2">
- <div className="h-3 w-3 rounded bg-[var(--success)]" />
- <span className="text-[var(--text-secondary)]">&lt;80% utilizado</span>
+ <div className="h-3 w-3 rounded bg-[var(--color-ok)]" />
+ <span className="text-[var(--color-fg-3)]">&lt;80% utilizado</span>
  </div>
  <div className="flex items-center gap-2">
- <div className="h-3 w-3 rounded bg-[var(--warning)]" />
- <span className="text-[var(--text-secondary)]">80-100% utilizado</span>
+ <div className="h-3 w-3 rounded bg-[var(--color-warn)]" />
+ <span className="text-[var(--color-fg-3)]">80-100% utilizado</span>
  </div>
  <div className="flex items-center gap-2">
- <div className="h-3 w-3 rounded bg-[var(--accent)]" />
- <span className="text-[var(--text-secondary)]">&gt;100% sobrepasado</span>
+ <div className="h-3 w-3 rounded bg-[var(--color-accent)]" />
+ <span className="text-[var(--color-fg-3)]">&gt;100% sobrepasado</span>
  </div>
  </div>
  </div>
@@ -273,43 +273,43 @@ const CostCenters = ({ user }) => {
 
  return (
  <>
- <tr className={`border-b border-[var(--surface)] transition-colors hover:bg-[var(--surface)] ${isExpanded ? 'bg-[var(--surface)]' : ''}`}>
- <td className="px-4 py-4 text-sm font-medium text-[var(--text-secondary)]">{center.code}</td>
- <td className="px-4 py-4 text-sm font-medium text-[var(--text-primary)]">{center.name}</td>
+ <tr className={`border-b border-[var(--color-bg-1)] transition-colors hover:bg-[var(--color-bg-1)] ${isExpanded ? 'bg-[var(--color-bg-1)]' : ''}`}>
+ <td className="px-4 py-4 text-sm font-medium text-[var(--color-fg-3)]">{center.code}</td>
+ <td className="px-4 py-4 text-sm font-medium text-[var(--color-fg-1)]">{center.name}</td>
  <td className="px-4 py-4">
  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
- center.type === 'Costos' ? 'bg-transparent text-[var(--accent)]' : 'bg-transparent text-[var(--success)]'
+ center.type === 'Costos' ? 'bg-transparent text-[var(--color-accent)]' : 'bg-transparent text-[var(--color-ok)]'
  }`}>
  {center.type}
  </span>
  </td>
- <td className="px-4 py-4 text-sm text-[var(--text-disabled)]">{formatCurrency(center.budget)}</td>
- <td className="px-4 py-4 text-sm text-[var(--text-secondary)]">{formatCurrency(center.budget / 12)}/mes</td>
- <td className={`px-4 py-4 text-sm font-medium ${center.type === 'Ingresos' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>{formatCurrency(ytdExecuted)}</td>
+ <td className="px-4 py-4 text-sm text-[var(--color-fg-4)]">{formatCurrency(center.budget)}</td>
+ <td className="px-4 py-4 text-sm text-[var(--color-fg-3)]">{formatCurrency(center.budget / 12)}/mes</td>
+ <td className={`px-4 py-4 text-sm font-medium ${center.type === 'Ingresos' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>{formatCurrency(ytdExecuted)}</td>
  <td className="px-4 py-4">
  <div className="flex items-center gap-2">
- <div className="h-2.5 w-20 overflow-hidden rounded-full bg-[var(--surface)]">
+ <div className="h-2.5 w-20 overflow-hidden rounded-full bg-[var(--color-bg-1)]">
  <div
  className={`h-full rounded-full transition-all ${getProgressColor(utilization)}`}
  style={{ width: `${Math.min(utilization, 100)}%` }}
  />
  </div>
  <span className={`text-xs font-medium ${
- utilization > 100 ? 'text-[var(--accent)]' :
- utilization > 80 ? 'text-[var(--warning)]' :
- 'text-[var(--success)]'
+ utilization > 100 ? 'text-[var(--color-accent)]' :
+ utilization > 80 ? 'text-[var(--color-warn)]' :
+ 'text-[var(--color-ok)]'
  }`}>
  {utilization.toFixed(0)}%
  </span>
  </div>
  </td>
- <td className="px-4 py-4 text-sm text-[var(--text-disabled)]">{center.responsible}</td>
+ <td className="px-4 py-4 text-sm text-[var(--color-fg-4)]">{center.responsible}</td>
  <td className="px-4 py-4">
  <div className="flex items-center gap-1">
  <button
  onClick={() => setExpandedCenter(isExpanded ? null : center.id)}
  className={`p-1.5 rounded transition-colors ${
- isExpanded ? 'bg-transparent text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-transparent hover:text-[var(--text-primary)]'
+ isExpanded ? 'bg-transparent text-[var(--color-fg-1)]' : 'text-[var(--color-fg-3)] hover:bg-transparent hover:text-[var(--color-fg-1)]'
  }`}
  title="Ver detalle mensual"
  >
@@ -317,13 +317,13 @@ const CostCenters = ({ user }) => {
  </button>
  <button
  onClick={() => onEdit(center)}
- className="rounded p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-transparent hover:text-[var(--text-primary)]"
+ className="rounded p-1.5 text-[var(--color-fg-3)] transition-colors hover:bg-transparent hover:text-[var(--color-fg-1)]"
  >
  <Edit2 size={14} />
  </button>
  <button
  onClick={() => onDelete(center.id)}
- className="rounded p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-transparent hover:text-[var(--accent)]"
+ className="rounded p-1.5 text-[var(--color-fg-3)] transition-colors hover:bg-transparent hover:text-[var(--color-accent)]"
  >
  <Trash2 size={14} />
  </button>
@@ -344,8 +344,8 @@ const CostCenters = ({ user }) => {
  if (loading) {
  return (
  <div className="flex items-center justify-center py-12">
- <Loader2 className="w-8 h-8 text-[var(--interactive)] animate-spin" />
- <span className="ml-3 text-[var(--text-secondary)]">Preparando centros de costo...</span>
+ <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
+ <span className="ml-3 text-[var(--color-fg-3)]">Preparando centros de costo...</span>
  </div>
  );
  }
@@ -359,59 +359,59 @@ const CostCenters = ({ user }) => {
 
  return (
  <div className="space-y-6">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-5 ">
- <p className="nd-label text-[var(--text-primary)]">Presupuesto operativo</p>
- <h2 className="mt-2 nd-display text-[24px] font-light tracking-[-0.03em] text-[var(--text-primary)]">Centros de costo</h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Organiza responsables, presupuesto anual y seguimiento mensual desde una sola mesa.</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-5 ">
+ <p className="label-mono text-[var(--color-fg-1)]">Presupuesto operativo</p>
+ <h2 className="mt-2 font-display text-[24px] font-light tracking-[-0.03em] text-[var(--color-fg-1)]">Centros de costo</h2>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Organiza responsables, presupuesto anual y seguimiento mensual desde una sola mesa.</p>
  </div>
 
  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center gap-3 mb-3">
  <div className="rounded-lg bg-transparent p-2">
- <TrendingDown className="text-[var(--accent)]" size={20} />
+ <TrendingDown className="text-[var(--color-accent)]" size={20} />
  </div>
- <h3 className="font-medium text-[var(--text-primary)]">Centros de costos</h3>
+ <h3 className="font-medium text-[var(--color-fg-1)]">Centros de costos</h3>
  </div>
- <p className="nd-display text-[28px] font-light tabular-nums tracking-[-0.03em] text-[var(--accent)]">{costCenters.length}</p>
- <p className="text-xs text-[var(--text-secondary)]">activos</p>
+ <p className="font-display text-[28px] font-light tabular-nums tracking-[-0.03em] text-[var(--color-accent)]">{costCenters.length}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">activos</p>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center gap-3 mb-3">
  <div className="rounded-lg bg-transparent p-2">
- <BarChart3 className="text-[var(--text-primary)]" size={20} />
+ <BarChart3 className="text-[var(--color-fg-1)]" size={20} />
  </div>
- <h3 className="font-medium text-[var(--text-primary)]">Presupuesto anual</h3>
+ <h3 className="font-medium text-[var(--color-fg-1)]">Presupuesto anual</h3>
  </div>
- <p className="nd-display text-[28px] font-light tabular-nums tracking-[-0.03em] text-[var(--text-primary)]">{formatCurrency(totalBudget)}</p>
- <p className="text-xs text-[var(--text-secondary)]">{formatCurrency(totalBudget / 12)}/mes</p>
+ <p className="font-display text-[28px] font-light tabular-nums tracking-[-0.03em] text-[var(--color-fg-1)]">{formatCurrency(totalBudget)}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">{formatCurrency(totalBudget / 12)}/mes</p>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center gap-3 mb-3">
  <div className="rounded-lg bg-transparent p-2">
- <TrendingUpDown className="text-[var(--warning)]" size={20} />
+ <TrendingUpDown className="text-[var(--color-warn)]" size={20} />
  </div>
- <h3 className="font-medium text-[var(--text-primary)]">Ejecutado YTD</h3>
+ <h3 className="font-medium text-[var(--color-fg-1)]">Ejecutado YTD</h3>
  </div>
- <p className="nd-display text-[28px] font-light tabular-nums tracking-[-0.03em] text-[var(--warning)]">{formatCurrency(totalExecuted)}</p>
- <p className="text-xs text-[var(--text-secondary)]">de {formatCurrency(ytdBudget)} presupuestado</p>
+ <p className="font-display text-[28px] font-light tabular-nums tracking-[-0.03em] text-[var(--color-warn)]">{formatCurrency(totalExecuted)}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">de {formatCurrency(ytdBudget)} presupuestado</p>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-3 flex items-center gap-3">
  <div className={`rounded-lg p-2 ${getProgressBgColor(overallUtilization)}`}>
- <Calendar className={`${overallUtilization > 100 ? 'text-[var(--accent)]' : overallUtilization > 80 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`} size={20} />
+ <Calendar className={`${overallUtilization > 100 ? 'text-[var(--color-accent)]' : overallUtilization > 80 ? 'text-[var(--color-warn)]' : 'text-[var(--color-ok)]'}`} size={20} />
  </div>
- <h3 className="font-medium text-[var(--text-primary)]">
+ <h3 className="font-medium text-[var(--color-fg-1)]">
  Utilización YTD
  </h3>
  </div>
- <p className={`nd-display text-[28px] font-light tabular-nums tracking-[-0.03em] ${overallUtilization > 100 ? 'text-[var(--accent)]' : overallUtilization > 80 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+ <p className={`font-display text-[28px] font-light tabular-nums tracking-[-0.03em] ${overallUtilization > 100 ? 'text-[var(--color-accent)]' : overallUtilization > 80 ? 'text-[var(--color-warn)]' : 'text-[var(--color-ok)]'}`}>
  {overallUtilization.toFixed(1)}%
  </p>
- <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--surface)]">
+ <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-1)]">
  <div
  className={`h-full rounded-full ${getProgressColor(overallUtilization)}`}
  style={{ width: `${Math.min(overallUtilization, 100)}%` }}
@@ -437,30 +437,30 @@ const CostCenters = ({ user }) => {
  </Button>
  </div>
 
- <div className="rounded-md border border-[var(--border-visible)] bg-transparent p-6 ">
+ <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-6 ">
  <div className="flex items-center gap-3 mb-4">
  <div className="rounded-lg bg-transparent p-2">
- <TrendingDown className="text-[var(--accent)]" size={20} />
+ <TrendingDown className="text-[var(--color-accent)]" size={20} />
  </div>
  <div>
- <h3 className="text-base font-medium tracking-[-0.02em] text-[var(--text-primary)]">Centros de costos</h3>
- <p className="text-sm text-[var(--text-secondary)]">Abre cada fila para revisar el detalle mensual.</p>
+ <h3 className="text-base font-medium tracking-[-0.02em] text-[var(--color-fg-1)]">Centros de costos</h3>
+ <p className="text-sm text-[var(--color-fg-3)]">Abre cada fila para revisar el detalle mensual.</p>
  </div>
  </div>
 
- <div className="overflow-hidden rounded-md border border-[var(--border-visible)] bg-[var(--surface)]">
+ <div className="overflow-hidden rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)]">
  <table className="w-full text-left">
- <thead className="border-b border-[var(--border-visible)] bg-transparent">
+ <thead className="border-b border-[var(--color-line-s)] bg-transparent">
  <tr>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Código</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Nombre</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Tipo</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Ppto. anual</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Ppto. mensual</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Ejecutado YTD</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Utilización</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Responsable</th>
- <th className="px-4 py-3 nd-label text-[var(--text-secondary)]">Acciones</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Código</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Nombre</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Tipo</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Ppto. anual</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Ppto. mensual</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Ejecutado YTD</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Utilización</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Responsable</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-fg-3)]">Acciones</th>
  </tr>
  </thead>
  <tbody>
@@ -469,7 +469,7 @@ const CostCenters = ({ user }) => {
  ))}
  {costCenters.length === 0 && (
  <tr>
- <td colSpan="9" className="px-4 py-8 text-center text-[var(--text-secondary)]">
+ <td colSpan="9" className="px-4 py-8 text-center text-[var(--color-fg-3)]">
  No hay centros de costo definidos
  </td>
  </tr>
@@ -480,30 +480,30 @@ const CostCenters = ({ user }) => {
  </div>
 
  {incomeCenters.length > 0 && (
- <div className="rounded-md border border-[var(--border-visible)] bg-transparent p-6 ">
+ <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-6 ">
  <div className="flex items-center gap-3 mb-4">
  <div className="rounded-lg bg-transparent p-2">
- <TrendingUp className="text-[var(--success)]" size={20} />
+ <TrendingUp className="text-[var(--color-ok)]" size={20} />
  </div>
  <div>
- <h3 className="text-base font-medium tracking-[-0.02em] text-[var(--text-primary)]">Centros de ingresos</h3>
- <p className="text-sm text-[var(--success)]">Usa esta mesa para metas y seguimiento comercial.</p>
+ <h3 className="text-base font-medium tracking-[-0.02em] text-[var(--color-fg-1)]">Centros de ingresos</h3>
+ <p className="text-sm text-[var(--color-ok)]">Usa esta mesa para metas y seguimiento comercial.</p>
  </div>
  </div>
 
- <div className="overflow-hidden rounded-md border border-[var(--success)] bg-[var(--surface)]">
+ <div className="overflow-hidden rounded-md border border-[var(--color-ok)] bg-[var(--color-bg-1)]">
  <table className="w-full text-left">
- <thead className="border-b border-[var(--border-visible)] bg-transparent">
+ <thead className="border-b border-[var(--color-line-s)] bg-transparent">
  <tr>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Código</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Nombre</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Tipo</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Objetivo anual</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Objetivo mensual</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Logrado YTD</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Cumplimiento</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Responsable</th>
- <th className="px-4 py-3 nd-label text-[var(--success)]">Acciones</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Código</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Nombre</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Tipo</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Objetivo anual</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Objetivo mensual</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Logrado YTD</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Cumplimiento</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Responsable</th>
+ <th className="px-4 py-3 label-mono text-[var(--color-ok)]">Acciones</th>
  </tr>
  </thead>
  <tbody>
@@ -517,29 +517,29 @@ const CostCenters = ({ user }) => {
  )}
 
  {showNewModal && (
- <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
- <div className="w-full max-w-md overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] animate-scaleIn">
- <div className="border-b border-[var(--border)] bg-[var(--surface-raised)] px-6 py-4">
- <p className="nd-label text-[var(--text-primary)]">Centro presupuestario</p>
- <h3 className="text-lg font-medium tracking-[-0.03em] text-[var(--text-primary)]">
+ <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,8,10,0.62)] p-4">
+ <div className="w-full max-w-md overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] animate-scaleIn">
+ <div className="border-b border-[var(--color-line)] bg-[var(--color-bg-2)] px-6 py-4">
+ <p className="label-mono text-[var(--color-fg-1)]">Centro presupuestario</p>
+ <h3 className="text-lg font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">
  {editingCenter ? 'Editar centro' : 'Nuevo centro'}
  </h3>
  </div>
  <div className="p-6 space-y-4">
  <div>
- <label className="mb-1 block nd-label text-[var(--text-secondary)]">Nombre</label>
+ <label className="mb-1 block label-mono text-[var(--color-fg-3)]">Nombre</label>
  <input
  type="text"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={newCenter.name}
  onChange={(e) => setNewCenter({ ...newCenter, name: e.target.value })}
  placeholder="Nombre del centro"
  />
  </div>
  <div>
- <label className="mb-1 block nd-label text-[var(--text-secondary)]">Tipo</label>
+ <label className="mb-1 block label-mono text-[var(--color-fg-3)]">Tipo</label>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={newCenter.type}
  onChange={(e) => setNewCenter({ ...newCenter, type: e.target.value })}
  >
@@ -548,43 +548,43 @@ const CostCenters = ({ user }) => {
  </select>
  </div>
  <div>
- <label className="mb-1 block nd-label text-[var(--text-secondary)]">
+ <label className="mb-1 block label-mono text-[var(--color-fg-3)]">
  Presupuesto anual
  </label>
  <div className="relative">
- <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">€</span>
+ <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-fg-3)]">€</span>
  <input
  type="number"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] py-2.5 pl-8 pr-4 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] py-2.5 pl-8 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={newCenter.budget}
  onChange={(e) => setNewCenter({ ...newCenter, budget: e.target.value })}
  placeholder="0.00"
  />
  </div>
  {newCenter.budget > 0 && (
- <p className="mt-1 text-xs text-[var(--text-secondary)]">
+ <p className="mt-1 text-xs text-[var(--color-fg-3)]">
  = {formatCurrency(newCenter.budget / 12)} por mes
  </p>
  )}
  </div>
  <div>
- <label className="mb-1 block nd-label text-[var(--text-secondary)]">Responsable</label>
+ <label className="mb-1 block label-mono text-[var(--color-fg-3)]">Responsable</label>
  <input
  type="text"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)] "
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
  value={newCenter.responsible}
  onChange={(e) => setNewCenter({ ...newCenter, responsible: e.target.value })}
  placeholder="Nombre del responsable"
  />
  </div>
  </div>
- <div className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--surface-raised)] px-6 py-4">
+ <div className="flex justify-end gap-3 border-t border-[var(--color-line)] bg-[var(--color-bg-2)] px-6 py-4">
  <button
  onClick={() => {
  setShowNewModal(false);
  setEditingCenter(null);
  }}
- className="rounded-lg px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-transparent"
+ className="rounded-lg px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] transition hover:bg-transparent"
  >
  Cancelar
  </button>

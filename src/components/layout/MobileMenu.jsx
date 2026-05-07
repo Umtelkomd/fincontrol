@@ -1,12 +1,12 @@
 import { signOut } from 'firebase/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
- Briefcase,
  LogOut,
  Menu,
  Plus,
  X,
 } from 'lucide-react';
+import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
 import { NAV_ITEMS } from './navItems';
 
@@ -29,20 +29,20 @@ const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTrans
 
  return (
  <div className="fixed inset-0 z-[230] md:hidden">
- <div className="absolute inset-0 bg-black/85" onClick={onClose} />
+  <div className="absolute inset-0 bg-[rgba(7,8,10,0.86)]" onClick={onClose} />
 
  <div className="absolute bottom-0 left-0 top-0 flex w-[86vw] max-w-[340px] animate-slideIn flex-col border-r border-[var(--color-line)] bg-[var(--color-bg-0)] px-4 py-5 text-[var(--color-fg-1)]">
  <div className="mb-6 flex items-start justify-between">
  <div className="flex items-center gap-3">
  <div className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-2)]">
- <Briefcase size={16} className="text-[var(--color-fg-1)]" />
+ <NexusMark size={22} title="NEXUS" />
  </div>
  <div>
  <p className="text-[16px] leading-none text-[var(--color-fg-1)]" style={{ fontFamily: 'var(--font-display)', fontWeight: 500, letterSpacing: '-0.02em' }}>
- FinControl<span style={{ color: 'var(--color-accent)' }}>.OS</span>
+ NEXUS<span style={{ color: 'var(--color-accent)' }}>.OS</span>
  </p>
  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">
- Financial Control System
+ Finance Operations Console
  </p>
  </div>
  </div>

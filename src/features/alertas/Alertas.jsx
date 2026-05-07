@@ -14,9 +14,9 @@ import { balances2025 } from '../../data/balances2025';
 import { useToast } from '../../contexts/ToastContext';
 
 const SEVERITY_STYLES = {
- critical: { bg: 'var(--error-50)', border: 'var(--negative)', color: 'var(--accent)', icon: AlertTriangle },
- warning: { bg: 'var(--warning-50)', border: 'var(--warning)', color: 'var(--warning)', icon: Clock },
- info: { bg: 'var(--surface)', border: 'var(--border)', color: 'var(--text-secondary)', icon: Bell },
+ critical: { bg: 'rgba(255, 77, 46, 0.12)', border: 'var(--color-err)', color: 'var(--color-accent)', icon: AlertTriangle },
+ warning: { bg: 'rgba(255, 176, 32, 0.12)', border: 'var(--color-warn)', color: 'var(--color-warn)', icon: Clock },
+ info: { bg: 'var(--color-bg-1)', border: 'var(--color-line)', color: 'var(--color-fg-3)', icon: Bell },
 };
 
 const getDaysUntilDue = (dueDate) => {
@@ -206,46 +206,46 @@ const Alertas = ({ user }) => {
  const warningCount = allAlerts.filter(a => a.severity === 'warning').length;
 
  if (loading) {
- return <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[var(--warning)] border-t-transparent rounded-full animate-spin" /></div>;
+ return <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[var(--color-warn)] border-t-transparent rounded-full animate-spin" /></div>;
  }
 
  return (
  <div className="space-y-6 animate-fadeIn">
  <div className="flex items-center justify-between">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-5 ">
- <p className="nd-label text-[var(--text-primary)]">Seguimiento</p>
- <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[var(--text-primary)]">Centro de alertas</h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Revisa vencimientos, riesgos y avisos operativos desde una sola bandeja.</p>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-5 ">
+ <p className="label-mono text-[var(--color-fg-1)]">Seguimiento</p>
+ <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">Centro de alertas</h2>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Revisa vencimientos, riesgos y avisos operativos desde una sola bandeja.</p>
  </div>
  {unreadCount > 0 && (
  <button onClick={async () => { await markAllAsRead(); showToast('Todas marcadas como leídas'); }}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-transparent">
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-2 text-[12px] font-medium text-[var(--color-fg-1)] transition hover:bg-transparent">
  <CheckCircle2 size={14} /> Marcar todas como leídas
  </button>
  )}
  </div>
 
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center justify-between mb-2">
- <p className="nd-label text-[var(--text-secondary)]">Críticas</p>
- <AlertTriangle size={18} className="text-[var(--accent)]" />
+ <p className="label-mono text-[var(--color-fg-3)]">Críticas</p>
+ <AlertTriangle size={18} className="text-[var(--color-accent)]" />
  </div>
- <p className="nd-display text-[28px] font-medium tracking-[-0.03em] text-[var(--accent)]">{criticalCount}</p>
+ <p className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--color-accent)]">{criticalCount}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center justify-between mb-2">
- <p className="nd-label text-[var(--text-secondary)]">Advertencias</p>
- <Clock size={18} className="text-[var(--warning)]" />
+ <p className="label-mono text-[var(--color-fg-3)]">Advertencias</p>
+ <Clock size={18} className="text-[var(--color-warn)]" />
  </div>
- <p className="nd-display text-[28px] font-medium tracking-[-0.03em] text-[var(--warning)]">{warningCount}</p>
+ <p className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--color-warn)]">{warningCount}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-center justify-between mb-2">
- <p className="nd-label text-[var(--text-secondary)]">No leídas</p>
- <Bell size={18} className="text-[var(--text-primary)]" />
+ <p className="label-mono text-[var(--color-fg-3)]">No leídas</p>
+ <Bell size={18} className="text-[var(--color-fg-1)]" />
  </div>
- <p className="nd-display text-[28px] font-medium tracking-[-0.03em] text-[var(--text-primary)]">{unreadCount}</p>
+ <p className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--color-fg-1)]">{unreadCount}</p>
  </div>
  </div>
 
@@ -257,10 +257,10 @@ const Alertas = ({ user }) => {
  { id: 'unread', label: 'No leídas' },
  ].map(tab => (
  <button key={tab.id} onClick={() => setFilter(tab.id)}
-className={`px-3.5 py-1.5 rounded-md nd-label transition-all ${
+className={`px-3.5 py-1.5 rounded-md label-mono transition-all ${
  filter === tab.id
- ? 'border border-[var(--text-primary)] bg-transparent text-[var(--text-primary)]'
- : 'border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-transparent'
+ ? 'border border-[var(--color-fg-1)] bg-transparent text-[var(--color-fg-1)]'
+ : 'border border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] hover:bg-transparent'
  }`}>
  {tab.label}
  </button>
@@ -278,30 +278,30 @@ className={`px-3.5 py-1.5 rounded-md nd-label transition-all ${
  >
  <IconComp size={18} style={{ color: style.color }} className="flex-shrink-0 mt-0.5" />
  <div className="flex-1 min-w-0">
- <p className="text-[13px] font-medium text-[var(--text-primary)]">{alert.title}</p>
- <p className="mt-0.5 text-[12px] text-[var(--text-disabled)]">{alert.message}</p>
+ <p className="text-[13px] font-medium text-[var(--color-fg-1)]">{alert.title}</p>
+ <p className="mt-0.5 text-[12px] text-[var(--color-fg-4)]">{alert.message}</p>
  {alert.createdAt && (
- <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+ <p className="mt-1 text-[10px] text-[var(--color-fg-3)]">
  {new Date(alert.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
  </p>
  )}
  </div>
  {!alert.auto && !alert.read && (
  <button onClick={() => markAsRead(alert.id)}
- className="flex-shrink-0 rounded-md p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-transparent hover:text-[var(--text-primary)]">
+ className="flex-shrink-0 rounded-md p-1.5 text-[var(--color-fg-3)] transition-colors hover:bg-transparent hover:text-[var(--color-fg-1)]">
  <Eye size={14} />
  </button>
  )}
  {alert.auto && (
-<span className="flex-shrink-0 rounded-full border border-[var(--border-visible)] bg-transparent px-1.5 py-0.5 nd-mono text-[9px] text-[var(--text-secondary)]">AUTO</span>
+<span className="flex-shrink-0 rounded-full border border-[var(--color-line-s)] bg-transparent px-1.5 py-0.5 font-mono text-[9px] text-[var(--color-fg-3)]">AUTO</span>
  )}
  </div>
  );
  })}
  {filtered.length === 0 && (
  <div className="text-center py-16">
- <Bell className="mx-auto mb-3 h-8 w-8 text-[var(--text-secondary)]" />
- <p className="text-sm text-[var(--text-secondary)]">No hay alertas</p>
+ <Bell className="mx-auto mb-3 h-8 w-8 text-[var(--color-fg-3)]" />
+ <p className="text-sm text-[var(--color-fg-3)]">No hay alertas</p>
  </div>
  )}
  </div>

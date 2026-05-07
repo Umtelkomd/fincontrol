@@ -10,7 +10,7 @@
  * Sizes: sm (28px tall) · md (36px tall, default)
  *
  * Rules:
- *   - Never use `bg-[color] text-white` solids — use this component.
+ *   - Never use arbitrary filled color solids — use this component.
  *   - Icons are 14px (sm) or 16px (md).
  *   - Loading state replaces icon with spinner, disables the button.
  */

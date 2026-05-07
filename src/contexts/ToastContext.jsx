@@ -13,10 +13,10 @@ const ICONS = {
 };
 
 const STYLES = {
- success: 'bg-[var(--surface)] border-[var(--success)] text-[var(--success)]',
- error: 'bg-[var(--surface)] border-[var(--accent)] text-[var(--accent)]',
- warning: 'bg-[var(--surface)] border-[var(--warning)] text-[var(--warning)]',
- info: 'bg-[var(--surface)] border-[var(--interactive)] text-[var(--interactive)]',
+ success: 'bg-[var(--color-bg-1)] border-[var(--color-ok)] text-[var(--color-ok)]',
+ error: 'bg-[var(--color-bg-1)] border-[var(--color-accent)] text-[var(--color-accent)]',
+ warning: 'bg-[var(--color-bg-1)] border-[var(--color-warn)] text-[var(--color-warn)]',
+ info: 'bg-[var(--color-bg-1)] border-[var(--color-accent)] text-[var(--color-accent)]',
 };
 
 const DURATIONS = {
@@ -69,7 +69,7 @@ export const ToastProvider = ({ children }) => {
  <p className="text-sm font-medium flex-1">{toast.message}</p>
  <button
  onClick={() => removeToast(toast.id)}
- className="p-1 hover:bg-[var(--surface-raised)] rounded-lg transition-colors flex-shrink-0"
+ className="p-1 hover:bg-[var(--color-bg-2)] rounded-lg transition-colors flex-shrink-0"
  >
  <X className="w-3.5 h-3.5 opacity-60" />
  </button>

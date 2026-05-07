@@ -144,11 +144,11 @@ const Rules = ({ user }) => {
     <div className="space-y-6 pb-12">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <p className="nd-label text-[var(--text-secondary)]">Automatización · Reglas</p>
-          <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+          <p className="label-mono text-[var(--color-fg-3)]">Automatización · Reglas</p>
+          <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
             Reglas de clasificación automática
           </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+          <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
             Cuando importás DATEV, las reglas asignan categoría / centro de costo / proyecto
             automáticamente según contraparte o descripción. Tu bandeja queda más chica cada semana.
           </p>
@@ -203,7 +203,7 @@ const Rules = ({ user }) => {
         padding={false}
         actions={
           <div className="flex items-center gap-3">
-            <label className="inline-flex items-center gap-2 cursor-pointer text-[12px] text-[var(--text-secondary)]">
+            <label className="inline-flex items-center gap-2 cursor-pointer text-[12px] text-[var(--color-fg-3)]">
               <input
                 type="checkbox"
                 checked={showInactive}
@@ -213,13 +213,13 @@ const Rules = ({ user }) => {
             </label>
             <div className="relative">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]"
                 size={14}
               />
               <input
                 type="text"
                 placeholder="Buscar..."
-                className="rounded-md border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+                className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -229,7 +229,7 @@ const Rules = ({ user }) => {
       >
         {loading ? (
           <div className="px-4 py-12 text-center">
-            <p className="nd-label">Cargando...</p>
+            <p className="label-mono">Cargando...</p>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -262,14 +262,14 @@ const Rules = ({ user }) => {
               <tbody>
                 {filtered.map((r) => (
                   <tr key={r.id} {...rowButtonProps(() => openEdit(r))}>
-                    <td className="font-medium text-[var(--text-primary)]">{r.name || '—'}</td>
-                    <td className="text-[var(--text-secondary)]">
+                    <td className="font-medium text-[var(--color-fg-1)]">{r.name || '—'}</td>
+                    <td className="text-[var(--color-fg-3)]">
                       {FIELD_LABELS[r.field]} {MATCH_LABELS[r.matchType]}
                     </td>
-                    <td className="nd-mono text-[12px] text-[var(--text-primary)] max-w-[280px] truncate">
+                    <td className="font-mono text-[12px] text-[var(--color-fg-1)] max-w-[280px] truncate">
                       {r.pattern || '—'}
                     </td>
-                    <td className="text-[var(--text-secondary)]">
+                    <td className="text-[var(--color-fg-3)]">
                       <div className="flex flex-wrap gap-1">
                         {r.applyTo?.categoryName && (
                           <Badge variant="info">{r.applyTo.categoryName}</Badge>
@@ -287,15 +287,15 @@ const Rules = ({ user }) => {
                         {DIRECTION_LABELS[r.direction]}
                       </Badge>
                     </td>
-                    <td className="text-right nd-mono tabular-nums">{r.priority}</td>
-                    <td className="text-right nd-mono tabular-nums text-[var(--success)]">
+                    <td className="text-right font-mono tabular-nums">{r.priority}</td>
+                    <td className="text-right font-mono tabular-nums text-[var(--color-ok)]">
                       {r.hits}
                     </td>
-                    <td className="text-right nd-mono tabular-nums">
+                    <td className="text-right font-mono tabular-nums">
                       {r.matchingPending > 0 ? (
                         <Badge variant="warn">{r.matchingPending}</Badge>
                       ) : (
-                        <span className="text-[var(--text-disabled)]">0</span>
+                        <span className="text-[var(--color-fg-4)]">0</span>
                       )}
                     </td>
                     <td className="text-center">

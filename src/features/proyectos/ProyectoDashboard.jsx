@@ -28,7 +28,7 @@ import { useFinanceLedger } from '../../hooks/useFinanceLedger';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const CHART_COLORS = ['var(--text-primary)', 'var(--success)', 'var(--warning)', 'var(--warning)', 'var(--text-disabled)', 'var(--border-visible)', 'var(--text-tertiary)', 'var(--text-secondary)'];
+const CHART_COLORS = ['var(--color-fg-1)', 'var(--color-ok)', 'var(--color-warn)', 'var(--color-warn)', 'var(--color-fg-4)', 'var(--color-line-s)', 'var(--color-fg-4)', 'var(--color-fg-3)'];
 
 const OPEN_DOCUMENT_STATUSES = new Set(['issued', 'partial', 'overdue']);
 
@@ -73,8 +73,8 @@ const TooltipCard = ({ active, payload, label }) => {
  if (!active || !payload?.length) return null;
 
  return (
- <div className="min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-3 ">
- <p className="mb-2 nd-label text-[var(--text-disabled)]">{label}</p>
+ <div className="min-w-[180px] rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-3 ">
+ <p className="mb-2 label-mono text-[var(--color-fg-4)]">{label}</p>
  {payload.map((entry) => (
  <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
  {entry.name}: {formatCurrency(entry.value)}
@@ -89,44 +89,44 @@ const KpiCard = ({ title, value, subtitle, tone = 'neutral', icon }) => {
  const palette =
  tone === 'positive'
  ? {
- card: 'bg-[var(--surface)]',
- icon: 'bg-transparent text-[var(--success)]',
- value: 'text-[var(--success)]',
+ card: 'bg-[var(--color-bg-1)]',
+ icon: 'bg-transparent text-[var(--color-ok)]',
+ value: 'text-[var(--color-ok)]',
  }
  : tone === 'negative'
  ? {
- card: 'bg-[var(--surface)]',
- icon: 'bg-transparent text-[var(--warning)]',
- value: 'text-[var(--warning)]',
+ card: 'bg-[var(--color-bg-1)]',
+ icon: 'bg-transparent text-[var(--color-warn)]',
+ value: 'text-[var(--color-warn)]',
  }
  : {
- card: 'bg-[var(--surface)]',
- icon: 'bg-[var(--surface)] text-[var(--text-primary)]',
- value: 'text-[var(--text-primary)]',
+ card: 'bg-[var(--color-bg-1)]',
+ icon: 'bg-[var(--color-bg-1)] text-[var(--color-fg-1)]',
+ value: 'text-[var(--color-fg-1)]',
  };
 
  return (
- <div className={`rounded-md border border-[var(--border)] p-5 ${palette.card}`}>
+ <div className={`rounded-md border border-[var(--color-line)] p-5 ${palette.card}`}>
  <div className="mb-3 flex items-center justify-between gap-3">
  <div>
- <p className="nd-label text-[var(--text-disabled)]">{title}</p>
- <p className={`mt-2 nd-display text-[28px] font-medium tracking-tight ${palette.value}`}>{value}</p>
+ <p className="label-mono text-[var(--color-fg-4)]">{title}</p>
+ <p className={`mt-2 font-display text-[28px] font-medium tracking-tight ${palette.value}`}>{value}</p>
  </div>
  <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${palette.icon}`}>
  <IconComponent size={18} />
  </div>
  </div>
- <p className="text-[12px] leading-5 text-[var(--text-secondary)]">{subtitle}</p>
+ <p className="text-[12px] leading-5 text-[var(--color-fg-3)]">{subtitle}</p>
  </div>
  );
 };
 
 const Section = ({ title, subtitle, children, action }) => (
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-5 flex items-start justify-between gap-4">
  <div>
- <h3 className="text-[18px] font-medium tracking-tight text-[var(--text-primary)]">{title}</h3>
- {subtitle ? <p className="mt-1 text-sm text-[var(--text-secondary)]">{subtitle}</p> : null}
+ <h3 className="text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">{title}</h3>
+ {subtitle ? <p className="mt-1 text-sm text-[var(--color-fg-3)]">{subtitle}</p> : null}
  </div>
  {action}
  </div>
@@ -266,8 +266,8 @@ const ProyectoDashboard = ({ user }) => {
  return (
  <div className="flex items-center justify-center py-24">
  <div className="flex flex-col items-center gap-3">
- <RefreshCw className="h-7 w-7 animate-spin text-[var(--text-primary)]" />
- <p className="text-sm text-[var(--text-secondary)]">Cargando proyectos...</p>
+ <RefreshCw className="h-7 w-7 animate-spin text-[var(--color-fg-1)]" />
+ <p className="text-sm text-[var(--color-fg-3)]">Cargando proyectos...</p>
  </div>
  </div>
  );
@@ -275,24 +275,24 @@ const ProyectoDashboard = ({ user }) => {
 
  return (
  <div className="space-y-6 pb-12 animate-fadeIn">
- <section className="rounded-md border border-[var(--border)] bg-[var(--black)] px-6 py-7 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-6 py-7 ">
  <div className="grid gap-5 xl:grid-cols-[1.1fr,0.9fr]">
  <div>
- <p className="mb-3 nd-label text-[var(--text-secondary)]">Proyectos</p>
- <h2 className="nd-display text-[32px] font-medium tracking-tight text-[var(--text-display)]">Rentabilidad y seguimiento por proyecto.</h2>
- <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[var(--text-disabled)]">
+ <p className="mb-3 label-mono text-[var(--color-fg-3)]">Proyectos</p>
+ <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Rentabilidad y seguimiento por proyecto.</h2>
+ <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[var(--color-fg-4)]">
  Revisa ingresos, gastos, documentos abiertos y evolución mensual de cada proyecto desde una sola vista.
  </p>
  </div>
 
  <div className="flex flex-col gap-3 justify-end">
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">Proyecto</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Proyecto</span>
  <div className="relative">
  <select
  value={effectiveProjectId}
  onChange={(event) => setSelectedProjectId(event.target.value)}
- className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-3 pr-10 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--border-visible)] focus:bg-[var(--surface)] focus:"
+ className="w-full appearance-none rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 pr-10 text-[14px] text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:"
  >
  {availableProjects.length === 0 && <option value="">Sin proyectos activos</option>}
  {availableProjects.map((project) => (
@@ -301,15 +301,15 @@ const ProyectoDashboard = ({ user }) => {
  </option>
  ))}
  </select>
- <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-disabled)]" />
+ <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" />
  </div>
  </label>
 
  {selectedProject ? (
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
- <p className="nd-label text-[var(--text-disabled)]">Proyecto activo</p>
- <p className="mt-2 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">{selectedProject.name}</p>
- <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+ <p className="label-mono text-[var(--color-fg-4)]">Proyecto activo</p>
+ <p className="mt-2 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">{selectedProject.name}</p>
+ <p className="mt-1 text-[12px] text-[var(--color-fg-3)]">
  {selectedProject.code || 'Sin código'}{selectedProject.client ? ` · ${selectedProject.client}` : ''}
  </p>
  </div>
@@ -319,10 +319,10 @@ const ProyectoDashboard = ({ user }) => {
  </section>
 
  {!selectedProject ? (
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-16 text-center ">
- <FolderKanban size={40} className="mx-auto text-[var(--text-disabled)]" />
- <p className="mt-4 text-[16px] font-medium text-[var(--text-primary)]">No hay proyecto seleccionado</p>
- <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Selecciona un proyecto para revisar su comportamiento financiero.</p>
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-16 text-center ">
+ <FolderKanban size={40} className="mx-auto text-[var(--color-fg-4)]" />
+ <p className="mt-4 text-[16px] font-medium text-[var(--color-fg-1)]">No hay proyecto seleccionado</p>
+ <p className="mt-2 text-[13px] text-[var(--color-fg-3)]">Selecciona un proyecto para revisar su comportamiento financiero.</p>
  </section>
  ) : (
  <>
@@ -360,39 +360,39 @@ const ProyectoDashboard = ({ user }) => {
  {projectBudget ? (
  <Section title="Presupuesto frente a ejecución" subtitle="Comparativa entre objetivo y comportamiento real del proyecto.">
  <div className="grid gap-4 lg:grid-cols-2">
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
  <div className="mb-3 flex items-center justify-between">
- <p className="text-sm font-medium text-[var(--text-primary)]">Ingresos frente a meta</p>
- <span className="text-xs text-[var(--text-secondary)]">{formatCurrency(projectBudget.incomeTarget || 0)}</span>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Ingresos frente a meta</p>
+ <span className="text-xs text-[var(--color-fg-3)]">{formatCurrency(projectBudget.incomeTarget || 0)}</span>
  </div>
- <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--border)]">
+ <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--color-line)]">
  <div
- className="h-full rounded-full bg-[var(--success)]"
+ className="h-full rounded-full bg-[var(--color-ok)]"
  style={{
  width: `${Math.min(100, (projectBudget.incomeTarget || 0) > 0 ? (kpis.income / projectBudget.incomeTarget) * 100 : 0)}%`,
  }}
  />
  </div>
- <p className="text-[12px] text-[var(--text-secondary)]">
+ <p className="text-[12px] text-[var(--color-fg-3)]">
  {formatCurrency(kpis.income)} registrados ·{' '}
  {(projectBudget.incomeTarget || 0) > 0 ? ((kpis.income / projectBudget.incomeTarget) * 100).toFixed(1) : '0.0'}% alcanzado
  </p>
  </div>
 
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
  <div className="mb-3 flex items-center justify-between">
- <p className="text-sm font-medium text-[var(--text-primary)]">Gastos frente a límite</p>
- <span className="text-xs text-[var(--text-secondary)]">{formatCurrency(projectBudget.expenseLimit || 0)}</span>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Gastos frente a límite</p>
+ <span className="text-xs text-[var(--color-fg-3)]">{formatCurrency(projectBudget.expenseLimit || 0)}</span>
  </div>
- <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--border)]">
+ <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--color-line)]">
  <div
- className={`h-full rounded-full ${kpis.expenses > (projectBudget.expenseLimit || 0) ? 'bg-[var(--warning)]' : 'bg-[var(--warning)]'}`}
+ className={`h-full rounded-full ${kpis.expenses > (projectBudget.expenseLimit || 0) ? 'bg-[var(--color-warn)]' : 'bg-[var(--color-warn)]'}`}
  style={{
  width: `${Math.min(100, (projectBudget.expenseLimit || 0) > 0 ? (kpis.expenses / projectBudget.expenseLimit) * 100 : 0)}%`,
  }}
  />
  </div>
- <p className="text-[12px] text-[var(--text-secondary)]">
+ <p className="text-[12px] text-[var(--color-fg-3)]">
  {formatCurrency(kpis.expenses)} registrados ·{' '}
  {(projectBudget.expenseLimit || 0) > 0 ? ((kpis.expenses / projectBudget.expenseLimit) * 100).toFixed(1) : '0.0'}% utilizado
  </p>
@@ -405,26 +405,26 @@ const ProyectoDashboard = ({ user }) => {
  <Section
  title="Evolución mensual"
  subtitle="Barras de ingresos y gastos con la línea de balance neto por mes."
- action={<span className="text-xs text-[var(--text-disabled)]">{monthlyData.length} meses</span>}
+ action={<span className="text-xs text-[var(--color-fg-4)]">{monthlyData.length} meses</span>}
  >
  {monthlyData.length > 0 ? (
  <div className="h-[320px]">
  <ResponsiveContainer width="100%" height="100%">
  <ComposedChart data={monthlyData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
- <CartesianGrid stroke="var(--border)" vertical={false} />
- <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-disabled)' }} axisLine={false} tickLine={false} />
- <YAxis yAxisId="left" tickFormatter={formatAxis} tick={{ fontSize: 11, fill: 'var(--text-disabled)' }} axisLine={false} tickLine={false} />
- <YAxis yAxisId="right" orientation="right" tickFormatter={formatAxis} tick={{ fontSize: 11, fill: 'var(--text-disabled)' }} axisLine={false} tickLine={false} />
+ <CartesianGrid stroke="var(--color-line)" vertical={false} />
+ <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--color-fg-4)' }} axisLine={false} tickLine={false} />
+ <YAxis yAxisId="left" tickFormatter={formatAxis} tick={{ fontSize: 11, fill: 'var(--color-fg-4)' }} axisLine={false} tickLine={false} />
+ <YAxis yAxisId="right" orientation="right" tickFormatter={formatAxis} tick={{ fontSize: 11, fill: 'var(--color-fg-4)' }} axisLine={false} tickLine={false} />
  <Tooltip content={<TooltipCard />} />
  <Legend verticalAlign="bottom" iconType="circle" iconSize={8} wrapperStyle={{ paddingTop: 12, fontSize: 11 }} />
- <Bar yAxisId="left" dataKey="ingresos" name="Ingresos" fill="var(--success)" maxBarSize={28} radius={0} />
- <Bar yAxisId="left" dataKey="gastos" name="Gastos" fill="var(--warning)" maxBarSize={28} radius={0} />
- <Line yAxisId="right" type="monotone" dataKey="margen" name="Balance" stroke="var(--text-primary)" strokeWidth={2.8} dot={false} />
+ <Bar yAxisId="left" dataKey="ingresos" name="Ingresos" fill="var(--color-ok)" maxBarSize={28} radius={0} />
+ <Bar yAxisId="left" dataKey="gastos" name="Gastos" fill="var(--color-warn)" maxBarSize={28} radius={0} />
+ <Line yAxisId="right" type="monotone" dataKey="margen" name="Balance" stroke="var(--color-fg-1)" strokeWidth={2.8} dot={false} />
  </ComposedChart>
  </ResponsiveContainer>
  </div>
  ) : (
- <div className="flex h-[320px] items-center justify-center text-sm text-[var(--text-secondary)]">
+ <div className="flex h-[320px] items-center justify-center text-sm text-[var(--color-fg-3)]">
  No hay movimientos suficientes para mostrar una evolución mensual.
  </div>
  )}
@@ -451,25 +451,25 @@ const ProyectoDashboard = ({ user }) => {
  </Pie>
  <Tooltip
  formatter={(value) => formatCurrency(value)}
- contentStyle={{ backgroundColor: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 18 }}
+ contentStyle={{ backgroundColor: 'var(--color-bg-2)', color: 'var(--color-fg-1)', border: '1px solid var(--color-line)', borderRadius: 18 }}
  />
  </PieChart>
  </ResponsiveContainer>
  </div>
  <div className="space-y-2">
  {categoryData.slice(0, 6).map((entry, index) => (
- <div key={entry.name} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5">
+ <div key={entry.name} className="flex items-center justify-between rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5">
  <div className="flex items-center gap-2">
  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
- <span className="text-[13px] font-medium text-[var(--text-primary)]">{entry.name}</span>
+ <span className="text-[13px] font-medium text-[var(--color-fg-1)]">{entry.name}</span>
  </div>
- <span className="text-[12px] font-medium text-[var(--text-secondary)]">{formatCurrency(entry.value)}</span>
+ <span className="text-[12px] font-medium text-[var(--color-fg-3)]">{formatCurrency(entry.value)}</span>
  </div>
  ))}
  </div>
  </>
  ) : (
- <div className="flex h-[320px] items-center justify-center text-sm text-[var(--text-secondary)]">
+ <div className="flex h-[320px] items-center justify-center text-sm text-[var(--color-fg-3)]">
  No hay gastos registrados en este proyecto.
  </div>
  )}
@@ -479,13 +479,13 @@ const ProyectoDashboard = ({ user }) => {
  <Section
  title="Movimientos del proyecto"
  subtitle="Últimos registros confirmados asociados al proyecto seleccionado."
- action={<span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[11px] text-[var(--text-secondary)]">{recentRows.length} registros</span>}
+ action={<span className="rounded-full border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1 text-[11px] text-[var(--color-fg-3)]">{recentRows.length} registros</span>}
  >
  {recentRows.length > 0 ? (
  <div className="overflow-x-auto">
  <table className="w-full min-w-[880px] text-left">
  <thead>
- <tr className="border-b border-[var(--border)] nd-label text-[var(--text-disabled)]">
+ <tr className="border-b border-[var(--color-line)] label-mono text-[var(--color-fg-4)]">
  <th className="px-4 py-3">Fecha</th>
  <th className="px-4 py-3">Descripción</th>
  <th className="px-4 py-3">Tipo</th>
@@ -493,14 +493,14 @@ const ProyectoDashboard = ({ user }) => {
  <th className="px-4 py-3 text-right">Importe</th>
  </tr>
  </thead>
- <tbody className="divide-y divide-[var(--border)]">
+ <tbody className="divide-y divide-[var(--color-line)]">
  {recentRows.map((entry) => (
- <tr key={entry.id} className="hover:bg-[var(--surface)]">
- <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{formatDate(entry.postedDate)}</td>
- <td className="px-4 py-3 text-sm font-medium text-[var(--text-primary)]">{entry.description || 'Movimiento sin descripción'}</td>
- <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{entry.kind || 'Movimiento'}</td>
- <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{entry.counterpartyName || 'Sin contraparte'}</td>
- <td className={`px-4 py-3 text-right text-sm font-medium ${entry.direction === 'in' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <tr key={entry.id} className="hover:bg-[var(--color-bg-1)]">
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{formatDate(entry.postedDate)}</td>
+ <td className="px-4 py-3 text-sm font-medium text-[var(--color-fg-1)]">{entry.description || 'Movimiento sin descripción'}</td>
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{entry.kind || 'Movimiento'}</td>
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{entry.counterpartyName || 'Sin contraparte'}</td>
+ <td className={`px-4 py-3 text-right text-sm font-medium ${entry.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {entry.direction === 'in' ? '+' : '-'}
  {formatCurrency(entry.amount)}
  </td>
@@ -510,7 +510,7 @@ const ProyectoDashboard = ({ user }) => {
  </table>
  </div>
  ) : (
- <div className="rounded-lg border border-dashed border-[var(--border)] px-4 py-12 text-center text-sm text-[var(--text-secondary)]">
+ <div className="rounded-lg border border-dashed border-[var(--color-line)] px-4 py-12 text-center text-sm text-[var(--color-fg-3)]">
  No hay movimientos registrados para este proyecto en la base actual.
  </div>
  )}

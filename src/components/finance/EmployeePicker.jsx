@@ -102,10 +102,10 @@ const EmployeePicker = ({ value = [], onChange, user, label = 'Técnicos / Emple
 
   return (
     <div className="relative">
-      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-disabled)]">
-        <HardHat size={14} className="text-[var(--text-secondary)]" />
+      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--color-fg-4)]">
+        <HardHat size={14} className="text-[var(--color-fg-3)]" />
         {label}
-        {helpText && <span className="text-xs font-normal text-[var(--text-secondary)]">{helpText}</span>}
+        {helpText && <span className="text-xs font-normal text-[var(--color-fg-3)]">{helpText}</span>}
       </label>
 
       {/* Selected chips */}
@@ -120,17 +120,17 @@ const EmployeePicker = ({ value = [], onChange, user, label = 'Técnicos / Emple
                 key={id}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
                   isOrphan
-                    ? 'border-[var(--warning)] text-[var(--warning)]'
-                    : 'border-[var(--border-visible)] bg-[var(--surface-raised)] text-[var(--text-primary)]'
+                    ? 'border-[var(--color-warn)] text-[var(--color-warn)]'
+                    : 'border-[var(--color-line-s)] bg-[var(--color-bg-2)] text-[var(--color-fg-1)]'
                 }`}
               >
                 {!isOrphan && <HardHat size={11} />}
                 {label}
-                {emp?.role && <span className="text-[var(--text-secondary)]">· {emp.role}</span>}
+                {emp?.role && <span className="text-[var(--color-fg-3)]">· {emp.role}</span>}
                 <button
                   type="button"
                   onClick={() => removeEmployee(id)}
-                  className="ml-0.5 rounded-full p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--accent)]"
+                  className="ml-0.5 rounded-full p-0.5 text-[var(--color-fg-3)] transition hover:text-[var(--color-accent)]"
                   aria-label={`Quitar ${label}`}
                 >
                   <X size={11} />
@@ -142,12 +142,12 @@ const EmployeePicker = ({ value = [], onChange, user, label = 'Técnicos / Emple
       )}
 
       {loading ? (
-        <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+        <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-3)]">
           <Loader2 className="w-4 h-4 animate-spin" />
           Cargando empleados...
         </div>
       ) : activeEmployees.length === 0 ? (
-        <div className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+        <div className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-xs text-[var(--color-fg-3)]">
           Aún no hay empleados activos. Crea uno en /empleados para poder asociarlo.
         </div>
       ) : (
@@ -155,7 +155,7 @@ const EmployeePicker = ({ value = [], onChange, user, label = 'Técnicos / Emple
           ref={inputRef}
           type="text"
           placeholder="Buscar técnico por nombre o alias..."
-          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--text-primary)]"
+          className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)]"
           value={input}
           onChange={(e) => {
             setInput(e.target.value);
@@ -171,7 +171,7 @@ const EmployeePicker = ({ value = [], onChange, user, label = 'Técnicos / Emple
       {showSuggestions && suggestions.length > 0 && (
         <div
           ref={suggestionsRef}
-          className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]"
+          className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)]"
           style={{ boxShadow: 'none' }}
         >
           {suggestions.map((emp, idx) => (
@@ -180,19 +180,19 @@ const EmployeePicker = ({ value = [], onChange, user, label = 'Técnicos / Emple
               type="button"
               onClick={() => addEmployee(emp)}
               className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                idx === activeIndex ? 'bg-transparent' : 'hover:bg-[var(--surface)]'
-              } ${idx > 0 ? 'border-t border-[var(--surface)]' : ''}`}
+                idx === activeIndex ? 'bg-transparent' : 'hover:bg-[var(--color-bg-1)]'
+              } ${idx > 0 ? 'border-t border-[var(--color-bg-1)]' : ''}`}
             >
               <div className="flex items-center gap-2">
-                <HardHat size={12} className="text-[var(--text-secondary)]" />
-                <span className="font-medium text-[var(--text-primary)]">{emp.fullName}</span>
-                <span className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+                <HardHat size={12} className="text-[var(--color-fg-3)]" />
+                <span className="font-medium text-[var(--color-fg-1)]">{emp.fullName}</span>
+                <span className="text-[10px] uppercase tracking-wide text-[var(--color-fg-3)]">
                   {emp.type === 'external' ? 'Externo' : 'Interno'}
                 </span>
-                {emp.role && <span className="text-xs text-[var(--text-secondary)]">· {emp.role}</span>}
+                {emp.role && <span className="text-xs text-[var(--color-fg-3)]">· {emp.role}</span>}
               </div>
               {emp.aliases && emp.aliases.length > 0 && (
-                <p className="ml-5 text-[10px] text-[var(--text-secondary)]">
+                <p className="ml-5 text-[10px] text-[var(--color-fg-3)]">
                   alias: {emp.aliases.slice(0, 3).join(', ')}
                 </p>
               )}

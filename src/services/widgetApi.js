@@ -1,10 +1,10 @@
-// FinControl Hub Widget API
+// NEXUS.OS Hub Widget API
 // Expone datos para el Nexus Hub
 
 import { collection, getDocs } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 
-class FinControlWidgetAPI {
+class NexusWidgetAPI {
   constructor() {
     this.cache = {
       lastUpdate: null,
@@ -117,7 +117,7 @@ class FinControlWidgetAPI {
 
       return summary;
     } catch (error) {
-      console.error('FinControlWidgetAPI Error:', error);
+      console.error('NexusWidgetAPI Error:', error);
       return this.cache.data || this.getDefaultSummary();
     }
   }
@@ -155,6 +155,6 @@ class FinControlWidgetAPI {
 }
 
 // Singleton export
-export const finControlWidget = new FinControlWidgetAPI();
+export const nexusWidget = new NexusWidgetAPI();
 
-export default FinControlWidgetAPI;
+export default NexusWidgetAPI;

@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════
-   FINCONTROL — NEXUS.OS Design System
+   NEXUS.OS Design System
    ═══════════════════════════════════════════════════════════ */
 
 @theme {
@@ -67,144 +67,6 @@
   --transition-base: 0.2s cubic-bezier(0.3, 0, 0.2, 1);
   --transition-slow: 0.3s cubic-bezier(0.3, 0, 0.2, 1);
 
-  /* Legacy → Nexus compat */
-  --black: #07080A;
-  --surface: #0E1014;
-  --surface-raised: #161920;
-  --border: #222630;
-  --border-visible: #2E3440;
-  --border-subtle: #161920;
-  --text-disabled: #4A4C50;
-  --text-secondary: #7B7D7A;
-  --text-primary: #F5F3EE;
-  --text-display: #F5F3EE;
-  --text-inverse: #0A0B0D;
-  --text-tertiary: #4A4C50;
-
-  /* Accent & status → Nexus */
-  --accent: #FF4D2E;
-  --accent-subtle: rgba(255, 77, 46, 0.12);
-  --negative: #FF4D2E;
-  --negative-bright: #FF4D2E;
-  --success: #4ADE80;
-  --warning: #FFB020;
-  --error: #FF4D2E;
-  --info: #6BA6FF;
-  --interactive: #FF4D2E;
-
-  /* Legacy aliases */
-  --bg-primary: #07080A;
-  --bg-secondary: #0E1014;
-  --bg-tertiary: #161920;
-  --surface-card: #0E1014;
-  --surface-elevated: #161920;
-  --bg-glass: #0E1014;
-  --bg-hover: #262A34;
-  --border-color: #222630;
-  --border-color-strong: #2E3440;
-  --separator: #222630;
-
-  /* Legacy color aliases — all map to Nexus semantic tokens */
-  --primary-500: #F5F3EE;
-  --primary-600: #F5F3EE;
-  --primary-700: #F5F3EE;
-  --green: #4ADE80;
-  --green-dim: rgba(74, 222, 128, 0.12);
-  --blue: #6BA6FF;
-  --blue-dim: rgba(107, 166, 255, 0.10);
-  --orange: #FFB020;
-  --orange-dim: rgba(255, 176, 32, 0.10);
-  --red: #FF4D2E;
-  --red-dim: rgba(255, 77, 46, 0.10);
-  --yellow: #FFB020;
-  --yellow-dim: rgba(255, 176, 32, 0.10);
-  --purple: #7B7D7A;
-  --purple-dim: rgba(123, 125, 122, 0.10);
-  --indigo: #6BA6FF;
-
-  /* Semantic scale */
-  --success-50: rgba(74, 222, 128, 0.10);
-  --success-500: #4ADE80;
-  --success-600: #3CBB6A;
-  --warning-50: rgba(255, 176, 32, 0.10);
-  --warning-500: #FFB020;
-  --warning-600: #E69C17;
-  --error-50: rgba(255, 77, 46, 0.10);
-  --error-500: #FF4D2E;
-  --error-600: #E63A1C;
-  --info-50: rgba(107, 166, 255, 0.08);
-  --info-500: #6BA6FF;
-  --info-600: #4F8FE8;
-
-  /* Type scale */
-  --display-xl: 72px;
-  --display-lg: 48px;
-  --display-md: 36px;
-  --heading: 24px;
-  --subheading: 18px;
-  --body: 16px;
-  --body-sm: 14px;
-  --caption: 12px;
-  --label: 11px;
-
-  /* No shadows in Nexus */
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-  --shadow-xl: none;
-
-  /* Layout */
-  --sidebar-width: 220px;
-  --sidebar-collapsed-width: 56px;
-  --header-height: 52px;
-
-  /* Legacy radius — clamped to Nexus */
-  --radius-xl: 10px;
-  --radius-2xl: 10px;
-  --radius-full: 999px;
-
-  /* Spacing (8px base) */
-  --space-2xs: 2px;
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 32px;
-  --space-2xl: 48px;
-  --space-3xl: 64px;
-  --space-4xl: 96px;
-
-  /* Legacy fonts */
-  --font-display-legacy: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-
-  /* Legacy grayscale — mapped to Nexus */
-  --gray-50: #0E1014;
-  --gray-100: #161920;
-  --gray-200: #222630;
-  --gray-300: #2E3440;
-  --gray-400: #4A4C50;
-  --gray-500: #7B7D7A;
-  --gray-600: #7B7D7A;
-  --gray-700: #B9BAB4;
-  --gray-800: #F5F3EE;
-  --gray-900: #F5F3EE;
-
-  /* Deprecated design aliases */
-  --nd-black: #07080A;
-  --nd-surface: #0E1014;
-  --nd-surface-raised: #161920;
-  --nd-border: #222630;
-  --nd-border-visible: #2E3440;
-  --nd-text-disabled: #4A4C50;
-  --nd-text-secondary: #7B7D7A;
-  --nd-text-primary: #F5F3EE;
-  --nd-text-display: #F5F3EE;
-  --nd-accent: #FF4D2E;
-  --nd-success: #4ADE80;
-  --nd-warning: #FFB020;
-  --nd-error: #FF4D2E;
-  --nd-info: #6BA6FF;
-  --nd-interactive: #FF4D2E;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -302,12 +164,13 @@ input, select, textarea {
   font-size: 14px;
   outline: none;
   transition: border-color 120ms cubic-bezier(0.3, 0, 0.2, 1),
-              box-shadow 120ms cubic-bezier(0.3, 0, 0.2, 1);
+              outline-color 120ms cubic-bezier(0.3, 0, 0.2, 1);
 }
 
 input:focus, select:focus, textarea:focus {
   border-color: #FF4D2E;
-  box-shadow: 0 0 0 3px rgba(255, 77, 46, 0.15);
+  outline: 2px solid rgba(255, 77, 46, 0.24);
+  outline-offset: 1px;
 }
 
 input::placeholder, textarea::placeholder {
@@ -327,164 +190,12 @@ input::placeholder, textarea::placeholder {
 }
 
 .form-control:focus {
-  outline: none;
+  outline: 2px solid rgba(255, 77, 46, 0.24);
+  outline-offset: 1px;
   border-color: #FF4D2E;
-  box-shadow: 0 0 0 3px rgba(255, 77, 46, 0.15);
 }
 
 .form-control::placeholder { color: #4A4C50; }
-
-/* ═══════════════════════════════════════════════════════════
-   DEPRECATED legacy button classes — mapped to Nexus aesthetic
-   Do not use in new UI. Use src/components/ui/nexus/Button.jsx.
-   ═══════════════════════════════════════════════════════════ */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 120ms cubic-bezier(0.3, 0, 0.2, 1);
-  min-height: 36px;
-}
-.btn-primary { background: #FF4D2E; color: #0A0B0D; }
-.btn-primary:hover { background: #FF6B50; }
-.btn-success { background: #FF4D2E; color: #0A0B0D; }
-.btn-success:hover { background: #FF6B50; }
-.btn-danger { background: transparent; color: #FF4D2E; border: 1px solid rgba(255, 77, 46, 0.4); }
-.btn-danger:hover { background: rgba(255, 77, 46, 0.1); }
-.btn-secondary { background: #1D2029; color: #F5F3EE; border: 1px solid #2E3440; }
-.btn-secondary:hover { background: #262A34; }
-
-/* ═══════════════════════════════════════════════════════════
-   DEPRECATED legacy card — mapped to Nexus panel
-   Do not use in new UI. Use src/components/ui/nexus/Panel.jsx.
-   ═══════════════════════════════════════════════════════════ */
-.card {
-  background: #161920;
-  border: 1px solid #222630;
-  border-radius: 10px;
-}
-.card-header {
-  padding: 14px 18px;
-  border-bottom: 1px solid #222630;
-  font-weight: 500;
-  font-size: 14px;
-  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  color: #F5F3EE;
-  letter-spacing: -0.01em;
-}
-.card-body { padding: 18px; }
-.card-footer { padding: 14px 18px; border-top: 1px solid #222630; }
-.card-hover { transition: border-color 120ms cubic-bezier(0.3, 0, 0.2, 1); }
-.card-hover:hover { border-color: #2E3440; }
-
-/* ═══════════════════════════════════════════════════════════
-   DEPRECATED legacy badge/alert/table → Nexus
-   Do not use in new UI. Use src/components/ui/nexus components.
-   ═══════════════════════════════════════════════════════════ */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  font-size: 10px;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-radius: 999px;
-  color: #B9BAB4;
-  background: #1D2029;
-  border: none;
-}
-.badge-primary { color: #F5F3EE; background: #1D2029; }
-.badge-success { color: #4ADE80; background: rgba(74, 222, 128, 0.12); }
-.badge-warning { color: #FFB020; background: rgba(255, 176, 32, 0.12); }
-.badge-danger { color: #FF4D2E; background: rgba(255, 77, 46, 0.12); }
-
-.alert {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
-  border: 1px solid;
-  background: transparent;
-}
-.alert-success { color: #F5F3EE; border-color: rgba(74, 222, 128, 0.3); background: rgba(74, 222, 128, 0.05); }
-.alert-danger  { color: #F5F3EE; border-color: rgba(255, 77, 46, 0.35); background: rgba(255, 77, 46, 0.05); }
-.alert-warning { color: #F5F3EE; border-color: rgba(255, 176, 32, 0.3); background: rgba(255, 176, 32, 0.05); }
-.alert-info    { color: #F5F3EE; border-color: rgba(107, 166, 255, 0.3); background: rgba(107, 166, 255, 0.05); }
-
-.table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.table thead { background: transparent; }
-.table th {
-  padding: 10px 14px;
-  text-align: left;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-weight: 500;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #7B7D7A;
-  border-bottom: 1px solid #222630;
-}
-.table td {
-  padding: 12px 14px;
-  color: #F5F3EE;
-  border-bottom: 1px solid #222630;
-  font-variant-numeric: tabular-nums;
-}
-.table tr:hover td { background: #161920; }
-
-/* ═══════════════════════════════════════════════════════════
-   Legacy sidebar-dark (kept for MobileMenu etc.)
-   ═══════════════════════════════════════════════════════════ */
-.sidebar-dark {
-  background: #07080A;
-  border-right: 1px solid #222630;
-}
-.sidebar-dark .nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  color: #7B7D7A;
-  border-radius: 4px;
-  margin-bottom: 0;
-  transition: color 120ms cubic-bezier(0.3, 0, 0.2, 1),
-              background 120ms cubic-bezier(0.3, 0, 0.2, 1);
-  position: relative;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.sidebar-dark .nav-item:hover { background: #161920; color: #F5F3EE; }
-.sidebar-dark .nav-item.active {
-  background: #1D2029;
-  color: #F5F3EE;
-}
-.sidebar-dark .nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #FF4D2E;
-}
 
 /* ═══════════════════════════════════════════════════════════════════
    NEXUS.OS Component Library (.nx-*) — ported from NE4
@@ -761,146 +472,6 @@ input::placeholder, textarea::placeholder {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   DEPRECATED compat utility classes (nd-* / n-*)
-   New UI should use label-mono, font-mono, font-display, and .nx-*.
-   ═══════════════════════════════════════════════════════════ */
-.nd-display {
-  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  font-weight: 300;
-  letter-spacing: -0.03em;
-}
-.nd-mono {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  letter-spacing: 0.02em;
-}
-.nd-label {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #7B7D7A;
-}
-.nd-heading {
-  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: #F5F3EE;
-}
-
-.n-label {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #7B7D7A;
-}
-.n-mono {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-}
-.n-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-radius: 999px;
-  background: #1D2029;
-  color: #B9BAB4;
-}
-.n-negative { color: #FF4D2E; }
-.n-divider { border-color: #222630; }
-.n-divider-strong { border-color: #2E3440; }
-
-.n-empty {
-  padding: 48px 16px;
-  text-align: center;
-  color: #4A4C50;
-  font-size: 14px;
-}
-.n-empty p:first-child {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  margin-bottom: 8px;
-}
-
-.dot-grid {
-  background-image: radial-gradient(circle, #2E3440 1px, transparent 1px);
-  background-size: 16px 16px;
-}
-.dot-grid-subtle {
-  background-image: radial-gradient(circle, #222630 0.5px, transparent 0.5px);
-  background-size: 12px 12px;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Tailwind color class overrides — remap legacy palette to Nexus
-   ═══════════════════════════════════════════════════════════ */
-.bg-white { background-color: #161920 !important; }
-.bg-black { background-color: #07080A !important; }
-.bg-gray-50, .bg-slate-50 { background-color: #0E1014 !important; }
-.bg-gray-100, .bg-slate-100 { background-color: #0E1014 !important; }
-.bg-gray-200, .bg-slate-200 { background-color: #161920 !important; }
-.bg-gray-300, .bg-slate-300 { background-color: #1D2029 !important; }
-.bg-gray-800, .bg-slate-800 { background-color: #161920 !important; }
-.bg-gray-900, .bg-slate-900 { background-color: #07080A !important; }
-
-.bg-blue-50, .bg-indigo-50, .bg-sky-50 { background-color: rgba(107, 166, 255, 0.08) !important; }
-.bg-blue-100, .bg-indigo-100 { background-color: rgba(107, 166, 255, 0.12) !important; }
-.bg-green-50, .bg-emerald-50, .bg-teal-50 { background-color: rgba(74, 222, 128, 0.08) !important; }
-.bg-green-100, .bg-emerald-100 { background-color: rgba(74, 222, 128, 0.12) !important; }
-.bg-red-50, .bg-rose-50 { background-color: rgba(255, 77, 46, 0.08) !important; }
-.bg-red-100, .bg-rose-100 { background-color: rgba(255, 77, 46, 0.12) !important; }
-.bg-yellow-50, .bg-amber-50, .bg-orange-50 { background-color: rgba(255, 176, 32, 0.08) !important; }
-.bg-yellow-100, .bg-amber-100 { background-color: rgba(255, 176, 32, 0.12) !important; }
-.bg-purple-50, .bg-violet-50, .bg-cyan-50, .bg-pink-50 { background-color: #161920 !important; }
-.bg-purple-100, .bg-violet-100 { background-color: #1D2029 !important; }
-
-.text-white { color: #F5F3EE !important; }
-.text-black { color: #0A0B0D !important; }
-.text-gray-900, .text-slate-900 { color: #F5F3EE !important; }
-.text-gray-800, .text-slate-800 { color: #F5F3EE !important; }
-.text-gray-700, .text-slate-700 { color: #F5F3EE !important; }
-.text-gray-600, .text-slate-600 { color: #B9BAB4 !important; }
-.text-gray-500, .text-slate-500 { color: #7B7D7A !important; }
-.text-gray-400, .text-slate-400 { color: #4A4C50 !important; }
-.text-gray-300, .text-slate-300 { color: #4A4C50 !important; }
-
-.border-gray-100, .border-slate-100 { border-color: #222630 !important; }
-.border-gray-200, .border-slate-200 { border-color: #222630 !important; }
-.border-gray-300, .border-slate-300 { border-color: #2E3440 !important; }
-.border-blue-100, .border-blue-200 { border-color: #2E3440 !important; }
-.border-green-100, .border-green-200, .border-emerald-200 { border-color: rgba(74, 222, 128, 0.3) !important; }
-.border-red-100, .border-red-200, .border-rose-200 { border-color: rgba(255, 77, 46, 0.35) !important; }
-.border-yellow-200, .border-amber-200 { border-color: rgba(255, 176, 32, 0.3) !important; }
-
-.divide-gray-100 > * + *, .divide-slate-100 > * + * { border-color: #222630 !important; }
-.divide-gray-200 > * + *, .divide-slate-200 > * + * { border-color: #222630 !important; }
-
-.hover\:bg-gray-50:hover, .hover\:bg-slate-50:hover { background-color: #161920 !important; }
-.hover\:bg-gray-100:hover, .hover\:bg-slate-100:hover { background-color: #161920 !important; }
-.hover\:bg-gray-200:hover, .hover\:bg-slate-200:hover { background-color: #1D2029 !important; }
-.hover\:bg-blue-50:hover, .hover\:bg-indigo-50:hover { background-color: rgba(107, 166, 255, 0.12) !important; }
-.hover\:bg-green-50:hover, .hover\:bg-emerald-50:hover { background-color: rgba(74, 222, 128, 0.12) !important; }
-.hover\:bg-red-50:hover, .hover\:bg-rose-50:hover { background-color: rgba(255, 77, 46, 0.12) !important; }
-[class*="hover\:bg-white"]:hover { background-color: #161920 !important; }
-
-.ring-slate-100, .ring-gray-100 { --tw-ring-color: #222630 !important; }
-.ring-blue-100 { --tw-ring-color: #2E3440 !important; }
-
-/* No shadows in Nexus */
-.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
-
-/* ═══════════════════════════════════════════════════════════
    Typography base (h1 = font-light per Nexus rule)
    ═══════════════════════════════════════════════════════════ */
 h1, h2, h3, h4 {
@@ -912,9 +483,6 @@ h1 { font-weight: 300; letter-spacing: -0.03em; }
 h2, h3 { font-weight: 500; }
 body, p, span { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; }
 input, select, textarea { font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important; }
-
-/* Card hover tweak */
-.card-hover:hover { transform: none !important; box-shadow: none !important; }
 
 /* Safe area bottom (for iOS) */
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }

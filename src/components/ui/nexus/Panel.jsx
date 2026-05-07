@@ -1,7 +1,7 @@
 /**
  * NEXUS.OS — Panel
  *
- * The base "card" container. Border + radius-md, surface bg, no shadow.
+ * The base "card" container. Border + radius-md, surface bg, no elevation effects.
  * Optional header with title + meta + actions slot.
  *
  * Usage:

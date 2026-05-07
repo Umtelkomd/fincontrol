@@ -72,25 +72,25 @@ const GenerateMonthModal = ({ isOpen, onClose, user }) => {
  for (let y = currentYear - 1; y <= currentYear + 1; y++) yearOptions.push(y);
 
  return (
- <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={onClose}>
- <div className="bg-[var(--surface)] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
- <header className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+ <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={onClose}>
+ <div className="bg-[var(--color-bg-1)] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+ <header className="px-6 py-4 border-b border-[var(--color-line)] flex items-center justify-between">
  <div className="flex items-center gap-3">
- <Repeat size={18} className="text-[var(--text-disabled)]" />
- <h2 className="text-lg font-medium text-[var(--text-primary)]">
+ <Repeat size={18} className="text-[var(--color-fg-4)]" />
+ <h2 className="text-lg font-medium text-[var(--color-fg-1)]">
  Generar pagos del mes
  </h2>
  </div>
- <button type="button" onClick={onClose} className="text-[var(--text-disabled)] hover:text-[var(--text-primary)]">
+ <button type="button" onClick={onClose} className="text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]">
  <X size={20} />
  </button>
  </header>
 
- <div className="px-6 py-4 border-b border-[var(--border)] flex items-end gap-4 flex-wrap">
+ <div className="px-6 py-4 border-b border-[var(--color-line)] flex items-end gap-4 flex-wrap">
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Año</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Año</span>
  <select
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm text-[var(--color-fg-1)] outline-none"
  value={year}
  onChange={(e) => { setYear(Number(e.target.value)); setResult(null); }}
  >
@@ -98,9 +98,9 @@ const GenerateMonthModal = ({ isOpen, onClose, user }) => {
  </select>
  </label>
  <label className="block">
- <span className="mb-1.5 block nd-label text-[var(--text-disabled)]">Mes</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Mes</span>
  <select
- className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm text-[var(--color-fg-1)] outline-none"
  value={month}
  onChange={(e) => { setMonth(Number(e.target.value)); setResult(null); }}
  >
@@ -109,13 +109,13 @@ const GenerateMonthModal = ({ isOpen, onClose, user }) => {
  ))}
  </select>
  </label>
- <p className="ml-auto text-[12px] text-[var(--text-secondary)] flex items-center gap-2">
- <Calendar size={14} className="text-[var(--text-disabled)]" />
- Período: <span className="text-[var(--text-primary)] nd-mono">{periodLabel(year, month)}</span>
+ <p className="ml-auto text-[12px] text-[var(--color-fg-3)] flex items-center gap-2">
+ <Calendar size={14} className="text-[var(--color-fg-4)]" />
+ Período: <span className="text-[var(--color-fg-1)] font-mono">{periodLabel(year, month)}</span>
  </p>
  </div>
 
- <div className="px-6 py-4 border-b border-[var(--border)]">
+ <div className="px-6 py-4 border-b border-[var(--color-line)]">
  <KPIGrid cols={3}>
  <KPI
  label="Nuevas a crear"
@@ -140,8 +140,8 @@ const GenerateMonthModal = ({ isOpen, onClose, user }) => {
  <div className="overflow-y-auto flex-1">
  {instances.length === 0 ? (
  <div className="px-4 py-12 text-center">
- <p className="nd-label text-[var(--text-disabled)]">[SIN REGLAS APLICABLES]</p>
- <p className="mt-2 text-[13px] text-[var(--text-disabled)]">
+ <p className="label-mono text-[var(--color-fg-4)]">[SIN REGLAS APLICABLES]</p>
+ <p className="mt-2 text-[13px] text-[var(--color-fg-4)]">
  No hay costos recurrentes activos que apliquen a {periodLabel(year, month)}.
  </p>
  </div>
@@ -160,11 +160,11 @@ const GenerateMonthModal = ({ isOpen, onClose, user }) => {
  <tbody>
  {instances.map((i, idx) => (
  <tr key={`${i.recurringCostId}-${idx}`}>
- <td className="font-medium text-[var(--text-primary)]">{i.concept}</td>
- <td className="text-[var(--text-secondary)]">{i.ownerName || '—'}</td>
- <td className="text-[var(--text-secondary)]">{i.counterpartyName || '—'}</td>
- <td className="nd-mono text-[var(--text-secondary)]">{i.dueDate}</td>
- <td className="text-right nd-mono tabular-nums">{formatCurrency(i.amount)}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">{i.concept}</td>
+ <td className="text-[var(--color-fg-3)]">{i.ownerName || '—'}</td>
+ <td className="text-[var(--color-fg-3)]">{i.counterpartyName || '—'}</td>
+ <td className="font-mono text-[var(--color-fg-3)]">{i.dueDate}</td>
+ <td className="text-right font-mono tabular-nums">{formatCurrency(i.amount)}</td>
  <td className="text-center">
  {i.existing ? (
  <Badge variant="ok" dot>Ya existe</Badge>
@@ -180,24 +180,24 @@ const GenerateMonthModal = ({ isOpen, onClose, user }) => {
  </div>
 
  {result && (
- <div className={`px-6 py-3 border-t border-[var(--border)] ${result.errors?.length > 0 ? 'bg-[rgba(255,77,46,0.05)]' : 'bg-[rgba(74,222,128,0.05)]'}`}>
+ <div className={`px-6 py-3 border-t border-[var(--color-line)] ${result.errors?.length > 0 ? 'bg-[rgba(255,77,46,0.05)]' : 'bg-[rgba(74,222,128,0.05)]'}`}>
  <div className="flex items-center gap-3">
  {result.errors?.length > 0 ? (
- <AlertCircle size={16} className="text-[var(--error)]" />
+ <AlertCircle size={16} className="text-[var(--color-err)]" />
  ) : (
- <CheckCircle2 size={16} className="text-[var(--success)]" />
+ <CheckCircle2 size={16} className="text-[var(--color-ok)]" />
  )}
- <p className="text-sm text-[var(--text-primary)]">
- <span className="text-[var(--success)]">{result.created}</span> creadas ·{' '}
- <span className="text-[var(--text-disabled)]">{result.skipped}</span> ya existían
- {result.errors?.length > 0 && <span className="text-[var(--error)]"> · {result.errors.length} errores</span>}
+ <p className="text-sm text-[var(--color-fg-1)]">
+ <span className="text-[var(--color-ok)]">{result.created}</span> creadas ·{' '}
+ <span className="text-[var(--color-fg-4)]">{result.skipped}</span> ya existían
+ {result.errors?.length > 0 && <span className="text-[var(--color-err)]"> · {result.errors.length} errores</span>}
  </p>
  </div>
  </div>
  )}
 
- <footer className="px-6 py-4 border-t border-[var(--border)] flex justify-between items-center gap-3">
- <p className="text-[11px] text-[var(--text-disabled)] max-w-md">
+ <footer className="px-6 py-4 border-t border-[var(--color-line)] flex justify-between items-center gap-3">
+ <p className="text-[11px] text-[var(--color-fg-4)] max-w-md">
  Idempotente: ya las creadas se omiten. Las nuevas se agregan a CXP con vencimiento
  calculado del día configurado en cada regla.
  </p>

@@ -130,18 +130,18 @@ const DatevImport = ({ user }) => {
  <div className="space-y-6 pb-12">
  <header className="flex items-end justify-between gap-4 flex-wrap">
  <div>
- <p className="nd-label text-[var(--text-secondary)]">DATEV · Importación</p>
- <h2 className="mt-2 nd-display text-[28px] font-light tracking-tight text-[var(--text-primary)]">
+ <p className="label-mono text-[var(--color-fg-3)]">DATEV · Importación</p>
+ <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
  Importar movimientos bancarios
  </h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)] max-w-2xl">
+ <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
  Sube uno o varios CSVs (Sparkasse Kontobewegungen). El sistema detecta duplicados
  contra los movimientos ya cargados (mismo fecha + monto + dirección + contraparte) y
  solo crea los nuevos.
  </p>
  {(rules || []).filter((r) => r.active).length > 0 && (
- <p className="mt-2 inline-flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
- <Wand2 size={12} className="text-[var(--accent)]" />
+ <p className="mt-2 inline-flex items-center gap-2 text-[12px] text-[var(--color-fg-3)]">
+ <Wand2 size={12} className="text-[var(--color-accent)]" />
  {(rules || []).filter((r) => r.active).length} regla(s) activas — los movimientos coincidentes se clasificarán automáticamente al importar.
  </p>
  )}
@@ -179,8 +179,8 @@ const DatevImport = ({ user }) => {
  <div
  className={`rounded-md border-2 border-dashed px-6 py-12 text-center transition-colors ${
  isDragging
- ? 'border-[var(--accent)] bg-[rgba(255,77,46,0.05)]'
- : 'border-[var(--border)] bg-[var(--surface)]'
+ ? 'border-[var(--color-accent)] bg-[rgba(255,77,46,0.05)]'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)]'
  }`}
  onDragOver={(e) => {
  e.preventDefault();
@@ -189,15 +189,15 @@ const DatevImport = ({ user }) => {
  onDragLeave={() => setIsDragging(false)}
  onDrop={onDrop}
  >
- <Upload size={32} className="mx-auto text-[var(--text-disabled)]" />
- <p className="mt-3 text-sm text-[var(--text-primary)]">
+ <Upload size={32} className="mx-auto text-[var(--color-fg-4)]" />
+ <p className="mt-3 text-sm text-[var(--color-fg-1)]">
  Arrastrá archivos CSV aquí o
- <label className="ml-1 text-[var(--accent)] cursor-pointer underline">
+ <label className="ml-1 text-[var(--color-accent)] cursor-pointer underline">
  examiná
  <input type="file" multiple accept=".csv" className="hidden" onChange={onFileSelect} />
  </label>
  </p>
- <p className="mt-1 text-[12px] text-[var(--text-disabled)]">
+ <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
  Sparkasse "Kontobewegungen Export" · UTF-8 · separador ;
  </p>
  </div>
@@ -221,22 +221,22 @@ const DatevImport = ({ user }) => {
  <tbody>
  {files.map((f) => (
  <tr key={f.id}>
- <td className="font-medium text-[var(--text-primary)]">{f.name}</td>
- <td className="nd-mono text-[var(--text-secondary)]">
+ <td className="font-medium text-[var(--color-fg-1)]">{f.name}</td>
+ <td className="font-mono text-[var(--color-fg-3)]">
  {f.parsed.period
  ? `${f.parsed.period.minDate} → ${f.parsed.period.maxDate}`
  : '—'}
  </td>
- <td className="text-right nd-mono tabular-nums">{f.parsed.rows.length}</td>
- <td className="text-right nd-mono tabular-nums text-[var(--warning)]">
+ <td className="text-right font-mono tabular-nums">{f.parsed.rows.length}</td>
+ <td className="text-right font-mono tabular-nums text-[var(--color-warn)]">
  {f.diff.newRows.length}
  </td>
- <td className="text-right nd-mono tabular-nums text-[var(--text-disabled)]">
+ <td className="text-right font-mono tabular-nums text-[var(--color-fg-4)]">
  {f.diff.duplicateRows.length}
  </td>
- <td className="text-right nd-mono tabular-nums">
+ <td className="text-right font-mono tabular-nums">
  {f.parsed.errors.length > 0 ? (
- <span className="text-[var(--error)]">{f.parsed.errors.length}</span>
+ <span className="text-[var(--color-err)]">{f.parsed.errors.length}</span>
  ) : (
  '—'
  )}
@@ -290,13 +290,13 @@ const DatevImport = ({ user }) => {
  )}
 
  {files.some((f) => f.parsed.errors.length > 0) && (
- <div className="rounded-md border border-[var(--warning)]/40 bg-[rgba(255,176,32,0.05)] px-4 py-3 flex items-start gap-3">
- <AlertCircle size={16} className="text-[var(--warning)] flex-shrink-0 mt-0.5" />
+ <div className="rounded-md border border-[var(--color-warn)]/40 bg-[rgba(255,176,32,0.05)] px-4 py-3 flex items-start gap-3">
+ <AlertCircle size={16} className="text-[var(--color-warn)] flex-shrink-0 mt-0.5" />
  <div>
- <p className="text-sm text-[var(--text-primary)]">
+ <p className="text-sm text-[var(--color-fg-1)]">
  Algunas filas no pudieron parsearse (probablemente sin fecha o sin monto).
  </p>
- <p className="mt-1 text-[12px] text-[var(--text-disabled)]">
+ <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
  Revisá los archivos o pasame el detalle si es masivo.
  </p>
  </div>
@@ -304,13 +304,13 @@ const DatevImport = ({ user }) => {
  )}
 
  {files.every((f) => f.status === 'done') && files.length > 0 && totals.totalImported > 0 && (
- <div className="rounded-md border border-[var(--success)]/40 bg-[rgba(74,222,128,0.05)] px-4 py-3 flex items-start gap-3">
- <CheckCircle2 size={16} className="text-[var(--success)] flex-shrink-0 mt-0.5" />
+ <div className="rounded-md border border-[var(--color-ok)]/40 bg-[rgba(74,222,128,0.05)] px-4 py-3 flex items-start gap-3">
+ <CheckCircle2 size={16} className="text-[var(--color-ok)] flex-shrink-0 mt-0.5" />
  <div>
- <p className="text-sm text-[var(--text-primary)]">
+ <p className="text-sm text-[var(--color-fg-1)]">
  Importación completa: {totals.totalImported} movimientos creados, {totals.totalDup} duplicados omitidos.
  </p>
- <p className="mt-1 text-[12px] text-[var(--text-disabled)]">
+ <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
  Los movimientos quedan sin categoría ni proyecto. Asignalos desde la vista correspondiente o creá reglas en Costos recurrentes.
  </p>
  </div>

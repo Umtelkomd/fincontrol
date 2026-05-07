@@ -35,7 +35,7 @@ const ACTIONS = [
  title: 'Registrar cobro',
  description: 'Entrada real de dinero, con o sin factura CXC asociada.',
  icon: ArrowUpRight,
- accent: 'var(--success)',
+ accent: 'var(--color-ok)',
  family: 'Caja real',
  },
  {
@@ -43,7 +43,7 @@ const ACTIONS = [
  title: 'Registrar pago',
  description: 'Salida real de dinero, con o sin factura CXP asociada.',
  icon: ArrowDownLeft,
- accent: 'var(--accent)',
+ accent: 'var(--color-accent)',
  family: 'Caja real',
  },
  {
@@ -51,7 +51,7 @@ const ACTIONS = [
  title: 'Crear factura CXC',
  description: 'Documento pendiente por cobrar que aun no afecta caja.',
  icon: FileUp,
- accent: 'var(--text-secondary)',
+ accent: 'var(--color-fg-3)',
  family: 'Documento',
  },
  {
@@ -59,7 +59,7 @@ const ACTIONS = [
  title: 'Crear factura CXP',
  description: 'Documento pendiente por pagar que aun no afecta caja.',
  icon: FileDown,
- accent: 'var(--warning)',
+ accent: 'var(--color-warn)',
  family: 'Documento',
  },
  {
@@ -67,7 +67,7 @@ const ACTIONS = [
  title: 'Ajuste bancario',
  description: 'Movimiento directo de tesoreria no ligado a CXC o CXP.',
  icon: WalletCards,
- accent: 'var(--text-secondary)',
+ accent: 'var(--color-fg-3)',
  family: 'Tesorería',
  },
 ];
@@ -86,7 +86,7 @@ const resolveProjectName = (projects, projectId) => {
 
 const Field = ({ label, children, optional = false }) => (
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">
  {label}
  {optional ? '' : ' *'}
  </span>
@@ -95,14 +95,14 @@ const Field = ({ label, children, optional = false }) => (
 );
 
 const inputClassName =
- 'w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-all focus:border-[var(--border-visible)] focus:bg-[var(--surface)] focus:';
+ 'w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:';
 
 const accentButtonMap = {
- 'register-collection': 'bg-[var(--success)] hover:bg-[var(--success)] ',
- 'register-payment': 'bg-[var(--accent)] hover:bg-[var(--accent)] ',
- 'create-receivable': 'bg-[var(--text-secondary)] hover:opacity-80 ',
- 'create-payable': 'bg-[var(--warning)] hover:opacity-80 ',
- 'bank-adjustment': 'bg-[var(--text-secondary)] hover:opacity-80 ',
+ 'register-collection': 'bg-[var(--color-ok)] hover:bg-[var(--color-ok)] ',
+ 'register-payment': 'bg-[var(--color-accent)] hover:bg-[var(--color-accent)] ',
+ 'create-receivable': 'bg-[var(--color-fg-3)] hover:opacity-80 ',
+ 'create-payable': 'bg-[var(--color-warn)] hover:opacity-80 ',
+ 'bank-adjustment': 'bg-[var(--color-fg-3)] hover:opacity-80 ',
 };
 
 const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
@@ -311,27 +311,27 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
 
  const activeMeta = ACTIONS.find((entry) => entry.id === activeAction);
  const submitLabel = activeMeta?.title || 'Guardar registro';
- const submitButtonClassName = accentButtonMap[activeAction] || 'bg-[var(--text-primary)] hover:opacity-85 ';
+ const submitButtonClassName = accentButtonMap[activeAction] || 'bg-[var(--color-fg-1)] hover:opacity-85 ';
 
  return (
- <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[var(--surface)] p-4 ">
- <div className="relative flex max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] ">
+ <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[var(--color-bg-1)] p-4 ">
+ <div className="relative flex max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] ">
  <button
  type="button"
  aria-label="Cerrar panel de registro"
  onClick={onClose}
- className="absolute right-5 top-5 z-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+ className="absolute right-5 top-5 z-10 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-2 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)]"
  >
  <X size={18} />
  </button>
 
- <aside className="hidden w-[360px] shrink-0 border-r border-[var(--border)] bg-[var(--black)] p-6 lg:block">
+ <aside className="hidden w-[360px] shrink-0 border-r border-[var(--color-line)] bg-[var(--color-bg-0)] p-6 lg:block">
  <div className="mb-8">
- <p className="mb-3 nd-label text-[var(--text-disabled)]">
+ <p className="mb-3 label-mono text-[var(--color-fg-4)]">
  Operación
  </p>
- <h3 className="text-[26px] font-medium tracking-tight text-[var(--text-primary)]">Centro operativo</h3>
- <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+ <h3 className="text-[26px] font-medium tracking-tight text-[var(--color-fg-1)]">Centro operativo</h3>
+ <p className="mt-2 text-sm leading-6 text-[var(--color-fg-3)]">
  Registra cobros, pagos, facturas y ajustes desde un solo panel, con una estructura clara para el equipo.
  </p>
  </div>
@@ -347,8 +347,8 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  onClick={() => setActiveAction(action.id)}
  className={`w-full rounded-md border px-4 py-4 text-left transition-all ${
  isActive
- ? 'border-[var(--border-visible)] bg-[var(--surface)] '
- : 'border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] '
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)] hover:bg-[var(--color-bg-1)]'
  }`}
  >
  <div className="mb-3 flex items-center justify-between gap-3">
@@ -360,12 +360,12 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  <Icon size={18} />
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">{action.title}</p>
- <p className="text-xs text-[var(--text-secondary)]">{action.description}</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{action.title}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">{action.description}</p>
  </div>
  </div>
  {isActive && (
- <span className="rounded-full bg-[var(--surface)] px-2 py-1 nd-label text-[var(--text-primary)]">
+ <span className="rounded-full bg-[var(--color-bg-1)] px-2 py-1 label-mono text-[var(--color-fg-1)]">
  Activo
  </span>
  )}
@@ -376,7 +376,7 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  style={{ backgroundColor: action.accent }}
  >
  </div>
- <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--text-secondary)]">{action.family}</span>
+ <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--color-fg-3)]">{action.family}</span>
  </div>
  </button>
  );
@@ -385,7 +385,7 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  </aside>
 
  <section className="flex min-h-[760px] flex-1 flex-col overflow-y-auto">
- <div className="border-b border-[var(--border)] px-6 py-6 lg:px-8">
+ <div className="border-b border-[var(--color-line)] px-6 py-6 lg:px-8">
  <div className="flex flex-wrap items-center gap-3">
  <div
  className="flex h-12 w-12 items-center justify-center rounded-lg"
@@ -394,16 +394,16 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  <activeMeta.icon size={20} />
  </div>
  <div className="min-w-0">
- <p className="nd-label text-[var(--text-disabled)]">
+ <p className="label-mono text-[var(--color-fg-4)]">
  Flujo activo
  </p>
- <h2 className="text-[24px] font-medium tracking-tight text-[var(--text-primary)]">{activeMeta.title}</h2>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">{activeMeta.description}</p>
+ <h2 className="text-[24px] font-medium tracking-tight text-[var(--color-fg-1)]">{activeMeta.title}</h2>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">{activeMeta.description}</p>
  <div className="mt-3 flex flex-wrap items-center gap-2">
- <span className="rounded-full bg-[var(--surface)] px-3 py-1 nd-label text-[var(--text-primary)]">
+ <span className="rounded-full bg-[var(--color-bg-1)] px-3 py-1 label-mono text-[var(--color-fg-1)]">
  {activeMeta.family}
  </span>
- <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 nd-label text-[var(--text-secondary)]">
+ <span className="rounded-full border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1 label-mono text-[var(--color-fg-3)]">
  Registro guiado
  </span>
  </div>
@@ -421,8 +421,8 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  onClick={() => setActiveAction(action.id)}
  className={`rounded-lg border px-4 py-3 text-left transition-all ${
  isActive
- ? 'border-[var(--border-visible)] bg-[var(--surface)] '
- : 'border-[var(--border)] bg-[var(--surface)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] '
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)]'
  }`}
  >
  <div className="flex items-start gap-3">
@@ -433,8 +433,8 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  <Icon size={17} />
  </div>
  <div className="min-w-0">
- <p className="text-sm font-medium text-[var(--text-primary)]">{action.title}</p>
- <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{action.description}</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{action.title}</p>
+ <p className="mt-1 text-xs leading-5 text-[var(--color-fg-3)]">{action.description}</p>
  </div>
  </div>
  </button>
@@ -864,13 +864,13 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  )}
  </div>
 
- <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
- <div className="flex items-center gap-3 text-[var(--text-secondary)]">
- <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface)] text-[var(--text-primary)]">
+ <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
+ <div className="flex items-center gap-3 text-[var(--color-fg-3)]">
+ <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-bg-1)] text-[var(--color-fg-1)]">
  <CalendarDays size={16} />
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Registro operativo</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Registro operativo</p>
  <p className="text-xs">Confirma el flujo activo y guarda el registro con el botón principal.</p>
  </div>
  </div>
@@ -878,7 +878,7 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  <button
  type="button"
  onClick={onClose}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-3)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  Cancelar
  </button>

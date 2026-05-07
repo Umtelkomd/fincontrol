@@ -39,9 +39,9 @@ const YEAR_OPTIONS = [
 ];
 
 const statusColors = {
- good: { bg: 'bg-transparent', text: 'text-[var(--success)]', border: 'border-[var(--border-visible)]', icon: 'text-[var(--success)]' },
- warning: { bg: 'bg-transparent', text: 'text-[var(--warning)]', border: 'border-[var(--border-visible)]', icon: 'text-[var(--warning)]' },
- bad: { bg: 'bg-transparent', text: 'text-[var(--accent)]', border: 'border-[var(--border-visible)]', icon: 'text-[var(--accent)]' },
+ good: { bg: 'bg-transparent', text: 'text-[var(--color-ok)]', border: 'border-[var(--color-line-s)]', icon: 'text-[var(--color-ok)]' },
+ warning: { bg: 'bg-transparent', text: 'text-[var(--color-warn)]', border: 'border-[var(--color-line-s)]', icon: 'text-[var(--color-warn)]' },
+ bad: { bg: 'bg-transparent', text: 'text-[var(--color-accent)]', border: 'border-[var(--color-line-s)]', icon: 'text-[var(--color-accent)]' },
 };
 
 const getStatus = (value, benchmark, inverse = false) => {
@@ -63,10 +63,10 @@ const RatioCard = ({ title, value, unit = '', benchmark, inverse = false, descri
  const displayValue = Math.abs(normalizedValue) > 999 ? normalizedValue.toFixed(0) : normalizedValue.toFixed(1);
  const cap = inverse ? benchmark.warning * 1.8 : Math.max(benchmark.good * 1.8, 1);
  const gaugePercent = Math.min(100, Math.max(0, (Math.abs(normalizedValue) / cap) * 100));
- const gaugeData = [{ name: 'value', value: gaugePercent, fill: status === 'good' ? 'var(--success)' : status === 'warning' ? 'var(--warning)' : 'var(--accent)' }];
+ const gaugeData = [{ name: 'value', value: gaugePercent, fill: status === 'good' ? 'var(--color-ok)' : status === 'warning' ? 'var(--color-warn)' : 'var(--color-accent)' }];
 
  return (
- <div className={`overflow-hidden rounded-md border bg-[var(--surface)] ${colors.border}`}>
+ <div className={`overflow-hidden rounded-md border bg-[var(--color-bg-1)] ${colors.border}`}>
  <div className="p-4">
  <div className="mb-3 flex items-start justify-between gap-4">
  <div className="flex items-center gap-2">
@@ -74,16 +74,16 @@ const RatioCard = ({ title, value, unit = '', benchmark, inverse = false, descri
  <IconComponent className={colors.icon} size={18} />
  </div>
  <div>
- <h4 className="text-sm font-medium text-[var(--text-primary)]">{title}</h4>
- <p className="text-xs text-[var(--text-secondary)]">{description}</p>
+ <h4 className="text-sm font-medium text-[var(--color-fg-1)]">{title}</h4>
+ <p className="text-xs text-[var(--color-fg-3)]">{description}</p>
  </div>
  </div>
- {status === 'good' ? <CheckCircle2 className="text-[var(--success)]" size={18} /> : <AlertTriangle className={colors.icon} size={18} />}
+ {status === 'good' ? <CheckCircle2 className="text-[var(--color-ok)]" size={18} /> : <AlertTriangle className={colors.icon} size={18} />}
  </div>
  <div className="flex items-center justify-between gap-3">
  <div>
- <p className={`nd-display text-3xl font-medium ${colors.text}`}>{displayValue}{unit}</p>
- <p className="mt-1 text-xs text-[var(--text-disabled)]">
+ <p className={`font-display text-3xl font-medium ${colors.text}`}>{displayValue}{unit}</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-4)]">
  Referencia {inverse ? 'máx.' : 'mín.'}: {benchmark.good}{unit}
  </p>
  </div>
@@ -91,7 +91,7 @@ const RatioCard = ({ title, value, unit = '', benchmark, inverse = false, descri
  <ResponsiveContainer width="100%" height="100%">
  <RadialBarChart cx="50%" cy="50%" innerRadius="60%" outerRadius="100%" data={gaugeData} startAngle={180} endAngle={0}>
  <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
- <RadialBar background={{ fill: 'var(--border)' }} dataKey="value" cornerRadius={10} />
+ <RadialBar background={{ fill: 'var(--color-line)' }} dataKey="value" cornerRadius={10} />
  </RadialBarChart>
  </ResponsiveContainer>
  </div>
@@ -105,10 +105,10 @@ const RatioCard = ({ title, value, unit = '', benchmark, inverse = false, descri
 };
 
 const SummaryMetric = ({ label, value, subvalue, tone }) => (
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 ">
- <p className="text-sm text-[var(--text-secondary)]">{label}</p>
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4 ">
+ <p className="text-sm text-[var(--color-fg-3)]">{label}</p>
  <p className={`mt-1 text-2xl font-medium ${tone}`}>{value}</p>
- {subvalue && <p className="mt-1 text-xs text-[var(--text-disabled)]">{subvalue}</p>}
+ {subvalue && <p className="mt-1 text-xs text-[var(--color-fg-4)]">{subvalue}</p>}
  </div>
 );
 
@@ -188,19 +188,19 @@ const FinancialRatios = ({ user }) => {
  if (globalMetrics.loading || periodMetrics.loading || ledger.loading) {
  return (
  <div className="flex items-center justify-center py-28">
- <p className="nd-mono text-xs text-[var(--text-secondary)] tracking-[0.08em] uppercase">[LOADING...]</p>
+ <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
  </div>
  );
  }
 
  return (
  <div className="space-y-6 pb-12">
- <section className="rounded-md border border-[var(--border)] bg-[var(--black)] px-6 py-7 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-6 py-7 ">
  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
  <div>
- <p className="mb-3 nd-label text-[var(--text-secondary)]">Ratios financieros</p>
- <h2 className="nd-display text-[32px] font-medium tracking-tight text-[var(--text-display)]">Liquidez, cobertura y eficiencia operativa.</h2>
- <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--text-disabled)]">
+ <p className="mb-3 label-mono text-[var(--color-fg-3)]">Ratios financieros</p>
+ <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Liquidez, cobertura y eficiencia operativa.</h2>
+ <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--color-fg-4)]">
  Los indicadores se calculan desde caja real, facturas abiertas y ritmo de entradas y salidas para ofrecer una lectura útil de la operación.
  </p>
  </div>
@@ -214,8 +214,8 @@ const FinancialRatios = ({ user }) => {
  onClick={() => setSelectedYear(opt.value)}
   className={`rounded-md border px-3 py-2 text-sm font-medium transition-all ${
  selectedYear === opt.value
- ? 'border-[var(--border-visible)] bg-[var(--surface)] text-[var(--text-primary)]'
- : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]'
  }`}
  >
  {opt.label}
@@ -234,8 +234,8 @@ const FinancialRatios = ({ user }) => {
  onClick={() => setSelectedPeriod(`month:${key}`)}
   className={`rounded-md border px-3 py-2 text-sm font-medium transition-all ${
  selectedPeriod === `month:${key}`
- ? 'border-[var(--border-visible)] bg-[var(--surface)] text-[var(--text-primary)]'
- : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+ ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
+ : 'border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]'
  }`}
  >
  {MONTH_NAMES[date.getMonth()]}
@@ -248,21 +248,21 @@ const FinancialRatios = ({ user }) => {
  </section>
 
  <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
- <SummaryMetric label="Caja actual" value={formatCurrency(globalMetrics.currentCash)} tone={globalMetrics.currentCash >= 0 ? 'text-[var(--text-primary)]' : 'text-[var(--warning)]'} />
- <SummaryMetric label="Liquidez proyectada" value={formatCurrency(globalMetrics.projectedLiquidity)} subvalue="Caja + CXC abiertas - CXP abiertas" tone={globalMetrics.projectedLiquidity >= 0 ? 'text-[var(--success)]' : 'text-[var(--warning)]'} />
- <SummaryMetric label="Próximos 14 días" value={formatCurrency(globalMetrics.next14Net)} subvalue={`${globalMetrics.upcomingReceivables.length} cobros y ${globalMetrics.upcomingPayables.length} pagos`} tone={globalMetrics.next14Net >= 0 ? 'text-[var(--success)]' : 'text-[var(--warning)]'} />
- <SummaryMetric label="Runway" value={globalMetrics.runwayMonths ? `${globalMetrics.runwayMonths.toFixed(1)}m` : 'N/A'} subvalue={`Burn mensual ${formatCurrency(globalMetrics.avgMonthlyOutflows)}`} tone="text-[var(--text-primary)]" />
- <SummaryMetric label="Período" value={formatCurrency(periodMetrics.netMovement)} subvalue={`Caja realizada ${periodRange.label}`} tone={periodMetrics.netMovement >= 0 ? 'text-[var(--success)]' : 'text-[var(--warning)]'} />
+ <SummaryMetric label="Caja actual" value={formatCurrency(globalMetrics.currentCash)} tone={globalMetrics.currentCash >= 0 ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-warn)]'} />
+ <SummaryMetric label="Liquidez proyectada" value={formatCurrency(globalMetrics.projectedLiquidity)} subvalue="Caja + CXC abiertas - CXP abiertas" tone={globalMetrics.projectedLiquidity >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'} />
+ <SummaryMetric label="Próximos 14 días" value={formatCurrency(globalMetrics.next14Net)} subvalue={`${globalMetrics.upcomingReceivables.length} cobros y ${globalMetrics.upcomingPayables.length} pagos`} tone={globalMetrics.next14Net >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'} />
+ <SummaryMetric label="Runway" value={globalMetrics.runwayMonths ? `${globalMetrics.runwayMonths.toFixed(1)}m` : 'N/A'} subvalue={`Burn mensual ${formatCurrency(globalMetrics.avgMonthlyOutflows)}`} tone="text-[var(--color-fg-1)]" />
+ <SummaryMetric label="Período" value={formatCurrency(periodMetrics.netMovement)} subvalue={`Caja realizada ${periodRange.label}`} tone={periodMetrics.netMovement >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'} />
  </div>
 
  <div>
  <div className="mb-4 flex items-center gap-3">
- <div className="rounded-md bg-[var(--surface)] p-2">
- <Wallet className="text-[var(--text-primary)]" size={18} />
+ <div className="rounded-md bg-[var(--color-bg-1)] p-2">
+ <Wallet className="text-[var(--color-fg-1)]" size={18} />
  </div>
  <div>
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Liquidez</h3>
- <p className="text-sm text-[var(--text-secondary)]">Capacidad de sostener obligaciones desde caja real y compromisos abiertos.</p>
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Liquidez</h3>
+ <p className="text-sm text-[var(--color-fg-3)]">Capacidad de sostener obligaciones desde caja real y compromisos abiertos.</p>
  </div>
  </div>
  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -276,11 +276,11 @@ const FinancialRatios = ({ user }) => {
  <div>
  <div className="mb-4 flex items-center gap-3">
  <div className="rounded-md bg-transparent p-2">
- <Clock className="text-[var(--warning)]" size={18} />
+ <Clock className="text-[var(--color-warn)]" size={18} />
  </div>
  <div>
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Actividad</h3>
- <p className="text-sm text-[var(--text-secondary)]">Velocidad de cobro y pago sobre el saldo abierto actual.</p>
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Actividad</h3>
+ <p className="text-sm text-[var(--color-fg-3)]">Velocidad de cobro y pago sobre el saldo abierto actual.</p>
  </div>
  </div>
  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -294,11 +294,11 @@ const FinancialRatios = ({ user }) => {
  <div>
  <div className="mb-4 flex items-center gap-3">
  <div className="rounded-md bg-transparent p-2">
- <Percent className="text-[var(--success)]" size={18} />
+ <Percent className="text-[var(--color-ok)]" size={18} />
  </div>
  <div>
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Rentabilidad y presión</h3>
- <p className="text-sm text-[var(--text-secondary)]">Indicadores gerenciales basados en caja y envejecimiento de cartera y deuda.</p>
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Rentabilidad y presión</h3>
+ <p className="text-sm text-[var(--color-fg-3)]">Indicadores gerenciales basados en caja y envejecimiento de cartera y deuda.</p>
  </div>
  </div>
  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -309,53 +309,53 @@ const FinancialRatios = ({ user }) => {
  </div>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
  <div className="mb-6 flex items-center gap-3">
- <div className="rounded-md bg-[var(--surface)] p-2">
- <BarChart3 className="text-[var(--text-primary)]" size={18} />
+ <div className="rounded-md bg-[var(--color-bg-1)] p-2">
+ <BarChart3 className="text-[var(--color-fg-1)]" size={18} />
  </div>
  <div>
- <h3 className="text-lg font-medium text-[var(--text-primary)]">Comparativa frente a referencia</h3>
- <p className="text-sm text-[var(--text-secondary)]">Referencia rápida para liquidez y resistencia operativa.</p>
+ <h3 className="text-lg font-medium text-[var(--color-fg-1)]">Comparativa frente a referencia</h3>
+ <p className="text-sm text-[var(--color-fg-3)]">Referencia rápida para liquidez y resistencia operativa.</p>
  </div>
  </div>
  <ResponsiveContainer width="100%" height={300}>
  <BarChart data={comparisonData} layout="vertical" margin={{ left: 110 }}>
- <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
- <XAxis type="number" tick={{ fill: 'var(--text-disabled)', fontSize: 11 }} axisLine={false} tickLine={false} />
- <YAxis type="category" dataKey="name" tick={{ fill: 'var(--text-primary)', fontSize: 12 }} axisLine={false} tickLine={false} />
+ <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-line)" />
+ <XAxis type="number" tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} axisLine={false} tickLine={false} />
+ <YAxis type="category" dataKey="name" tick={{ fill: 'var(--color-fg-1)', fontSize: 12 }} axisLine={false} tickLine={false} />
  <Tooltip
  formatter={(value, name) => [Number(value).toFixed(1), name === 'value' ? 'Actual' : 'Benchmark']}
- contentStyle={{ backgroundColor: 'var(--surface-raised)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 18 }}
+ contentStyle={{ backgroundColor: 'var(--color-bg-2)', color: 'var(--color-fg-1)', border: '1px solid var(--color-line)', borderRadius: 18 }}
  />
  <Bar dataKey="value" name="Actual" radius={0}>
  {comparisonData.map((entry, index) => (
  <Cell
  key={`${entry.name}-${index}`}
- fill={entry.value >= entry.benchmark ? 'var(--success)' : entry.value >= entry.benchmark * 0.75 ? 'var(--warning)' : 'var(--accent)'}
+ fill={entry.value >= entry.benchmark ? 'var(--color-ok)' : entry.value >= entry.benchmark * 0.75 ? 'var(--color-warn)' : 'var(--color-accent)'}
  />
  ))}
  </Bar>
- <Bar dataKey="benchmark" name="Benchmark" fill="var(--text-disabled)" radius={0} opacity={0.55} />
+ <Bar dataKey="benchmark" name="Benchmark" fill="var(--color-fg-4)" radius={0} opacity={0.55} />
  </BarChart>
  </ResponsiveContainer>
  </div>
 
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="flex items-start gap-3">
- <Info className="mt-0.5 text-[var(--text-primary)]" size={18} />
+ <Info className="mt-0.5 text-[var(--color-fg-1)]" size={18} />
  <div className="grid gap-3 md:grid-cols-3">
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Liquidez</p>
- <p className="mt-1 text-sm text-[var(--text-disabled)]">El ratio corriente y la prueba ácida usan caja real más compromisos abiertos, sin adelantar cobros que aún no ocurrieron.</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Liquidez</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-4)]">El ratio corriente y la prueba ácida usan caja real más compromisos abiertos, sin adelantar cobros que aún no ocurrieron.</p>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Actividad</p>
- <p className="mt-1 text-sm text-[var(--text-disabled)]">Los días de cobro y pago se estiman con saldo abierto actual frente al ritmo del período seleccionado.</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Actividad</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-4)]">Los días de cobro y pago se estiman con saldo abierto actual frente al ritmo del período seleccionado.</p>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">Rentabilidad</p>
- <p className="mt-1 text-sm text-[var(--text-disabled)]">El margen mostrado corresponde a caja realizada. Una contabilidad completa requeriría un libro contable fuera del alcance de esta fase.</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">Rentabilidad</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-4)]">El margen mostrado corresponde a caja realizada. Una contabilidad completa requeriría un libro contable fuera del alcance de esta fase.</p>
  </div>
  </div>
  </div>

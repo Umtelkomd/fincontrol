@@ -48,9 +48,9 @@ const generateLineId = () => `line-${Date.now().toString(36)}-${Math.random().to
 
 // Color palette for per-category chart bars
 const CAT_COLORS = [
- 'var(--text-primary)','var(--text-secondary)','var(--text-tertiary)','var(--text-disabled)','var(--border-visible)',
- 'var(--accent)','var(--success)','var(--warning)','var(--border)','var(--text-secondary)',
- 'var(--text-disabled)','var(--text-tertiary)','var(--border-visible)','var(--border)','var(--text-primary)',
+ 'var(--color-fg-1)','var(--color-fg-3)','var(--color-fg-4)','var(--color-fg-4)','var(--color-line-s)',
+ 'var(--color-accent)','var(--color-ok)','var(--color-warn)','var(--color-line)','var(--color-fg-3)',
+ 'var(--color-fg-4)','var(--color-fg-4)','var(--color-line-s)','var(--color-line)','var(--color-fg-1)',
 ];
 const getCatColor = (idx) => CAT_COLORS[idx % CAT_COLORS.length];
 
@@ -58,22 +58,22 @@ const getCatColor = (idx) => CAT_COLORS[idx % CAT_COLORS.length];
 const ConfirmModal = ({ isOpen, onConfirm, onCancel, title, message }) => {
  if (!isOpen) return null;
  return (
- <div className="fixed inset-0 z-[240] flex items-center justify-center bg-[var(--surface)] p-4 ">
- <div className="w-full max-w-sm rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
- <h3 className="mb-2 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">{title}</h3>
- <p className="mb-6 text-sm text-[var(--text-disabled)]">{message}</p>
+ <div className="fixed inset-0 z-[240] flex items-center justify-center bg-[var(--color-bg-1)] p-4 ">
+ <div className="w-full max-w-sm rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
+ <h3 className="mb-2 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">{title}</h3>
+ <p className="mb-6 text-sm text-[var(--color-fg-4)]">{message}</p>
  <div className="flex justify-end gap-3">
  <button
  type="button"
  onClick={onCancel}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  Cancelar
  </button>
  <button
  type="button"
  onClick={onConfirm}
- className="rounded-lg bg-[var(--warning)] px-5 py-2.5 text-sm font-medium text-[var(--text-primary)] hover:opacity-80"
+ className="rounded-lg bg-[var(--color-warn)] px-5 py-2.5 text-sm font-medium text-[var(--color-fg-1)] hover:opacity-80"
  >
  Confirmar
  </button>
@@ -89,16 +89,16 @@ const NumberInputModal = ({ isOpen, onSubmit, onCancel, title, label, defaultVal
 
  if (!isOpen) return null;
  return (
- <div className="fixed inset-0 z-[240] flex items-center justify-center bg-[var(--surface)] p-4 ">
- <div className="w-full max-w-xs rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
- <h3 className="mb-4 text-[18px] font-medium tracking-tight text-[var(--text-primary)]">{title}</h3>
+ <div className="fixed inset-0 z-[240] flex items-center justify-center bg-[var(--color-bg-1)] p-4 ">
+ <div className="w-full max-w-xs rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
+ <h3 className="mb-4 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">{title}</h3>
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">{label}</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">{label}</span>
  <input
  type="number"
  min="0"
  step="100"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={val}
  onChange={(e) => setVal(e.target.value)}
  autoFocus
@@ -108,14 +108,14 @@ const NumberInputModal = ({ isOpen, onSubmit, onCancel, title, label, defaultVal
  <button
  type="button"
  onClick={onCancel}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  Cancelar
  </button>
  <button
  type="button"
  onClick={() => { onSubmit(parseFloat(val) || 0); }}
- className="rounded-lg bg-[var(--text-primary)] px-5 py-2.5 text-sm font-medium text-[var(--black)] hover:opacity-85"
+ className="rounded-lg bg-[var(--color-fg-1)] px-5 py-2.5 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85"
  >
  Aceptar
  </button>
@@ -129,8 +129,8 @@ const NumberInputModal = ({ isOpen, onSubmit, onCancel, title, label, defaultVal
 const TooltipCard = ({ active, payload, label }) => {
  if (!active || !payload?.length) return null;
  return (
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-3 ">
- <p className="mb-2 nd-label text-[var(--text-disabled)]">{label}</p>
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-3 ">
+ <p className="mb-2 label-mono text-[var(--color-fg-4)]">{label}</p>
  {payload.map((entry) => (
  <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
  {entry.name}: {formatCurrency(entry.value)}
@@ -159,7 +159,7 @@ const EditableCell = ({ value, onSave, formatter = (v) => v }) => {
  type="number"
  min="0"
  step="100"
- className="w-full rounded-lg border border-[var(--border-visible)] bg-[var(--surface)] px-2 py-1 text-right text-sm focus:outline-none "
+ className="w-full rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-2 py-1 text-right text-sm focus:outline-none "
  value={draft}
  onChange={(e) => setDraft(e.target.value)}
  onBlur={commit}
@@ -174,7 +174,7 @@ const EditableCell = ({ value, onSave, formatter = (v) => v }) => {
 
  return (
  <span
- className="cursor-pointer rounded px-2 py-1 text-right hover:bg-[var(--surface)]"
+ className="cursor-pointer rounded px-2 py-1 text-right hover:bg-[var(--color-bg-1)]"
  onClick={() => { setDraft(value); setEditing(true); }}
  title="Clic para editar"
  >
@@ -220,22 +220,22 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
  };
 
  return (
- <div className="fixed inset-0 z-[230] flex items-center justify-center bg-[var(--surface)] p-4 ">
- <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
+ <div className="fixed inset-0 z-[230] flex items-center justify-center bg-[var(--color-bg-1)] p-4 ">
+ <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
  <div className="mb-5 flex items-center justify-between">
- <h3 className="text-[22px] font-medium tracking-tight text-[var(--text-primary)]">
+ <h3 className="text-[22px] font-medium tracking-tight text-[var(--color-fg-1)]">
  {line?.id ? 'Editar línea' : 'Nueva línea de presupuesto'}
  </h3>
- <button onClick={onClose} className="rounded-md p-2 text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]">
+ <button onClick={onClose} className="rounded-md p-2 text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]">
  <X size={20} />
  </button>
  </div>
 
  <div className="grid gap-4 md:grid-cols-2">
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">Tipo</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Tipo</span>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.type}
  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value, categoryId: '' }))}
  >
@@ -245,9 +245,9 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
  </label>
 
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">Categoría</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Categoría</span>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.categoryId}
  onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value, categoryName: e.target.value }))}
  >
@@ -261,13 +261,13 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
 
  <div className="mt-5">
  <div className="mb-2 flex items-center justify-between">
- <span className="nd-label text-[var(--text-disabled)]">
+ <span className="label-mono text-[var(--color-fg-4)]">
  Monto mensual (EUR) — clic para editar
  </span>
  <button
  type="button"
  onClick={() => setShowDistribute(true)}
- className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="flex items-center gap-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  <Copy size={12} /> Distribuir evenly
  </button>
@@ -276,12 +276,12 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
  <div className="grid grid-cols-6 gap-2 md:grid-cols-12">
  {MONTHS.map((m, i) => (
  <div key={m} className="flex flex-col items-center gap-1">
- <span className="text-[10px] font-medium text-[var(--text-secondary)]">{m}</span>
+ <span className="text-[10px] font-medium text-[var(--color-fg-3)]">{m}</span>
  <input
  type="number"
  min="0"
  step="100"
- className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 text-center text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-2 py-2 text-center text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.monthlyBudget[i].toFixed(2)}
  onChange={(e) => setMonth(i, e.target.value)}
  />
@@ -289,7 +289,7 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
  <button
  type="button"
  onClick={() => fillFromPrev(i)}
- className="text-[9px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+ className="text-[9px] text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]"
  title="Copiar del mes anterior"
  >
  ↩
@@ -302,10 +302,10 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
 
  <div className="mt-4">
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">Notas</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Notas</span>
  <input
  type="text"
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.notes}
  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
  placeholder="Ej: Presupuesto basado en contrato X"
@@ -317,7 +317,7 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
  <button
  type="button"
  onClick={onClose}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-5 py-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-3 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  Cancelar
  </button>
@@ -331,7 +331,7 @@ const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategor
  onSave({ ...form, id: form.id || generateLineId() });
  onClose();
  }}
- className="rounded-lg bg-[var(--text-primary)] px-5 py-3 text-sm font-medium text-[var(--black)] hover:opacity-85"
+ className="rounded-lg bg-[var(--color-fg-1)] px-5 py-3 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85"
  >
  Guardar línea
  </button>
@@ -357,10 +357,10 @@ const CreateBudgetModal = ({ isOpen, onClose, onSubmit, projects, year }) => {
  if (!isOpen) return null;
 
  return (
- <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[var(--surface)] p-4 ">
- <div className="w-full max-w-md rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 ">
- <h3 className="text-[22px] font-medium tracking-tight text-[var(--text-primary)]">Nuevo presupuesto {year}</h3>
- <p className="mt-2 text-sm text-[var(--text-secondary)]">Define el alcance del presupuesto. Las líneas se añaden después.</p>
+ <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[var(--color-bg-1)] p-4 ">
+ <div className="w-full max-w-md rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-6 ">
+ <h3 className="text-[22px] font-medium tracking-tight text-[var(--color-fg-1)]">Nuevo presupuesto {year}</h3>
+ <p className="mt-2 text-sm text-[var(--color-fg-3)]">Define el alcance del presupuesto. Las líneas se añaden después.</p>
 
  <form
  className="mt-6 space-y-4"
@@ -376,9 +376,9 @@ const CreateBudgetModal = ({ isOpen, onClose, onSubmit, projects, year }) => {
  }}
  >
  <label className="block">
- <span className="mb-2 block nd-label text-[var(--text-disabled)]">Proyecto / Empresa</span>
+ <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Proyecto / Empresa</span>
  <select
- className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={projectId}
  onChange={(e) => setProjectId(e.target.value)}
  >
@@ -390,10 +390,10 @@ const CreateBudgetModal = ({ isOpen, onClose, onSubmit, projects, year }) => {
  </label>
 
  <div className="flex justify-end gap-3 pt-2">
- <button type="button" onClick={onClose} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]">
+ <button type="button" onClick={onClose} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]">
  Cancelar
  </button>
- <button type="submit" className="rounded-lg bg-[var(--text-primary)] px-4 py-3 text-sm font-medium text-[var(--black)] hover:opacity-85">
+ <button type="submit" className="rounded-lg bg-[var(--color-fg-1)] px-4 py-3 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85">
  Crear presupuesto
  </button>
  </div>
@@ -419,39 +419,39 @@ const DrillDownRow = ({ row, allTransactions, selectedYear, canAct, incToBudgetM
  return (
  <tr>
  <td colSpan={canAct ? 8 : 7} className="bg-transparent px-6 pb-4 pt-2">
- <p className="mb-2 nd-label text-[var(--text-disabled)]">
+ <p className="mb-2 label-mono text-[var(--color-fg-4)]">
  Operaciones reales — {row.categoryName} ({txList.length})
  </p>
  {txList.length === 0 ? (
- <p className="text-xs italic text-[var(--text-secondary)]">Sin transacciones registradas para esta categoría en {selectedYear}</p>
+ <p className="text-xs italic text-[var(--color-fg-3)]">Sin transacciones registradas para esta categoría en {selectedYear}</p>
  ) : (
  <div className="overflow-x-auto">
  <table className="w-full min-w-[600px] text-left">
  <thead>
- <tr className="nd-label text-[var(--text-secondary)]">
+ <tr className="label-mono text-[var(--color-fg-3)]">
  <th className="pb-1 pr-4">Fecha</th>
  <th className="pb-1 pr-4">Descripción / Contraparte</th>
  <th className="pb-1 pr-4 text-right">Importe</th>
  <th className="pb-1">Estado</th>
  </tr>
  </thead>
- <tbody className="divide-y divide-[var(--border)]">
+ <tbody className="divide-y divide-[var(--color-line)]">
  {txList.slice(0,25).map(t => (
  <tr key={t.id} className="text-xs">
- <td className="py-1.5 pr-4 whitespace-nowrap text-[var(--text-secondary)]">{t.date}</td>
- <td className="py-1.5 pr-4 text-[var(--text-primary)]">{t.description || t.counterparty || t.vendor || '—'}</td>
- <td className={"py-1.5 pr-4 text-right font-medium " + (t.type === 'income' ? 'text-[var(--success)]' : 'text-[var(--warning)]')}>
+ <td className="py-1.5 pr-4 whitespace-nowrap text-[var(--color-fg-3)]">{t.date}</td>
+ <td className="py-1.5 pr-4 text-[var(--color-fg-1)]">{t.description || t.counterparty || t.vendor || '—'}</td>
+ <td className={"py-1.5 pr-4 text-right font-medium " + (t.type === 'income' ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]')}>
  {t.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(t.amount || 0))}
  </td>
  <td className="py-1.5">
- <span className="rounded-full bg-transparent px-2 py-0.5 text-[10px] font-medium text-[var(--success)]">
+ <span className="rounded-full bg-transparent px-2 py-0.5 text-[10px] font-medium text-[var(--color-ok)]">
  {t.status}
  </span>
  </td>
  </tr>
  ))}
  {txList.length > 25 && (
- <tr><td colSpan={4} className="pt-2 text-xs italic text-[var(--text-secondary)]">+{txList.length - 25} más...</td></tr>
+ <tr><td colSpan={4} className="pt-2 text-xs italic text-[var(--color-fg-3)]">+{txList.length - 25} más...</td></tr>
  )}
  </tbody>
  </table>
@@ -688,7 +688,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  if (budgetsLoading || ledger.loading) {
  return (
  <div className="flex items-center justify-center py-28">
- <p className="nd-mono text-xs text-[var(--text-secondary)] tracking-[0.08em] uppercase">[LOADING...]</p>
+ <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
  </div>
  );
  }
@@ -696,17 +696,17 @@ const BudgetVsActual = ({ user, userRole }) => {
  return (
  <div className="space-y-6 pb-12">
  {/* Header */}
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-6 py-7 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-7 ">
  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
  <div>
- <p className="mb-3 nd-label text-[var(--text-secondary)]">Presupuesto {selectedYear}</p>
- <h2 className="nd-display text-[32px] font-medium tracking-tight text-[var(--text-display)]">Planificado vs. Real.</h2>
- <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[var(--text-disabled)]">
+ <p className="mb-3 label-mono text-[var(--color-fg-3)]">Presupuesto {selectedYear}</p>
+ <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Planificado vs. Real.</h2>
+ <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[var(--color-fg-4)]">
  Compara el presupuesto por categoría y mes contra la ejecución real (neto sin IVA).
  {selectedCostCenter && (
- <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[var(--surface)] px-3 py-0.5 text-[13px] font-medium text-[var(--text-primary)]">
+ <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[var(--color-bg-1)] px-3 py-0.5 text-[13px] font-medium text-[var(--color-fg-1)]">
  CC: {selectedCostCenter}
- <button onClick={() => setSelectedCostCenter('')} className="ml-1 text-[var(--text-disabled)] hover:text-[var(--text-primary)]">×</button>
+ <button onClick={() => setSelectedCostCenter('')} className="ml-1 text-[var(--color-fg-4)] hover:text-[var(--color-fg-1)]">×</button>
  </span>
  )}
  </p>
@@ -714,7 +714,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  <div className="flex flex-wrap items-center gap-3">
  {/* Year */}
  <select
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={selectedYear}
  onChange={(e) => setSelectedYear(Number(e.target.value))}
  >
@@ -724,7 +724,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  </select>
  {/* Project filter */}
  <select
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={selectedProject || ''}
  onChange={(e) => setSelectedProject(e.target.value || null)}
  >
@@ -735,7 +735,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  </select>
  {/* Cost Center filter */}
  <select
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-visible)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={selectedCostCenter}
  onChange={(e) => setSelectedCostCenter(e.target.value)}
  >
@@ -750,7 +750,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  <button
  type="button"
  onClick={() => setIsCreateOpen(true)}
- className="inline-flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-3 text-sm font-medium text-[var(--black)] hover:opacity-85"
+ className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-fg-1)] px-4 py-3 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85"
  >
  <Plus size={16} />
  Crear presupuesto
@@ -774,7 +774,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  );
  }
  }}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  <Copy size={14} />
  Copiar de {selectedYear - 1}
@@ -783,7 +783,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  <button
  type="button"
  onClick={() => setShowDebug((v) => !v)}
- className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-xs font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  Debug
  </button>
@@ -817,45 +817,45 @@ const BudgetVsActual = ({ user, userRole }) => {
  const txCats2026 = [...new Set(mov2026.map((m) => m.categoryName || '(vacío)'))];
 
  return (
- <section className="rounded-md border border-[var(--accent)] bg-[var(--surface)] p-5">
- <h3 className="mb-3 nd-label text-[var(--accent)]">[Diagnóstico]</h3>
+ <section className="rounded-md border border-[var(--color-accent)] bg-[var(--color-bg-1)] p-5">
+ <h3 className="mb-3 label-mono text-[var(--color-accent)]">[Diagnóstico]</h3>
  <div className="grid gap-3 md:grid-cols-3">
  <div>
- <p className="nd-mono text-[11px] font-medium text-[var(--accent)]">Presupuesto</p>
- <p className="nd-mono text-[11px] text-[var(--text-secondary)]">Año: {selectedYear} | Project: {selectedProject || 'Empresa'}</p>
- <p className="nd-mono text-[11px] text-[var(--text-secondary)]">Líneas: {currentBudget?.lines?.length || 0}</p>
+ <p className="font-mono text-[11px] font-medium text-[var(--color-accent)]">Presupuesto</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)]">Año: {selectedYear} | Project: {selectedProject || 'Empresa'}</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)]">Líneas: {currentBudget?.lines?.length || 0}</p>
  {currentBudget?.lines?.map(l => (
- <p key={l.id} className="nd-mono text-[11px] text-[var(--text-disabled)]"> &quot;{l.categoryName}&quot; [{l.type}] budget={l.monthlyBudget.reduce((s,v)=>s+v,0).toFixed(0)}</p>
+ <p key={l.id} className="font-mono text-[11px] text-[var(--color-fg-4)]"> &quot;{l.categoryName}&quot; [{l.type}] budget={l.monthlyBudget.reduce((s,v)=>s+v,0).toFixed(0)}</p>
  ))}
  </div>
  <div>
- <p className="nd-mono text-[11px] font-medium text-[var(--accent)]">Movimientos ledger 2026</p>
- <p className="nd-mono text-[11px] text-[var(--text-secondary)]">Total ledger: {ledger.postedMovements.length} | En 2026: {mov2026.length}</p>
- <p className="nd-mono text-[11px] text-[var(--text-secondary)] mt-1">Muestra de movimientos 2026:</p>
+ <p className="font-mono text-[11px] font-medium text-[var(--color-accent)]">Movimientos ledger 2026</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)]">Total ledger: {ledger.postedMovements.length} | En 2026: {mov2026.length}</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)] mt-1">Muestra de movimientos 2026:</p>
  {sampleMov.map(m => (
- <p key={m.id} className="nd-mono text-[11px] text-[var(--text-disabled)]"> src={m.source || '?'} cat=&quot;{m.categoryName}&quot; {m.direction} €{m.amount?.toFixed(0)} {m.postedDate?.slice(0,7)}</p>
+ <p key={m.id} className="font-mono text-[11px] text-[var(--color-fg-4)]"> src={m.source || '?'} cat=&quot;{m.categoryName}&quot; {m.direction} €{m.amount?.toFixed(0)} {m.postedDate?.slice(0,7)}</p>
  ))}
- <p className="nd-mono text-[11px] text-[var(--text-secondary)] mt-1">Cats únicas en ledger 2026:</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)] mt-1">Cats únicas en ledger 2026:</p>
  {txCats2026.slice(0, 8).map(c => (
- <p key={c} className="nd-mono text-[11px] text-[var(--text-disabled)]"> &quot;{c}&quot;</p>
+ <p key={c} className="font-mono text-[11px] text-[var(--color-fg-4)]"> &quot;{c}&quot;</p>
  ))}
  </div>
  <div>
- <p className="nd-mono text-[11px] font-medium text-[var(--accent)]">Matching</p>
- <p className="nd-mono text-[11px] text-[var(--text-secondary)]">Presupuesto cats: {bCats.join(', ')}</p>
- <p className="nd-mono text-[11px] text-[var(--text-secondary)] mt-1">Matches con score ≥ 40:</p>
+ <p className="font-mono text-[11px] font-medium text-[var(--color-accent)]">Matching</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)]">Presupuesto cats: {bCats.join(', ')}</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)] mt-1">Matches con score ≥ 40:</p>
  {txCats2026.map(lc => {
  const rows = bCats.map(bc => ({ bc, score: scoreMatch(lc, bc) })).filter(r => r.score >= 40).sort((a,b) => b.score - a.score);
  return rows.length > 0 ? (
- <p key={lc} className="nd-mono text-[11px] text-[var(--text-disabled)]"> &quot;{lc}&quot; → &quot;{rows[0].bc}&quot; ({rows[0].score})</p>
+ <p key={lc} className="font-mono text-[11px] text-[var(--color-fg-4)]"> &quot;{lc}&quot; → &quot;{rows[0].bc}&quot; ({rows[0].score})</p>
  ) : null;
  })}
  {txCats2026.every(c => bCats.every(bc => scoreMatch(c, bc) < 40)) && (
- <p className="nd-mono text-[11px] italic text-[var(--accent)]">Ningún match — las cats del presupuesto no coinciden con las del ledger</p>
+ <p className="font-mono text-[11px] italic text-[var(--color-accent)]">Ningún match — las cats del presupuesto no coinciden con las del ledger</p>
  )}
- <p className="nd-mono text-[11px] text-[var(--text-secondary)] mt-2">Actuals:</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-3)] mt-2">Actuals:</p>
  {[...actuals.entries()].slice(0, 8).map(([k, v]) => (
- <p key={k} className="nd-mono text-[11px] text-[var(--text-disabled)]"> {k}: inc={v.income.toFixed(0)} exp={v.expense.toFixed(0)}</p>
+ <p key={k} className="font-mono text-[11px] text-[var(--color-fg-4)]"> {k}: inc={v.income.toFixed(0)} exp={v.expense.toFixed(0)}</p>
  ))}
  </div>
  </div>
@@ -865,16 +865,16 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  {/* No budget state */}
  {!currentBudget && (
- <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-[var(--border)] py-20">
- <Target size={48} className="mb-4 text-[var(--text-secondary)]" />
- <h3 className="text-xl font-medium text-[var(--text-primary)]">Sin presupuesto para {selectedYear}</h3>
- <p className="mt-2 text-sm text-[var(--text-secondary)]">Crea un presupuesto para empezar a comparar.</p>
+ <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-[var(--color-line)] py-20">
+ <Target size={48} className="mb-4 text-[var(--color-fg-3)]" />
+ <h3 className="text-xl font-medium text-[var(--color-fg-1)]">Sin presupuesto para {selectedYear}</h3>
+ <p className="mt-2 text-sm text-[var(--color-fg-3)]">Crea un presupuesto para empezar a comparar.</p>
  {canAct && (
  <div className="mt-5 flex gap-3">
  <button
  type="button"
  onClick={() => setIsCreateOpen(true)}
- className="inline-flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-6 py-3 text-sm font-medium text-[var(--black)] hover:opacity-85"
+ className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-fg-1)] px-6 py-3 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85"
  >
  <Plus size={16} />
  Crear presupuesto {selectedYear}
@@ -937,7 +937,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  showToast('Error al crear presupuesto', 'error');
  }
  }}
- className="inline-flex items-center gap-2 rounded-lg border border-[var(--text-primary)] bg-[var(--surface)] px-6 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface)]"
+ className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-fg-1)] bg-[var(--color-bg-1)] px-6 py-3 text-sm font-medium text-[var(--color-fg-1)] hover:bg-[var(--color-bg-1)]"
  >
  <Sparkles size={16} />
  Generar desde 2025
@@ -952,37 +952,37 @@ const BudgetVsActual = ({ user, userRole }) => {
  <>
  {/* KPI Cards */}
  <div className="grid gap-4 lg:grid-cols-4">
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-3 flex items-center justify-between">
- <p className="nd-label text-[var(--text-disabled)]">Ingresos presupuestados</p>
- <TrendingUp size={16} className="text-[var(--text-primary)]" />
+ <p className="label-mono text-[var(--color-fg-4)]">Ingresos presupuestados</p>
+ <TrendingUp size={16} className="text-[var(--color-fg-1)]" />
  </div>
- <p className="text-[26px] font-medium tracking-tight text-[var(--text-primary)]">{formatCurrency(totals.budgetIncome)}</p>
+ <p className="text-[26px] font-medium tracking-tight text-[var(--color-fg-1)]">{formatCurrency(totals.budgetIncome)}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-3 flex items-center justify-between">
- <p className="nd-label text-[var(--text-disabled)]">Ingresos reales (neto)</p>
- <TrendingUp size={16} className="text-[var(--success)]" />
+ <p className="label-mono text-[var(--color-fg-4)]">Ingresos reales (neto)</p>
+ <TrendingUp size={16} className="text-[var(--color-ok)]" />
  </div>
- <p className="text-[26px] font-medium tracking-tight text-[var(--success)]">{formatCurrency(totals.actualIncome)}</p>
- <p className={`mt-1 text-xs font-medium ${totals.actualIncome >= totals.budgetIncome ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <p className="text-[26px] font-medium tracking-tight text-[var(--color-ok)]">{formatCurrency(totals.actualIncome)}</p>
+ <p className={`mt-1 text-xs font-medium ${totals.actualIncome >= totals.budgetIncome ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {totals.budgetIncome > 0 ? (((totals.actualIncome / totals.budgetIncome) - 1) * 100).toFixed(1) : '0'}% del objetivo
  </p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-3 flex items-center justify-between">
- <p className="nd-label text-[var(--text-disabled)]">Gastos presupuestados</p>
- <TrendingDown size={16} className="text-[var(--warning)]" />
+ <p className="label-mono text-[var(--color-fg-4)]">Gastos presupuestados</p>
+ <TrendingDown size={16} className="text-[var(--color-warn)]" />
  </div>
- <p className="text-[26px] font-medium tracking-tight text-[var(--text-primary)]">{formatCurrency(totals.budgetExpense)}</p>
+ <p className="text-[26px] font-medium tracking-tight text-[var(--color-fg-1)]">{formatCurrency(totals.budgetExpense)}</p>
  </div>
- <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-3 flex items-center justify-between">
- <p className="nd-label text-[var(--text-disabled)]">Gastos reales (neto)</p>
- <TrendingDown size={16} className="text-[var(--warning)]" />
+ <p className="label-mono text-[var(--color-fg-4)]">Gastos reales (neto)</p>
+ <TrendingDown size={16} className="text-[var(--color-warn)]" />
  </div>
- <p className="text-[26px] font-medium tracking-tight text-[var(--warning)]">{formatCurrency(totals.actualExpense)}</p>
- <p className={`mt-1 text-xs font-medium ${totals.actualExpense <= totals.budgetExpense ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <p className="text-[26px] font-medium tracking-tight text-[var(--color-warn)]">{formatCurrency(totals.actualExpense)}</p>
+ <p className={`mt-1 text-xs font-medium ${totals.actualExpense <= totals.budgetExpense ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {totals.budgetExpense > 0 ? (((totals.actualExpense / totals.budgetExpense) - 1) * 100).toFixed(1) : '0'}% vs límite
  </p>
  </div>
@@ -990,19 +990,19 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  {/* Uncategorized movements banner */}
  {uncategorizedStats.uncategorized > 0 && (
- <div className="flex items-center gap-3 rounded-lg border border-[var(--border-visible)] bg-transparent px-5 py-3.5">
- <AlertTriangle size={18} className="flex-shrink-0 text-[var(--warning)]" />
+ <div className="flex items-center gap-3 rounded-lg border border-[var(--color-line-s)] bg-transparent px-5 py-3.5">
+ <AlertTriangle size={18} className="flex-shrink-0 text-[var(--color-warn)]" />
  <div className="flex-1">
- <p className="text-sm font-medium text-[var(--text-primary)]">
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">
  {uncategorizedStats.uncategorized} movimientos bancarios sin categoría en {selectedYear}
  </p>
- <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+ <p className="mt-0.5 text-xs text-[var(--color-fg-3)]">
  {formatCurrency(uncategorizedStats.totalAmount)} no contribuyen al presupuesto. Asigna categorías desde Transacciones para que aparezcan en los actuals.
  </p>
  </div>
  <a
  href="#/transactions"
- className="flex-shrink-0 rounded-md bg-[var(--warning)] px-4 py-2 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--warning)]"
+ className="flex-shrink-0 rounded-md bg-[var(--color-warn)] px-4 py-2 text-xs font-medium text-[var(--color-fg-1)] hover:bg-[var(--color-warn)]"
  >
  Categorizar
  </a>
@@ -1021,8 +1021,8 @@ const BudgetVsActual = ({ user, userRole }) => {
  onClick={() => setActiveTab(id)}
  className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all ${
  activeTab === id
- ? 'bg-[var(--text-primary)] text-[var(--black)] '
- : 'border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]'
+ ? 'bg-[var(--color-fg-1)] text-[var(--color-bg-0)] '
+ : 'border border-[var(--color-line)] text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]'
  }`}
  >
  <Icon size={15} />
@@ -1032,25 +1032,25 @@ const BudgetVsActual = ({ user, userRole }) => {
  </div>
 
  {/* Monthly Chart (always visible) */}
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4">
- <h3 className="text-[18px] font-medium tracking-tight text-[var(--text-primary)]">
+ <h3 className="text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">
  {activeTab === 'summary' ? 'Ingresos y Gastos por mes' : 'Detalle mensual por categoría'}
  </h3>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Barras: presupuesto. Línea: ejecución real.</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Barras: presupuesto. Línea: ejecución real.</p>
  </div>
  <div className="h-[340px]">
  <ResponsiveContainer width="100%" height="100%">
  <BarChart data={chartData} barGap={2} barCategoryGap="20%">
- <CartesianGrid stroke="var(--border)" vertical={false} />
- <XAxis dataKey="name" stroke="var(--text-disabled)" tickLine={false} axisLine={false} />
- <YAxis stroke="var(--text-disabled)" tickLine={false} axisLine={false} tickFormatter={(v) => `€${Math.round(v / 1000)}k`} />
+ <CartesianGrid stroke="var(--color-line)" vertical={false} />
+ <XAxis dataKey="name" stroke="var(--color-fg-4)" tickLine={false} axisLine={false} />
+ <YAxis stroke="var(--color-fg-4)" tickLine={false} axisLine={false} tickFormatter={(v) => `€${Math.round(v / 1000)}k`} />
  <Tooltip
  content={({ active, payload, label }) => {
  if (!active || !payload?.length) return null;
  return (
- <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 max-w-xs">
- <p className="mb-2 nd-label text-[var(--text-disabled)]">{label}</p>
+ <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 max-w-xs">
+ <p className="mb-2 label-mono text-[var(--color-fg-4)]">{label}</p>
  {payload.map((e) => e.value > 0 && (
  <p key={e.dataKey} className="text-sm font-medium" style={{ color: e.color }}>
  {e.name}: {formatCurrency(e.value)}
@@ -1089,17 +1089,17 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  {/* Summary Table */}
  {activeTab === 'summary' && (
- <section className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-4 flex items-center justify-between">
  <div>
- <h3 className="text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Resumen por categoría</h3>
- <p className="mt-1 text-sm text-[var(--text-secondary)]">Presupuesto vs. real (neto sin IVA). Clic en monto para editar.</p>
+ <h3 className="text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Resumen por categoría</h3>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Presupuesto vs. real (neto sin IVA). Clic en monto para editar.</p>
  </div>
  {canAct && (
  <button
  type="button"
  onClick={() => setEditingLine({})}
- className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2.5 text-sm font-medium text-[var(--black)] hover:opacity-85"
+ className="flex items-center gap-2 rounded-lg bg-[var(--color-fg-1)] px-4 py-2.5 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85"
  >
  <Plus size={14} />
  Añadir línea
@@ -1109,7 +1109,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  <div className="overflow-x-auto">
  <table className="w-full min-w-[900px] text-left">
  <thead>
- <tr className="border-b border-[var(--border)] nd-label text-[var(--text-disabled)]">
+ <tr className="border-b border-[var(--color-line)] label-mono text-[var(--color-fg-4)]">
  <th className="px-4 py-3">Categoría</th>
  <th className="px-4 py-3">Tipo</th>
  <th className="px-4 py-3 text-right">Presupuesto</th>
@@ -1120,36 +1120,36 @@ const BudgetVsActual = ({ user, userRole }) => {
  {canAct && <th className="px-4 py-3 text-center">Acciones</th>}
  </tr>
  </thead>
- <tbody className="divide-y divide-[var(--border)]">
+ <tbody className="divide-y divide-[var(--color-line)]">
  {summaryRows.map((row) => {
  const isOver = row.type === 'expense' ? row.variance < 0 : row.variance < 0;
  return (
  <React.Fragment key={row.id}>
  <tr
- className="cursor-pointer hover:bg-[var(--surface)]"
+ className="cursor-pointer hover:bg-[var(--color-bg-1)]"
  onClick={() => setExpandedRow(expandedRow === row.categoryName ? null : row.categoryName)}
  >
  <td className="px-4 py-4">
  <div className="flex items-center gap-2">
  {expandedRow === row.categoryName
- ? <ChevronUp size={14} className="text-[var(--text-primary)]" />
- : <ChevronDown size={14} className="text-[var(--text-secondary)]" />}
+ ? <ChevronUp size={14} className="text-[var(--color-fg-1)]" />
+ : <ChevronDown size={14} className="text-[var(--color-fg-3)]" />}
  <div>
- <p className="text-sm font-medium text-[var(--text-primary)]">{row.categoryName}</p>
- {row.notes && <p className="text-xs text-[var(--text-secondary)]">{row.notes}</p>}
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{row.categoryName}</p>
+ {row.notes && <p className="text-xs text-[var(--color-fg-3)]">{row.notes}</p>}
  </div>
  </div>
  </td>
  <td className="px-4 py-4">
  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
  row.type === 'income'
- ? 'border border-[var(--border-visible)] bg-transparent text-[var(--success)]'
- : 'border border-[var(--warning)] bg-transparent text-[var(--warning)]'
+ ? 'border border-[var(--color-line-s)] bg-transparent text-[var(--color-ok)]'
+ : 'border border-[var(--color-warn)] bg-transparent text-[var(--color-warn)]'
  }`}>
  {row.type === 'income' ? 'Ingreso' : 'Gasto'}
  </span>
  </td>
- <td className="px-4 py-4 text-right text-sm font-medium text-[var(--text-primary)]">
+ <td className="px-4 py-4 text-right text-sm font-medium text-[var(--color-fg-1)]">
  <EditableCell
  value={row.totalBudget}
  formatter={(v) => formatCurrency(v)}
@@ -1162,19 +1162,19 @@ const BudgetVsActual = ({ user, userRole }) => {
  }}
  />
  </td>
- <td className="px-4 py-4 text-right text-sm font-medium text-[var(--text-primary)]">
+ <td className="px-4 py-4 text-right text-sm font-medium text-[var(--color-fg-1)]">
  {formatCurrency(row.totalActual)}
  </td>
- <td className={`px-4 py-4 text-right text-sm font-medium ${row.variance >= 0 ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <td className={`px-4 py-4 text-right text-sm font-medium ${row.variance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {row.variance >= 0 ? '+' : ''}{formatCurrency(row.variance)}
  </td>
- <td className={`px-4 py-4 text-right text-sm font-medium ${row.pct >= 0 ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <td className={`px-4 py-4 text-right text-sm font-medium ${row.pct >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {row.pct >= 0 ? '+' : ''}{row.pct.toFixed(1)}%
  </td>
  <td className="px-4 py-4 text-center">
  {row.variance >= 0
- ? <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--success)]"><Check size={12} /> Bajo presupuesto</span>
- : <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--warning)]"><AlertTriangle size={12} /> Sobre presupuesto</span>
+ ? <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ok)]"><Check size={12} /> Bajo presupuesto</span>
+ : <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-warn)]"><AlertTriangle size={12} /> Sobre presupuesto</span>
  }
  </td>
  {canAct && (
@@ -1183,7 +1183,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  <button
  type="button"
  onClick={() => setEditingLine(row)}
- className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
+ className="rounded-lg p-1.5 text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  title="Editar"
  >
  <Edit3 size={14} />
@@ -1202,7 +1202,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  }
  );
  }}
- className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--warning)]"
+ className="rounded-lg p-1.5 text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-warn)]"
  title="Eliminar"
  >
  <Trash2 size={14} />
@@ -1225,7 +1225,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  })}
  {summaryRows.length === 0 && (
  <tr>
- <td colSpan={canAct ? 8 : 7} className="px-4 py-10 text-center text-sm text-[var(--text-secondary)]">
+ <td colSpan={canAct ? 8 : 7} className="px-4 py-10 text-center text-sm text-[var(--color-fg-3)]">
  Sin líneas de presupuesto. Clica "Añadir línea" para empezar.
  </td>
  </tr>
@@ -1233,11 +1233,11 @@ const BudgetVsActual = ({ user, userRole }) => {
  </tbody>
  {summaryRows.length > 0 && (
  <tfoot>
- <tr className="border-t-2 border-[var(--border)] font-medium">
- <td className="px-4 py-3 text-sm text-[var(--text-primary)]" colSpan={2}>TOTALES</td>
- <td className="px-4 py-3 text-right text-sm text-[var(--text-primary)]">{formatCurrency(totals.budgetIncome - totals.budgetExpense)}</td>
- <td className="px-4 py-3 text-right text-sm text-[var(--text-primary)]">{formatCurrency(totals.actualIncome - totals.actualExpense)}</td>
- <td className={`px-4 py-3 text-right text-sm ${(totals.budgetNet - totals.actualNet) >= 0 ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <tr className="border-t-2 border-[var(--color-line)] font-medium">
+ <td className="px-4 py-3 text-sm text-[var(--color-fg-1)]" colSpan={2}>TOTALES</td>
+ <td className="px-4 py-3 text-right text-sm text-[var(--color-fg-1)]">{formatCurrency(totals.budgetIncome - totals.budgetExpense)}</td>
+ <td className="px-4 py-3 text-right text-sm text-[var(--color-fg-1)]">{formatCurrency(totals.actualIncome - totals.actualExpense)}</td>
+ <td className={`px-4 py-3 text-right text-sm ${(totals.budgetNet - totals.actualNet) >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {(totals.budgetNet - totals.actualNet) >= 0 ? '+' : ''}{formatCurrency(totals.budgetNet - totals.actualNet)}
  </td>
  <td colSpan={2} />
@@ -1253,12 +1253,12 @@ const BudgetVsActual = ({ user, userRole }) => {
  {activeTab === 'detail' && currentBudget.lines?.length > 0 && (
  <section className="space-y-4">
  <div className="flex items-center justify-between">
- <h3 className="text-[18px] font-medium tracking-tight text-[var(--text-primary)]">Desglose mensual</h3>
+ <h3 className="text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">Desglose mensual</h3>
  {canAct && (
  <button
  type="button"
  onClick={() => setEditingLine({})}
- className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2.5 text-sm font-medium text-[var(--black)] hover:opacity-85"
+ className="flex items-center gap-2 rounded-lg bg-[var(--color-fg-1)] px-4 py-2.5 text-sm font-medium text-[var(--color-bg-0)] hover:opacity-85"
  >
  <Plus size={14} />
  Añadir línea
@@ -1268,19 +1268,19 @@ const BudgetVsActual = ({ user, userRole }) => {
  {currentBudget.lines
  .filter((line) => line.monthlyBudget.some((v) => v > 0))
  .map((line) => (
- <div key={line.id} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 ">
+ <div key={line.id} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-3 flex items-center justify-between">
  <div className="flex items-center gap-3">
- <h4 className="text-[15px] font-medium text-[var(--text-primary)]">{line.categoryName}</h4>
+ <h4 className="text-[15px] font-medium text-[var(--color-fg-1)]">{line.categoryName}</h4>
  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium uppercase ${
- line.type === 'income' ? 'bg-transparent text-[var(--success)]' : 'bg-transparent text-[var(--warning)]'
+ line.type === 'income' ? 'bg-transparent text-[var(--color-ok)]' : 'bg-transparent text-[var(--color-warn)]'
  }`}>
  {line.type === 'income' ? 'Ingreso' : 'Gasto'}
  </span>
  </div>
  {canAct && (
  <div className="flex gap-1">
- <button onClick={() => setEditingLine(line)} className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]">
+ <button onClick={() => setEditingLine(line)} className="rounded-lg p-1.5 text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]">
  <Edit3 size={14} />
  </button>
  <button onClick={() => {
@@ -1289,7 +1289,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  'Esta acción no se puede deshacer. Continuar?',
  () => deleteBudgetLine(currentBudget.id, line.id)
  );
- }} className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-transparent hover:text-[var(--warning)]">
+ }} className="rounded-lg p-1.5 text-[var(--color-fg-3)] hover:bg-transparent hover:text-[var(--color-warn)]">
  <Trash2 size={14} />
  </button>
  </div>
@@ -1304,17 +1304,17 @@ const BudgetVsActual = ({ user, userRole }) => {
  : (actuals.get(key)?.expense || 0);
  const isPast = i < CURRENT_MONTH || selectedYear < CURRENT_YEAR;
  return (
- <div key={m} className="flex flex-col items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] p-2">
- <span className="text-[9px] font-medium text-[var(--text-secondary)]">{m}</span>
+ <div key={m} className="flex flex-col items-center gap-1 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-2">
+ <span className="text-[9px] font-medium text-[var(--color-fg-3)]">{m}</span>
  <div className="text-center">
- <p className="text-[10px] font-medium text-[var(--text-primary)]">{formatCurrency(budget)}</p>
+ <p className="text-[10px] font-medium text-[var(--color-fg-1)]">{formatCurrency(budget)}</p>
  {isPast && (
- <p className={`text-[10px] font-medium ${actual <= budget ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+ <p className={`text-[10px] font-medium ${actual <= budget ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}>
  {formatCurrency(actual)}
  </p>
  )}
  {!isPast && (
- <p className="text-[10px] italic text-[var(--text-secondary)]">—</p>
+ <p className="text-[10px] italic text-[var(--color-fg-3)]">—</p>
  )}
  </div>
  </div>
