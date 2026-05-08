@@ -46,9 +46,23 @@ const flushDoc = (data) => ({
   data: () => data,
 });
 
+const createMemoryStorage = () => {
+  const store = new Map();
+
+  return {
+    clear: vi.fn(() => store.clear()),
+    getItem: vi.fn((key) => store.get(String(key)) ?? null),
+    removeItem: vi.fn((key) => store.delete(String(key))),
+    setItem: vi.fn((key, value) => store.set(String(key), String(value))),
+  };
+};
+
 beforeEach(() => {
   if (typeof window !== 'undefined') {
-    window.localStorage?.clear?.();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: createMemoryStorage(),
+    });
   }
 });
 

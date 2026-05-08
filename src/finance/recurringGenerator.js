@@ -13,6 +13,18 @@ const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
+const parseDateOnlyUtc = (value) => {
+  if (!value) return null;
+  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const monthIndexFromDate = (date) =>
+  date.getUTCFullYear() * 12 + date.getUTCMonth();
+
+const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
 /**
  * Format a (year, month) pair as "YYYY-MM" — used as `recurringPeriod` field.
  */
@@ -44,17 +56,17 @@ export const dueDateForPeriod = (rule, year, month) => {
 export const ruleAppliesToPeriod = (rule, year, month) => {
   if (!rule.active) return false;
 
-  const periodStart = new Date(year, month - 1, 1);
-  const periodEnd = new Date(year, month, 0); // last day of period
+  const periodStart = new Date(Date.UTC(year, month - 1, 1));
+  const periodEnd = new Date(Date.UTC(year, month, 0)); // last day of period
 
   // startDate gating
   if (rule.startDate) {
-    const start = new Date(rule.startDate);
+    const start = parseDateOnlyUtc(rule.startDate);
     if (start > periodEnd) return false;
   }
   // endDate gating
   if (rule.endDate) {
-    const end = new Date(rule.endDate);
+    const end = parseDateOnlyUtc(rule.endDate);
     if (end < periodStart) return false;
   }
 
@@ -73,12 +85,13 @@ export const ruleAppliesToPeriod = (rule, year, month) => {
         // No start date → apply on Jan/Apr/Jul/Oct by default
         return month % 3 === 1;
       }
-      const startMonth = new Date(rule.startDate).getMonth() + 1; // 1..12
-      return ((month - startMonth) % 3 + 3) % 3 === 0 && month >= startMonth;
+      const start = parseDateOnlyUtc(rule.startDate);
+      const monthsSinceStart = (year * 12 + (month - 1)) - monthIndexFromDate(start);
+      return monthsSinceStart >= 0 && monthsSinceStart % 3 === 0;
     }
     case 'yearly': {
       const startMonth = rule.startDate
-        ? new Date(rule.startDate).getMonth() + 1
+        ? parseDateOnlyUtc(rule.startDate).getUTCMonth() + 1
         : 1; // default January
       return month === startMonth;
     }
@@ -96,11 +109,11 @@ export const amountForPeriod = (rule) => {
   const a = Number(rule.amount) || 0;
   switch (rule.frequency) {
     case 'biweekly':
-      return a * 2.1666; // 26 / 12
+      return roundMoney(a * 2.1666); // 26 / 12
     case 'weekly':
-      return a * 4.3333; // 52 / 12
+      return roundMoney(a * 4.3333); // 52 / 12
     default:
-      return a;
+      return roundMoney(a);
   }
 };
 

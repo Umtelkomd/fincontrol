@@ -31,15 +31,15 @@ export const SHORT_MONTH_NAMES = [
 ];
 
 const buildMonthRange = (year, monthIndex) => {
-  const from = new Date(year, monthIndex, 1);
-  const to = new Date(year, monthIndex + 1, 0);
+  const from = new Date(Date.UTC(year, monthIndex, 1));
+  const to = new Date(Date.UTC(year, monthIndex + 1, 0));
   return { from: toISODate(from), to: toISODate(to) };
 };
 
 const buildQuarterRange = (year, quarterIndex) => {
   const startMonth = quarterIndex * 3;
-  const from = new Date(year, startMonth, 1);
-  const to = new Date(year, startMonth + 3, 0);
+  const from = new Date(Date.UTC(year, startMonth, 1));
+  const to = new Date(Date.UTC(year, startMonth + 3, 0));
   return { from: toISODate(from), to: toISODate(to), quarter: quarterIndex + 1 };
 };
 
