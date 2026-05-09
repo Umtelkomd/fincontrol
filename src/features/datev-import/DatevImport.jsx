@@ -4,9 +4,15 @@ import { useBankMovements } from '../../hooks/useBankMovements';
 import { useDatevImport } from '../../hooks/useDatevImport';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
-import { parseDatevCSV, diffAgainstExisting } from '../../finance/datevParser';
-import { formatCurrency } from '../../utils/formatters';
+import { classifyDatevImportFiles, parseDatevCSV } from '../../finance/datevParser';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
+
+
+const createImportRunId = () => (
+ typeof crypto !== 'undefined' && crypto.randomUUID
+ ? crypto.randomUUID()
+ : `datev-${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
 
 const readFileAsText = (file) =>
  new Promise((resolve, reject) => {
@@ -37,17 +43,18 @@ const DatevImport = ({ user }) => {
  return;
  }
 
+ const importRunId = createImportRunId();
  const newEntries = await Promise.all(
  incoming.map(async (f, idx) => {
  const text = await readFileAsText(f);
  const parsed = parseDatevCSV(text);
- const diff = diffAgainstExisting(parsed.rows, bankMovements);
  return {
  id: `${Date.now()}-${idx}-${f.name}`,
+ importRunId,
  file: f,
  name: f.name,
  parsed,
- diff,
+ diff: { newRows: [], duplicateRows: [] },
  status: 'ready',
  importing: false,
  result: null,
@@ -55,7 +62,7 @@ const DatevImport = ({ user }) => {
  }),
  );
 
- setFiles((prev) => [...prev, ...newEntries]);
+ setFiles((prev) => classifyDatevImportFiles([...prev, ...newEntries], bankMovements, importRunId).files);
  },
  [bankMovements, showToast],
  );
@@ -75,7 +82,10 @@ const DatevImport = ({ user }) => {
  };
 
  const removeFile = (id) => {
- setFiles((prev) => prev.filter((f) => f.id !== id));
+ setFiles((prev) => {
+ const remaining = prev.filter((f) => f.id !== id);
+ return classifyDatevImportFiles(remaining, bankMovements).files;
+ });
  };
 
  const importOne = async (entry) => {
@@ -294,10 +304,10 @@ const DatevImport = ({ user }) => {
  <AlertCircle size={16} className="text-[var(--color-warn)] flex-shrink-0 mt-0.5" />
  <div>
  <p className="text-sm text-[var(--color-fg-1)]">
- Algunas filas no pudieron parsearse (probablemente sin fecha o sin monto).
+ Algunos archivos o filas no pudieron importarse (formato no soportado, fecha o monto inválidos).
  </p>
  <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
- Revisá los archivos o pasame el detalle si es masivo.
+ Los archivos DATEV classic/headers desconocidos se rechazan completos para evitar importaciones parciales.
  </p>
  </div>
  </div>
