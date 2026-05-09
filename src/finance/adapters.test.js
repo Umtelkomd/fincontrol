@@ -156,6 +156,40 @@ describe('finance adapters bank movement mapping', () => {
     });
   });
 
+  it('preserves additive DATEV identity and import metadata safely', () => {
+    const movement = adaptBankMovementDoc({
+      id: 'datev-bank-1',
+      direction: 'out',
+      amount: 42.13,
+      signedAmount: -42.13,
+      importSource: 'datev',
+      importRunId: 'datev-run-1',
+      importFile: { name: 'may.csv', size: 1234, lastModified: 1778306400000 },
+      importLineNumber: 7,
+      rowHash: 'datev-hash-1',
+      rowFingerprint: 'sparkasse|identity|1',
+      counterpartyIban: 'DE89370400440532013000',
+      counterpartyBic: 'COBADEFFXXX',
+      rawDatev: { line: 7, columns: { Buchungstag: '08.05.26', Betrag: '-42,13' } },
+    });
+
+    expect(movement).toMatchObject({
+      id: 'datev-bank-1',
+      amount: 42.13,
+      signedAmount: -42.13,
+      direction: 'out',
+      importSource: 'datev',
+      importRunId: 'datev-run-1',
+      importFile: { name: 'may.csv', size: 1234, lastModified: 1778306400000 },
+      importLineNumber: 7,
+      rowHash: 'datev-hash-1',
+      rowFingerprint: 'sparkasse|identity|1',
+      counterpartyIban: 'DE89370400440532013000',
+      counterpartyBic: 'COBADEFFXXX',
+      rawDatev: { line: 7, columns: { Buchungstag: '08.05.26', Betrag: '-42,13' } },
+    });
+  });
+
   it('normalizes partial bank movement data to safe defaults', () => {
     const movement = adaptBankMovementDoc({ id: 'bank-partial', amount: '49.995', direction: 'sideways', taxRate: 0 });
 

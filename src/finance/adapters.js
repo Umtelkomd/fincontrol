@@ -85,12 +85,29 @@ export const adaptReceivableDoc = (raw, source = 'receivable') => normalizeDocum
 
 export const adaptPayableDoc = (raw, source = 'payable') => normalizeDocument(raw, 'payable', source);
 
+const normalizeImportFile = (importFile) => {
+  if (importFile && typeof importFile === 'object') {
+    return {
+      name: importFile.name || '',
+      size: Number(importFile.size) || 0,
+      lastModified: Number(importFile.lastModified) || null,
+    };
+  }
+
+  if (importFile) {
+    return { name: String(importFile), size: 0, lastModified: null };
+  }
+
+  return null;
+};
+
 export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
   // VAT fields — backward compat: if taxRate missing, assume 19%
   const taxRate = raw.taxRate ?? 0.19;
   const grossAmount = clampMoney(raw.amount);
   const netAmount = raw.netAmount ?? (taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount);
   const taxAmount = raw.taxAmount ?? (grossAmount - netAmount);
+  const importFile = normalizeImportFile(raw.importFile);
 
   return {
     id: raw.id,
@@ -115,6 +132,18 @@ export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
     legacyTransactionId: raw.legacyTransactionId || null,
     reconciledAt: raw.reconciledAt || null,
     reconciliationId: raw.reconciliationId || null,
+    importSource: raw.importSource || null,
+    importRunId: raw.importRunId || '',
+    importFile,
+    importLineNumber: raw.importLineNumber || null,
+    rowHash: raw.rowHash || '',
+    rowFingerprint: raw.rowFingerprint || '',
+    signedAmount: Number.isFinite(Number(raw.signedAmount))
+      ? clampMoney(raw.signedAmount)
+      : (raw.direction === 'out' ? -grossAmount : grossAmount),
+    counterpartyIban: raw.counterpartyIban || '',
+    counterpartyBic: raw.counterpartyBic || '',
+    rawDatev: raw.rawDatev || null,
     createdBy: raw.createdBy || '',
     createdAt: raw.createdAt || null,
     updatedAt: raw.updatedAt || null,

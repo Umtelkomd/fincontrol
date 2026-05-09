@@ -14,6 +14,40 @@ import { logError } from '../utils/logger';
 import { datevRowToBankMovementPayload } from '../finance/datevParser';
 import { findBestRule, buildClassificationPayload } from '../finance/ruleEngine';
 
+const normalizeImportFile = (rowImportFile, fallbackName = '') => {
+ if (rowImportFile && typeof rowImportFile === 'object') {
+ return {
+ name: rowImportFile.name || fallbackName || '',
+ size: Number(rowImportFile.size) || 0,
+ lastModified: Number(rowImportFile.lastModified) || null,
+ };
+ }
+
+ return {
+ name: rowImportFile || fallbackName || '',
+ size: 0,
+ lastModified: null,
+ };
+};
+
+const buildDatevMetadata = (row, base, fileName) => {
+ const signedAmount = Number.isFinite(Number(row.signedAmount))
+ ? Number(row.signedAmount)
+ : (base.direction === 'out' ? -Math.abs(base.amount) : Math.abs(base.amount));
+
+ return {
+ signedAmount,
+ importRunId: row.importRunId || base.importRunId || '',
+ importFile: normalizeImportFile(row.importFile || base.importFile, fileName),
+ importLineNumber: row.importLineNumber || base.importLineNumber || row.lineNumber || row.raw?.line || null,
+ rowHash: row.rowHash || base.rowHash || '',
+ rowFingerprint: row.rowFingerprint || base.rowFingerprint || '',
+ counterpartyIban: row.counterpartyIban || base.counterpartyIban || '',
+ counterpartyBic: row.counterpartyBic || base.counterpartyBic || '',
+ rawDatev: row.rawDatev || row.raw || base.rawDatev || null,
+ };
+};
+
 /**
  * useDatevImport — bulk-create bank movements from parsed DATEV rows.
  *
@@ -45,6 +79,7 @@ export const useDatevImport = (user) => {
  const row = rows[i];
  try {
  const base = datevRowToBankMovementPayload(row, fileName);
+ const datevMetadata = buildDatevMetadata(row, base, fileName);
 
  // Try to find a matching rule BEFORE writing so we can include its
  // classification in the initial document (one Firestore write).
@@ -83,8 +118,15 @@ export const useDatevImport = (user) => {
  reconciledAt: null,
  // Trace fields
  importSource: base.importSource,
- importFile: base.importFile,
- importLineNumber: base.importLineNumber,
+ importRunId: datevMetadata.importRunId,
+ importFile: datevMetadata.importFile,
+ importLineNumber: datevMetadata.importLineNumber,
+ rowHash: datevMetadata.rowHash,
+ rowFingerprint: datevMetadata.rowFingerprint,
+ signedAmount: datevMetadata.signedAmount,
+ counterpartyIban: datevMetadata.counterpartyIban,
+ counterpartyBic: datevMetadata.counterpartyBic,
+ rawDatev: datevMetadata.rawDatev,
  // Auto-classification (overrides empty defaults above)
  ...ruleClassification,
  appliedRuleId: matchedRule ? matchedRule.id : null,
