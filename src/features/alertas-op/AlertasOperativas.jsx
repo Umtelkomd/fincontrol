@@ -148,12 +148,18 @@ const AlertasOperativas = ({ user }) => {
 
   // ─── Cash projection alert ───
   const negativeAlert = useMemo(() => {
-    if (!projection.firstNegativeDay) return null;
-    const days = daysBetween(today, projection.firstNegativeDay);
+    const firstNegativeDay = projection.firstNegativeDay;
+    if (!firstNegativeDay) return null;
+    const negativeDate =
+      typeof firstNegativeDay === 'string' ? firstNegativeDay : firstNegativeDay.date;
+    const days = daysBetween(today, negativeDate);
     return {
-      date: projection.firstNegativeDay,
+      date: negativeDate,
       daysFromNow: days,
-      projectedBalance: projection.next30Balance,
+      projectedBalance:
+        typeof firstNegativeDay === 'object'
+          ? firstNegativeDay.balance
+          : projection.next30Balance,
       endBalance: projection.projectedEndBalance,
     };
   }, [projection, today]);
@@ -437,7 +443,6 @@ const AlertasOperativas = ({ user }) => {
 };
 
 const DocList = ({ docs, tone = 'warn', renderMeta }) => {
-  const navigate = useNavigate();
   return (
     <div className="divide-y divide-[var(--color-line)]">
       {docs.map((d) => {
