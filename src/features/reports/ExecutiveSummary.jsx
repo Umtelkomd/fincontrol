@@ -105,7 +105,7 @@ const ExecutiveSummary = ({ user }) => {
  <Card title="Caja actual" value={formatCurrency(metrics.currentCash)} subtitle="Saldo operativo real." accent="var(--color-ok)" icon={Landmark} />
  <Card title="Liquidez proyectada" value={formatCurrency(metrics.projectedLiquidity)} subtitle="Caja mas CXC menos CXP." accent="var(--color-fg-3)" icon={Target} />
  <Card title="CXC vencida" value={formatCurrency(metrics.overdueReceivables.reduce((sum, entry) => sum + entry.openAmount, 0))} subtitle={`${metrics.overdueReceivables.length} documentos`} accent="var(--color-accent)" icon={AlertTriangle} />
- <Card title="Runway" value={metrics.runwayMonths == null ? 'N/A' : `${metrics.runwayMonths.toFixed(1)}m`} subtitle="Caja actual sobre egreso promedio 90d." accent="var(--color-warn)" icon={ShieldAlert} />
+ <Card title="Cobertura de caja" value={metrics.runwayMonths == null ? 'N/A' : `${metrics.runwayMonths.toFixed(1)} meses`} subtitle="Meses cubiertos al ritmo promedio de egresos." accent="var(--color-warn)" icon={ShieldAlert} />
  </div>
 
  <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">

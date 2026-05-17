@@ -126,7 +126,7 @@ function InsightPanel({ runwayMonths }) {
  color = 'border-[var(--color-accent)] bg-transparent';
  message = (
  <>
- <strong>CRÍTICO:</strong> Con este escenario la empresa tiene menos de 3 meses de vida ({runwayMonths.toFixed(1)} meses).
+ <strong>CRÍTICO:</strong> Con este escenario la empresa tiene menos de 3 meses de cobertura ({runwayMonths.toFixed(1)} meses).
  Revisar urgente gastos e impulsar cobros pendientes.
  </>
  );
@@ -135,7 +135,7 @@ function InsightPanel({ runwayMonths }) {
  color = 'border-[var(--color-warn)] bg-transparent';
  message = (
  <>
- <strong>ALERTA:</strong> Margen de operación ajustado ({runwayMonths.toFixed(1)} meses de runway).
+ <strong>ALERTA:</strong> Margen de operación ajustado ({runwayMonths.toFixed(1)} meses de cobertura).
  Priorizar cobros y reducir gastos variables.
  </>
  );
@@ -144,8 +144,8 @@ function InsightPanel({ runwayMonths }) {
  color = 'border-[var(--color-ok)] bg-transparent';
  message = (
  <>
- <strong>ESTABLE:</strong> Este escenario es sostenible ({runwayMonths.toFixed(1)} meses de runway).
- Considera invertir el excedente o acelerar crecimiento.
+ <strong>ESTABLE:</strong> Este escenario es sostenible ({runwayMonths.toFixed(1)} meses de cobertura).
+ Considera invertir el excedente o planificar inversión operativa.
  </>
  );
  }
@@ -391,7 +391,7 @@ export default function WhatIf({ user }) {
  <SliderControl label="Nuevas contrataciones" value={nuevasContrataciones} onChange={(v) => { setNuevasContrataciones(v); setActiveScenario(null); }} min={0} max={5} unit="" />
  </div>
  <HelpButton title="Nuevas contrataciones" size={13}>
- <p>Cada nueva contratación agrega un costo fijo mensual de {formatCurrency(COST_PER_HIRE)} EUR a los gastos. Útil para evaluar si la empresa puede soportar crecimiento de equipo.</p>
+ <p>Cada nueva contratación agrega un costo fijo mensual de {formatCurrency(COST_PER_HIRE)} EUR a los gastos. Útil para evaluar si la empresa puede soportar aumento de plantilla.</p>
  </HelpButton>
  </div>
  <div className="flex items-start gap-1">
@@ -415,7 +415,7 @@ export default function WhatIf({ user }) {
  <p><strong>Ingresos sim.:</strong> Ingresos mensuales proyectados con los ajustes aplicados. El delta muestra la diferencia vs. el valor actual.</p>
  <p><strong>Gastos sim.:</strong> Gastos mensuales proyectados incluyendo variaciones y contrataciones. Delta positivo = más gasto.</p>
  <p><strong>Margen neto:</strong> Diferencia entre ingresos y gastos simulados. Si es negativo, la empresa pierde dinero cada mes.</p>
- <p><strong>Runway sim.:</strong> Meses que la empresa puede operar con la caja actual al ritmo de gasto simulado. Menos de 3 meses es crítico.</p>
+ <p><strong>Cobertura sim.:</strong> Meses de cobertura que la caja actual puede sostener al ritmo de gasto simulado. Menos de 3 meses es crítico.</p>
  </HelpButton>
  </div>
  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -427,7 +427,7 @@ export default function WhatIf({ user }) {
  delta={sim.margenNeto - sim.actual.margenNeto}
  />
  <MetricCard
- label="Runway sim."
+ label="Cobertura sim."
  value={sim.runwaySim ?? 0}
  delta={sim.runwaySim !== null && sim.actual.runway !== null ? sim.runwaySim - sim.actual.runway : null}
  prefix=""
@@ -438,7 +438,7 @@ export default function WhatIf({ user }) {
  <div className="mb-1 flex items-center gap-2">
  <span className="label-mono text-[var(--color-fg-4)]">Impacto en caja</span>
  <HelpButton title="Proyección de caja" size={13}>
- <p>Muestra la caja estimada a 30, 60 y 90 días considerando el margen neto simulado y el impacto del retraso de cobros. Si algún valor es negativo (rojo), significa que la empresa necesitaría financiamiento externo.</p>
+ <p>Muestra la caja estimada a 30, 60 y 90 días considerando el margen neto simulado y el impacto del retraso de cobros. Si algún valor es negativo (rojo), significa que la empresa debe anticipar cobros, aplazar pagos o asegurar una línea de liquidez.</p>
  </HelpButton>
  </div>
  <div className="grid grid-cols-3 gap-3">
@@ -502,7 +502,7 @@ export default function WhatIf({ user }) {
  <div className="mb-1 flex items-center gap-2">
  <span className="label-mono text-[var(--color-fg-4)]">Diagnóstico</span>
  <HelpButton title="Diagnóstico automático" size={13}>
- <p>Evaluación automática basada en el runway simulado (meses de operación restantes):</p>
+ <p>Evaluación automática basada en la cobertura simulada (meses de operación cubiertos):</p>
  <p><strong>Crítico (rojo):</strong> Menos de 3 meses — acción urgente requerida.</p>
  <p><strong>Alerta (ámbar):</strong> Entre 3 y 6 meses — margen ajustado, priorizar cobros.</p>
  <p><strong>Estable (verde):</strong> Más de 6 meses — situación sostenible.</p>

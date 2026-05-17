@@ -325,10 +325,10 @@ const CashFlow = ({ user }) => {
  </div>
 
  <div className="grid gap-6 lg:grid-cols-3">
- <Section title="Runway" subtitle="Caja actual sobre el egreso promedio de 90 dias." help={
- <HelpButton title="Runway" size={14}>
+ <Section title="Cobertura de caja" subtitle="Caja actual sobre el egreso promedio de 90 dias." help={
+ <HelpButton title="Cobertura de caja" size={14}>
  <p>Meses de operacion que la caja actual puede cubrir al ritmo de gasto promedio de los ultimos 90 dias.</p>
- <p>Un runway inferior a 3 meses se considera critico.</p>
+ <p>Una cobertura inferior a 3 meses se considera critica.</p>
  </HelpButton>
  }>
  <div className="flex items-center gap-4">
@@ -337,7 +337,7 @@ const CashFlow = ({ user }) => {
  </div>
  <div>
  <p className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">
- {metrics.runwayMonths == null ? 'N/A' : `${metrics.runwayMonths.toFixed(1)}m`}
+ {metrics.runwayMonths == null ? 'N/A' : `${metrics.runwayMonths.toFixed(1)} meses`}
  </p>
  <p className="text-sm text-[var(--color-fg-3)]">Egreso medio mensual: {formatCurrency(metrics.avgMonthlyOutflows)}</p>
  </div>

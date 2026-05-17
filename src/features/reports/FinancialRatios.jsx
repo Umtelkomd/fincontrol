@@ -182,7 +182,7 @@ const FinancialRatios = ({ user }) => {
  { name: 'Prueba ácida', value: Math.min(ratioData.quickRatio, 4), benchmark: 1.0 },
  { name: 'Cobertura 14d', value: Math.min(ratioData.coverage14d, 4), benchmark: 1.1 },
  { name: 'Margen caja', value: Math.max(ratioData.cashMargin, 0), benchmark: 15 },
- { name: 'Runway', value: Math.min(globalMetrics.runwayMonths || 0, 12), benchmark: 3 },
+ { name: 'Cobertura caja', value: Math.min(globalMetrics.runwayMonths || 0, 12), benchmark: 3 },
  ];
 
  if (globalMetrics.loading || periodMetrics.loading || ledger.loading) {
@@ -251,7 +251,7 @@ const FinancialRatios = ({ user }) => {
  <SummaryMetric label="Caja actual" value={formatCurrency(globalMetrics.currentCash)} tone={globalMetrics.currentCash >= 0 ? 'text-[var(--color-fg-1)]' : 'text-[var(--color-warn)]'} />
  <SummaryMetric label="Liquidez proyectada" value={formatCurrency(globalMetrics.projectedLiquidity)} subvalue="Caja + CXC abiertas - CXP abiertas" tone={globalMetrics.projectedLiquidity >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'} />
  <SummaryMetric label="Próximos 14 días" value={formatCurrency(globalMetrics.next14Net)} subvalue={`${globalMetrics.upcomingReceivables.length} cobros y ${globalMetrics.upcomingPayables.length} pagos`} tone={globalMetrics.next14Net >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'} />
- <SummaryMetric label="Runway" value={globalMetrics.runwayMonths ? `${globalMetrics.runwayMonths.toFixed(1)}m` : 'N/A'} subvalue={`Burn mensual ${formatCurrency(globalMetrics.avgMonthlyOutflows)}`} tone="text-[var(--color-fg-1)]" />
+ <SummaryMetric label="Cobertura de caja" value={globalMetrics.runwayMonths ? `${globalMetrics.runwayMonths.toFixed(1)} meses` : 'N/A'} subvalue={`Egreso prom. mensual ${formatCurrency(globalMetrics.avgMonthlyOutflows)}`} tone="text-[var(--color-fg-1)]" />
  <SummaryMetric label="Período" value={formatCurrency(periodMetrics.netMovement)} subvalue={`Caja realizada ${periodRange.label}`} tone={periodMetrics.netMovement >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'} />
  </div>
 

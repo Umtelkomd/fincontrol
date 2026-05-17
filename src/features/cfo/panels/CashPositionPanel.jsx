@@ -28,7 +28,7 @@ import { summarizeCashPosition } from '../lib/runway.js';
  * Visual highlights:
  *   - Cash today turns red below €10k (NEXUS accent)
  *   - Sparkline 90d with reference line at the critical threshold
- *   - Cash coverage + net runway semantics
+ *   - Cash coverage + net coverage semantics
  */
 
 const TooltipContent = ({ active, payload }) => {
@@ -73,7 +73,7 @@ const CashPositionPanel = ({ snapshot }) => {
 
   if (!snapshot.bankAccount) {
     return (
-      <Panel title="Cash Position" meta="Fase B" padding>
+      <Panel title="Posición de caja" meta="Fase B" padding>
         <div className="flex items-start gap-3">
           <AlertTriangle className="text-[var(--color-warn)] flex-shrink-0 mt-0.5" size={18} />
           <div>
@@ -81,8 +81,8 @@ const CashPositionPanel = ({ snapshot }) => {
               No hay cuenta bancaria configurada.
             </p>
             <p className="mt-1 text-[12px] text-[var(--color-fg-3)]">
-              Definí starting balance + balance date en /configuracion → Cuenta bancaria
-              para que la capa CFO pueda calcular cash hoy y runway.
+              Definí saldo inicial + fecha de saldo en /configuracion → Cuenta bancaria
+              para que la capa CFO pueda calcular caja actual y cobertura de caja.
             </p>
           </div>
         </div>
@@ -107,28 +107,28 @@ const CashPositionPanel = ({ snapshot }) => {
 
   return (
     <Panel
-      title="Cash Position"
+      title="Posición de caja"
       meta={`Bal. ${formatDate(cash.balanceDate)}`}
       padding
     >
       <div className="space-y-4">
         <KPIGrid cols={4}>
           <KPI
-            label="Cash hoy"
+            label="Caja actual"
             value={formatCurrency(cash.cashToday)}
-            meta={`Start ${formatCurrency(cash.startingBalance)} ${cash.netSinceBalanceDate >= 0 ? '+' : ''}${formatCurrency(cash.netSinceBalanceDate)}`}
+            meta={`Saldo inicial ${formatCurrency(cash.startingBalance)} ${cash.netSinceBalanceDate >= 0 ? '+' : ''}${formatCurrency(cash.netSinceBalanceDate)}`}
             tone={cashCritical ? 'err' : cash.cashToday > runway.criticalThreshold * 3 ? 'ok' : 'warn'}
             icon={Wallet}
           />
           <KPI
-            label="Burn 30d"
+            label="Egreso prom. 30d"
             value={formatCurrency(burn30.perMonth)}
             meta={`${formatCurrency(burn30.perDay)}/día · neto ${formatCurrency(burn30.net)}`}
             tone={burn30.perMonth > 0 ? 'warn' : 'ok'}
             icon={ArrowDownRight}
           />
           <KPI
-            label="Coverage"
+            label="Cobertura de caja"
             value={formatMonths(cashCoverageMonths)}
             meta={
               netPositive
@@ -145,7 +145,7 @@ const CashPositionPanel = ({ snapshot }) => {
             icon={Clock}
           />
           <KPI
-            label="Cash crítico"
+            label="Umbral crítico"
             value={
               runway.isCritical
                 ? 'Hoy'
@@ -163,7 +163,7 @@ const CashPositionPanel = ({ snapshot }) => {
           <div className="flex items-start gap-3 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-1)] px-4 py-3">
             <AlertTriangle className="text-[var(--color-err)] flex-shrink-0 mt-0.5" size={16} />
             <div className="text-[12px] text-[var(--color-fg-1)]">
-              Cash actual ({formatCurrency(cash.cashToday)}) está por debajo del umbral
+              Caja actual ({formatCurrency(cash.cashToday)}) está por debajo del umbral
               crítico de {formatCurrency(runway.criticalThreshold)}. Revisar cobranza y
               recortar gastos discrecionales.
             </div>
@@ -218,12 +218,12 @@ const CashPositionPanel = ({ snapshot }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-fg-4)]">
-          <Badge variant="neutral">90d burn: {formatCurrency(burn90.perMonth)}/mes</Badge>
+          <Badge variant="neutral">Egreso prom. 90d: {formatCurrency(burn90.perMonth)}/mes</Badge>
           <Badge variant={net90PerMonth >= 0 ? 'ok' : 'warn'}>
             Neto 90d: {formatCurrency(net90PerMonth)}/mes
           </Badge>
           <Badge variant="neutral">
-            Volumen 30d: in {formatCurrency(burn30.totalIn)} · out {formatCurrency(burn30.totalOut)}
+            Volumen 30d: entradas {formatCurrency(burn30.totalIn)} · salidas {formatCurrency(burn30.totalOut)}
           </Badge>
           <span>Línea roja punteada = umbral crítico ({formatCurrency(runway.criticalThreshold)})</span>
         </div>

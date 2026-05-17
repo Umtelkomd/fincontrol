@@ -102,7 +102,7 @@ const ProyeccionCashflow = ({ user }) => {
  }
 
  if ((metrics.runwayMonths || 0) > 0 && metrics.runwayMonths < 2) {
- items.push({ type: 'critical', text: `El runway estimado es menor a 2 meses (${metrics.runwayMonths.toFixed(1)}m).` });
+ items.push({ type: 'critical', text: `La cobertura de caja estimada es menor a 2 meses (${metrics.runwayMonths.toFixed(1)} meses).` });
  }
 
  return items;
@@ -158,7 +158,7 @@ const ProyeccionCashflow = ({ user }) => {
  <StatCard title="Caja actual" value={formatCurrency(metrics.currentCash)} subtitle="Saldo bancario real a hoy" accent={metrics.currentCash >= 0 ? 'var(--color-fg-4)' : 'var(--color-accent)'} icon={Wallet} />
  <StatCard title="Ventana 14d" value={formatCurrency(metrics.next14Net)} subtitle={`${metrics.upcomingReceivables.length} cobros y ${metrics.upcomingPayables.length} pagos`} accent={metrics.next14Net >= 0 ? 'var(--color-ok)' : 'var(--color-warn)'} icon={Calendar} />
  <StatCard title="Liquidez proyectada" value={formatCurrency(metrics.projectedLiquidity)} subtitle="Caja actual + CXC abiertas - CXP abiertas" accent={metrics.projectedLiquidity >= 0 ? 'var(--color-ok)' : 'var(--color-accent)'} icon={Target} />
- <StatCard title="Runway" value={metrics.runwayMonths ? `${metrics.runwayMonths.toFixed(1)}m` : 'N/A'} subtitle={`Burn mensual promedio ${formatCurrency(metrics.avgMonthlyOutflows)}`} accent="var(--color-fg-4)" icon={Zap} />
+ <StatCard title="Cobertura de caja" value={metrics.runwayMonths ? `${metrics.runwayMonths.toFixed(1)} meses` : 'N/A'} subtitle={`Egreso prom. mensual ${formatCurrency(metrics.avgMonthlyOutflows)}`} accent="var(--color-fg-4)" icon={Zap} />
  </div>
 
  <div className="grid gap-4 md:grid-cols-3">

@@ -129,7 +129,7 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
  </span>
  {metrics.runwayMonths != null && (
   <span className="label-mono text-[var(--color-fg-4)]">
- Runway {metrics.runwayMonths.toFixed(1)}m
+ Cobertura {metrics.runwayMonths.toFixed(1)} meses
  </span>
  )}
  </div>
@@ -187,17 +187,17 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
  onClick: () => setView?.('alertas'),
  },
  {
- label: 'Margen neto mes',
+ label: 'Margen caja estim.',
  value: `${netMarginPct}%`,
   color: parseFloat(netMarginPct) >= 0 ? 'var(--color-ok)' : 'var(--color-err)',
  },
  {
- label: 'Burn mensual',
+ label: 'Egreso prom. mensual',
  value: formatCurrency(metrics.avgMonthlyOutflows),
   color: 'var(--color-fg-1)',
  },
  {
- label: 'Ingresos mes',
+ label: 'Ingresos registrados',
  value: formatCurrency(metrics.cashInflows),
   color: 'var(--color-fg-1)',
  },
@@ -416,7 +416,7 @@ className="group bg-[var(--color-bg-1)] px-4 py-5 text-left transition-colors ho
  <section>
  <div className="flex items-center justify-between mb-4">
   <p className="label-mono text-[var(--color-fg-3)]">
- Margen por proyecto
+ Resultado por proyecto
  </p>
  <button
  type="button"
@@ -456,7 +456,7 @@ className="group bg-[var(--color-bg-1)] px-4 py-5 text-left transition-colors ho
  />
  <div className="flex items-center justify-between mt-2">
   <p className="font-mono text-[11px] text-[var(--color-fg-4)]">
- In {formatCurrency(project.inflows)} · Out {formatCurrency(project.outflows)}
+ Ingresos {formatCurrency(project.inflows)} · Costos {formatCurrency(project.outflows)}
  </p>
   <p className={`font-mono text-[11px] ${project.net >= 0 ? 'text-[var(--color-fg-3)]' : 'text-[var(--color-err)]'}`}>
  {project.net >= 0 ? '+' : ''}{formatCurrency(project.net)}
@@ -469,7 +469,7 @@ className="group bg-[var(--color-bg-1)] px-4 py-5 text-left transition-colors ho
  </section>
  </div>
 
- {/* ===== ALERTS + RUNWAY — Tertiary Layer ===== */}
+ {/* ===== ALERTS + CASH COVERAGE — Tertiary Layer ===== */}
  <div className="grid gap-8 lg:grid-cols-3">
  {/* Radar */}
  <section>
@@ -502,10 +502,10 @@ className="group bg-[var(--color-bg-1)] px-4 py-5 text-left transition-colors ho
  </div>
  </section>
 
- {/* Runway */}
+ {/* Cash coverage */}
  <section>
   <p className="label-mono text-[var(--color-fg-3)] mb-4">
- Runway estimado
+ Cobertura de caja
  </p>
   <div className="border border-[var(--color-line)] rounded-md bg-[var(--color-bg-1)] px-5 py-5">
   <p className="font-display text-[48px] leading-[1] tracking-[-0.02em] text-[var(--color-fg-1)]">
@@ -534,7 +534,7 @@ className="group bg-[var(--color-bg-1)] px-4 py-5 text-left transition-colors ho
  </div>
  </div>
   <p className="text-[13px] text-[var(--color-fg-4)] mt-4 leading-relaxed">
- Burn mensual: {formatCurrency(metrics.avgMonthlyOutflows)}
+ Egreso prom. mensual: {formatCurrency(metrics.avgMonthlyOutflows)}
  </p>
  </div>
  </section>

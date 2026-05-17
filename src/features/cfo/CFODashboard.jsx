@@ -108,7 +108,7 @@ const CFODashboard = ({ user }) => {
           </h2>
           <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
             Caja real, pagos urgentes, cobros pendientes y calidad de datos. Primero control
-            operativo; después forecast bonito. Read-only, single-fetch, cacheado.
+            operativo; después proyección útil. Read-only, single-fetch, cacheado.
           </p>
         </div>
         <div className="flex items-center gap-3">
