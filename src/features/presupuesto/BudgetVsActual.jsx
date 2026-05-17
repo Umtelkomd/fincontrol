@@ -184,7 +184,7 @@ const EditableCell = ({ value, onSave, formatter = (v) => v }) => {
 };
 
 // ── Budget Line Editor Modal ────────────────────────────────────
-const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories, allCategories }) => {
+const BudgetLineModal = ({ isOpen, onClose, onSave, line, categories }) => {
  const { showToast } = useToast();
  const [form, setForm] = useState(
  line || {
@@ -465,7 +465,7 @@ const DrillDownRow = ({ row, allTransactions, selectedYear, canAct, incToBudgetM
 // ── Main Component ──────────────────────────────────────────────
 const BudgetVsActual = ({ user, userRole }) => {
  const { showToast } = useToast();
- const { budgets, loading: budgetsLoading, createBudget, upsertBudgetLine, deleteBudgetLine, importBudgetLines, getBudgetsForYear } = useBudgets(user);
+ const { budgets, loading: budgetsLoading, createBudget, upsertBudgetLine, deleteBudgetLine, importBudgetLines } = useBudgets(user);
  const { projects } = useProjects(user);
  const categories = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -761,7 +761,6 @@ const BudgetVsActual = ({ user, userRole }) => {
  type="button"
  onClick={() => {
  const prevYear = selectedYear - 1;
- if (true) {
  openConfirm(
  `Importar de ${prevYear}`,
  `Copiar las líneas del presupuesto ${prevYear} como plantilla para ${selectedYear}?`,
@@ -772,7 +771,6 @@ const BudgetVsActual = ({ user, userRole }) => {
  });
  }
  );
- }
  }}
  className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
@@ -1122,7 +1120,6 @@ const BudgetVsActual = ({ user, userRole }) => {
  </thead>
  <tbody className="divide-y divide-[var(--color-line)]">
  {summaryRows.map((row) => {
- const isOver = row.type === 'expense' ? row.variance < 0 : row.variance < 0;
  return (
  <React.Fragment key={row.id}>
  <tr

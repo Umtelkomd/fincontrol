@@ -28,7 +28,7 @@ const TYPE_COLORS = {
  both: 'text-[var(--color-fg-1)] bg-[var(--color-bg-1)] border-[var(--color-line-s)]',
 };
 
-const Partners = ({ user, userRole }) => {
+const Partners = ({ user }) => {
  const { partners, loading, getFilteredPartners, createPartner, updatePartner, togglePartnerStatus } =
  usePartners(user);
  const { transactions } = useTransactions(user);
@@ -37,7 +37,7 @@ const Partners = ({ user, userRole }) => {
  const [searchQuery, setSearchQuery] = useState('');
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [editingPartner, setEditingPartner] = useState(null);
- const [submitting, setSubmitting] = useState(false);
+ const [, setSubmitting] = useState(false);
  const [actionLoading, setActionLoading] = useState(null); // partnerId of partner being toggled
 
  // Filter partners by tab + search

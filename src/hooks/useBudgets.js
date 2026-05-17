@@ -2,7 +2,7 @@ import { logError } from '../utils/logger';
 import { useState, useEffect, useMemo } from 'react';
 import {
   collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  serverTimestamp, orderBy, getDocs, where
+  serverTimestamp, orderBy
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 

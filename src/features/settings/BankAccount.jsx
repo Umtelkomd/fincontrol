@@ -17,7 +17,6 @@ const BankAccount = ({ user, transactions }) => {
 
  useEffect(() => {
  if (bankAccount) {
- // eslint-disable-next-line react-hooks/set-state-in-effect
  setForm({
  bankName: bankAccount.bankName || '',
  balance: String(bankAccount.balance ?? ''),

@@ -18,8 +18,6 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  const isOverdue = normalizedStatus === 'overdue' || (normalizedStatus === 'pending' && getDaysOverdue(t.date) > ALERT_THRESHOLDS.overdueDays);
  const isNew = t.hasUnreadUpdates === true;
  const isIncome = t.type === 'income';
- const daysOverdue = getDaysOverdue(t.date);
-
  const highlightText = (text) => {
  const str = safe(text);
  if (!searchTerm) return str;
@@ -33,14 +31,6 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  };
 
  const commentCount = Array.isArray(t.notes) ? t.notes.filter((note) => note.type === 'comment').length : 0;
- const hasRecentComments = Array.isArray(t.notes) && t.notes.some((note) => {
- if (note.type !== 'comment') return false;
- const noteDate = new Date(note.timestamp);
- const oneDayAgo = new Date();
- oneDayAgo.setHours(oneDayAgo.getHours() - 24);
- return noteDate >= oneDayAgo;
- });
-
  const isPartial = normalizedStatus === 'partial';
  const paidAmount = Number(t.paidAmount) || 0;
  const paidPct = Number(t.amount) > 0 ? (paidAmount / Number(t.amount)) * 100 : 0;

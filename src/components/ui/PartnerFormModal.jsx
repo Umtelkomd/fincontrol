@@ -8,7 +8,6 @@ const PartnerFormModal = ({
  onClose,
  onSubmit,
  editingPartner,
- user,
 }) => {
  const [submitting, setSubmitting] = useState(false);
  const [errors, setErrors] = useState({});

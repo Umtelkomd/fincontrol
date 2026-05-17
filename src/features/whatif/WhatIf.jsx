@@ -25,7 +25,6 @@ const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 const COST_PER_HIRE = 2500;
 
 function SliderControl({ label, value, onChange, min, max, step = 1, unit = '%' }) {
- const pct = ((value - min) / (max - min)) * 100;
  return (
  <div className="space-y-2">
  <div className="flex items-center justify-between">

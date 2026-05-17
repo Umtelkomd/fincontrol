@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, ArrowDownRight, ArrowUpRight, Tag, Pencil } from 'lucide-react';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge } from '@/components/ui/nexus';
 
 /**

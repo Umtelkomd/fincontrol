@@ -97,14 +97,6 @@ const Field = ({ label, children, optional = false }) => (
 const inputClassName =
  'w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:';
 
-const accentButtonMap = {
- 'register-collection': 'bg-[var(--color-ok)] hover:bg-[var(--color-ok)] ',
- 'register-payment': 'bg-[var(--color-accent)] hover:bg-[var(--color-accent)] ',
- 'create-receivable': 'bg-[var(--color-fg-3)] hover:opacity-80 ',
- 'create-payable': 'bg-[var(--color-warn)] hover:opacity-80 ',
- 'bank-adjustment': 'bg-[var(--color-fg-3)] hover:opacity-80 ',
-};
-
 const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  const { showToast } = useToast();
  const { projects } = useProjects(user);
@@ -311,7 +303,6 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
 
  const activeMeta = ACTIONS.find((entry) => entry.id === activeAction);
  const submitLabel = activeMeta?.title || 'Guardar registro';
- const submitButtonClassName = accentButtonMap[activeAction] || 'bg-[var(--color-fg-1)] hover:opacity-85 ';
 
  return (
  <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[var(--color-bg-1)] p-4 ">

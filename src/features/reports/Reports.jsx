@@ -155,8 +155,6 @@ const Reports = ({ user }) => {
  const previousTotals = summarizeMovements(previousMovements);
  // Net-of-VAT totals for P&L (excludes VAT from revenue and expenses)
  const currentTotalsNet = summarizeMovements(currentMovements, { useNet: true });
- const previousTotalsNet = summarizeMovements(previousMovements, { useNet: true });
-
  // VAT summary for the period
  const currentVAT = summarizeVAT(currentMovements);
  const previousVAT = summarizeVAT(previousMovements);

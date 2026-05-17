@@ -59,7 +59,7 @@ const TransactionFormModal = ({
  const [partnerInput, setPartnerInput] = useState('');
  const partnerInputRef = useRef(null);
  const partnerSuggestionsRef = useRef(null);
- const [showCreateNewPartner, setShowCreateNewPartner] = useState(false);
+ const [, setShowCreateNewPartner] = useState(false);
 
  // Employee picker state (multi-select typeahead)
  const [employeeInput, setEmployeeInput] = useState('');

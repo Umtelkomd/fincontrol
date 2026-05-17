@@ -9,7 +9,6 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  where,
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';

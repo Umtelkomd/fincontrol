@@ -67,8 +67,6 @@ const TransactionFilters = ({
  setQuickFilter,
  quickFilterButtons,
  activeFiltersCount,
- filteredRecords,
- unifiedRecords,
  filterOptions,
  userRole,
  onExportPDF,
