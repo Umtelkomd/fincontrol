@@ -3,16 +3,20 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
  Globe,
  LogOut,
+ Moon,
  Plus,
+ Sun,
 } from 'lucide-react';
 import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
 import { formatCurrency } from '../../utils/formatters';
+import { useTheme } from '../../hooks/useTheme';
 import { NAV_ITEMS } from './navItems';
 
 const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceData, bankAccount }) => {
  const navigate = useNavigate();
  const location = useLocation();
+ const { theme, toggle: toggleTheme } = useTheme();
  const visibleItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
 
  const handleLogout = async () => {
@@ -82,6 +86,16 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  aria-label="Cuenta bancaria"
  >
  <Globe size={14} />
+ </button>
+
+ <button
+ type="button"
+ onClick={toggleTheme}
+ className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] transition-colors hover:border-[var(--color-line-s)] hover:text-[var(--color-fg-1)]"
+ title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+ aria-label="Cambiar tema"
+ >
+ {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
  </button>
 
  <button
