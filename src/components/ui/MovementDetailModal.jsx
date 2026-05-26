@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, ArrowDownRight, ArrowUpRight, Tag, Pencil } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge } from '@/components/ui/nexus';
+import { getImportFileLabel } from '../../finance/importMetadata';
 
 /**
  * MovementDetailModal — read-only detail view of a bankMovement
@@ -28,6 +29,7 @@ const MovementDetailModal = ({
  const linkedDoc = receivable || payable;
  const isVoid = movement.status === 'void';
  const isReconciled = !!movement.receivableId || !!movement.payableId || !!movement.reconciledAt;
+ const importFileLabel = getImportFileLabel(movement.importFile);
 
  const auditTrail = Array.isArray(movement.auditTrail) ? movement.auditTrail : [];
 
@@ -109,7 +111,7 @@ const MovementDetailModal = ({
  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
  <p className="label-mono text-[var(--color-fg-3)] mb-1">Fuente del import</p>
  <p className="text-[12px] text-[var(--color-fg-4)] font-mono break-all">
- {movement.importFile || '—'}
+ {importFileLabel || '—'}
  {movement.importLineNumber ? ` · línea ${movement.importLineNumber}` : ''}
  </p>
  </div>
