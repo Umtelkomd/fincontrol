@@ -120,7 +120,7 @@ const RecordAuditTrailModal = ({ isOpen, onClose, record, logs = [], loading = f
  <button
  type="button"
  onClick={handleExport}
- className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-transparent px-4 py-2 text-[12px] font-medium text-[var(--color-fg-1)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
+ className="inline-flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-transparent px-4 py-2 text-[12px] font-medium text-[var(--color-fg-1)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  <Download size={14} />
  Exportar PDF
@@ -128,7 +128,7 @@ const RecordAuditTrailModal = ({ isOpen, onClose, record, logs = [], loading = f
  <button
  type="button"
  onClick={handleOpenGlobalAudit}
- className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] bg-transparent px-4 py-2 text-[12px] font-medium text-[var(--color-fg-1)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
+ className="inline-flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-transparent px-4 py-2 text-[12px] font-medium text-[var(--color-fg-1)] transition-colors hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]"
  >
  <ExternalLink size={14} />
  Auditoría global
@@ -180,7 +180,7 @@ const RecordAuditTrailModal = ({ isOpen, onClose, record, logs = [], loading = f
  </p>
  </div>
  ) : (
- <div className="space-y-3">
+ <div className="relative ml-4 border-l border-[var(--color-line)]">
  {timeline.map((entry) => {
  const style = ACTION_STYLES[entry.action] || ACTION_STYLES.update;
  const Icon = style.icon;
@@ -189,36 +189,40 @@ const RecordAuditTrailModal = ({ isOpen, onClose, record, logs = [], loading = f
  return (
  <div
  key={entry.id}
- className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4 "
+ className="relative pb-6 pl-7 last:pb-0"
  >
+ <span className={`absolute -left-[9px] top-1 flex h-4 w-4 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-bg-1)] ${style.color}`}>
+ <span className="h-2 w-2 rounded-full bg-current" />
+ </span>
+
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
- <div className="flex min-w-0 items-start gap-3">
- <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg ${style.bg} ${style.color}`}>
- <Icon size={16} />
- </div>
  <div className="min-w-0">
- <div className="flex flex-wrap items-center gap-2">
- <span className="text-[13px] font-medium text-[var(--color-fg-1)]">{entry.description}</span>
- <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.color}`}>
+ <p className="label-mono text-[var(--color-fg-4)]">{formatDateTime(entry.timestamp) || 'Sin fecha'}</p>
+ <div className="mt-2 flex flex-wrap items-center gap-2">
+ <span className={`inline-flex items-center gap-1.5 rounded-md border border-[var(--color-line)] px-2 py-1 text-[10px] font-medium ${style.color}`}>
+ <Icon size={12} />
  {style.label}
  </span>
- <span className="rounded-full border border-[var(--color-line)] bg-[var(--color-bg-1)] px-2 py-0.5 text-[10px] text-[var(--color-fg-4)]">
+ <span className="rounded-md border border-[var(--color-line)] px-2 py-1 text-[10px] text-[var(--color-fg-4)]">
  {entry.source === 'global' ? 'Auditoría global' : 'Rastro interno'}
  </span>
  </div>
+ <p className="mt-3 text-[14px] font-medium leading-6 text-[var(--color-fg-1)]">{entry.description}</p>
+ </div>
 
- <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-[var(--color-fg-4)]">
+ <div className="shrink-0 rounded-md border border-[var(--color-line)] px-3 py-2 text-[11px] text-[var(--color-fg-4)]">
  <span className="inline-flex items-center gap-1">
  <User size={11} />
  {entry.user || 'Sistema'}
  </span>
- <span>{formatDateTime(entry.timestamp) || 'Sin fecha'}</span>
+ </div>
  </div>
 
  {changedFields.length > 0 && (
  <div className="mt-3 flex flex-wrap gap-2">
  {changedFields.slice(0, 8).map((field) => (
- <span key={field} className="rounded-full border border-[var(--color-line)] bg-[var(--color-bg-1)] px-2 py-0.5 text-[10px] text-[var(--color-fg-4)]">
+ <span key={field} className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-2 py-0.5 text-[10px] text-[var(--color-fg-4)]">
  {field}
  </span>
  ))}
@@ -235,8 +239,6 @@ const RecordAuditTrailModal = ({ isOpen, onClose, record, logs = [], loading = f
  ))}
  </div>
  )}
- </div>
- </div>
  </div>
  </div>
  );

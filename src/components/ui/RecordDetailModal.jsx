@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Edit3, History, X } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 
 const Field = ({ label, value }) => value ? (
@@ -11,7 +11,17 @@ const Field = ({ label, value }) => value ? (
 const FAMILY_LABELS = { legacy: 'Registro histórico', movement: 'Movimiento bancario', receivable: 'Factura CXC', payable: 'Factura CXP' };
 const STATUS_LABELS = { paid: 'Liquidado', pending: 'Pendiente', partial: 'Parcial', overdue: 'Vencido', void: 'Anulado', cancelled: 'Anulado', issued: 'Emitida', settled: 'Liquidada' };
 
-const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }) => {
+const RecordDetailModal = ({
+ record,
+ onClose,
+ onEdit,
+ onChangeStatus,
+ onViewAuditTrail,
+ userRole,
+ canEdit,
+ canChangeStatus,
+ canViewAuditTrail,
+}) => {
  if (!record) return null;
 
  const r = record;
@@ -35,6 +45,9 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
  const payments = raw.payments || r.payments || [];
  const rawNotes = raw.notes || r.notes || [];
  const notes = (Array.isArray(rawNotes) ? rawNotes : []).filter((n) => typeof n === 'object');
+ const allowEdit = canEdit ?? (userRole === 'admin');
+ const allowChangeStatus = canChangeStatus ?? (userRole === 'admin');
+ const allowAuditTrail = canViewAuditTrail ?? (userRole === 'admin');
 
  return (
  <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn" onClick={onClose}>
@@ -62,7 +75,7 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
  status === 'overdue' ? 'bg-transparent text-[var(--color-accent)]' :
  'bg-transparent text-[var(--color-warn)]'
  }`}>
- {STATUS_LABELS[status] || status}
+ {r.statusLabel || STATUS_LABELS[status] || status}
  </span>
  </div>
 
@@ -122,10 +135,19 @@ const RecordDetailModal = ({ record, onClose, onEdit, onChangeStatus, userRole }
  </div>
 
  <div className="shrink-0 border-t border-[var(--color-line)] px-6 py-3 flex gap-2">
- {onEdit && userRole === 'admin' && (
- <button type="button" onClick={() => { onClose(); onEdit(record); }} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">Editar</button>
+ {onEdit && allowEdit && (
+ <button type="button" onClick={() => { onClose(); onEdit(record); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">
+ <Edit3 size={14} />
+ Editar
+ </button>
  )}
- {onChangeStatus && userRole === 'admin' && (
+ {onViewAuditTrail && allowAuditTrail && (
+ <button type="button" onClick={() => { onClose(); onViewAuditTrail(record); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">
+ <History size={14} />
+ Log
+ </button>
+ )}
+ {onChangeStatus && allowChangeStatus && (
  <button type="button" onClick={() => { onClose(); onChangeStatus(record); }} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-warn)] hover:bg-[var(--color-line)]">Cambiar estado</button>
  )}
  <button type="button" onClick={onClose} className="flex-1 rounded-lg bg-[var(--color-bg-2)] px-4 py-2.5 text-sm font-medium text-[var(--color-fg-3)] hover:bg-[var(--color-line)]">Cerrar</button>

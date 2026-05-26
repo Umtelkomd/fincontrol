@@ -4,16 +4,26 @@ import {
  ArrowDownLeft,
  BadgeEuro,
  Clock3,
+ Edit3,
  Filter,
+ History,
  Link2,
  Search,
 } from 'lucide-react';
+import CanonicalRecordModal from '../../components/finance/CanonicalRecordModal';
+import RecordAuditTrailModal from '../../components/finance/RecordAuditTrailModal';
 import HelpButton from '../../components/ui/HelpButton';
 import LinkBankMovementModal from '../../components/ui/LinkBankMovementModal';
 import RecordDetailModal from '../../components/ui/RecordDetailModal';
 import { useToast } from '../../contexts/ToastContext';
+import { buildFinanceOrderRecord } from '../financeOrders/orderRecordUtils';
+import { useAuditLog } from '../../hooks/useAuditLog';
 import { useBankMovements } from '../../hooks/useBankMovements';
+import { useCategories } from '../../hooks/useCategories';
 import { useClassifier } from '../../hooks/useClassifier';
+import { useCostCenters } from '../../hooks/useCostCenters';
+import { usePayables } from '../../hooks/usePayables';
+import { useProjects } from '../../hooks/useProjects';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { daysUntil } from '../../finance/utils';
 import { rowButtonProps } from '../../utils/a11y';
@@ -89,12 +99,20 @@ const CXPIndependiente = ({ user, userRole }) => {
  const metrics = useTreasuryMetrics({ user });
  const { bankMovements } = useBankMovements(user);
  const { linkToPayable } = useClassifier(user);
+ const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
+ const { expenseCategories } = useCategories(user);
+ const { costCenters } = useCostCenters(user);
+ const { projects } = useProjects(user);
+ const { updatePayable } = usePayables(user);
 
  const [searchTerm, setSearchTerm] = useState('');
  const [statusFilter, setStatusFilter] = useState('all');
  const [selectedRow, setSelectedRow] = useState(null);
  const [loadingId, setLoadingId] = useState(null);
  const [detailRecord, setDetailRecord] = useState(null);
+ const [editingRecord, setEditingRecord] = useState(null);
+ const [auditRecord, setAuditRecord] = useState(null);
+ const [submittingEdit, setSubmittingEdit] = useState(false);
 
  const visiblePayables = useMemo(
  () => metrics.payables.filter((entry) => entry.source === 'payable'),
@@ -152,6 +170,52 @@ const CXPIndependiente = ({ user, userRole }) => {
  const dueSoon = upcomingRows.reduce((sum, entry) => sum + entry.openAmount, 0);
 
  const canAct = userRole === 'admin' || userRole === 'manager';
+ const wrapRecord = (row) => buildFinanceOrderRecord(row, 'payable');
+ const toOrderRecord = (row) => (row?.rawRecord && row?.recordFamily === 'payable' ? row : wrapRecord(row));
+
+ const resolveProjectName = (projectId) => {
+ const project = projects.find((entry) => entry.id === projectId);
+ return project?.name || project?.displayName || project?.code || projectId || '';
+ };
+
+ const handleOpenDetail = (row) => {
+ setDetailRecord(toOrderRecord(row));
+ };
+
+ const handleOpenEdit = (row) => {
+ const record = toOrderRecord(row);
+ if (!record?.canEdit || record.rawRecord?.source !== 'payable') return;
+ setEditingRecord(record);
+ };
+
+ const handleOpenAudit = (row) => {
+ setAuditRecord(toOrderRecord(row));
+ };
+
+ const handleEditSubmit = async (formData) => {
+ if (!editingRecord) return false;
+
+ setSubmittingEdit(true);
+ try {
+ const payload = {
+ ...formData,
+ amount: Number(formData.amount) || 0,
+ projectName: resolveProjectName(formData.projectId),
+ };
+ const result = await updatePayable(editingRecord.rawRecord, payload);
+ if (!result?.success) {
+ throw result?.error || new Error('No se pudo actualizar la CXP');
+ }
+ showToast('CXP actualizada correctamente', 'success');
+ setEditingRecord(null);
+ return true;
+ } catch (error) {
+ showToast(error.message || 'No se pudo actualizar la CXP', 'error');
+ return false;
+ } finally {
+ setSubmittingEdit(false);
+ }
+ };
 
  // Política UMTELKOMD: cambiar status de una CXP SIEMPRE requiere
  // vincular un bankMovement existente (importado de DATEV).
@@ -301,7 +365,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  row.status !== 'cancelled' &&
  (row.status !== 'settled' || isLegacy);
  return (
-   <tr key={row.id} {...rowButtonProps(() => setDetailRecord(row), 'hover:bg-[var(--color-bg-2)]')}>
+   <tr key={row.id} {...rowButtonProps(() => handleOpenDetail(row), 'hover:bg-[var(--color-bg-2)]')}>
  <td className="px-4 py-4">
   <p className="text-sm font-medium text-[var(--color-fg-1)]">{row.counterpartyName}</p>
   <p className="text-xs text-[var(--color-fg-3)]">{row.description || 'Sin descripción'}</p>
@@ -330,6 +394,25 @@ const CXPIndependiente = ({ user, userRole }) => {
  {canAct && (
  <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
  <div className="flex justify-end gap-2">
+ <Button
+ variant="ghost"
+ size="sm"
+ icon={Edit3}
+ disabled={row.source !== 'payable' || row.status === 'cancelled'}
+ onClick={() => handleOpenEdit(row)}
+ title="Editar orden CXP"
+ >
+ Editar
+ </Button>
+ <Button
+ variant="secondary"
+ size="sm"
+ icon={History}
+ onClick={() => handleOpenAudit(row)}
+ title="Ver log de cambios"
+ >
+ Log
+ </Button>
  <Button
  variant="primary"
  size="sm"
@@ -365,7 +448,35 @@ const CXPIndependiente = ({ user, userRole }) => {
  onSubmit={handleLinkMovement}
  />
 
- <RecordDetailModal record={detailRecord} onClose={() => setDetailRecord(null)} userRole={userRole} />
+ <CanonicalRecordModal
+ key={editingRecord?.id || 'cxp-editor'}
+ isOpen={Boolean(editingRecord)}
+ onClose={() => setEditingRecord(null)}
+ record={editingRecord}
+ onSubmit={handleEditSubmit}
+ projects={projects}
+ costCenters={costCenters}
+ categories={expenseCategories}
+ submitting={submittingEdit}
+ />
+
+ <RecordAuditTrailModal
+ isOpen={Boolean(auditRecord)}
+ onClose={() => setAuditRecord(null)}
+ record={auditRecord}
+ logs={auditLogs}
+ loading={auditLogsLoading}
+ />
+
+ <RecordDetailModal
+ record={detailRecord}
+ onClose={() => setDetailRecord(null)}
+ onEdit={handleOpenEdit}
+ onViewAuditTrail={handleOpenAudit}
+ canEdit={canAct && detailRecord?.rawRecord?.source === 'payable' && detailRecord?.canEdit}
+ canViewAuditTrail={canAct}
+ userRole={userRole}
+ />
  </div>
  );
 };
