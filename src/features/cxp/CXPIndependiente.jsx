@@ -98,7 +98,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  const { showToast } = useToast();
  const metrics = useTreasuryMetrics({ user });
  const { bankMovements } = useBankMovements(user);
- const { linkToPayable } = useClassifier(user);
+ const { linkPayablesToMovement, forceReconcilePayables } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { expenseCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -168,6 +168,14 @@ const CXPIndependiente = ({ user, userRole }) => {
  .filter((entry) => entry.stage === 'partial' || (entry.paidAmount > 0 && entry.openAmount > 0))
  .reduce((sum, entry) => sum + entry.paidAmount, 0);
  const dueSoon = upcomingRows.reduce((sum, entry) => sum + entry.openAmount, 0);
+ const reconcileDocuments = useMemo(
+ () => rows.filter((entry) =>
+ entry.source === 'payable' &&
+ entry.status !== 'cancelled' &&
+ Number(entry.openAmount || entry.grossAmount || entry.amount || 0) > 0,
+ ),
+ [rows],
+ );
 
  const canAct = userRole === 'admin' || userRole === 'manager';
  const wrapRecord = (row) => buildFinanceOrderRecord(row, 'payable');
@@ -219,7 +227,7 @@ const CXPIndependiente = ({ user, userRole }) => {
 
  // Política UMTELKOMD: cambiar status de una CXP SIEMPRE requiere
  // vincular un bankMovement existente (importado de DATEV).
- const handleLinkMovement = async (movement) => {
+ const handleLinkMovement = async (movement, selectedDocuments = [selectedRow]) => {
  if (!selectedRow) return { success: false, error: 'Sin CXP seleccionada' };
  if (selectedRow.source !== 'payable') {
  return {
@@ -227,18 +235,48 @@ const CXPIndependiente = ({ user, userRole }) => {
  error: 'Las CXP legacy no se pueden conciliar. Quedan como históricas.',
  };
  }
+ const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'payable');
+ if (documentsToLink.length === 0) {
+ return { success: false, error: 'Seleccioná al menos una CXP actual' };
+ }
  setLoadingId(selectedRow.id);
- const result = await linkToPayable(movement, selectedRow);
+ const result = await linkPayablesToMovement(movement, documentsToLink);
  setLoadingId(null);
  if (result.success) {
  showToast(
- result.status === 'settled'
+ result.count > 1
+ ? `${result.count} CXP conciliadas con una entrada DATEV`
+ : result.status === 'settled'
  ? 'CXP liquidada y conciliada con DATEV'
  : 'Pago parcial conciliado con DATEV',
  'success',
  );
  } else {
  showToast(result.error?.message || 'Error al vincular movimiento', 'error');
+ }
+ return result;
+ };
+
+ const handleForceReconcile = async (selectedDocuments, options = {}) => {
+ if (userRole !== 'admin') {
+ const error = new Error('Solo un administrador puede forzar conciliación sin DATEV');
+ showToast(error.message, 'error');
+ return { success: false, error };
+ }
+ const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'payable');
+ if (documentsToLink.length === 0) {
+ return { success: false, error: 'Seleccioná al menos una CXP actual' };
+ }
+ setLoadingId(selectedRow?.id || documentsToLink[0]?.id);
+ const result = await forceReconcilePayables(documentsToLink, {
+ ...options,
+ userRole,
+ });
+ setLoadingId(null);
+ if (result.success) {
+ showToast(`${result.count} CXP conciliada(s) sin DATEV por admin`, 'success');
+ } else {
+ showToast(result.error?.message || 'Error al forzar conciliación', 'error');
  }
  return result;
  };
@@ -444,8 +482,11 @@ const CXPIndependiente = ({ user, userRole }) => {
  onClose={() => setSelectedRow(null)}
  doc={selectedRow}
  docKind="payable"
+ documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
+ allowManualForce={userRole === 'admin'}
+ onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal

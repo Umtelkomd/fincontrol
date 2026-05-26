@@ -98,7 +98,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  const { showToast } = useToast();
  const metrics = useTreasuryMetrics({ user });
  const { bankMovements } = useBankMovements(user);
- const { linkToReceivable } = useClassifier(user);
+ const { linkReceivablesToMovement, forceReconcileReceivables } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -142,6 +142,14 @@ const CXCIndependiente = ({ user, userRole }) => {
  .filter((entry) => entry.stage === 'partial' || (entry.paidAmount > 0 && entry.openAmount > 0))
  .reduce((sum, entry) => sum + entry.paidAmount, 0);
  const dueSoon = metrics.upcomingReceivables.reduce((sum, entry) => sum + entry.openAmount, 0);
+ const reconcileDocuments = useMemo(
+ () => rows.filter((entry) =>
+ entry.source === 'receivable' &&
+ entry.status !== 'cancelled' &&
+ Number(entry.openAmount || entry.grossAmount || entry.amount || 0) > 0,
+ ),
+ [rows],
+ );
 
  const canAct = userRole === 'admin' || userRole === 'manager';
  const wrapRecord = (row) => buildFinanceOrderRecord(row, 'receivable');
@@ -194,7 +202,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  // Política UMTELKOMD: cambiar status de una CXC SIEMPRE requiere
  // vincular un bankMovement existente (importado de DATEV). Por eso
  // no hay handler para "liquidar manual" — solo "vincular movimiento".
- const handleLinkMovement = async (movement) => {
+ const handleLinkMovement = async (movement, selectedDocuments = [selectedRow]) => {
  if (!selectedRow) return { success: false, error: 'Sin CXC seleccionada' };
  if (selectedRow.source !== 'receivable') {
  return {
@@ -202,18 +210,48 @@ const CXCIndependiente = ({ user, userRole }) => {
  error: 'Las CXC legacy no se pueden conciliar. Quedan como históricas.',
  };
  }
+ const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'receivable');
+ if (documentsToLink.length === 0) {
+ return { success: false, error: 'Seleccioná al menos una CXC actual' };
+ }
  setLoadingId(selectedRow.id);
- const result = await linkToReceivable(movement, selectedRow);
+ const result = await linkReceivablesToMovement(movement, documentsToLink);
  setLoadingId(null);
  if (result.success) {
  showToast(
- result.status === 'settled'
+ result.count > 1
+ ? `${result.count} CXC conciliadas con una entrada DATEV`
+ : result.status === 'settled'
  ? 'CXC liquidada y conciliada con DATEV'
  : 'Cobro parcial conciliado con DATEV',
  'success',
  );
  } else {
  showToast(result.error?.message || 'Error al vincular movimiento', 'error');
+ }
+ return result;
+ };
+
+ const handleForceReconcile = async (selectedDocuments, options = {}) => {
+ if (userRole !== 'admin') {
+ const error = new Error('Solo un administrador puede forzar conciliación sin DATEV');
+ showToast(error.message, 'error');
+ return { success: false, error };
+ }
+ const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'receivable');
+ if (documentsToLink.length === 0) {
+ return { success: false, error: 'Seleccioná al menos una CXC actual' };
+ }
+ setLoadingId(selectedRow?.id || documentsToLink[0]?.id);
+ const result = await forceReconcileReceivables(documentsToLink, {
+ ...options,
+ userRole,
+ });
+ setLoadingId(null);
+ if (result.success) {
+ showToast(`${result.count} CXC conciliada(s) sin DATEV por admin`, 'success');
+ } else {
+ showToast(result.error?.message || 'Error al forzar conciliación', 'error');
  }
  return result;
  };
@@ -421,8 +459,11 @@ const CXCIndependiente = ({ user, userRole }) => {
  onClose={() => setSelectedRow(null)}
  doc={selectedRow}
  docKind="receivable"
+ documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
+ allowManualForce={userRole === 'admin'}
+ onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal
