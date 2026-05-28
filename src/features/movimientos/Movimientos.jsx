@@ -23,8 +23,9 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
+import CanonicalRecordModal from '../../components/finance/CanonicalRecordModal';
 import MovementDetailModal from '../../components/ui/MovementDetailModal';
-import CategorizeModal from '../../components/ui/CategorizeModal';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
 
@@ -32,14 +33,30 @@ const PAGE_SIZE = 50;
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+const buildMovementEditRecord = (movement) => {
+ if (!movement) return null;
+ return {
+ ...movement,
+ id: `movement:${movement.id}`,
+ entityId: movement.id,
+ rawRecord: movement,
+ recordFamily: 'movement',
+ recordFamilyLabel: 'Banco',
+ date: movement.postedDate || movement.valueDate,
+ amount: Number(movement.amount) || 0,
+ categoryLabel: movement.categoryName || movement.kind || 'Movimiento bancario',
+ canEdit: movement.status !== 'void',
+ };
+};
+
 const Movimientos = ({ user }) => {
- const { bankMovements, loading } = useBankMovements(user);
+ const { bankMovements, loading, updateBankMovement } = useBankMovements(user);
  const { receivables } = useReceivables(user);
  const { payables } = usePayables(user);
  const { expenseCategories, incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { projects } = useProjects(user);
- const { inboxMovements, categorize } = useClassifier(user);
+ const { inboxMovements } = useClassifier(user);
  const { createRule } = useClassificationRules(user);
  const { showToast } = useToast();
 
@@ -69,6 +86,8 @@ const Movimientos = ({ user }) => {
  const [page, setPage] = useState(1);
  const [detailMovement, setDetailMovement] = useState(null);
  const [editingMovement, setEditingMovement] = useState(null);
+ const [pendingEditConfirmation, setPendingEditConfirmation] = useState(null);
+ const [submittingMovementEdit, setSubmittingMovementEdit] = useState(false);
  const [ruleSeedMovement, setRuleSeedMovement] = useState(null);
 
  const filtered = useMemo(() => {
@@ -132,12 +151,61 @@ const Movimientos = ({ user }) => {
  const pageStart = (safePage - 1) * PAGE_SIZE;
  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
- const handleEditCategory = async (classification) => {
- if (!editingMovement) return { success: false };
- const r = await categorize(editingMovement, classification);
- if (r.success) showToast('Categorización actualizada', 'success');
- else showToast(r.error?.message || 'Error al guardar', 'error');
- return r;
+ const resolveProjectName = (projectId) => {
+ const project = projects.find((entry) => entry.id === projectId);
+ return project?.name || project?.displayName || project?.code || projectId || '';
+ };
+
+ const executeMovementEdit = async (formData) => {
+ if (!editingMovement) return false;
+
+ setSubmittingMovementEdit(true);
+ try {
+ const result = await updateBankMovement(editingMovement.id, {
+ ...formData,
+ amount: Number(formData.amount) || 0,
+ projectName: resolveProjectName(formData.projectId),
+ });
+ if (!result?.success) {
+ throw result?.error || new Error('No se pudo actualizar el movimiento');
+ }
+ showToast('Movimiento actualizado', 'success');
+ setEditingMovement(null);
+ return true;
+ } catch (error) {
+ showToast(error.message || 'No se pudo actualizar el movimiento', 'error');
+ return false;
+ } finally {
+ setSubmittingMovementEdit(false);
+ }
+ };
+
+ const handleEditMovementSubmit = async (formData) => {
+ if (!editingMovement) return false;
+
+ const currentAmount = Number(editingMovement.amount) || 0;
+ const nextAmount = Number(formData.amount) || 0;
+ if (Math.abs(currentAmount - nextAmount) >= 0.01) {
+ setPendingEditConfirmation({
+ formData,
+ currentAmount,
+ nextAmount,
+ delta: nextAmount - currentAmount,
+ movement: editingMovement,
+ });
+ return false;
+ }
+
+ return executeMovementEdit(formData);
+ };
+
+ const confirmMovementAmountEdit = async () => {
+ if (!pendingEditConfirmation) return false;
+ const success = await executeMovementEdit(pendingEditConfirmation.formData);
+ if (success) {
+ setPendingEditConfirmation(null);
+ }
+ return success;
  };
 
  const handleCreateRule = async (data) => {
@@ -332,7 +400,13 @@ const Movimientos = ({ user }) => {
  <Button variant="ghost" size="sm" icon={Eye} onClick={() => setDetailMovement(m)}>
  Ver
  </Button>
- <Button variant="ghost" size="sm" icon={Pencil} onClick={() => setEditingMovement(m)}>
+ <Button
+ variant="ghost"
+ size="sm"
+ icon={Pencil}
+ disabled={isVoid}
+ onClick={() => setEditingMovement(m)}
+ >
  Editar
  </Button>
  <Button
@@ -394,24 +468,51 @@ const Movimientos = ({ user }) => {
  movement={detailMovement}
  receivable={detailMovement ? findReceivable(detailMovement) : null}
  payable={detailMovement ? findPayable(detailMovement) : null}
- onEditCategory={() => {
+ onEdit={() => {
  setEditingMovement(detailMovement);
  setDetailMovement(null);
  }}
  />
 
- <CategorizeModal
+ <CanonicalRecordModal
+ key={editingMovement?.id || 'movement-editor'}
  isOpen={Boolean(editingMovement)}
- onClose={() => setEditingMovement(null)}
- onSubmit={handleEditCategory}
- movement={editingMovement}
- categories={
- editingMovement?.direction === 'in'
- ? (incomeCategories || []).map((name) => ({ name, type: 'income' }))
- : (expenseCategories || []).map((name) => ({ name, type: 'expense' }))
- }
+ onClose={() => {
+ setEditingMovement(null);
+ setPendingEditConfirmation(null);
+ }}
+ record={buildMovementEditRecord(editingMovement)}
+ onSubmit={handleEditMovementSubmit}
+ categories={[...(incomeCategories || []), ...(expenseCategories || [])]}
  costCenters={costCenters || []}
  projects={projects || []}
+ submitting={submittingMovementEdit}
+ />
+
+ <ConfirmModal
+ isOpen={Boolean(pendingEditConfirmation)}
+ onClose={() => setPendingEditConfirmation(null)}
+ onConfirm={confirmMovementAmountEdit}
+ title="Confirmar cambio de importe"
+ message={`Vas a modificar el importe de "${pendingEditConfirmation?.movement?.description || 'este movimiento'}". Revisa el cambio antes de guardarlo.`}
+ confirmText="Guardar importe"
+ cancelText="Revisar"
+ variant="warning"
+ details={[
+ { label: 'Movimiento', value: pendingEditConfirmation?.movement?.description || '—', emphasis: true },
+ { label: 'Importe actual', value: pendingEditConfirmation ? `€${pendingEditConfirmation.currentAmount.toFixed(2)}` : '—' },
+ { label: 'Importe nuevo', value: pendingEditConfirmation ? `€${pendingEditConfirmation.nextAmount.toFixed(2)}` : '—', emphasis: true },
+ {
+ label: 'Variación',
+ value: pendingEditConfirmation
+ ? `${pendingEditConfirmation.delta >= 0 ? '+' : '-'}€${Math.abs(pendingEditConfirmation.delta).toFixed(2)}`
+ : '—',
+ },
+ ]}
+ warning="Este cambio afecta la caja y puede impactar conciliaciones o reportes."
+ confirmKeyword="IMPORTE"
+ confirmKeywordLabel="Confirmación de importe"
+ confirmKeywordPlaceholder="IMPORTE"
  />
 
  <RuleFormModal

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ArrowDownRight, ArrowUpRight, Tag, Pencil } from 'lucide-react';
+import { X, ArrowDownRight, ArrowUpRight, Pencil } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge } from '@/components/ui/nexus';
 import { getImportFileLabel } from '../../finance/importMetadata';
@@ -9,8 +9,8 @@ import { getImportFileLabel } from '../../finance/importMetadata';
  * with optional inline re-categorization.
  *
  * Shows: header metadata, audit trail, link to CXC/CXP if any,
- * classification fields. The user can click "Editar categorización"
- * which opens the regular CategorizeModal externally.
+ * classification fields. The user can click "Editar movimiento" to open
+ * the operational editor externally.
  */
 const MovementDetailModal = ({
  isOpen,
@@ -18,7 +18,7 @@ const MovementDetailModal = ({
  movement,
  receivable,
  payable,
- onEditCategory,
+ onEdit,
 }) => {
  const [auditExpanded, setAuditExpanded] = useState(false);
  if (!isOpen || !movement) return null;
@@ -150,9 +150,9 @@ const MovementDetailModal = ({
 
  <footer className="px-6 py-4 border-t border-[var(--color-line)] flex justify-end gap-3">
  <Button variant="ghost" onClick={onClose}>Cerrar</Button>
- {!isVoid && onEditCategory && (
- <Button variant="primary" icon={Tag} onClick={onEditCategory}>
- Editar categorización
+ {!isVoid && onEdit && (
+ <Button variant="primary" icon={Pencil} onClick={onEdit}>
+ Editar movimiento
  </Button>
  )}
  </footer>
