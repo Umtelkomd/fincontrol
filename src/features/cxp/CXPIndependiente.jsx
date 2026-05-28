@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
  AlertTriangle,
+ ArrowLeftRight,
  ArrowDownLeft,
  BadgeEuro,
  Clock3,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import CanonicalRecordModal from '../../components/finance/CanonicalRecordModal';
 import RecordAuditTrailModal from '../../components/finance/RecordAuditTrailModal';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import HelpButton from '../../components/ui/HelpButton';
 import LinkBankMovementModal from '../../components/ui/LinkBankMovementModal';
 import RecordDetailModal from '../../components/ui/RecordDetailModal';
@@ -103,7 +105,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  const { expenseCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { projects } = useProjects(user);
- const { updatePayable } = usePayables(user);
+ const { updatePayable, convertToReceivable } = usePayables(user);
 
  const [searchTerm, setSearchTerm] = useState('');
  const [statusFilter, setStatusFilter] = useState('all');
@@ -113,6 +115,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  const [editingRecord, setEditingRecord] = useState(null);
  const [auditRecord, setAuditRecord] = useState(null);
  const [submittingEdit, setSubmittingEdit] = useState(false);
+ const [convertingRecord, setConvertingRecord] = useState(null);
 
  const visiblePayables = useMemo(
  () => metrics.payables.filter((entry) => entry.source === 'payable'),
@@ -223,6 +226,17 @@ const CXPIndependiente = ({ user, userRole }) => {
  } finally {
  setSubmittingEdit(false);
  }
+ };
+
+ const handleConvertToReceivable = async () => {
+   if (!convertingRecord) return false;
+   const result = await convertToReceivable(convertingRecord);
+   if (result.success) {
+     showToast('CXP convertida a CXC correctamente', 'success');
+     return true;
+   }
+   showToast(result.error?.message || 'Error al convertir la CXP', 'error');
+   return false;
  };
 
  // Política UMTELKOMD: cambiar status de una CXP SIEMPRE requiere
@@ -442,6 +456,18 @@ const CXPIndependiente = ({ user, userRole }) => {
  >
  Editar
  </Button>
+ {userRole === 'admin' && (
+ <Button
+ variant="ghost"
+ size="sm"
+ icon={ArrowLeftRight}
+ disabled={row.source !== 'payable' || (row.paidAmount || 0) > 0 || row.status === 'cancelled'}
+ onClick={() => setConvertingRecord(row)}
+ title={(row.paidAmount || 0) > 0 ? 'No convertible: tiene pagos registrados' : 'Convertir a CXC'}
+ >
+ → CXC
+ </Button>
+ )}
  <Button
  variant="secondary"
  size="sm"
@@ -499,6 +525,23 @@ const CXPIndependiente = ({ user, userRole }) => {
  costCenters={costCenters}
  categories={expenseCategories}
  submitting={submittingEdit}
+ userRole={userRole}
+ />
+
+ <ConfirmModal
+ isOpen={Boolean(convertingRecord)}
+ onClose={() => setConvertingRecord(null)}
+ onConfirm={handleConvertToReceivable}
+ title="Convertir CXP a CXC"
+ message={`La orden pasará de Cuentas por Pagar a Cuentas por Cobrar. El documento original será eliminado y se creará uno nuevo en CXC con los mismos datos.`}
+ confirmText="Convertir"
+ variant="warning"
+ details={convertingRecord ? [
+ { label: 'Documento', value: convertingRecord.documentNumber || 'Sin documento', emphasis: true },
+ { label: 'Contraparte', value: convertingRecord.counterpartyName || '—' },
+ { label: 'Importe', value: formatCurrency(convertingRecord.grossAmount) },
+ { label: 'Estado actual', value: statusLabels[convertingRecord.status] || convertingRecord.status },
+ ] : []}
  />
 
  <RecordAuditTrailModal

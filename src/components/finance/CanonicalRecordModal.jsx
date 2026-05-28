@@ -1,8 +1,22 @@
 import { useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 
 const fieldClassName =
  'w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-[13px] text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:';
+
+const STATUS_LABELS = {
+  issued: 'Emitida',
+  partial: 'Parcial',
+  settled: 'Liquidada',
+  cancelled: 'Cancelada',
+};
+
+const STATUS_WARNINGS = {
+  issued: 'Revertir a Emitida borrará todos los pagos registrados y pondrá el importe abierto a cero.',
+  settled: 'Marcar como Liquidada forzará el importe cobrado/pagado al total bruto.',
+  cancelled: 'Cancelar la orden cierra el importe abierto a cero.',
+  partial: '',
+};
 
 const buildInitialFormData = (record) => ({
  direction: record?.rawRecord?.direction || 'in',
@@ -16,17 +30,26 @@ const buildInitialFormData = (record) => ({
  projectId: record?.rawRecord?.projectId || '',
  costCenterId: record?.rawRecord?.costCenterId || '',
  categoryName: record?.rawRecord?.categoryName || record?.categoryLabel || '',
+ forceStatus: '',
+ correctionReason: '',
 });
 
-const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = [], costCenters = [], categories = [], submitting = false }) => {
+const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = [], costCenters = [], categories = [], submitting = false, userRole = '' }) => {
  const [formData, setFormData] = useState(() => buildInitialFormData(record));
 
  if (!isOpen || !record) return null;
+
+ const isOrder = record.recordFamily === 'receivable' || record.recordFamily === 'payable';
+ const isAdmin = userRole === 'admin';
+ const showStatusOverride = isAdmin && isOrder;
+ const requiresReason = Boolean(formData.forceStatus);
+ const canSubmit = !submitting && (!requiresReason || formData.correctionReason.trim().length > 0);
 
  const projectLabel = record.recordFamily === 'movement' ? 'Movimiento bancario' : record.recordFamily === 'receivable' ? 'Factura CXC' : 'Factura CXP';
 
  const handleSubmit = async (event) => {
  event.preventDefault();
+ if (!canSubmit) return;
  await onSubmit(formData);
  };
 
@@ -115,7 +138,7 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  <input
  type="number"
  step="0.01"
- min={record.paidAmount || 0}
+ min={formData.forceStatus ? 0 : (record.paidAmount || 0)}
  className={fieldClassName}
  value={formData.amount}
  onChange={(event) => setFormData((current) => ({ ...current, amount: event.target.value }))}
@@ -204,6 +227,52 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  </label>
  </div>
 
+ {showStatusOverride && (
+ <div className="space-y-3 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] p-4">
+ <p className="label-mono text-[var(--color-fg-4)]">Corrección de estado — solo admin</p>
+ <div className="flex items-center gap-2 text-xs text-[var(--color-fg-3)]">
+   <span>Estado actual:</span>
+   <span className="font-medium text-[var(--color-fg-1)]">{STATUS_LABELS[record.rawRecord?.status] || record.rawRecord?.status || '—'}</span>
+ </div>
+ <label className="block">
+   <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Forzar estado</span>
+   <select
+     className={fieldClassName}
+     value={formData.forceStatus}
+     onChange={(event) => setFormData((current) => ({ ...current, forceStatus: event.target.value, correctionReason: '' }))}
+   >
+     <option value="">Automático (calculado por importe)</option>
+     {Object.entries(STATUS_LABELS).map(([value, label]) => (
+       <option key={value} value={value}>{label}</option>
+     ))}
+   </select>
+ </label>
+
+ {formData.forceStatus && STATUS_WARNINGS[formData.forceStatus] && (
+   <div className="flex items-start gap-2 rounded-md border border-[var(--color-warn)] bg-[var(--color-bg-1)] px-3 py-2.5 text-xs text-[var(--color-warn)]">
+     <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+     <span>{STATUS_WARNINGS[formData.forceStatus]}</span>
+   </div>
+ )}
+
+ {formData.forceStatus && (
+   <label className="block">
+     <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
+       Motivo de corrección <span className="text-[var(--color-accent)]">*</span>
+     </span>
+     <textarea
+       rows="2"
+       required
+       placeholder="Describí brevemente por qué se corrige el estado..."
+       className={fieldClassName}
+       value={formData.correctionReason}
+       onChange={(event) => setFormData((current) => ({ ...current, correctionReason: event.target.value }))}
+     />
+   </label>
+ )}
+ </div>
+ )}
+
  <div className="flex items-center justify-end gap-3 border-t border-[var(--color-line)] pt-4">
  <button
  type="button"
@@ -214,7 +283,7 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  </button>
  <button
  type="submit"
- disabled={submitting}
+ disabled={!canSubmit}
  className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-fg-1)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-bg-0)] transition-colors hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
  >
  {submitting ? <Loader2 size={15} className="animate-spin" /> : null}

@@ -4,6 +4,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -290,19 +291,44 @@ export const usePayables = (user) => {
 
     try {
       const grossAmount = clampMoney(data.amount);
-      if (grossAmount < payable.paidAmount) {
-        return { success: false, error: new Error('El importe no puede quedar por debajo de lo ya pagado') };
+      const currentPaid = clampMoney(payable.paidAmount ?? 0);
+
+      let nextStatus;
+      let nextOpenAmount;
+      let nextPaidAmount = currentPaid;
+      const extraFields = {};
+
+      if (data.forceStatus) {
+        nextStatus = data.forceStatus;
+        if (data.forceStatus === 'issued') {
+          nextOpenAmount = grossAmount;
+          nextPaidAmount = 0;
+          extraFields.paidAmount = 0;
+          extraFields.payments = [];
+        } else if (data.forceStatus === 'settled') {
+          nextOpenAmount = 0;
+          nextPaidAmount = grossAmount;
+          extraFields.paidAmount = grossAmount;
+        } else if (data.forceStatus === 'cancelled') {
+          nextOpenAmount = 0;
+        } else {
+          nextOpenAmount = clampMoney(grossAmount - currentPaid);
+        }
+      } else {
+        if (grossAmount < currentPaid) {
+          return { success: false, error: new Error('El importe no puede quedar por debajo de lo ya pagado') };
+        }
+        nextOpenAmount = clampMoney(grossAmount - currentPaid);
+        nextStatus = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
       }
 
-      const nextOpenAmount = clampMoney(grossAmount - payable.paidAmount);
-      const nextStatus = nextOpenAmount <= 0 ? 'settled' : payable.paidAmount > 0 ? 'partial' : 'issued';
       const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
 
       const payload = {
         grossAmount,
         amount: grossAmount,
-        openAmount: nextOpenAmount,
-        pendingAmount: nextOpenAmount,
+        openAmount: clampMoney(nextOpenAmount),
+        pendingAmount: clampMoney(nextOpenAmount),
         issueDate: toISODate(data.issueDate) || payable.issueDate,
         dueDate: toISODate(data.dueDate) || payable.dueDate,
         description: data.description || '',
@@ -315,33 +341,107 @@ export const usePayables = (user) => {
         costCenterId: data.costCenterId || '',
         categoryName: data.categoryName || '',
         status: nextStatus,
+        ...extraFields,
         updatedAt: serverTimestamp(),
         updatedBy: user.email,
         auditTrail: arrayUnion({
-          action: 'update',
+          action: data.forceStatus ? 'status-override' : 'update',
           user: user.email,
           timestamp: new Date().toISOString(),
-          detail: 'Factura CXP actualizada desde la mesa maestra',
+          detail: data.forceStatus
+            ? `Estado corregido a "${data.forceStatus}" por admin. Motivo: ${data.correctionReason || 'sin motivo'}`
+            : 'Factura CXP actualizada desde la mesa maestra',
         }),
       };
       await updateDoc(payableRef, payload);
       await writeAuditLogEntry({
-        action: 'update',
+        action: data.forceStatus ? 'status-override' : 'update',
         entityType: 'payable',
         entityId: payable.id,
-        description: `Factura CXP actualizada: ${data.documentNumber || payable.documentNumber || payable.id}`,
+        description: data.forceStatus
+          ? `Estado CXP corregido a "${data.forceStatus}": ${data.documentNumber || payable.documentNumber || payable.id}`
+          : `Factura CXP actualizada: ${data.documentNumber || payable.documentNumber || payable.id}`,
         userEmail: user.email,
         before: buildPayableSnapshot(payable),
         after: buildPayableSnapshot(payable, {
           ...payload,
+          paidAmount: nextPaidAmount,
           updatedBy: user.email,
           updatedAt: new Date().toISOString(),
         }),
+        ...(data.forceStatus ? { metadata: { correctionReason: data.correctionReason, forceStatus: data.forceStatus } } : {}),
       });
 
       return { success: true };
     } catch (error) {
       logError('Error updating payable:', error);
+      return { success: false, error };
+    }
+  };
+
+  const convertToReceivable = async (payable) => {
+    if (!user) return { success: false };
+    if ((payable.paidAmount || 0) > 0) {
+      return { success: false, error: new Error('No se puede convertir una CXP con pagos registrados') };
+    }
+
+    try {
+      const amount = clampMoney(payable.grossAmount ?? payable.amount ?? 0);
+      const receivablesRef = collection(db, 'artifacts', appId, 'public', 'data', 'receivables');
+
+      const payload = {
+        accountId: payable.accountId || MAIN_ACCOUNT_ID,
+        currency: payable.currency || DEFAULT_CURRENCY,
+        client: payable.counterpartyName || payable.vendor || '',
+        counterpartyName: payable.counterpartyName || payable.vendor || '',
+        documentNumber: payable.documentNumber || payable.invoiceNumber || '',
+        invoiceNumber: payable.documentNumber || payable.invoiceNumber || '',
+        projectId: payable.projectId || '',
+        projectName: payable.projectName || '',
+        costCenterId: payable.costCenterId || '',
+        description: payable.description || '',
+        grossAmount: amount,
+        amount,
+        openAmount: amount,
+        pendingAmount: amount,
+        paidAmount: 0,
+        issueDate: payable.issueDate || null,
+        dueDate: payable.dueDate || null,
+        paymentTerms: payable.paymentTerms || 'net30',
+        status: 'issued',
+        payments: [],
+        notes: payable.notes || '',
+        _convertedFrom: { collection: 'payables', id: payable.id },
+        createdBy: user.email,
+        createdAt: serverTimestamp(),
+        updatedBy: user.email,
+        updatedAt: serverTimestamp(),
+        auditTrail: arrayUnion({
+          action: 'create',
+          user: user.email,
+          timestamp: new Date().toISOString(),
+          detail: `Convertida desde CXP (ID: ${payable.id}) por corrección de error`,
+        }),
+      };
+
+      const newDocRef = await addDoc(receivablesRef, payload);
+      const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
+      await deleteDoc(payableRef);
+
+      await writeAuditLogEntry({
+        action: 'convert',
+        entityType: 'payable',
+        entityId: payable.id,
+        description: `CXP convertida a CXC: ${payable.documentNumber || payable.counterpartyName || payable.id}`,
+        userEmail: user.email,
+        before: buildPayableSnapshot(payable),
+        after: { convertedTo: 'receivable', newId: newDocRef.id },
+        metadata: { source: 'cxp-to-cxc-conversion', newReceivableId: newDocRef.id },
+      });
+
+      return { success: true, newId: newDocRef.id };
+    } catch (error) {
+      logError('Error converting payable to receivable:', error);
       return { success: false, error };
     }
   };
@@ -397,7 +497,7 @@ export const usePayables = (user) => {
     ),
   });
 
-  return { payables, loading, createPayable, registerPayment, updatePayable, cancelPayable, markAsPaid };
+  return { payables, loading, createPayable, registerPayment, updatePayable, cancelPayable, convertToReceivable, markAsPaid };
 };
 
 export default usePayables;
