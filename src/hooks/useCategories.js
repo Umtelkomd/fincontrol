@@ -1,5 +1,5 @@
 import { logError } from '../utils/logger';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   doc,
   onSnapshot,
@@ -15,7 +15,7 @@ export const useCategories = (user) => {
   const [loading, setLoading] = useState(() => !!user);
   const [error, setError] = useState(null);
 
-  const categoriesDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories');
+  const categoriesDocRef = useMemo(() => doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), []);
 
   useEffect(() => {
     if (!user) return;
@@ -50,7 +50,7 @@ export const useCategories = (user) => {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, categoriesDocRef]);
 
   const saveCategories = async (newExpenseCategories, newIncomeCategories) => {
     if (!user) return { success: false, error: 'No user' };

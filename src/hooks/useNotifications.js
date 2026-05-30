@@ -1,5 +1,5 @@
 import { logError } from '../utils/logger';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   collection, query, onSnapshot, addDoc, updateDoc, doc,
   serverTimestamp, orderBy, writeBatch
@@ -10,7 +10,7 @@ export const useNotifications = (user) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(() => !!user);
 
-  const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
+  const colRef = useMemo(() => collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), []);
 
   useEffect(() => {
     if (!user) return;
@@ -33,7 +33,7 @@ export const useNotifications = (user) => {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user, colRef]);
 
   const createNotification = async (data) => {
     if (!user) return { success: false };

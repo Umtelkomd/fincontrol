@@ -76,7 +76,7 @@ export const useBudgets = (user) => {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user, colRef]);
 
   // Create a new budget document with the new lines-based schema
   const createBudget = async (data) => {

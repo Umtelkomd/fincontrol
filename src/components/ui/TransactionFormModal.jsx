@@ -224,6 +224,9 @@ const TransactionFormModal = ({
  setShowSuggestions(false);
  setEmployeeInput('');
  setShowEmployeeSuggestions(false);
+ // Intentionally seed form state only when the modal opens or the edited
+ // record changes; re-running on category/project load would reset the form.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [isOpen, editingTransaction]);
 
  // Lazy resolution of projectId for legacy transactions: when editing an old

@@ -6,6 +6,8 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimest
 import { db, appId } from '../../services/firebase';
 import { useToast } from '../../contexts/ToastContext';
 
+const COLLECTION_PATH = `artifacts/${appId}/public/data/exchangeRates`;
+
 const CURRENCIES = [
  { code: 'EUR', name: 'Euro', symbol: '\u20ac' },
  { code: 'USD', name: 'Dolar estadounidense', symbol: '$' },
@@ -35,10 +37,8 @@ const MultiMoneda = ({ user }) => {
  to: 'USD',
  });
 
- const collectionPath = `artifacts/${appId}/public/data/exchangeRates`;
-
  useEffect(() => {
- const ref = collection(db, collectionPath);
+ const ref = collection(db, COLLECTION_PATH);
  const unsubscribe = onSnapshot(ref, (snapshot) => {
  const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
  setRates(data);
@@ -66,13 +66,13 @@ const MultiMoneda = ({ user }) => {
  try {
  const existing = rates.find((r) => r.pair === form.pair);
  if (existing) {
- await updateDoc(doc(db, collectionPath, existing.id), {
+ await updateDoc(doc(db, COLLECTION_PATH, existing.id), {
  rate: rateValue,
  updatedAt: serverTimestamp(),
  updatedBy: user?.email || 'unknown',
  });
  } else {
- await addDoc(collection(db, collectionPath), {
+ await addDoc(collection(db, COLLECTION_PATH), {
  pair: form.pair,
  rate: rateValue,
  updatedAt: serverTimestamp(),
@@ -90,7 +90,7 @@ const MultiMoneda = ({ user }) => {
 
  const handleDeleteRate = async (id) => {
  try {
- await deleteDoc(doc(db, collectionPath, id));
+ await deleteDoc(doc(db, COLLECTION_PATH, id));
  showToast('Tasa eliminada', 'success');
  } catch (err) {
  console.error(err);

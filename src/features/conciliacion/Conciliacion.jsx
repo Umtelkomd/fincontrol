@@ -162,7 +162,7 @@ const Conciliacion = ({ user }) => {
  .slice(0, 8);
 
  return results;
- }, [selectedMovement, allUnmatchedTransactions, allTransactions]);
+ }, [selectedMovement, allUnmatchedTransactions]);
 
  // Auto-match all: find best 1:1 matches
  const autoMatch = async () => {

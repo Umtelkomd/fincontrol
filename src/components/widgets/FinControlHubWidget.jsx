@@ -1,7 +1,7 @@
 // NEXUS.OS finance widget component for Nexus Hub
 // Componente React para mostrar en el Hub de Work Manager
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
  Wallet, 
  AlertTriangle, 
@@ -17,14 +17,7 @@ const NexusFinanceHubWidget = () => {
  const [loading, setLoading] = useState(true);
  const [error, _setError] = useState(null);
 
- useEffect(() => {
- fetchSummary();
- // Actualizar cada 5 minutos
- const interval = setInterval(fetchSummary, 5 * 60 * 1000);
- return () => clearInterval(interval);
- }, []);
-
- const fetchSummary = async () => {
+ const fetchSummary = useCallback(async () => {
  try {
  // Intentar cargar desde la API de NEXUS.OS
  // Esto requiere que el usuario esté autenticado en NEXUS.OS
@@ -56,7 +49,14 @@ const NexusFinanceHubWidget = () => {
  } finally {
  setLoading(false);
  }
- };
+ }, []);
+
+ useEffect(() => {
+ fetchSummary();
+ // Actualizar cada 5 minutos
+ const interval = setInterval(fetchSummary, 5 * 60 * 1000);
+ return () => clearInterval(interval);
+ }, [fetchSummary]);
 
  const getDemoData = () => ({
  cashflow: {

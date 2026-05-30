@@ -54,6 +54,16 @@ const CAT_COLORS = [
 ];
 const getCatColor = (idx) => CAT_COLORS[idx % CAT_COLORS.length];
 
+// Legacy costCenter codes → new CC names (module-level: pure, no reactive deps)
+const LEGACY_CC_MAP = {
+  'OPE': 'Despliegue', 'CC-OPE': 'Despliegue',
+  'ADM': 'Administrativo', 'CC-ADM': 'Administrativo',
+  'LOG': 'Instalaciones y Reparaciones', 'CC-LOG': 'Instalaciones y Reparaciones',
+  'FIN': 'Financiero', 'CC-FIN': 'Financiero',
+  'VEN': 'NE4', 'CC-VEN': 'NE4',
+};
+const normCC = (cc) => LEGACY_CC_MAP[cc] || cc || '';
+
 // ── Confirm Modal ───────────────────────────────────────────────
 const ConfirmModal = ({ isOpen, onConfirm, onCancel, title, message }) => {
  if (!isOpen) return null;
@@ -497,16 +507,6 @@ const BudgetVsActual = ({ user, userRole }) => {
  (b) => Number(b.year) === Number(selectedYear) && (b.projectId || null) === (selectedProject || null)
  );
  }, [budgets, selectedYear, selectedProject]);
-
- // Legacy costCenter codes → new CC names
- const LEGACY_CC_MAP = {
- 'OPE': 'Despliegue', 'CC-OPE': 'Despliegue',
- 'ADM': 'Administrativo', 'CC-ADM': 'Administrativo',
- 'LOG': 'Instalaciones y Reparaciones', 'CC-LOG': 'Instalaciones y Reparaciones',
- 'FIN': 'Financiero', 'CC-FIN': 'Financiero',
- 'VEN': 'NE4', 'CC-VEN': 'NE4',
- };
- const normCC = (cc) => LEGACY_CC_MAP[cc] || cc || '';
 
  // Build actuals: aggregate real amounts per budget category + month
  const actuals = useMemo(() => {

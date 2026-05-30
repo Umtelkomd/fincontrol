@@ -1,5 +1,5 @@
 import { logError } from '../utils/logger';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   collection,
   query,
@@ -18,7 +18,7 @@ export const useCostCenters = (user) => {
   const [loading, setLoading] = useState(() => !!user);
   const [error, setError] = useState(null);
 
-  const costCentersRef = collection(db, 'artifacts', appId, 'public', 'data', 'costCenters');
+  const costCentersRef = useMemo(() => collection(db, 'artifacts', appId, 'public', 'data', 'costCenters'), []);
 
   useEffect(() => {
     if (!user) return;
@@ -43,7 +43,7 @@ export const useCostCenters = (user) => {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, costCentersRef]);
 
   const createCostCenter = async (centerData) => {
     if (!user) return { success: false, error: 'No user' };
