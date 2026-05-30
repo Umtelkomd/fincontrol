@@ -360,7 +360,7 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
  pendientes,
  duplicados: 0, // placeholder, computed separately
  };
- }, [unifiedRecords, sevenDaysAgo]);
+ }, [unifiedRecords, sevenDaysAgoISO]);
 
  const metrics = useMemo(() => {
  return {
@@ -534,7 +534,7 @@ const TransactionList = ({ transactions, userRole, searchTerm, setSearchTerm, us
 
  return true;
  });
- }, [advancedFilters, quickFilter, searchTerm, sevenDaysAgo, unifiedRecords]);
+ }, [advancedFilters, quickFilter, searchTerm, sevenDaysAgoISO, unifiedRecords, duplicateIds]);
 
  const activeFiltersCount = useMemo(() => {
  return Object.entries(advancedFilters).filter(([, value]) => value !== '' && value !== 'all').length;

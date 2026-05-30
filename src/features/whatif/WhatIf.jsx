@@ -254,7 +254,7 @@ export default function WhatIf({ user }) {
  pendingPayables,
  },
  };
- }, [metrics, varIngresos, varGastos, retrasoCobros, nuevasContrataciones, subidaPrecios]);
+ }, [metrics, varIngresos, varGastos, retrasoCobros, nuevasContrataciones, subidaPrecios, gastoBaseManual]);
 
  if (metrics.loading) {
  return (
