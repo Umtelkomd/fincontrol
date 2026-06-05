@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { FileUp, Plus, Trash2, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { computePayrollTotals } from './lib/payroll';
+import { buildPayrollFromTexts } from './lib/datevPayrollParser';
+import { extractPayrollTexts } from './lib/extractPdfText';
 import { formatCurrency } from '../../utils/formatters';
 
 const EMPTY_KK_ROW = () => ({ payee: '', amount: '', dueDate: '' });
@@ -37,6 +39,8 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
   const [netWagesAmount, setNetWagesAmount] = useState('');
   const [netWagesDueDate, setNetWagesDueDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importedTypes, setImportedTypes] = useState([]);
 
   // Per-employee lines — seeded from active employees, editable
   const [employeeLines, setEmployeeLines] = useState([]);
@@ -60,6 +64,7 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
     setTaxDueDate('');
     setNetWagesAmount('');
     setNetWagesDueDate('');
+    setImportedTypes([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
@@ -89,6 +94,55 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
   // ─── Employee line helpers ─────────────────────────────────────────────────
   const updateLine = (i, field, value) =>
     setEmployeeLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
+
+  // ─── DATEV PDF import ───────────────────────────────────────────────────────
+  const handleImportFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter((f) => /\.pdf$/i.test(f.name));
+    if (files.length === 0) return;
+    setImporting(true);
+    try {
+      const { texts, recognized, ignored } = await extractPayrollTexts(files);
+      if (recognized.length === 0) {
+        showToast('No reconocí ningún PDF DATEV (zakf / lojo / lops)', 'error');
+        return;
+      }
+      const form = buildPayrollFromTexts(texts);
+      if (form.period) setPeriod(form.period);
+      if (form.krankenkassen.length) {
+        setKkRows(
+          form.krankenkassen.map((k) => ({
+            payee: k.payee,
+            amount: k.amount ? String(k.amount) : '',
+            dueDate: k.dueDate || '',
+          })),
+        );
+      }
+      if (form.tax) {
+        setTaxPayee(form.tax.payee || 'Finanzamt');
+        if (form.tax.amount) setTaxAmount(String(form.tax.amount));
+        setTaxDueDate(form.tax.dueDate || '');
+      }
+      if (form.netWages?.amount) setNetWagesAmount(String(form.netWages.amount));
+      if (form.lines.length) {
+        setEmployeeLines(
+          form.lines.map((l) => ({
+            employeeId: l.employeeId || '',
+            name: l.name,
+            netto: l.netto ? String(l.netto) : '',
+            brutto: l.brutto ? String(l.brutto) : '',
+            gesamtkosten: l.gesamtkosten ? String(l.gesamtkosten) : '',
+          })),
+        );
+      }
+      setImportedTypes(recognized);
+      const extra = ignored.length ? ` · ignorados: ${ignored.length}` : '';
+      showToast(`Importado: ${recognized.join(', ')}${extra}`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Error al leer los PDFs', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   // ─── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
@@ -181,6 +235,42 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
         {/* Scrollable body */}
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
           <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+            {/* DATEV PDF import */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleImportFiles(e.dataTransfer.files);
+              }}
+              className="rounded-md border border-dashed border-[var(--color-line-s)] bg-[var(--color-bg-0)] px-4 py-5 text-center"
+            >
+              <FileUp size={20} className="mx-auto mb-2 text-[var(--color-fg-3)]" />
+              <p className="text-sm text-[var(--color-fg-2)]">
+                Arrastrá los PDFs DATEV o{' '}
+                <label className="cursor-pointer font-medium text-[var(--color-accent)] hover:underline">
+                  elegilos
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleImportFiles(e.target.files)}
+                  />
+                </label>
+              </p>
+              <p className="mt-1 label-mono text-[var(--color-fg-4)]">
+                zakf · lojo · lops — el período, las obligaciones y el desglose se completan solos
+              </p>
+              {importing && (
+                <p className="mt-2 label-mono text-[var(--color-fg-3)]">Leyendo PDFs…</p>
+              )}
+              {importedTypes.length > 0 && !importing && (
+                <p className="mt-2 label-mono text-[var(--color-ok)]">
+                  ✓ Importado: {importedTypes.join(' · ')}
+                </p>
+              )}
+            </div>
+
             {/* Period */}
             <div>
               <label className={labelCls} htmlFor="nom-period">
