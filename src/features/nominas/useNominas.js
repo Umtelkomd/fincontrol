@@ -291,6 +291,9 @@ export const useNominas = ({
         netto: Number(l.netto) || 0,
         brutto: Number(l.brutto) || 0,
         gesamtkosten: Number(l.gesamtkosten) || 0,
+        // Phase 3, item 7 — optional Sonderzahlung tag (bonus / Urlaubsgeld /
+        // Weihnachtsgeld / einmalig). Additive, plain string, sanitizer-safe.
+        sonderzahlung: l.sonderzahlung || '',
       }));
 
       // Sanitized document descriptors (plain objects only).

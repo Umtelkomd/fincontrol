@@ -6,11 +6,21 @@ import {
   computeLineVariances,
   reconcileNetWages,
 } from './lib/payroll';
+import { validatePayrollRoster } from './lib/payrollCalendarValidation';
 import { buildPayrollFromTexts } from './lib/datevPayrollParser';
 import { extractPayrollTexts } from './lib/extractPdfText';
 import { formatCurrency } from '../../utils/formatters';
 
 const EMPTY_KK_ROW = () => ({ payee: '', amount: '', dueDate: '' });
+
+// Item 7 — Sonderzahlungen tags so spike months stay readable downstream.
+const SONDERZAHLUNG_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'bonus', label: 'Bonus' },
+  { value: 'Urlaubsgeld', label: 'Urlaubsgeld' },
+  { value: 'Weihnachtsgeld', label: 'Weihnachtsgeld' },
+  { value: 'einmalig', label: 'Einmalig' },
+];
 
 /**
  * CargarNominaModal — form to load a new payroll period.
@@ -28,6 +38,7 @@ const CargarNominaModal = ({
   onClose,
   onSubmit,
   activeEmployees = [],
+  allEmployees = null,
   editingPeriod = null,
   loading = false,
 }) => {
@@ -58,6 +69,8 @@ const CargarNominaModal = ({
   const [netWagesAmount, setNetWagesAmount] = useState('');
   const [netWagesDueDate, setNetWagesDueDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Item 6 — operator override to load a partial-month roster despite warnings.
+  const [allowPartialOverride, setAllowPartialOverride] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importedTypes, setImportedTypes] = useState([]);
   // Document fingerprint descriptors collected from the DATEV import.
@@ -97,6 +110,7 @@ const CargarNominaModal = ({
           netto: l.netto ? String(l.netto) : '',
           brutto: l.brutto ? String(l.brutto) : '',
           gesamtkosten: l.gesamtkosten ? String(l.gesamtkosten) : '',
+          sonderzahlung: l.sonderzahlung || '',
         })),
       );
       setDocuments(Array.isArray(editingPeriod.documents) ? editingPeriod.documents : []);
@@ -112,6 +126,7 @@ const CargarNominaModal = ({
         netto: e.nettoMonthly > 0 ? String(e.nettoMonthly) : '',
         brutto: e.bruttoMonthly > 0 ? String(e.bruttoMonthly) : '',
         gesamtkosten: e.gesamtkostenMonthly > 0 ? String(e.gesamtkostenMonthly) : '',
+        sonderzahlung: '',
       })),
     );
     // Reset other fields on open
@@ -178,6 +193,23 @@ const CargarNominaModal = ({
     () => reconcileNetWages({ lines: numericLines, netWages: Number(netWagesAmount) || 0 }),
     [numericLines, netWagesAmount],
   );
+
+  // ─── Item 6 — joiner/leaver mid-month roster validation ────────────────────
+  // Validates against the full roster (incl. leavers) so ghost lines surface.
+  const rosterEmployees = useMemo(
+    () => (Array.isArray(allEmployees) ? allEmployees : activeEmployees),
+    [allEmployees, activeEmployees],
+  );
+  const roster = useMemo(
+    () =>
+      validatePayrollRoster({
+        period,
+        lines: numericLines,
+        employees: rosterEmployees,
+        allowPartialOverride,
+      }),
+    [period, numericLines, rosterEmployees, allowPartialOverride],
+  );
   // Only block when there are lines AND an aggregate entered (avoid false alarm
   // on an empty/just-opened form).
   const reconciliationBlocks =
@@ -236,6 +268,7 @@ const CargarNominaModal = ({
             netto: l.netto ? String(l.netto) : '',
             brutto: l.brutto ? String(l.brutto) : '',
             gesamtkosten: l.gesamtkosten ? String(l.gesamtkosten) : '',
+            sonderzahlung: l.sonderzahlung || '',
           })),
         );
       }
@@ -303,6 +336,7 @@ const CargarNominaModal = ({
         netto: Number(l.netto) || 0,
         brutto: Number(l.brutto) || 0,
         gesamtkosten: Number(l.gesamtkosten) || 0,
+        sonderzahlung: l.sonderzahlung || '',
       })),
       documents,
     };
@@ -567,6 +601,7 @@ const CargarNominaModal = ({
                         <th className="px-3 py-2 label-mono text-[var(--color-fg-4)] text-right">Neto</th>
                         <th className="px-3 py-2 label-mono text-[var(--color-fg-4)] text-right">Bruto</th>
                         <th className="px-3 py-2 label-mono text-[var(--color-fg-4)] text-right">Costo empresa</th>
+                        <th className="px-3 py-2 label-mono text-[var(--color-fg-4)]">Tipo pago</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--color-line)]">
@@ -616,10 +651,68 @@ const CargarNominaModal = ({
                               onChange={(e) => updateLine(i, 'gesamtkosten', e.target.value)}
                             />
                           </td>
+                          <td className="px-3 py-2">
+                            <select
+                              className="w-36 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-2 py-1 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+                              value={line.sonderzahlung || ''}
+                              onChange={(e) => updateLine(i, 'sonderzahlung', e.target.value)}
+                              title="Tipo de pago (Sonderzahlung)"
+                            >
+                              {SONDERZAHLUNG_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Item 6 — joiner/leaver roster validation */}
+            {(roster.ghosts.length > 0 || roster.missingActives.length > 0 || allowPartialOverride) && (
+              <div
+                className={`rounded-md border px-4 py-3 text-[13px] ${
+                  roster.ok
+                    ? 'border-[var(--color-line)] text-[var(--color-fg-3)]'
+                    : 'border-[var(--color-warn)] text-[var(--color-warn)]'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle
+                    size={16}
+                    className={`mt-0.5 flex-shrink-0 ${roster.ok ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}
+                  />
+                  <div className="space-y-1">
+                    {roster.ghosts.length > 0 && (
+                      <p>
+                        Líneas fantasma ({roster.ghosts.length}):{' '}
+                        {roster.ghosts.map((g) => g.name || g.persNr).join(', ')} — el empleado ya no
+                        estaba activo en el período.
+                      </p>
+                    )}
+                    {roster.missingActives.length > 0 && (
+                      <p>
+                        Activos sin línea ({roster.missingActives.length}):{' '}
+                        {roster.missingActives.map((m) => m.name || m.persNr).join(', ')}.
+                      </p>
+                    )}
+                    {roster.ok && allowPartialOverride && (
+                      <p>Validación de mes parcial omitida por override.</p>
+                    )}
+                    <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--color-fg-3)]">
+                      <input
+                        type="checkbox"
+                        checked={allowPartialOverride}
+                        onChange={(e) => setAllowPartialOverride(e.target.checked)}
+                      />
+                      Cargar igual (mes parcial — joiner/leaver)
+                    </label>
+                  </div>
                 </div>
               </div>
             )}

@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Link2, Pencil, Trash2, Wallet } from 'lucide-react';
+import { FileCheck, FileText, Link2, Pencil, Trash2, Wallet } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { usePayables } from '../../hooks/usePayables';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useFinanceLedger } from '../../hooks/useFinanceLedger';
 import { useNominas } from './useNominas';
 import CargarNominaModal from './CargarNominaModal';
+import NominasAnalytics from './NominasAnalytics';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { Badge, KPI, KPIGrid, EmptyState } from '@/components/ui/nexus';
+import { Badge, KPI, KPIGrid, EmptyState, Tabs } from '@/components/ui/nexus';
 import {
   derivePeriodStatus,
   statusLabel,
@@ -17,6 +19,9 @@ import {
   periodStatusTransition,
 } from './lib/payrollStatus';
 import { obligationVariance, periodVarianceSummary } from './lib/payrollVariance';
+import { validatePayrollRoster } from './lib/payrollCalendarValidation';
+import { exportPersonnelCostPDF, exportPayrollDossierPDF } from '../../utils/pdfExport';
+import { exportPayrollWorkbook } from '../../utils/payrollExcelExport';
 
 // ─── Obligation status helpers (mirrors CXP status mapping) ─────────────────
 // Live payable terminal status is 'settled' (see finance/constants DOCUMENT_STATUS),
@@ -52,6 +57,7 @@ const Nominas = ({ user, userRole }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState(null);
+  const [activeTab, setActiveTab] = useState('obligaciones'); // 'obligaciones' | 'analitica'
   // Pending duplicate replacement and pending deletion (drive ConfirmModals).
   const [duplicatePrompt, setDuplicatePrompt] = useState(null); // { formData, existing }
   const [deletePrompt, setDeletePrompt] = useState(null); // period
@@ -62,6 +68,7 @@ const Nominas = ({ user, userRole }) => {
   const { payables, loading: payablesLoading, createPayable, cancelPayable } = usePayables(user);
   const { employees } = useEmployees(user);
   const { notifications, createNotification } = useNotifications(user);
+  const ledger = useFinanceLedger(user);
   const {
     periods,
     loading: periodsLoading,
@@ -83,6 +90,18 @@ const Nominas = ({ user, userRole }) => {
     () => employees.filter((e) => e.status === 'active'),
     [employees],
   );
+
+  // Item 5 — revenue for the nómina-%-of-revenue KPI, reusing posted bank
+  // inflows from the finance ledger (no new Firestore fetch, no CFO snapshot
+  // cache bump). Null until the ledger is ready so the KPI hides gracefully.
+  const revenue = useMemo(() => {
+    const movements = ledger.postedMovements || [];
+    if (movements.length === 0) return null;
+    return movements.reduce((sum, m) => {
+      const isIncome = m.direction === 'in';
+      return isIncome ? sum + Math.abs(m.netAmount ?? m.amount ?? 0) : sum;
+    }, 0);
+  }, [ledger.postedMovements]);
 
   const loading = periodsLoading || payablesLoading;
 
@@ -139,6 +158,17 @@ const Nominas = ({ user, userRole }) => {
     () => periodVarianceSummary(varianceRows),
     [varianceRows],
   );
+
+  // Item 6 — joiner/leaver validation summary for the active period, surfaced
+  // as a Badge. Validates lines against the full roster (incl. leavers).
+  const rosterValidation = useMemo(() => {
+    if (!activePeriod) return { ok: true, ghosts: [], missingActives: [] };
+    return validatePayrollRoster({
+      period: activePeriod.period,
+      lines: activePeriod.lines,
+      employees,
+    });
+  }, [activePeriod, employees]);
 
   // Persist a status transition into the period doc + auditTrail when the
   // derived status diverges from what is stored. Guarded so it fires once per
@@ -250,6 +280,32 @@ const Nominas = ({ user, userRole }) => {
     setLinkingLine(null);
   };
 
+  // ─── Item 8 — exports ──────────────────────────────────────────────────────
+  const handleExportPersonnelPDF = async () => {
+    try {
+      await exportPersonnelCostPDF(periods);
+    } catch (err) {
+      showToast(err.message || 'No se pudo generar el PDF de coste de personal', 'error');
+    }
+  };
+
+  const handleExportPersonnelExcel = () => {
+    try {
+      exportPayrollWorkbook(periods);
+    } catch (err) {
+      showToast(err.message || 'No se pudo generar el Excel', 'error');
+    }
+  };
+
+  const handleExportDossier = async () => {
+    if (!activePeriod) return;
+    try {
+      await exportPayrollDossierPDF(activePeriod);
+    } catch (err) {
+      showToast(err.message || 'No se pudo generar el dossier', 'error');
+    }
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingPeriod(null);
@@ -328,7 +384,26 @@ const Nominas = ({ user, userRole }) => {
             </div>
           )}
 
-          {activePeriod && (
+          {/* Phase 3 — Obligaciones | Analítica sub-tabs */}
+          <Tabs
+            value={activeTab}
+            onChange={setActiveTab}
+            items={[
+              { value: 'obligaciones', label: 'Obligaciones' },
+              { value: 'analitica', label: 'Analítica' },
+            ]}
+          />
+
+          {activeTab === 'analitica' && (
+            <NominasAnalytics
+              periods={periods}
+              revenue={revenue}
+              onExportPersonnelPDF={handleExportPersonnelPDF}
+              onExportPersonnelExcel={handleExportPersonnelExcel}
+            />
+          )}
+
+          {activeTab === 'obligaciones' && activePeriod && (
             <>
               {/* KPI row */}
               <KPIGrid cols={4}>
@@ -378,6 +453,14 @@ const Nominas = ({ user, userRole }) => {
                             : 'Todo cuadra'}
                         </Badge>
                       )}
+                      {/* Item 6 — joiner/leaver roster validation summary */}
+                      {!rosterValidation.ok && (
+                        <Badge variant="warn">
+                          {rosterValidation.ghosts.length > 0
+                            ? `${rosterValidation.ghosts.length} línea(s) fantasma`
+                            : `${rosterValidation.missingActives.length} activo(s) sin línea`}
+                        </Badge>
+                      )}
                     </div>
                     {/* Origen — document fingerprint chips */}
                     {activePeriod.documents.length > 0 && (
@@ -396,24 +479,35 @@ const Nominas = ({ user, userRole }) => {
                       </div>
                     )}
                   </div>
-                  {canAct && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="nx-btn nx-btn-ghost"
-                        onClick={() => handleEdit(activePeriod)}
-                      >
-                        <Pencil size={14} /> Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="nx-btn nx-btn-danger"
-                        onClick={() => setDeletePrompt(activePeriod)}
-                      >
-                        <Trash2 size={14} /> Eliminar
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {/* Item 8 — immutable closed-period dossier */}
+                    <button
+                      type="button"
+                      className="nx-btn nx-btn-ghost"
+                      onClick={handleExportDossier}
+                      title="Dossier inmutable del período (huellas + auditoría)"
+                    >
+                      <FileCheck size={14} /> Dossier
+                    </button>
+                    {canAct && (
+                      <>
+                        <button
+                          type="button"
+                          className="nx-btn nx-btn-ghost"
+                          onClick={() => handleEdit(activePeriod)}
+                        >
+                          <Pencil size={14} /> Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="nx-btn nx-btn-danger"
+                          onClick={() => setDeletePrompt(activePeriod)}
+                        >
+                          <Trash2 size={14} /> Eliminar
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-left">
@@ -610,6 +704,7 @@ const Nominas = ({ user, userRole }) => {
         onClose={closeModal}
         onSubmit={handleModalSubmit}
         activeEmployees={activeEmployees}
+        allEmployees={employees}
         editingPeriod={editingPeriod}
         loading={periodsLoading}
       />

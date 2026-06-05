@@ -131,7 +131,7 @@ const buildCashSeries = (ledger, referenceDate) => {
   return series;
 };
 
-const buildProjectMargins = (movements) => {
+export const buildProjectMargins = (movements, payrollByProject = {}) => {
   const projectMap = new Map();
 
   movements.forEach((entry) => {
@@ -142,6 +142,25 @@ const buildProjectMargins = (movements) => {
     current.net = clampMoney(current.inflows - current.outflows);
     current.margin = current.inflows > 0 ? (current.net / current.inflows) * 100 : 0;
     projectMap.set(key, current);
+  });
+
+  // Phase 3, item 3 — fold allocated labor cost (gesamtkosten, NOT cashTotal)
+  // into each project's outflows so margins stop ignoring payroll. Optional and
+  // defaulting to {} keeps every existing caller and test untouched.
+  Object.entries(payrollByProject || {}).forEach(([projectKey, laborCost]) => {
+    const cost = Number(laborCost) || 0;
+    if (cost === 0) return;
+    const current = projectMap.get(projectKey) || {
+      name: projectKey,
+      inflows: 0,
+      outflows: 0,
+      net: 0,
+      margin: 0,
+    };
+    current.outflows += cost;
+    current.net = clampMoney(current.inflows - current.outflows);
+    current.margin = current.inflows > 0 ? (current.net / current.inflows) * 100 : 0;
+    projectMap.set(projectKey, current);
   });
 
   return Array.from(projectMap.values())
@@ -264,12 +283,12 @@ export const useTreasuryMetrics = (options = {}) => {
       cashSeries: buildCashSeries(ledger, referenceDate),
       receivablesAging: buildAgingBuckets(openReceivables, referenceDate),
       payablesAging: buildAgingBuckets(openPayables, referenceDate),
-      projectMargins: buildProjectMargins(filteredMovements),
+      projectMargins: buildProjectMargins(filteredMovements, options.payrollByProject || {}),
       unreconciledMovements: ledger.bankMovements
         .filter((entry) => !entry.reconciledAt && entry.status === 'posted')
         .sort((left, right) => compareIsoDate(right.postedDate, left.postedDate)),
     };
-  }, [accountId, from, ledger, options.referenceDate, projectId, to]);
+  }, [accountId, from, ledger, options.referenceDate, options.payrollByProject, projectId, to]);
 };
 
 export default useTreasuryMetrics;

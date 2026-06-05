@@ -17,7 +17,13 @@ import {
  XAxis,
  YAxis,
 } from 'recharts';
+import { useMemo } from 'react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useAuth } from '../../hooks/useAuth';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useProjects } from '../../hooks/useProjects';
+import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
+import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { summarizeVAT } from '../../finance/reporting';
 import ForwardProjectionPanel from './ForwardProjectionPanel';
@@ -58,7 +64,27 @@ const SegmentedBar = ({ value, max, color = 'var(--color-fg-1)', segments = 20, 
 
 /* ===== Dashboard ===== */
 const Dashboard = ({ user, setView, onNewTransaction }) => {
- const metrics = useTreasuryMetrics({ user });
+  // Allocate payroll labor cost to projects so the project-margins panel stops
+  // ignoring payroll. Gated to cxp users (firestore denies payrollPeriods reads
+  // to editors); keyed by project NAME so it merges into buildProjectMargins' rows.
+  const { hasPermission } = useAuth();
+  const canSeePayroll = hasPermission('cxp');
+  const { periods: payrollPeriods } = usePayrollPeriods(canSeePayroll ? user : null);
+  const { employees } = useEmployees(user);
+  const { projects } = useProjects(user);
+  const payrollByProject = useMemo(() => {
+    if (!canSeePayroll) return {};
+    const employeesById = {};
+    employees.forEach((e) => {
+      employeesById[e.id] = e;
+    });
+    const projectNamesById = {};
+    projects.forEach((p) => {
+      projectNamesById[p.id] = p.name;
+    });
+    return allocatePayrollCost({ periods: payrollPeriods, employeesById, projectNamesById }).byProject;
+  }, [canSeePayroll, payrollPeriods, employees, projects]);
+  const metrics = useTreasuryMetrics({ user, payrollByProject });
  const vatSummary = summarizeVAT(metrics.postedMovements || []);
 
  const overdueExposure =

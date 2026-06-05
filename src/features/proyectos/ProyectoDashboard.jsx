@@ -25,6 +25,9 @@ import {
  YAxis,
 } from 'recharts';
 import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useEmployees } from '../../hooks/useEmployees';
+import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
+import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -136,6 +139,8 @@ const Section = ({ title, subtitle, children, action }) => (
 
 const ProyectoDashboard = ({ user }) => {
  const ledger = useFinanceLedger(user);
+ const { employees } = useEmployees(user);
+ const { periods: payrollPeriods } = usePayrollPeriods(user);
  const [selectedProjectId, setSelectedProjectId] = useState('');
 
  const availableProjects = useMemo(
@@ -198,25 +203,67 @@ const ProyectoDashboard = ({ user }) => {
  }) || null;
  }, [ledger.budgets, projectTokens, selectedProject]);
 
+ // Phase 3, item 3 — allocated labor cost (gesamtkosten) for the selected
+ // project, so its P&L stops ignoring payroll. Uses employee.projectIds via the
+ // tested allocation lib; matches the selected project by id, code or name token.
+ const employeesById = useMemo(() => {
+ const map = {};
+ (employees || []).forEach((e) => { map[e.id] = e; });
+ return map;
+ }, [employees]);
+
+ const allocatedLabor = useMemo(() => {
+ if (!selectedProject) return 0;
+ const { byProject } = allocatePayrollCost({ periods: payrollPeriods, employeesById });
+ const wanted = [selectedProject.id, selectedProject.code, selectedProject.name]
+ .map(normalizeToken)
+ .filter(Boolean);
+ return Object.entries(byProject).reduce((sum, [key, value]) => {
+ return wanted.includes(normalizeToken(key)) ? sum + Number(value || 0) : sum;
+ }, 0);
+ }, [selectedProject, payrollPeriods, employeesById]);
+
  const kpis = useMemo(() => {
  const income = projectMovements
  .filter((entry) => entry.direction === 'in')
  .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
- const expenses = projectMovements
+ const bankExpenses = projectMovements
  .filter((entry) => entry.direction === 'out')
  .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+ // Labor cost is folded into expenses so net/margin reflect payroll.
+ const expenses = bankExpenses + allocatedLabor;
  const net = income - expenses;
  const margin = income > 0 ? (net / income) * 100 : 0;
 
  return {
  income,
  expenses,
+ laborCost: allocatedLabor,
  net,
  margin,
  openReceivableAmount: openReceivables.reduce((sum, entry) => sum + Number(entry.openAmount || 0), 0),
  openPayableAmount: openPayables.reduce((sum, entry) => sum + Number(entry.openAmount || 0), 0),
  };
- }, [openPayables, openReceivables, projectMovements]);
+ }, [openPayables, openReceivables, projectMovements, allocatedLabor]);
+
+ // Per-month allocated labor for the selected project (item 3) — runs the
+ // allocation lib once per period so spike months stay accurate.
+ const laborByMonth = useMemo(() => {
+ if (!selectedProject) return {};
+ const wanted = [selectedProject.id, selectedProject.code, selectedProject.name]
+ .map(normalizeToken)
+ .filter(Boolean);
+ const out = {};
+ (payrollPeriods || []).forEach((period) => {
+ if (!period.period) return;
+ const { byProject } = allocatePayrollCost({ periods: [period], employeesById });
+ const monthLabor = Object.entries(byProject).reduce((sum, [key, value]) => {
+ return wanted.includes(normalizeToken(key)) ? sum + Number(value || 0) : sum;
+ }, 0);
+ if (monthLabor > 0) out[period.period] = (out[period.period] || 0) + monthLabor;
+ });
+ return out;
+ }, [selectedProject, payrollPeriods, employeesById]);
 
  const monthlyData = useMemo(() => {
  const months = new Map();
@@ -225,11 +272,19 @@ const ProyectoDashboard = ({ user }) => {
  if (!entry.postedDate) return;
  const [year, month] = entry.postedDate.split('-');
  const key = `${year}-${month}`;
- const current = months.get(key) || { month: key, ingresos: 0, gastos: 0 };
+ const current = months.get(key) || { month: key, ingresos: 0, gastos: 0, manoObra: 0 };
 
  if (entry.direction === 'in') current.ingresos += Number(entry.amount || 0);
  else current.gastos += Number(entry.amount || 0);
 
+ months.set(key, current);
+ });
+
+ // Fold per-month labor into gastos so the ComposedChart includes payroll.
+ Object.entries(laborByMonth).forEach(([key, labor]) => {
+ const current = months.get(key) || { month: key, ingresos: 0, gastos: 0, manoObra: 0 };
+ current.gastos += labor;
+ current.manoObra += labor;
  months.set(key, current);
  });
 
@@ -243,7 +298,7 @@ const ProyectoDashboard = ({ user }) => {
  label: `${MONTHS_ES[Number(month) - 1]} ${entry.month.slice(2, 4)}`,
  };
  });
- }, [projectMovements]);
+ }, [projectMovements, laborByMonth]);
 
  const categoryData = useMemo(() => {
  const categories = new Map();
@@ -337,7 +392,11 @@ const ProyectoDashboard = ({ user }) => {
  <KpiCard
  title="Gastos realizados"
  value={formatCurrency(kpis.expenses)}
- subtitle={`${projectMovements.filter((entry) => entry.direction === 'out').length} pagos y salidas registradas`}
+ subtitle={
+ kpis.laborCost > 0
+ ? `Incluye ${formatCurrency(kpis.laborCost)} de mano de obra (nómina)`
+ : `${projectMovements.filter((entry) => entry.direction === 'out').length} pagos y salidas registradas`
+ }
  tone="negative"
  icon={ArrowDownCircle}
  />

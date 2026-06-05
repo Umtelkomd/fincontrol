@@ -38,6 +38,8 @@ import { useProjects } from '../../hooks/useProjects';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
+import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
+import { buildPayrollBudgetActuals } from '../nominas/lib/payrollBudgetActuals';
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MONTHS_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -481,6 +483,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  const { costCenters } = useCostCenters(user);
  const ledger = useFinanceLedger(user);
  const { allTransactions } = useAllTransactions(user);
+ const { periods: payrollPeriods } = usePayrollPeriods(user);
 
  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
  const [selectedProject, setSelectedProject] = useState(null); // null = empresa
@@ -585,6 +588,21 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  return map;
  }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter]);
+
+ // Phase 3, item 4 — payroll accruals as a SEPARATE 'comprometido' overlay for
+ // the Salarios line. Kept apart from `actuals` on purpose: actuals already
+ // capture settled Salarios cash, so merging would double-count once a payroll
+ // payable is paid. This surfaces the committed (accrued) Salarios total per
+ // month so a CFO sees Presupuesto vs Comprometido vs Pagado.
+ const payrollCommitted = useMemo(() => {
+ // Only meaningful when viewing all cost centers or CC-NOM specifically.
+ if (selectedCostCenter && selectedCostCenter !== normCC('CC-NOM')) {
+ return { byMonth: new Map(), total: 0 };
+ }
+ const byMonth = buildPayrollBudgetActuals({ periods: payrollPeriods, year: selectedYear });
+ const total = [...byMonth.values()].reduce((s, v) => s + v, 0);
+ return { byMonth, total };
+ }, [payrollPeriods, selectedYear, selectedCostCenter]);
 
  // Count uncategorized bank movements for the selected year
  const uncategorizedStats = useMemo(() => {
@@ -1134,6 +1152,12 @@ const BudgetVsActual = ({ user, userRole }) => {
  <div>
  <p className="text-sm font-medium text-[var(--color-fg-1)]">{row.categoryName}</p>
  {row.notes && <p className="text-xs text-[var(--color-fg-3)]">{row.notes}</p>}
+ {/* Item 4 — payroll committed (accrued) overlay for Salarios */}
+ {row.categoryName === 'Salarios' && payrollCommitted.total > 0 && (
+ <p className="text-xs text-[var(--color-accent)]" title="Nómina comprometida (devengada), aún no necesariamente pagada">
+ Comprometido nómina: {formatCurrency(payrollCommitted.total)}
+ </p>
+ )}
  </div>
  </div>
  </td>
