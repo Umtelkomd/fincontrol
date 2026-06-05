@@ -149,6 +149,14 @@ export const usePayables = (user) => {
         // subcontractor X covers Jorge + Andres for week Y"). Defaults to [].
         employeeIds: Array.isArray(data.employeeIds) ? data.employeeIds : [],
         costCenterId: data.costCenterId || '',
+        categoryName: data.categoryName || '',
+        // Payroll markers (Nóminas): link a payable back to its payroll period.
+        // Null for ordinary CXP. Persisted so the Nóminas view can match each
+        // obligation to its live payable by payrollPeriodId.
+        payrollPeriod: data.payrollPeriod || null,
+        payrollPeriodId: data.payrollPeriodId || null,
+        payrollKind: data.payrollKind || null,
+        source: data.source || null,
         description: data.description || '',
         grossAmount: amount,
         amount,
@@ -185,7 +193,7 @@ export const usePayables = (user) => {
           updatedAt: new Date().toISOString(),
         }),
       });
-      return { success: true };
+      return { success: true, id: docRef.id };
     } catch (error) {
       logError('Error creating payable:', error);
       return { success: false, error };

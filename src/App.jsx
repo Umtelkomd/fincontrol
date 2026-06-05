@@ -51,6 +51,7 @@ const Movimientos = lazy(() => import('./features/movimientos/Movimientos'));
 const Rules = lazy(() => import('./features/classification-rules/Rules'));
 const AlertasOperativas = lazy(() => import('./features/alertas-op/AlertasOperativas'));
 const CFODashboard = lazy(() => import('./features/cfo/CFODashboard'));
+const Nominas = lazy(() => import('./features/nominas/Nominas'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
 
 const VIEW_TITLES = {
@@ -65,6 +66,7 @@ const VIEW_TITLES = {
  '/configuracion': 'Configuración',
  '/cxc': 'Cuentas por Cobrar',
  '/cxp': 'Cuentas por Pagar',
+ '/nominas': 'Nóminas',
  '/presupuesto': 'Presupuesto',
  '/conciliacion': 'Conciliación Bancaria',
  '/alertas': 'Alertas',
@@ -301,6 +303,7 @@ function AppContent() {
  <Route path="/reglas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Rules user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/alertas-op" element={<ProtectedRoute hasPermission={hasPermission} permission="dashboard"><AlertasOperativas user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/cfo" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><CFODashboard user={user} userRole={userRole} /></ProtectedRoute>} />
+ <Route path="/nominas" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><Nominas user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="*" element={<Navigate to="/" replace />} />
  </Routes>
  </Suspense>

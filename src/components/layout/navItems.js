@@ -35,6 +35,7 @@ export const NAV_ITEMS = [
   { path: '/cashflow', label: 'Tesoreria', icon: WalletCards, permission: 'reports' },
   { path: '/cxc', label: 'CXC', icon: ReceiptText, permission: 'cxc' },
   { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },
+  { path: '/nominas', label: 'Nóminas', icon: WalletCards, permission: 'cxp' },
   { path: '/alertas-op', label: 'Alertas', icon: Bell, permission: 'dashboard' },
   // Reportes
   { path: '/flujo-caja-anual', label: 'Flujo Anual', icon: TableProperties, permission: 'reports' },
