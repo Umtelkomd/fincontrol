@@ -317,13 +317,13 @@ export default function FlujoCajaAnual({ user }) {
               <tr style={{ background: 'var(--color-bg-1)' }}>
                 <td style={{ ...tdStyle(true), background: 'var(--color-bg-1)', color: 'var(--color-accent)', fontWeight: 700 }}>ACUMULADO</td>
                 {acumRow.map((v, i) => (
-                  <td key={i} style={{ ...tdStyle(), color: v >= 0 ? 'var(--color-accent)' : 'var(--color-accent)', fontWeight: 700 }}>
+                  <td key={i} style={{ ...tdStyle(), color: v >= 0 ? 'var(--color-ok)' : 'var(--color-accent)', fontWeight: 700 }}>
                     {v === 0
                       ? <span style={{ color: 'var(--color-fg-4)' }}>—</span>
                       : `€${formatCurrency(v)}`}
                   </td>
                 ))}
-                <td style={{ ...tdStyle(), color: (acumRow[11] || 0) >= 0 ? 'var(--color-accent)' : 'var(--color-accent)', fontWeight: 700 }}>
+                <td style={{ ...tdStyle(), color: (acumRow[11] || 0) >= 0 ? 'var(--color-ok)' : 'var(--color-accent)', fontWeight: 700 }}>
                   {(acumRow[11] || 0) === 0 ? <span style={{ color: 'var(--color-fg-4)' }}>—</span> : `€${formatCurrency(acumRow[11] || 0)}`}
                 </td>
               </tr>
