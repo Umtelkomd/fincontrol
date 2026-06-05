@@ -36,7 +36,8 @@ const loadPdfjs = async () => {
 export const extractPdfText = async (file) => {
   const pdfjsLib = await loadPdfjs();
   const data = new Uint8Array(await file.arrayBuffer());
-  const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
+  const loadingTask = pdfjsLib.getDocument({ data, isEvalSupported: false });
+  const pdf = await loadingTask.promise;
   let out = '';
   try {
     for (let p = 1; p <= pdf.numPages; p += 1) {
@@ -61,7 +62,13 @@ export const extractPdfText = async (file) => {
       }
     }
   } finally {
-    await pdf.destroy();
+    // Cleanup is best-effort — pdfjs v6 destroys via the loading task, and a
+    // cleanup error must never discard the text we already extracted.
+    try {
+      await loadingTask.destroy();
+    } catch {
+      /* ignore */
+    }
   }
   return out;
 };
