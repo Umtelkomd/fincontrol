@@ -101,9 +101,13 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
     if (files.length === 0) return;
     setImporting(true);
     try {
-      const { texts, recognized, ignored } = await extractPayrollTexts(files);
+      const { texts, recognized, ignored, failed } = await extractPayrollTexts(files);
       if (recognized.length === 0) {
-        showToast('No reconocí ningún PDF DATEV (zakf / lojo / lops)', 'error');
+        if (failed.length > 0) {
+          showToast(`No pude leer los PDF: ${failed[0].error}`, 'error');
+        } else {
+          showToast('No reconocí ningún PDF DATEV. ¿Los archivos empiezan con zakf / lojo / lops?', 'error');
+        }
         return;
       }
       const form = buildPayrollFromTexts(texts);

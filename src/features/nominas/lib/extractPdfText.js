@@ -5,8 +5,11 @@
  * grouping items on the same Y coordinate (top→bottom) and ordering each line
  * left→right. This matches the line shape the datevPayrollParser expects.
  *
- * pdfjs (~400kB) is loaded LAZILY on first extraction so it never weighs down
- * the Nóminas route chunk — it only downloads when the user actually imports.
+ * pdfjs (~400kB) + its worker are loaded LAZILY on first extraction so they
+ * never weigh down the Nóminas route chunk — they download only when the user
+ * actually imports. The worker is instantiated via Vite's `?worker` import so
+ * it loads as a proper ES module worker (setting workerSrc to a URL makes pdfjs
+ * load the ESM worker as a classic worker, which fails in production).
  *
  * Pure parsing lives in datevPayrollParser.js (unit-tested). This module is the
  * thin pdfjs adapter and is not unit-tested (it needs the pdfjs worker).
@@ -16,13 +19,13 @@ import { classifyPayrollPdf } from './datevPayrollParser';
 
 let pdfjsPromise = null;
 
-/** Lazy-load pdfjs and wire its worker exactly once. */
+/** Lazy-load pdfjs and instantiate its module worker exactly once. */
 const loadPdfjs = async () => {
   if (!pdfjsPromise) {
     pdfjsPromise = (async () => {
       const pdfjsLib = await import('pdfjs-dist');
-      const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
-      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+      const { default: PdfjsWorker } = await import('pdfjs-dist/build/pdf.worker.min.mjs?worker');
+      pdfjsLib.GlobalWorkerOptions.workerPort = new PdfjsWorker();
       return pdfjsLib;
     })();
   }
@@ -66,11 +69,15 @@ export const extractPdfText = async (file) => {
 /**
  * Extract and classify a list of dropped/selected files.
  * @param {File[]} files
- * @returns {Promise<{ texts: Object<string,string>, recognized: string[], ignored: string[] }>}
+ * @returns {Promise<{ texts, recognized: string[], ignored: string[], failed: Array<{name,error}> }>}
+ *   recognized — DATEV files read successfully
+ *   ignored    — files whose name prefix is not a known DATEV report
+ *   failed     — known DATEV files that could not be read (carries the error)
  */
 export const extractPayrollTexts = async (files) => {
   const texts = {};
   const ignored = [];
+  const failed = [];
   for (const file of files) {
     const type = classifyPayrollPdf(file.name);
     if (type === 'unknown') {
@@ -82,8 +89,8 @@ export const extractPayrollTexts = async (files) => {
       texts[type] = await extractPdfText(file);
     } catch (err) {
       logError('Failed to extract payroll PDF text:', file.name, err);
-      ignored.push(file.name);
+      failed.push({ name: file.name, error: err?.message || String(err) });
     }
   }
-  return { texts, recognized: Object.keys(texts), ignored };
+  return { texts, recognized: Object.keys(texts), ignored, failed };
 };
