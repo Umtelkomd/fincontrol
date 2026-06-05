@@ -1,14 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Link2, Pencil, Trash2, Wallet } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { usePayables } from '../../hooks/usePayables';
 import { useCostCenters } from '../../hooks/useCostCenters';
+import { useNotifications } from '../../hooks/useNotifications';
 import { useNominas } from './useNominas';
 import CargarNominaModal from './CargarNominaModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { Badge, KPI, KPIGrid, EmptyState } from '@/components/ui/nexus';
+import {
+  derivePeriodStatus,
+  statusLabel,
+  statusBadgeTone,
+  periodStatusTransition,
+} from './lib/payrollStatus';
+import { obligationVariance, periodVarianceSummary } from './lib/payrollVariance';
 
 // ─── Obligation status helpers (mirrors CXP status mapping) ─────────────────
 // Live payable terminal status is 'settled' (see finance/constants DOCUMENT_STATUS),
@@ -53,6 +61,7 @@ const Nominas = ({ user, userRole }) => {
   const { costCenters } = useCostCenters(user);
   const { payables, loading: payablesLoading, createPayable, cancelPayable } = usePayables(user);
   const { employees } = useEmployees(user);
+  const { notifications, createNotification } = useNotifications(user);
   const {
     periods,
     loading: periodsLoading,
@@ -66,6 +75,8 @@ const Nominas = ({ user, userRole }) => {
     cancelPayable,
     payables,
     employees,
+    createNotification,
+    notifications,
   });
 
   const activeEmployees = useMemo(
@@ -111,7 +122,48 @@ const Nominas = ({ user, userRole }) => {
     [periodPayables],
   );
 
+  // Item 3 — derive the period status (borrador/cargada/parcial/pagada) from the
+  // live obligation statuses. Read-only: settlement only flows through bank
+  // conciliation; this never settles anything.
+  const periodStatus = useMemo(
+    () => derivePeriodStatus(obligationRows),
+    [obligationRows],
+  );
+
+  // Item 7 — per-obligation variance vs the reconciled bank movement amount.
+  const varianceRows = useMemo(
+    () => obligationRows.map((ob) => obligationVariance({ obligation: ob, payable: ob.payable })),
+    [obligationRows],
+  );
+  const varianceSummary = useMemo(
+    () => periodVarianceSummary(varianceRows),
+    [varianceRows],
+  );
+
+  // Persist a status transition into the period doc + auditTrail when the
+  // derived status diverges from what is stored. Guarded so it fires once per
+  // real transition (not on every snapshot).
   const canAct = userRole === 'admin' || userRole === 'manager';
+
+  const lastPersistedStatusRef = useRef(null);
+  useEffect(() => {
+    // Only actors persist transitions — a read-only editor viewing a legacy
+    // period must never trigger a Firestore write.
+    if (!activePeriod || !canAct) return;
+    const stored = activePeriod.status || '';
+    if (periodStatus === stored) {
+      lastPersistedStatusRef.current = null;
+      return;
+    }
+    const fingerprint = `${activePeriod.id}:${stored}->${periodStatus}`;
+    if (lastPersistedStatusRef.current === fingerprint) return;
+    lastPersistedStatusRef.current = fingerprint;
+    updatePayrollPeriod(
+      activePeriod.id,
+      { status: periodStatus },
+      periodStatusTransition(stored, periodStatus),
+    );
+  }, [activePeriod, periodStatus, updatePayrollPeriod, canAct]);
 
   const handleLoadPeriod = async (formData) => {
     const result = await loadPayrollPeriod(formData);
@@ -310,9 +362,23 @@ const Nominas = ({ user, userRole }) => {
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="label-mono text-[var(--color-fg-4)]">Obligaciones del período</p>
-                    <h3 className="font-display mt-1 text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">
-                      {activePeriod.label}
-                    </h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-3">
+                      <h3 className="font-display text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">
+                        {activePeriod.label}
+                      </h3>
+                      {/* Item 3 — period-level status badge */}
+                      <Badge variant={statusBadgeTone(periodStatus)} dot>
+                        {statusLabel(periodStatus)}
+                      </Badge>
+                      {/* Item 7 — reconciliation variance summary */}
+                      {varianceRows.some((v) => v.status !== 'pending') && (
+                        <Badge variant={varianceSummary.label === 'descuadre' ? 'err' : 'ok'}>
+                          {varianceSummary.label === 'descuadre'
+                            ? `Descuadre ${formatCurrency(varianceSummary.totalDiff)}`
+                            : 'Todo cuadra'}
+                        </Badge>
+                      )}
+                    </div>
                     {/* Origen — document fingerprint chips */}
                     {activePeriod.documents.length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -380,9 +446,16 @@ const Nominas = ({ user, userRole }) => {
                             {ob.dueDate ? formatDate(ob.dueDate) : '—'}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <Badge variant={statusTone(ob.liveStatus)}>
-                              {STATUS_LABELS[ob.liveStatus] || ob.liveStatus}
-                            </Badge>
+                            <div className="flex flex-col items-center gap-1">
+                              <Badge variant={statusTone(ob.liveStatus)}>
+                                {STATUS_LABELS[ob.liveStatus] || ob.liveStatus}
+                              </Badge>
+                              {varianceRows[i]?.status === 'descuadre' && (
+                                <span className="font-mono text-[11px] text-[var(--color-err)]">
+                                  Δ {formatCurrency(varianceRows[i].diff)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

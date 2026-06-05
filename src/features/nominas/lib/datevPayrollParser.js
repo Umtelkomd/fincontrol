@@ -14,6 +14,8 @@
  *   compact— "4.47023"   → 4470.23  (digits only, last 2 are cents)
  */
 
+import { resolvePayrollDueDates } from './payrollDueDates.js';
+
 const GERMAN_MONTHS = [
   'januar', 'februar', 'märz', 'april', 'mai', 'juni',
   'juli', 'august', 'september', 'oktober', 'november', 'dezember',
@@ -197,5 +199,16 @@ export const buildPayrollFromTexts = ({ zakf, lojo, lops } = {}) => {
     gesamtkosten: r.gesamtkosten,
   }));
 
-  return { ...base, lines };
+  // Phase 2, item 1 — stamp correct German due dates. Prefer the parsed
+  // Fälligkeit (kkDueDate / tax.dueDate) and only compute the gaps
+  // (net-wages transfer date always; KK/LSt only when the PDF carried none).
+  const due = resolvePayrollDueDates({ period: base.period, parsed: base });
+
+  return {
+    ...base,
+    krankenkassen: base.krankenkassen.map((k) => ({ ...k, dueDate: k.dueDate || due.kk })),
+    tax: { ...base.tax, dueDate: base.tax.dueDate || due.tax },
+    netWages: { ...base.netWages, dueDate: base.netWages.dueDate || due.netWages },
+    lines,
+  };
 };

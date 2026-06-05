@@ -413,6 +413,7 @@ const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize,
  <Badge variant={top.score >= 130 ? 'ok' : top.score >= 100 ? 'info' : 'warn'} dot>
  {direction === 'in' ? 'CXC' : 'CXP'} sugerida · score {Math.round(top.score)}
  </Badge>
+ {top.item.payrollKind && <Badge variant="info">Nómina</Badge>}
  {tooLate && <Badge variant="warn">+14 días de diferencia</Badge>}
  </div>
  <p className="mt-1.5 text-[13px] text-[var(--color-fg-1)] truncate">

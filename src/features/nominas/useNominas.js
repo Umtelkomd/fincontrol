@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDoc,
   arrayUnion,
@@ -22,8 +22,11 @@ import {
   buildPayrollAuditEntry,
 } from './lib/payroll';
 import { resolveEmployeeIdsByPersNr } from './lib/payrollIdentity';
+import { buildDueReminders } from './lib/payrollReminders';
 
 const PAYROLL_PERIODS_COLLECTION = 'payrollPeriods';
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const periodPath = (periodId) =>
   doc(db, 'artifacts', appId, 'public', 'data', PAYROLL_PERIODS_COLLECTION, periodId);
@@ -52,6 +55,8 @@ export const useNominas = ({
   cancelPayable,
   payables = [],
   employees = [],
+  createNotification,
+  notifications = [],
 }) => {
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +72,61 @@ export const useNominas = ({
     return cc?.id || '';
   }, [costCenters]);
 
+  // The open payroll payables (the 6 monthly obligations across all periods).
+  const payrollPayables = useMemo(
+    () =>
+      (payables || []).filter(
+        (p) =>
+          p.payrollKind &&
+          p.status !== 'settled' &&
+          p.status !== 'cancelled' &&
+          p.status !== 'void',
+      ),
+    [payables],
+  );
+
+  // Item 6 — escalating SV + Lohnsteuer due-date reminders from the real parsed
+  // Fälligkeit dates. Idempotent: a reminder is emitted once per
+  // (payableId + dueDate + severity tier). Dedup uses BOTH the persisted
+  // notifications list AND an in-session ref, closing the race window between
+  // a createNotification call and the snapshot that reflects it.
+  const emittedRemindersRef = useRef(new Set());
+  useEffect(() => {
+    if (!user || !createNotification) return;
+    const reminders = buildDueReminders(payrollPayables, todayIso());
+    if (reminders.length === 0) return;
+
+    const existingKeys = new Set(
+      (notifications || [])
+        .filter((n) => n.type === 'payroll-due')
+        .map((n) => {
+          const e = n.relatedEntity || {};
+          return `${e.payableId || ''}|${e.dueDate || ''}|${n.severity || ''}`;
+        }),
+    );
+
+    reminders.forEach((r) => {
+      const key = `${r.payableId}|${r.dueDate}|${r.severity}`;
+      if (existingKeys.has(key) || emittedRemindersRef.current.has(key)) return;
+      emittedRemindersRef.current.add(key);
+      createNotification({
+        type: 'payroll-due',
+        severity: r.severity,
+        title: r.title,
+        message: r.message,
+        relatedEntity: {
+          entityType: 'payrollPeriod',
+          entityId: r.payrollPeriodId,
+          payableId: r.payableId,
+          payrollKind: r.payrollKind,
+          dueDate: r.dueDate,
+        },
+        userId: user.email || '',
+      });
+    });
+    // notifications intentionally drives dedup; payrollPayables drives triggers.
+  }, [user, createNotification, payrollPayables, notifications]);
+
   useEffect(() => {
     if (!user) return undefined;
 
@@ -80,7 +140,9 @@ export const useNominas = ({
             id: d.id,
             period: raw.period || '',
             label: raw.label || '',
-            status: raw.status || 'loaded',
+            // Normalize the legacy 'loaded' marker to the derived lifecycle word
+            // 'cargada' so viewing a period never triggers a spurious status write.
+            status: raw.status === 'loaded' ? 'cargada' : raw.status || 'cargada',
             netWagesTotal: Number(raw.netWagesTotal) || 0,
             socialTotal: Number(raw.socialTotal) || 0,
             taxTotal: Number(raw.taxTotal) || 0,
@@ -244,7 +306,7 @@ export const useNominas = ({
       const periodPayload = {
         period,
         label,
-        status: 'loaded',
+        status: 'cargada',
         netWagesTotal: totals.netWagesTotal,
         socialTotal: totals.socialTotal,
         taxTotal: totals.taxTotal,
@@ -427,6 +489,7 @@ export const useNominas = ({
     updatePayrollPeriod,
     deletePayrollPeriod,
     nomCostCenterId,
+    payrollPayables,
   };
 };
 

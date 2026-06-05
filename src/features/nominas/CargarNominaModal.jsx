@@ -226,6 +226,7 @@ const CargarNominaModal = ({
         setTaxDueDate(form.tax.dueDate || '');
       }
       if (form.netWages?.amount) setNetWagesAmount(String(form.netWages.amount));
+      if (form.netWages?.dueDate) setNetWagesDueDate(form.netWages.dueDate);
       if (form.lines.length) {
         setEmployeeLines(
           form.lines.map((l) => ({

@@ -14,10 +14,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useReceivables } from '../../hooks/useReceivables';
 import { usePayables } from '../../hooks/usePayables';
+import { useAuth } from '../../hooks/useAuth';
 import { useClassifier } from '../../hooks/useClassifier';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useForwardProjection } from '../../hooks/useForwardProjection';
 import { useRecurringCosts } from '../../hooks/useRecurringCosts';
+import { useNominas } from '../nominas/useNominas';
+import { derivePeriodStatus, statusLabel, statusBadgeTone } from '../nominas/lib/payrollStatus';
+import { missingPayrollMonths } from '../nominas/lib/missingMonths';
 import { groupUnclassifiedByCounterparty, findBestRule } from '../../finance/ruleEngine';
 import { ruleAppliesToPeriod, periodKey } from '../../finance/recurringGenerator';
 import { formatCurrency } from '../../utils/formatters';
@@ -46,9 +50,12 @@ const isOpen = (doc) => {
 const AlertasOperativas = ({ user }) => {
   const navigate = useNavigate();
   const today = todayIso();
+  // Payroll holds salary data — only managers/admins (cxp permission) may see it.
+  const { hasPermission } = useAuth();
+  const canSeePayroll = hasPermission('cxp');
 
   const { receivables } = useReceivables(user);
-  const { payables } = usePayables(user);
+  const { payables, createPayable, cancelPayable } = usePayables(user);
   const { recurringCosts } = useRecurringCosts(user);
   const { inboxMovements } = useClassifier(user);
   const { rules, createRule } = useClassificationRules(user);
@@ -60,6 +67,55 @@ const AlertasOperativas = ({ user }) => {
   const { showToast } = useToast();
 
   const [seedCounterparty, setSeedCounterparty] = useState(null);
+
+  // ─── Payroll (Nóminas) tile data ───
+  // Read-only consumer: pass createPayable/cancelPayable so the hook is happy,
+  // but NOT createNotification — Nominas.jsx owns reminder emission to avoid
+  // duplicate notifications.
+  const { periods: payrollPeriods, payrollPayables } = useNominas({
+    // Skip the payrollPeriods subscription entirely for non-cxp users — firestore
+    // rules deny them the read anyway, so don't open a doomed listener.
+    user: canSeePayroll ? user : null,
+    costCenters,
+    createPayable,
+    cancelPayable,
+    payables,
+  });
+
+  const payrollTile = useMemo(() => {
+    const latest = payrollPeriods?.[0] || null;
+    const open = (payrollPayables || []).filter(isOpen);
+    const openTotal = open.reduce(
+      (s, p) => s + Number(p.openAmount || p.grossAmount || p.amount || 0),
+      0,
+    );
+    // Next SV/LSt due date among open payroll obligations (exclude net wages).
+    const svLst = open
+      .filter((p) => p.payrollKind === 'krankenkasse' || p.payrollKind === 'tax')
+      .filter((p) => p.dueDate)
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+    const nextDue = svLst[0]?.dueDate || null;
+    const currentMonth = today.slice(0, 7);
+    const missing = missingPayrollMonths(payrollPeriods || [], currentMonth);
+    // Derive the latest period status from its obligation statuses joined live.
+    const status = latest
+      ? derivePeriodStatus(
+          (latest.obligations || []).map((ob) => {
+            const live = (payables || []).find((p) => p.id === ob.payableId);
+            return { liveStatus: live?.status || 'issued' };
+          }),
+        )
+      : null;
+    return {
+      latest,
+      status,
+      openCount: open.length,
+      openTotal,
+      nextDue,
+      missing,
+      hasData: Boolean(latest) || (payrollPeriods || []).length > 0,
+    };
+  }, [payrollPeriods, payrollPayables, payables, today]);
 
   // ─── CXP buckets ───
   const cxpBuckets = useMemo(() => {
@@ -194,7 +250,8 @@ const AlertasOperativas = ({ user }) => {
     cxpBuckets.due7.length +
     cxcBuckets.overdue.length +
     (negativeAlert ? 1 : 0) +
-    recurringPending.length;
+    recurringPending.length +
+    payrollTile.missing.length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -336,6 +393,65 @@ const AlertasOperativas = ({ user }) => {
             <Button variant="secondary" size="sm" onClick={() => navigate('/cashflow')}>
               Ver tesorería
             </Button>
+          </div>
+        </Panel>
+      )}
+
+      {/* Nóminas — estado del período + próximos vencimientos SV/LSt */}
+      {canSeePayroll && payrollTile.hasData && (
+        <Panel
+          title="Nóminas"
+          meta={payrollTile.latest ? payrollTile.latest.label : 'Sin períodos cargados'}
+          actions={
+            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/nominas')}>
+              Ir a Nóminas
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {payrollTile.status && (
+                <Badge variant={statusBadgeTone(payrollTile.status)} dot>
+                  {statusLabel(payrollTile.status)}
+                </Badge>
+              )}
+              {payrollTile.missing.length > 0 && (
+                <Badge variant="warn">
+                  {payrollTile.missing.length} mes(es) sin cargar
+                </Badge>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+                <p className="label-mono text-[var(--color-fg-4)]">Obligaciones abiertas</p>
+                <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
+                  {payrollTile.openCount}
+                </p>
+                <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
+                  {formatCurrency(payrollTile.openTotal)}
+                </p>
+              </div>
+              <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+                <p className="label-mono text-[var(--color-fg-4)]">Próximo SV / LSt</p>
+                <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
+                  {payrollTile.nextDue ? payrollTile.nextDue : '—'}
+                </p>
+                <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
+                  {payrollTile.nextDue
+                    ? `en ${daysBetween(today, payrollTile.nextDue)}d`
+                    : 'sin vencimientos abiertos'}
+                </p>
+              </div>
+              <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+                <p className="label-mono text-[var(--color-fg-4)]">Meses faltantes</p>
+                <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
+                  {payrollTile.missing.length}
+                </p>
+                <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)] truncate">
+                  {payrollTile.missing.length > 0 ? payrollTile.missing.join(', ') : 'al día'}
+                </p>
+              </div>
+            </div>
           </div>
         </Panel>
       )}

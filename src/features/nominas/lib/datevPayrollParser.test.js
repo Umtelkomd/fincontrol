@@ -183,4 +183,16 @@ describe('buildPayrollFromTexts (full reconciliation)', () => {
     expect(totals.employerCostTotal).toBeCloseTo(39145.80, 2);
     expect(totals.payCount).toBe(10);
   });
+
+  // Phase 2, item 1 — German due dates stamped at import.
+  it('preserves the parsed KK and LSt Fälligkeit dates untouched', () => {
+    // Parsed: KK 2026-04-28, LSt 2026-05-11 — must survive backfill verbatim.
+    expect(form.krankenkassen.every((k) => k.dueDate === '2026-04-28')).toBe(true);
+    expect(form.tax.dueDate).toBe('2026-05-11');
+  });
+  it('backfills the missing net-wages due date with the last banking day', () => {
+    // ZAKF carries no Lohn-und-Gehaltszahlungen Fälligkeit → computed to the
+    // last banking day of April 2026 = 2026-04-30 (Thursday).
+    expect(form.netWages.dueDate).toBe('2026-04-30');
+  });
 });

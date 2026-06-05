@@ -20,6 +20,7 @@ import {
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
+import { scorePayrollMatch } from '../features/nominas/lib/payrollMatch';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 import { logError } from '../utils/logger';
@@ -494,6 +495,10 @@ export const useClassifier = (user) => {
  else if (amountDiff < 10) score += 40;
  else return null;
  if (daysDiff <= TOLERANCE_DAYS) score += Math.max(0, 30 - daysDiff);
+ // Phase 2, item 2 — payroll boost: the 6 monthly payroll debits become
+ // near-automatic one-click confirms (score >= 130) when the out-movement
+ // matches a payrollKind payable within the banking-day due window.
+ score += scorePayrollMatch({ movement, payable: p });
  return { item: p, amountDiff, daysDiff, score };
  })
  .filter((m) => m && m.score > 0)
