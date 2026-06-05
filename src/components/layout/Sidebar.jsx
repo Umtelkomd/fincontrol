@@ -31,7 +31,7 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  return (
   <header className="relative hidden border-b border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)] md:block">
   <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[2px] bg-[var(--color-accent)]" />
-  <div className="mx-auto max-w-[1280px] px-5 py-4">
+  <div className="px-5 py-4">
  {/* Top row: brand + actions */}
  <div className="flex items-center justify-between gap-4">
   <button type="button" onClick={() => navigate('/')} className="group flex min-w-0 items-center gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 transition-colors hover:border-[var(--color-line-s)]">

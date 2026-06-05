@@ -186,7 +186,7 @@ function AppContent() {
 
  <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
   <div className="z-20 flex-shrink-0 px-4 pb-0 pt-4 md:px-8 md:pt-6">
-  <div className="relative mx-auto flex max-w-[1280px] flex-wrap items-end justify-between gap-4 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-5">
+  <div className="relative flex flex-wrap items-end justify-between gap-4 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-5">
   <div aria-hidden="true" className="absolute bottom-[-18px] right-5 font-display text-[86px] font-medium leading-none tracking-[-0.08em] text-[var(--color-fg-1)] opacity-[0.025] md:text-[124px]">
   NEXUS
   </div>
@@ -235,7 +235,7 @@ function AppContent() {
  </div>
 
  <div className="flex-1 overflow-y-auto px-4 pb-8 pt-5 md:px-8 md:pb-10 md:pt-6">
- <div ref={contentRef} className="mx-auto max-w-[1280px] transition-opacity duration-150">
+ <div ref={contentRef} className="transition-opacity duration-150">
  {loading ? (
  <LoadingState />
  ) : (
