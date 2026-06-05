@@ -19,6 +19,14 @@ import { classifyPayrollPdf } from './datevPayrollParser';
 
 let pdfjsPromise = null;
 
+/** Compute the SHA-256 hex digest of an ArrayBuffer via the Web Crypto API. */
+const sha256Hex = async (arrayBuffer) => {
+  const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
 /** Lazy-load pdfjs and instantiate its module worker exactly once. */
 const loadPdfjs = async () => {
   if (!pdfjsPromise) {
@@ -32,12 +40,20 @@ const loadPdfjs = async () => {
   return pdfjsPromise;
 };
 
-/** Extract reconstructed-line text from a PDF File/Blob. */
+/**
+ * Extract reconstructed-line text from a PDF File/Blob.
+ * Returns { text, pageCount, hash } — hash is the SHA-256 hex of the raw bytes
+ * (computed from the SAME buffer read here, so callers don't re-read the file)
+ * and is used for the document-fingerprint registry.
+ */
 export const extractPdfText = async (file) => {
   const pdfjsLib = await loadPdfjs();
-  const data = new Uint8Array(await file.arrayBuffer());
+  const buffer = await file.arrayBuffer();
+  const hash = await sha256Hex(buffer);
+  const data = new Uint8Array(buffer.slice(0));
   const loadingTask = pdfjsLib.getDocument({ data, isEvalSupported: false });
   const pdf = await loadingTask.promise;
+  const pageCount = pdf.numPages;
   let out = '';
   try {
     for (let p = 1; p <= pdf.numPages; p += 1) {
@@ -70,19 +86,29 @@ export const extractPdfText = async (file) => {
       /* ignore */
     }
   }
-  return out;
+  return { text: out, pageCount, hash };
 };
 
 /**
  * Extract and classify a list of dropped/selected files.
  * @param {File[]} files
- * @returns {Promise<{ texts, recognized: string[], ignored: string[], failed: Array<{name,error}> }>}
+ * @returns {Promise<{
+ *   texts,
+ *   documents: Array<{hash,fileName,kind,pageCount}>,
+ *   recognized: string[],
+ *   ignored: string[],
+ *   failed: Array<{name,error}>
+ * }>}
+ *   texts      — per recognized DATEV type → reconstructed line text
+ *   documents  — per recognized file: sha-256 hash + fileName + kind + pageCount
+ *                (no Firebase Storage upload — fingerprint registry only)
  *   recognized — DATEV files read successfully
  *   ignored    — files whose name prefix is not a known DATEV report
  *   failed     — known DATEV files that could not be read (carries the error)
  */
 export const extractPayrollTexts = async (files) => {
   const texts = {};
+  const documents = [];
   const ignored = [];
   const failed = [];
   for (const file of files) {
@@ -92,12 +118,13 @@ export const extractPayrollTexts = async (files) => {
       continue;
     }
     try {
-       
-      texts[type] = await extractPdfText(file);
+      const { text, pageCount, hash } = await extractPdfText(file);
+      texts[type] = text;
+      documents.push({ hash, fileName: file.name, kind: type, pageCount });
     } catch (err) {
       logError('Failed to extract payroll PDF text:', file.name, err);
       failed.push({ name: file.name, error: err?.message || String(err) });
     }
   }
-  return { texts, recognized: Object.keys(texts), ignored, failed };
+  return { texts, documents, recognized: Object.keys(texts), ignored, failed };
 };

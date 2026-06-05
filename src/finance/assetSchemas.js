@@ -37,6 +37,7 @@ export const employeeDefaults = () => ({
   fullName: '',
   firstName: '',
   lastName: '',
+  persNr: '', // DATEV Personnel number — joins payroll lines to this employee
   aliases: [],
   type: 'internal',
   status: 'active',

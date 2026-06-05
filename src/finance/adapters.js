@@ -77,6 +77,11 @@ const normalizeDocument = (raw, kind, source) => {
     taxRate,
     netAmount,
     taxAmount,
+    // Payroll markers — surfaced as first-class fields so the Nóminas view can
+    // join an obligation to its live payable (the filter keys off payrollPeriodId).
+    payrollPeriodId: raw.payrollPeriodId || null,
+    payrollKind: raw.payrollKind || null,
+    sourceDocument: raw.sourceDocument || null,
     raw,
   };
 };

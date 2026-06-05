@@ -26,6 +26,29 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────
+    // payrollPeriods — holds per-employee salary lines.
+    // Firestore rule grants are OR-unioned: a broad grant CANNOT be tightened
+    // by a more-specific match. So this dedicated block restricts read to
+    // manager/admin, AND the generic data block below explicitly EXCLUDES
+    // payrollPeriods from its read grant (otherwise editors would still read it).
+    // Functions are redeclared locally because rules functions are block-scoped.
+    // ─────────────────────────────────────────────
+    match /artifacts/{appId}/public/data/payrollPeriods/{document=**} {
+      function pUserRole() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      }
+      function pOwnTenant() {
+        return request.auth != null
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
+      }
+      function pManagerOrAbove() {
+        return request.auth != null && (pUserRole() == 'admin' || pUserRole() == 'manager');
+      }
+      allow read: if request.auth != null && pOwnTenant() && pManagerOrAbove();
+      allow write: if request.auth != null && pOwnTenant() && pManagerOrAbove();
+    }
+
+    // ─────────────────────────────────────────────
     // Tenant-scoped FinControl data
     // appId acts as tenant key for multi-app isolation
     // ─────────────────────────────────────────────
@@ -40,8 +63,10 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
       }
 
-      // Read: any authenticated user belonging to this tenant
-      allow read: if request.auth != null && isOwnTenant();
+      // Read: any authenticated tenant user — EXCEPT payrollPeriods, which is
+      // confined to manager/admin by its own dedicated match above (grants are
+      // OR-unioned, so this exclusion is what actually restricts editors).
+      allow read: if request.auth != null && isOwnTenant() && collection != 'payrollPeriods';
 
       // Write: admins and managers of this tenant
       function isManagerOrAbove() {

@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileUp, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, FileText, FileUp, Plus, Trash2, X } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
-import { computePayrollTotals } from './lib/payroll';
+import {
+  computePayrollTotals,
+  computeLineVariances,
+  reconcileNetWages,
+} from './lib/payroll';
 import { buildPayrollFromTexts } from './lib/datevPayrollParser';
 import { extractPayrollTexts } from './lib/extractPdfText';
 import { formatCurrency } from '../../utils/formatters';
@@ -16,10 +20,25 @@ const EMPTY_KK_ROW = () => ({ payee: '', amount: '', dueDate: '' });
  *   onClose: () => void
  *   onSubmit: (formData) => Promise<{success, error?}>
  *   activeEmployees: Array (from useEmployees.getActiveEmployees())
+ *   editingPeriod: object|null (seed the form to edit an existing period)
  *   loading: boolean
  */
-const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], loading = false }) => {
+const CargarNominaModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  activeEmployees = [],
+  editingPeriod = null,
+  loading = false,
+}) => {
   const { showToast } = useToast();
+
+  // Map active employees by id for reference-value variance checks.
+  const employeesById = useMemo(() => {
+    const map = {};
+    activeEmployees.forEach((e) => { map[e.id] = e; });
+    return map;
+  }, [activeEmployees]);
 
   // Derive distinct Krankenkasse names from employees for suggestions
   const kkSuggestions = useMemo(() => {
@@ -41,16 +60,54 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importedTypes, setImportedTypes] = useState([]);
+  // Document fingerprint descriptors collected from the DATEV import.
+  const [documents, setDocuments] = useState([]);
 
   // Per-employee lines — seeded from active employees, editable
   const [employeeLines, setEmployeeLines] = useState([]);
 
-  // Seed employee lines whenever modal opens or activeEmployees changes
+  // Seed the form whenever the modal opens. In edit mode, hydrate from the
+  // existing period; otherwise seed lines from active employees.
   useEffect(() => {
     if (!isOpen) return;
+
+    if (editingPeriod) {
+      setPeriod(editingPeriod.period || new Date().toISOString().slice(0, 7));
+      setKkRows(
+        (editingPeriod.obligations || [])
+          .filter((o) => o.kind === 'krankenkasse')
+          .map((o) => ({
+            payee: o.payee || '',
+            amount: o.amount ? String(o.amount) : '',
+            dueDate: o.dueDate || '',
+          })),
+      );
+      const taxOb = (editingPeriod.obligations || []).find((o) => o.kind === 'tax');
+      setTaxPayee(taxOb?.payee || 'Finanzamt Stralsund');
+      setTaxAmount(taxOb?.amount ? String(taxOb.amount) : '');
+      setTaxDueDate(taxOb?.dueDate || '');
+      const wagesOb = (editingPeriod.obligations || []).find((o) => o.kind === 'wages');
+      setNetWagesAmount(editingPeriod.netWagesTotal ? String(editingPeriod.netWagesTotal) : '');
+      setNetWagesDueDate(wagesOb?.dueDate || '');
+      setEmployeeLines(
+        (editingPeriod.lines || []).map((l) => ({
+          employeeId: l.employeeId || '',
+          persNr: l.persNr || '',
+          name: l.name || '',
+          netto: l.netto ? String(l.netto) : '',
+          brutto: l.brutto ? String(l.brutto) : '',
+          gesamtkosten: l.gesamtkosten ? String(l.gesamtkosten) : '',
+        })),
+      );
+      setDocuments(Array.isArray(editingPeriod.documents) ? editingPeriod.documents : []);
+      setImportedTypes([]);
+      return;
+    }
+
     setEmployeeLines(
       activeEmployees.map((e) => ({
         employeeId: e.id,
+        persNr: e.persNr || '',
         name: e.fullName,
         netto: e.nettoMonthly > 0 ? String(e.nettoMonthly) : '',
         brutto: e.bruttoMonthly > 0 ? String(e.bruttoMonthly) : '',
@@ -65,8 +122,9 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
     setNetWagesAmount('');
     setNetWagesDueDate('');
     setImportedTypes([]);
+    setDocuments([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, editingPeriod]);
 
   // ─── Live totals preview ───────────────────────────────────────────────────
   const preview = useMemo(() => {
@@ -85,6 +143,46 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
     return computePayrollTotals({ krankenkassen, tax, netWages, lines });
   }, [kkRows, taxAmount, netWagesAmount, employeeLines]);
 
+  // ─── Variance + net-wages reconciliation ───────────────────────────────────
+  const numericLines = useMemo(
+    () =>
+      employeeLines.map((l) => ({
+        employeeId: l.employeeId,
+        persNr: l.persNr || '',
+        name: l.name,
+        netto: Number(l.netto) || 0,
+        brutto: Number(l.brutto) || 0,
+        gesamtkosten: Number(l.gesamtkosten) || 0,
+      })),
+    [employeeLines],
+  );
+
+  const variances = useMemo(
+    () => computeLineVariances({ lines: numericLines, employeesById }),
+    [numericLines, employeesById],
+  );
+
+  // Map employeeId → flagged-fields for inline display.
+  const flaggedByLine = useMemo(() => {
+    const map = {};
+    variances.forEach((v, i) => {
+      const flags = Object.entries(v.deltas)
+        .filter(([, d]) => d.flagged)
+        .map(([field]) => field);
+      if (flags.length) map[i] = flags;
+    });
+    return map;
+  }, [variances]);
+
+  const reconciliation = useMemo(
+    () => reconcileNetWages({ lines: numericLines, netWages: Number(netWagesAmount) || 0 }),
+    [numericLines, netWagesAmount],
+  );
+  // Only block when there are lines AND an aggregate entered (avoid false alarm
+  // on an empty/just-opened form).
+  const reconciliationBlocks =
+    numericLines.length > 0 && Number(netWagesAmount) > 0 && !reconciliation.ok;
+
   // ─── KK row helpers ────────────────────────────────────────────────────────
   const addKkRow = () => setKkRows((prev) => [...prev, EMPTY_KK_ROW()]);
   const removeKkRow = (i) => setKkRows((prev) => prev.filter((_, idx) => idx !== i));
@@ -101,7 +199,8 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
     if (files.length === 0) return;
     setImporting(true);
     try {
-      const { texts, recognized, ignored, failed } = await extractPayrollTexts(files);
+      const { texts, documents: descriptors, recognized, ignored, failed } =
+        await extractPayrollTexts(files);
       if (recognized.length === 0) {
         if (failed.length > 0) {
           showToast(`No pude leer los PDF: ${failed[0].error}`, 'error');
@@ -131,6 +230,7 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
         setEmployeeLines(
           form.lines.map((l) => ({
             employeeId: l.employeeId || '',
+            persNr: l.persNr || '',
             name: l.name,
             netto: l.netto ? String(l.netto) : '',
             brutto: l.brutto ? String(l.brutto) : '',
@@ -138,6 +238,7 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
           })),
         );
       }
+      setDocuments(Array.isArray(descriptors) ? descriptors : []);
       setImportedTypes(recognized);
       const extra = ignored.length ? ` · ignorados: ${ignored.length}` : '';
       showToast(`Importado: ${recognized.join(', ')}${extra}`, 'success');
@@ -167,6 +268,17 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
       return;
     }
 
+    // Blocking warning: per-employee net pay must reconcile with the aggregate.
+    if (reconciliationBlocks) {
+      showToast(
+        `La suma de netos (${formatCurrency(reconciliation.sumLines)}) no coincide con ` +
+          `Sueldos netos (${formatCurrency(reconciliation.aggregate)}). ` +
+          `Diferencia: ${formatCurrency(reconciliation.diff)}.`,
+        'error',
+      );
+      return;
+    }
+
     const formData = {
       period,
       krankenkassen: validKk.map((r) => ({
@@ -185,18 +297,23 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
       },
       lines: employeeLines.map((l) => ({
         employeeId: l.employeeId,
+        persNr: l.persNr || '',
         name: l.name,
         netto: Number(l.netto) || 0,
         brutto: Number(l.brutto) || 0,
         gesamtkosten: Number(l.gesamtkosten) || 0,
       })),
+      documents,
     };
 
     setSubmitting(true);
     try {
       const result = await onSubmit(formData);
       if (result?.success) {
-        showToast('Nómina cargada correctamente', 'success');
+        showToast(editingPeriod ? 'Nómina actualizada correctamente' : 'Nómina cargada correctamente', 'success');
+        onClose();
+      } else if (result?.code === 'duplicate') {
+        // The parent handles the replace confirmation flow; close silently.
         onClose();
       } else {
         throw result?.error || new Error('No se pudo cargar la nómina');
@@ -217,14 +334,14 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
     'font-display text-[15px] font-medium tracking-tight text-[var(--color-fg-1)] mb-3';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(7,8,10,0.72)] p-4 animate-fadeIn">
       <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--color-line)] px-6 py-5">
           <div>
             <p className="label-mono text-[var(--color-fg-4)]">§ Nóminas</p>
             <h2 className="font-display mt-1 text-[22px] font-medium tracking-tight text-[var(--color-fg-1)]">
-              Cargar nómina del mes
+              {editingPeriod ? 'Editar nómina del mes' : 'Cargar nómina del mes'}
             </h2>
           </div>
           <button
@@ -275,6 +392,23 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
               )}
             </div>
 
+            {/* Origen — document fingerprint chips */}
+            {documents.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="label-mono text-[var(--color-fg-4)]">Origen:</span>
+                {documents.map((d, i) => (
+                  <span
+                    key={`${d.kind}-${d.fileName}-${i}`}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-2.5 py-1 text-[12px] text-[var(--color-fg-2)]"
+                    title={d.hash ? `SHA-256: ${d.hash}` : undefined}
+                  >
+                    <FileText size={12} className="text-[var(--color-fg-4)]" />
+                    {d.fileName}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Period */}
             <div>
               <label className={labelCls} htmlFor="nom-period">
@@ -283,11 +417,17 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
               <input
                 id="nom-period"
                 type="month"
-                className={inputCls}
+                className={`${inputCls} ${editingPeriod ? 'cursor-not-allowed opacity-60' : ''}`}
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
+                disabled={!!editingPeriod}
                 required
               />
+              {editingPeriod && (
+                <p className="mt-1 label-mono text-[var(--color-fg-4)]">
+                  El mes del período no se puede cambiar al editar
+                </p>
+              )}
             </div>
 
             {/* Krankenkassen */}
@@ -430,8 +570,21 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
                     </thead>
                     <tbody className="divide-y divide-[var(--color-line)]">
                       {employeeLines.map((line, i) => (
-                        <tr key={line.employeeId} className="bg-[var(--color-bg-1)]">
-                          <td className="px-3 py-2 text-sm text-[var(--color-fg-2)]">{line.name}</td>
+                        <tr key={line.employeeId || line.persNr || `line-${i}`} className="bg-[var(--color-bg-1)]">
+                          <td className="px-3 py-2 text-sm text-[var(--color-fg-2)]">
+                            <span className="flex items-center gap-1.5">
+                              {line.name}
+                              {flaggedByLine[i] && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-md border border-[var(--color-warn)] px-1.5 py-0.5 text-[10px] text-[var(--color-warn)]"
+                                  title={`Desvío >5% vs referencia: ${flaggedByLine[i].join(', ')}`}
+                                >
+                                  <AlertTriangle size={10} />
+                                  {flaggedByLine[i].join('/')}
+                                </span>
+                              )}
+                            </span>
+                          </td>
                           <td className="px-3 py-2">
                             <input
                               className="w-28 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-2 py-1 text-right text-sm font-mono text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
@@ -466,6 +619,37 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Net-wages reconciliation banner */}
+            {numericLines.length > 0 && Number(netWagesAmount) > 0 && (
+              <div
+                className={`flex items-start gap-2 rounded-md border px-4 py-3 text-[13px] ${
+                  reconciliation.ok
+                    ? 'border-[var(--color-line)] text-[var(--color-fg-3)]'
+                    : 'border-[var(--color-warn)] text-[var(--color-warn)]'
+                }`}
+              >
+                <AlertTriangle
+                  size={16}
+                  className={`mt-0.5 flex-shrink-0 ${reconciliation.ok ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'}`}
+                />
+                <div>
+                  {reconciliation.ok ? (
+                    <span>
+                      Conciliación OK — la suma de netos coincide con Sueldos netos
+                      ({formatCurrency(reconciliation.aggregate)}).
+                    </span>
+                  ) : (
+                    <span>
+                      La suma de netos por empleado ({formatCurrency(reconciliation.sumLines)}) no
+                      coincide con Sueldos netos ({formatCurrency(reconciliation.aggregate)}).
+                      Diferencia: {formatCurrency(reconciliation.diff)}. No se puede cargar hasta
+                      conciliar.
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -506,9 +690,14 @@ const CargarNominaModal = ({ isOpen, onClose, onSubmit, activeEmployees = [], lo
             <button
               type="submit"
               className="nx-btn nx-btn-primary"
-              disabled={submitting || loading}
+              disabled={submitting || loading || reconciliationBlocks}
+              title={reconciliationBlocks ? 'La suma de netos no concilia con Sueldos netos' : undefined}
             >
-              {submitting ? 'Guardando…' : 'Cargar nómina'}
+              {submitting
+                ? 'Guardando…'
+                : editingPeriod
+                  ? 'Guardar cambios'
+                  : 'Cargar nómina'}
             </button>
           </div>
         </form>

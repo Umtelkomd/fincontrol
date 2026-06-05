@@ -157,6 +157,8 @@ export const usePayables = (user) => {
         payrollPeriodId: data.payrollPeriodId || null,
         payrollKind: data.payrollKind || null,
         source: data.source || null,
+        // Document fingerprint (Nóminas): which DATEV PDF this payable came from.
+        sourceDocument: data.sourceDocument || null,
         description: data.description || '',
         grossAmount: amount,
         amount,

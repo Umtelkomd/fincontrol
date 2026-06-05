@@ -183,6 +183,17 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  </label>
 
  <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Pers.-Nr (DATEV)</span>
+ <input
+ type="text"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono"
+ value={form.persNr}
+ onChange={(e) => set('persNr', e.target.value)}
+ placeholder="Ej: 00001"
+ />
+ </label>
+
+ <label className="block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Email</span>
  <input
  type="email"

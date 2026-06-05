@@ -107,6 +107,26 @@ describe('finance adapters document mapping', () => {
       taxAmount: 13.08,
     });
   });
+
+  it('surfaces payroll markers as first-class fields for the Nóminas join', () => {
+    const payable = adaptPayableDoc({
+      id: 'pay-nom-1',
+      grossAmount: 7721.08,
+      openAmount: 7721.08,
+      status: 'issued',
+      vendor: 'EK BARMER',
+      payrollPeriodId: 'PER_X',
+      payrollKind: 'krankenkasse',
+      sourceDocument: { periodId: 'PER_X', kind: 'zakf', fileName: 'zakf_2026-04.pdf', hash: 'abc123' },
+    });
+
+    // The Nóminas view filters payables by TOP-LEVEL payrollPeriodId; the adapter
+    // must surface it (regression: it previously lived only under .raw, so the
+    // obligation→payable join was always empty and live status never rendered).
+    expect(payable.payrollPeriodId).toBe('PER_X');
+    expect(payable.payrollKind).toBe('krankenkasse');
+    expect(payable.sourceDocument).toMatchObject({ kind: 'zakf', hash: 'abc123' });
+  });
 });
 
 describe('finance adapters bank movement mapping', () => {

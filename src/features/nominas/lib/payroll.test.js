@@ -3,6 +3,12 @@ import {
   monthLabel,
   computePayrollTotals,
   buildPayrollPayables,
+  periodKey,
+  findDuplicatePeriod,
+  computeLineVariances,
+  reconcileNetWages,
+  buildDocumentDescriptor,
+  buildPayrollAuditEntry,
 } from './payroll.js';
 
 // ─── monthLabel ───────────────────────────────────────────────────────────────
@@ -201,5 +207,226 @@ describe('buildPayrollPayables', () => {
     });
     expect(result).toHaveLength(6);
     result.forEach((p) => expect(p.costCenterId).toBe(''));
+  });
+
+  // ─── sourceDocument stamping (Phase 1, item 6) ──────────────────────────────
+
+  it('stamps sourceDocument on every payable when a descriptor is supplied', () => {
+    const documentRef = { periodId: 'period-abc123', kind: 'zakf', fileName: 'zakf_2026-04.pdf', hash: 'abc123' };
+    const result = buildPayrollPayables({
+      period: '2026-04',
+      periodId: 'period-abc123',
+      label: 'Abril 2026',
+      costCenterId: 'cc-nom-id',
+      krankenkassen: APRIL_KK,
+      tax: APRIL_TAX,
+      netWages: APRIL_NET_WAGES,
+      documentRef,
+    });
+    expect(result).toHaveLength(6);
+    result.forEach((p) => {
+      expect(p.sourceDocument).toEqual({
+        periodId: 'period-abc123',
+        kind: 'zakf',
+        fileName: 'zakf_2026-04.pdf',
+        hash: 'abc123',
+      });
+    });
+  });
+
+  it('defaults sourceDocument to null cleanly when no descriptor is supplied', () => {
+    const result = buildPayrollPayables({
+      period: '2026-04',
+      periodId: 'period-abc123',
+      label: 'Abril 2026',
+      costCenterId: 'cc-nom-id',
+      krankenkassen: APRIL_KK,
+      tax: APRIL_TAX,
+      netWages: APRIL_NET_WAGES,
+    });
+    expect(result).toHaveLength(6);
+    result.forEach((p) => expect(p.sourceDocument).toBeNull());
+  });
+});
+
+// ─── periodKey + findDuplicatePeriod (Phase 1, item 1) ────────────────────────
+
+describe('periodKey', () => {
+  it('normalizes a period object to its YYYY-MM key', () => {
+    expect(periodKey({ period: '2026-04' })).toBe('2026-04');
+  });
+  it('accepts a raw string', () => {
+    expect(periodKey('2026-04')).toBe('2026-04');
+  });
+  it('returns empty string for missing input', () => {
+    expect(periodKey(null)).toBe('');
+    expect(periodKey({})).toBe('');
+  });
+});
+
+describe('findDuplicatePeriod', () => {
+  const periods = [
+    { id: 'p1', period: '2026-04' },
+    { id: 'p2', period: '2026-03' },
+  ];
+  it('returns the existing period when one shares the same YYYY-MM', () => {
+    const found = findDuplicatePeriod(periods, { period: '2026-04' });
+    expect(found).toEqual({ id: 'p1', period: '2026-04' });
+  });
+  it('returns null when no period matches', () => {
+    expect(findDuplicatePeriod(periods, { period: '2026-05' })).toBeNull();
+  });
+  it('returns null for an empty list', () => {
+    expect(findDuplicatePeriod([], { period: '2026-04' })).toBeNull();
+  });
+  it('accepts a raw period string as the second arg', () => {
+    const found = findDuplicatePeriod(periods, '2026-03');
+    expect(found?.id).toBe('p2');
+  });
+});
+
+// ─── reconcileNetWages (Phase 1, item 4) ──────────────────────────────────────
+
+describe('reconcileNetWages', () => {
+  it('ok:true when sum(lines.netto) exactly equals the aggregate', () => {
+    const r = reconcileNetWages({
+      lines: [{ netto: 10000 }, { netto: 11065.46 }],
+      netWages: 21065.46,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.sumLines).toBeCloseTo(21065.46, 2);
+    expect(r.aggregate).toBeCloseTo(21065.46, 2);
+    expect(r.diff).toBeCloseTo(0, 2);
+  });
+  it('ok:true within the 0.01 tolerance (21065.45 vs 21065.46)', () => {
+    const r = reconcileNetWages({
+      lines: [{ netto: 21065.45 }],
+      netWages: 21065.46,
+    });
+    expect(r.ok).toBe(true);
+  });
+  it('ok:false at a 0.02 difference', () => {
+    const r = reconcileNetWages({
+      lines: [{ netto: 21065.44 }],
+      netWages: 21065.46,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.diff).toBeCloseTo(0.02, 2);
+  });
+  it('accepts netWages as an object {amount}', () => {
+    const r = reconcileNetWages({
+      lines: [{ netto: 100 }],
+      netWages: { amount: 100 },
+    });
+    expect(r.ok).toBe(true);
+  });
+  it('handles empty lines (sum 0)', () => {
+    const r = reconcileNetWages({ lines: [], netWages: 0 });
+    expect(r.sumLines).toBe(0);
+    expect(r.ok).toBe(true);
+  });
+});
+
+// ─── computeLineVariances (Phase 1, item 4) ───────────────────────────────────
+
+describe('computeLineVariances', () => {
+  const employeesById = {
+    e1: { nettoMonthly: 2000, bruttoMonthly: 2500, gesamtkostenMonthly: 3000 },
+  };
+
+  it('flags a line when netto deviates >5% from the employee reference', () => {
+    const out = computeLineVariances({
+      lines: [{ employeeId: 'e1', persNr: '00001', name: 'A', netto: 2200, brutto: 2500, gesamtkosten: 3000 }],
+      employeesById,
+    });
+    expect(out[0].deltas.netto.flagged).toBe(true);
+    expect(out[0].deltas.netto.pct).toBeCloseTo(0.1, 3);
+    expect(out[0].deltas.netto.ref).toBe(2000);
+    expect(out[0].deltas.netto.value).toBe(2200);
+    expect(out[0].deltas.brutto.flagged).toBe(false);
+    expect(out[0].deltas.gesamtkosten.flagged).toBe(false);
+  });
+
+  it('does NOT flag at exactly 5%', () => {
+    const out = computeLineVariances({
+      lines: [{ employeeId: 'e1', netto: 2100, brutto: 2500, gesamtkosten: 3000 }],
+      employeesById,
+    });
+    expect(out[0].deltas.netto.pct).toBeCloseTo(0.05, 3);
+    expect(out[0].deltas.netto.flagged).toBe(false);
+  });
+
+  it('tolerates a missing reference (ref 0 -> not flagged, no divide-by-zero)', () => {
+    const out = computeLineVariances({
+      lines: [{ employeeId: 'unknown', netto: 2200, brutto: 0, gesamtkosten: 0 }],
+      employeesById,
+    });
+    expect(out[0].deltas.netto.ref).toBe(0);
+    expect(out[0].deltas.netto.flagged).toBe(false);
+    expect(Number.isFinite(out[0].deltas.netto.pct)).toBe(true);
+  });
+
+  it('carries employeeId, persNr, name through', () => {
+    const out = computeLineVariances({
+      lines: [{ employeeId: 'e1', persNr: '00001', name: 'Ana', netto: 2000, brutto: 2500, gesamtkosten: 3000 }],
+      employeesById,
+    });
+    expect(out[0]).toMatchObject({ employeeId: 'e1', persNr: '00001', name: 'Ana' });
+  });
+});
+
+// ─── buildDocumentDescriptor (Phase 1, item 6) ────────────────────────────────
+
+describe('buildDocumentDescriptor', () => {
+  it('returns a plain sanitizer-safe object with no Date/undefined leaks', () => {
+    const d = buildDocumentDescriptor({
+      hashHex: 'deadbeef',
+      fileName: 'zakf_2026-04.pdf',
+      kind: 'zakf',
+      pageCount: 2,
+    });
+    expect(d).toMatchObject({
+      hash: 'deadbeef',
+      fileName: 'zakf_2026-04.pdf',
+      kind: 'zakf',
+      pageCount: 2,
+    });
+    expect(typeof d.importedAt).toBe('string');
+    Object.values(d).forEach((v) => {
+      expect(v).not.toBeUndefined();
+      expect(v instanceof Date).toBe(false);
+    });
+  });
+  it('defaults pageCount to 0 when missing', () => {
+    const d = buildDocumentDescriptor({ hashHex: 'x', fileName: 'f.pdf', kind: 'lojo' });
+    expect(d.pageCount).toBe(0);
+  });
+});
+
+// ─── buildPayrollAuditEntry (Phase 1, item 7) ─────────────────────────────────
+
+describe('buildPayrollAuditEntry', () => {
+  it.each(['create', 'update', 'delete', 'replace'])(
+    'produces a normalized plain entry for the %s action',
+    (action) => {
+      const entry = buildPayrollAuditEntry({
+        action,
+        user: 'jromero@umtelkomd.de',
+        detail: 'detalle',
+        period: { period: '2026-04', label: 'Abril 2026' },
+      });
+      expect(entry.action).toBe(action);
+      expect(entry.user).toBe('jromero@umtelkomd.de');
+      expect(entry.detail).toBe('detalle');
+      expect(typeof entry.timestamp).toBe('string');
+      // ISO 8601 string, no undefined leaks
+      expect(() => new Date(entry.timestamp).toISOString()).not.toThrow();
+      Object.values(entry).forEach((v) => expect(v).not.toBeUndefined());
+    },
+  );
+  it('falls back to empty strings instead of undefined', () => {
+    const entry = buildPayrollAuditEntry({ action: 'create' });
+    expect(entry.user).toBe('');
+    expect(entry.detail).toBe('');
   });
 });

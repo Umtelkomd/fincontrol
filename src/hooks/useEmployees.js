@@ -57,6 +57,7 @@ export const useEmployees = (user) => {
             fullName: raw.fullName || '',
             firstName: raw.firstName || '',
             lastName: raw.lastName || '',
+            persNr: raw.persNr || '',
             aliases: Array.isArray(raw.aliases) ? raw.aliases : [],
             type: raw.type || 'internal',
             status: raw.status || 'active',
@@ -160,6 +161,7 @@ export const useEmployees = (user) => {
       fullName: computedFullName,
       firstName,
       lastName,
+      persNr: (data.persNr || '').trim(),
       aliases: Array.isArray(data.aliases)
         ? data.aliases.map((a) => String(a).trim()).filter(Boolean)
         : [],
