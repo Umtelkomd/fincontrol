@@ -270,13 +270,13 @@ export const exportPersonnelCostPDF = async (periods = []) => {
   doc.rect(14, 60, 180, 22, 'F');
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
-  doc.text(`YTD Neto: ${formatCurrency(ytd.netto)}`, 20, 70);
-  doc.text(`YTD Bruto: ${formatCurrency(ytd.brutto)}`, 80, 70);
-  doc.text(`YTD Coste empresa: ${formatCurrency(ytd.gesamtkosten)}`, 140, 70);
+  doc.text(`Acumulado Neto: ${formatCurrency(ytd.netto)}`, 20, 70);
+  doc.text(`Acumulado Bruto: ${formatCurrency(ytd.brutto)}`, 80, 70);
+  doc.text(`Acumulado Coste empresa: ${formatCurrency(ytd.gesamtkosten)}`, 140, 70);
 
   autoTable(doc, {
     startY: 90,
-    head: [['Empleado', 'Pers.-Nr', 'YTD Neto', 'YTD Bruto', 'YTD Coste empresa']],
+    head: [['Empleado', 'Pers.-Nr', 'Acum. Neto', 'Acum. Bruto', 'Acum. Coste empresa']],
     body: employeeRows.map((r) => [
       r.name,
       r.persNr || '-',

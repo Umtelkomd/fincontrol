@@ -222,9 +222,9 @@ const NominasAnalytics = ({
             <thead>
               <tr className="border-b border-[var(--color-line)] label-mono text-[var(--color-fg-4)]">
                 <th className="px-4 py-3">Empleado</th>
-                <th className="px-4 py-3 text-right">YTD Neto</th>
-                <th className="px-4 py-3 text-right">YTD Bruto</th>
-                <th className="px-4 py-3 text-right">YTD Costo empresa</th>
+                <th className="px-4 py-3 text-right">Acum. Neto</th>
+                <th className="px-4 py-3 text-right">Acum. Bruto</th>
+                <th className="px-4 py-3 text-right">Acum. Costo empresa</th>
                 <th className="px-4 py-3 text-center">Tendencia</th>
               </tr>
             </thead>

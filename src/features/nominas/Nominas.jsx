@@ -97,11 +97,18 @@ const Nominas = ({ user, userRole }) => {
   const revenue = useMemo(() => {
     const movements = ledger.postedMovements || [];
     if (movements.length === 0) return null;
+    // Scope revenue to the SAME months that have a loaded payroll period, so the
+    // %-of-revenue numerator (sumPayrollCash over loaded periods) and the
+    // denominator (revenue) share one window instead of all-time vs loaded.
+    const periodMonths = new Set(periods.map((p) => p.period).filter(Boolean));
+    if (periodMonths.size === 0) return null;
     return movements.reduce((sum, m) => {
-      const isIncome = m.direction === 'in';
-      return isIncome ? sum + Math.abs(m.netAmount ?? m.amount ?? 0) : sum;
+      if (m.direction !== 'in') return sum;
+      const month = (m.postedDate || '').slice(0, 7);
+      if (!periodMonths.has(month)) return sum;
+      return sum + Math.abs(m.netAmount ?? m.amount ?? 0);
     }, 0);
-  }, [ledger.postedMovements]);
+  }, [ledger.postedMovements, periods]);
 
   const loading = periodsLoading || payablesLoading;
 
