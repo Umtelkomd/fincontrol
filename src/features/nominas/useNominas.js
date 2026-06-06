@@ -10,6 +10,8 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  getDocs,
+  where,
 } from 'firebase/firestore';
 import { db, appId } from '../../services/firebase';
 import { logError } from '../../utils/logger';
@@ -261,7 +263,21 @@ export const useNominas = ({
     const { period, krankenkassen, tax, netWages, lines, documents = [], replace = false } = formData;
 
     // ── Duplicate-period guard ────────────────────────────────────────────────
-    const existing = findDuplicatePeriod(periods, { period });
+    // Check the live snapshot AND a fresh server read. The onSnapshot state lags
+    // behind writes, so a rapid second load (or a stale tab) could otherwise slip
+    // past the snapshot check and create a duplicate period + 6 duplicate payables.
+    let existing = findDuplicatePeriod(periods, { period });
+    if (!existing) {
+      try {
+        const freshSnap = await getDocs(query(periodsRef, where('period', '==', period)));
+        if (!freshSnap.empty) {
+          const d = freshSnap.docs[0];
+          existing = { id: d.id, ...d.data(), period };
+        }
+      } catch (err) {
+        logError('Duplicate-guard fresh check failed:', err);
+      }
+    }
     if (existing && !replace) {
       return { success: false, code: 'duplicate', existing };
     }
