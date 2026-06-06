@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Landmark } from 'lucide-react';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import ProtectedRoute from './components/layout/ProtectedRoute';
@@ -15,7 +15,6 @@ import { useTreasuryMetrics } from './hooks/useTreasuryMetrics';
 import { formatCurrency } from './utils/formatters';
 
 const Resumen = lazy(() => import('./features/resumen/Resumen'));
-const Dashboard = lazy(() => import('./features/dashboard/Dashboard'));
 const Ingresos = lazy(() => import('./features/ingresos/Ingresos'));
 const Gastos = lazy(() => import('./features/gastos/Gastos'));
 const TransactionList = lazy(() => import('./features/transactions/TransactionList'));
@@ -58,7 +57,6 @@ const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceAct
 const VIEW_TITLES = {
  '/': 'Resumen',
  '/resumen': 'Resumen',
- '/dashboard': 'Dashboard',
  '/ingresos': 'Ingresos',
  '/gastos': 'Gastos',
  '/transactions': 'Transacciones',
@@ -118,7 +116,6 @@ function AppContent() {
  filteredTransactions,
  } = useFilters(transactions);
 
- const navigate = useNavigate();
  const location = useLocation();
 
  const [isActionLauncherOpen, setIsActionLauncherOpen] = useState(false);
@@ -146,24 +143,6 @@ function AppContent() {
  if (!user) {
  return <Login />;
  }
-
- const setView = (viewId) => {
- const pathMap = {
- resumen: '/resumen',
- dashboard: '/dashboard',
- cashflow: '/cashflow',
- treasury: '/cashflow',
- cxc: '/cxc',
- cxp: '/cxp',
- reportes: '/reportes',
- presupuesto: '/presupuesto',
- conciliacion: '/conciliacion',
- proyectos: '/proyectos',
- whatif: '/whatif',
- configuracion: '/configuracion',
- };
- navigate(pathMap[viewId] || '/');
- };
 
  const handleOpenLauncher = (defaultAction = null) => {
  setLauncherDefaultAction(defaultAction);
@@ -262,14 +241,6 @@ function AppContent() {
  element={
  <ProtectedRoute hasPermission={hasPermission} permission="dashboard">
  <Resumen user={user} />
- </ProtectedRoute>
- }
- />
- <Route
- path="/dashboard"
- element={
- <ProtectedRoute hasPermission={hasPermission} permission="dashboard">
- <Dashboard user={user} setView={setView} onNewTransaction={handleOpenLauncher} />
  </ProtectedRoute>
  }
  />
