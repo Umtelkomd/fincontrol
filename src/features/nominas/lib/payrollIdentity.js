@@ -57,7 +57,17 @@ export const resolveEmployeeIdsByPersNr = ({ lines, employees } = {}) => {
   const usedIds = new Set();
   const unmatched = [];
 
+  const empById = new Map(emps.map((e) => [e.id, e]));
+
   const resolved = (lines || []).map((line) => {
+    // 0. An explicit existing employeeId (e.g. a manual link the user already
+    //    made) is PRESERVED — re-resolving on edit must never discard it, which
+    //    is why a manual link used to vanish and ask to be redone every save.
+    if (line.employeeId && empById.has(line.employeeId) && !usedIds.has(line.employeeId)) {
+      usedIds.add(line.employeeId);
+      return { ...line, employeeId: line.employeeId };
+    }
+
     // 1. persNr match — the truth. Allowed even if the id was already used by a
     //    name fallback, because persNr is authoritative; but still guard against
     //    assigning the same persNr employee twice.

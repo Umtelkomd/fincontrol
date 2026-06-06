@@ -84,4 +84,15 @@ describe('resolveEmployeeIdsByPersNr', () => {
     expect(resolved).toEqual([]);
     expect(unmatched).toEqual([]);
   });
+
+  it('preserves an existing manual employeeId on re-resolve (edit must not lose the link)', () => {
+    // Employee has no persNr and a non-matching name, so without preservation the
+    // manual link would vanish on every edit and ask to be redone.
+    const { resolved, unmatched } = resolveEmployeeIdsByPersNr({
+      lines: [{ persNr: '', name: 'Lesmes Linares, J.', employeeId: 'emp-9' }],
+      employees: [{ id: 'emp-9', fullName: 'Juan Dios Pérez', persNr: '' }],
+    });
+    expect(resolved[0].employeeId).toBe('emp-9');
+    expect(unmatched).toEqual([]);
+  });
 });
