@@ -28,7 +28,8 @@ import {
 //   /transactions — "Mesa central" legacy; las vistas operativas son CXC/CXP/DATEV
 export const NAV_ITEMS = [
   // Operativo
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+  { path: '/resumen', label: 'Resumen', icon: Home, permission: 'dashboard' },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
   { path: '/cfo', label: 'CFO', icon: Briefcase, permission: 'reports', accent: '.OS' },
   { path: '/clasificar', label: 'Bandeja', icon: Inbox, permission: 'settings' },
   { path: '/movimientos', label: 'Movimientos', icon: Database, permission: 'dashboard' },

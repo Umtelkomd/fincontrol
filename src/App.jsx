@@ -14,6 +14,7 @@ import { useTransactions } from './hooks/useTransactions';
 import { useTreasuryMetrics } from './hooks/useTreasuryMetrics';
 import { formatCurrency } from './utils/formatters';
 
+const Resumen = lazy(() => import('./features/resumen/Resumen'));
 const Dashboard = lazy(() => import('./features/dashboard/Dashboard'));
 const Ingresos = lazy(() => import('./features/ingresos/Ingresos'));
 const Gastos = lazy(() => import('./features/gastos/Gastos'));
@@ -55,7 +56,9 @@ const Nominas = lazy(() => import('./features/nominas/Nominas'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
 
 const VIEW_TITLES = {
- '/': 'Inicio',
+ '/': 'Resumen',
+ '/resumen': 'Resumen',
+ '/dashboard': 'Dashboard',
  '/ingresos': 'Ingresos',
  '/gastos': 'Gastos',
  '/transactions': 'Transacciones',
@@ -146,7 +149,8 @@ function AppContent() {
 
  const setView = (viewId) => {
  const pathMap = {
- dashboard: '/',
+ resumen: '/resumen',
+ dashboard: '/dashboard',
  cashflow: '/cashflow',
  treasury: '/cashflow',
  cxc: '/cxc',
@@ -247,10 +251,26 @@ function AppContent() {
  path="/"
  element={
  hasPermission('dashboard') ? (
- <Dashboard user={user} setView={setView} onNewTransaction={handleOpenLauncher} />
+ <Resumen user={user} />
  ) : (
  <Navigate to="/transactions" replace />
  )
+ }
+ />
+ <Route
+ path="/resumen"
+ element={
+ <ProtectedRoute hasPermission={hasPermission} permission="dashboard">
+ <Resumen user={user} />
+ </ProtectedRoute>
+ }
+ />
+ <Route
+ path="/dashboard"
+ element={
+ <ProtectedRoute hasPermission={hasPermission} permission="dashboard">
+ <Dashboard user={user} setView={setView} onNewTransaction={handleOpenLauncher} />
+ </ProtectedRoute>
  }
  />
  <Route path="/ingresos" element={<ProtectedRoute hasPermission={hasPermission} permission="transactions"><Ingresos userRole={userRole} user={user} onNewTransaction={handleOpenLauncher} /></ProtectedRoute>} />
