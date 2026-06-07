@@ -122,7 +122,7 @@ const OverheadBurdenPanel = ({ snapshot }) => {
             <KPI
               label="Rate interno"
               value={`${internalRate}%`}
-              meta={`Base ${pct(summary.rates.baseRatePct)} · buffer ${pct(summary.rates.bufferedRatePct)}`}
+              meta={`Base ${pct(summary.rates.baseRatePct)} · recomend. ${pct(summary.rates.recommendationBasisRatePct)}`}
               tone="info"
               icon={Gauge}
             />

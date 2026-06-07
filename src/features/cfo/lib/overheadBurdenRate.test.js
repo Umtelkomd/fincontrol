@@ -77,6 +77,38 @@ describe('classifyOverheadMovement', () => {
     expect(out.bucket).toBe('direct');
   });
 
+  it('classifies known direct vendors and project hints as direct costs', () => {
+    const out = classifyOverheadMovement(
+      movement('2026-05-05', 2500, {
+        counterpartyName: 'MQH TELECOMUNICACIONES SCP',
+        description: 'Teilzahlung Rechnung Projekt Roßdorf',
+      }),
+      {
+        projectsById: new Map(),
+        costCentersById: new Map(),
+      },
+      computePayrollBurdenSplit(payrollPeriods, { asOfDate: '2026-06-15' }),
+    );
+
+    expect(out.bucket).toBe('direct');
+  });
+
+  it('classifies known admin vendors as overhead', () => {
+    const out = classifyOverheadMovement(
+      movement('2026-05-05', 650, {
+        counterpartyName: 'Kinder und Partner',
+        description: 'Rechnung Buchhaltung',
+      }),
+      {
+        projectsById: new Map(),
+        costCentersById: new Map(),
+      },
+      computePayrollBurdenSplit(payrollPeriods, { asOfDate: '2026-06-15' }),
+    );
+
+    expect(out.bucket).toBe('overhead');
+  });
+
   it('excludes VAT/tax movements from operating burden', () => {
     const out = classifyOverheadMovement(
       movement('2026-05-10', 5000, { counterpartyName: 'Finanzamt Stralsund', description: 'Umsatzsteuer Mai' }),
@@ -135,7 +167,8 @@ describe('summarizeOverheadBurdenRate', () => {
     expect(summary.totals.excluded).toBe(1000);
     expect(summary.rates.baseRatePct).toBe(24.6);
     expect(summary.rates.bufferedRatePct).toBe(32.2);
-    expect(summary.rates.internalRatePct).toBe(33);
+    expect(summary.rates.recommendationBasisRatePct).toBe(26.5);
+    expect(summary.rates.internalRatePct).toBe(30);
     expect(summary.rates.recommendedQuoteRatePct).toBe(35);
     expect(summary.rates.directCostMultiplier).toBe(1.35);
   });

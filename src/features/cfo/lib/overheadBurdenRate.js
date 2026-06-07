@@ -77,6 +77,10 @@ const PAYROLL_RELATED_PATTERNS = [
   'barmer',
   'aok',
   'krankenkasse',
+  'bkk',
+  'beitrag',
+  'beitraege',
+  'beiträge',
   'sozialversicherung',
   'sv beitrag',
   'lohnsteuer',
@@ -116,14 +120,96 @@ const DIRECT_PAYROLL_NAMES = [
   'pizarro calfual',
   'agudelo grajales',
   'jorge alexander herrera',
-  'esneider',
-  'sebastian agudelo',
+  'santamaria losada',
+  'juan felipe santamaria',
+  'oscar gomez',
+  'kevin',
+  'raul',
+  'yenkenet',
+  'ledier',
+  'dario',
+  'matos gutierrez',
+  'agudelo',
+];
+
+const DIRECT_VENDOR_PATTERNS = [
+  'mqh telecomunicaciones',
+  'erick angel',
+  'movitrantel',
+  'lozartico',
+  'jorge lider',
+  'jakob aras',
+  'union tank',
+  'uta ',
+  'andres yenkenet',
+  'shiny homes',
+  'joseph cristopher',
+  'fractalkom',
+  'raul garcia',
+  'umtelkomd espana',
+  'algus telecom',
+  'michel alexander',
+  'incerval',
+  'bauunternehmen',
+  'dz bank',
+  'europcar',
+  'mohamad srour',
+  'osman tekelioglu',
+  'otto bitter',
+  'ferienwohnung',
+  'wilhelm bilger',
+  'mario bierfreund',
+  'jhon jairo rivera',
+];
+
+const DIRECT_WORK_HINT_PATTERNS = [
+  'projekt ',
+  'proyecto ',
+  'rossdorf',
+  'roßdorf',
+  'fbx',
+  'ne3',
+  'ne4',
+  'glasfaser',
+  'einblas',
+  'spleiss',
+  'spleiß',
+  'sanierungsarbeiten',
+  'europcar',
+  'tank',
+  'diesel',
+  'hotel',
+  'ferienwohnung',
+];
+
+const OVERHEAD_VENDOR_PATTERNS = [
+  'kinder und partner',
+  'schomerus',
+  'telefonica',
+  'verti versicherung',
+  'nurnberger',
+  'nürnberger',
+  'beatriz mercedes sandoval',
+  'bg etem',
+  'amazon payments',
+  'datev',
+];
+
+const OVERHEAD_ADMIN_HINT_PATTERNS = [
+  'bueromiete',
+  'büromiete',
+  'buchhaltung',
+  'steuerberater',
+  'versicherung',
+  'haftpflicht',
+  'telefon',
 ];
 
 const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const roundPct = (value) => Math.round((Number(value) || 0) * 10) / 10;
 const roundMultiplier = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const ceilToFive = (value) => Math.ceil((Number(value) || 0) / 5) * 5;
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 export const normalizeBurdenText = (value) =>
   String(value || '')
@@ -332,20 +418,28 @@ export const classifyOverheadMovement = (movement, refs, payrollSplit) => {
     return { bucket: 'excluded', amount, reason: 'Financiación, intereses o transferencia no operativa' };
   }
 
-  if (isExplicitOverheadProject(movement, refs) || hasOverheadCostCenter(movement, refs)) {
-    return { bucket: 'overhead', amount, reason: 'Proyecto o centro de coste overhead/admin' };
-  }
-
-  if (hasDirectProject(movement, refs) || hasDirectCostCenter(movement, refs) || hasAny(text, DIRECT_CATEGORY_PATTERNS)) {
-    return { bucket: 'direct', amount, reason: 'Proyecto/centro/categoría directa de obra' };
-  }
-
-  if (hasAny(text, OVERHEAD_CATEGORY_PATTERNS)) {
-    return { bucket: 'overhead', amount, reason: 'Categoría administrativa recurrente' };
+  if (
+    isExplicitOverheadProject(movement, refs) ||
+    hasOverheadCostCenter(movement, refs) ||
+    hasAny(text, OVERHEAD_CATEGORY_PATTERNS) ||
+    hasAny(text, OVERHEAD_VENDOR_PATTERNS) ||
+    hasAny(text, OVERHEAD_ADMIN_HINT_PATTERNS)
+  ) {
+    return { bucket: 'overhead', amount, reason: 'Proyecto, centro, proveedor o categoría overhead/admin' };
   }
 
   if (isSalary) {
-    return { bucket: 'unknown', amount, reason: 'Salario sin persona o centro clasificable' };
+    return { bucket: 'direct', amount, reason: 'Nómina sin marca admin: tratada como campo/directa' };
+  }
+
+  if (
+    hasDirectProject(movement, refs) ||
+    hasDirectCostCenter(movement, refs) ||
+    hasAny(text, DIRECT_CATEGORY_PATTERNS) ||
+    hasAny(text, DIRECT_VENDOR_PATTERNS) ||
+    hasAny(text, DIRECT_WORK_HINT_PATTERNS)
+  ) {
+    return { bucket: 'direct', amount, reason: 'Proyecto, centro, proveedor o señal directa de obra' };
   }
 
   return { bucket: 'unknown', amount, reason: 'Movimiento sin regla de overhead/directo' };
@@ -428,7 +522,8 @@ export const summarizeOverheadBurdenRate = (snapshot = {}, options = {}) => {
 
   const monthCount = Math.max(1, months.length);
   const baseRatePct = totals.direct > 0 ? (totals.overhead / totals.direct) * 100 : 0;
-  const bufferedRatePct = totals.direct > 0 ? ((totals.overhead + totals.unknown) / totals.direct) * 100 : 0;
+  const unknownRatePct = totals.direct > 0 ? (totals.unknown / totals.direct) * 100 : 0;
+  const bufferedRatePct = totals.direct > 0 ? baseRatePct + unknownRatePct : 0;
   const unknownSharePct = (totals.direct + totals.overhead + totals.unknown) > 0
     ? (totals.unknown / (totals.direct + totals.overhead + totals.unknown)) * 100
     : 0;
@@ -436,11 +531,13 @@ export const summarizeOverheadBurdenRate = (snapshot = {}, options = {}) => {
   const avgOverheadMonthly = roundMoney(totals.overhead / monthCount);
   const avgUnknownMonthly = roundMoney(totals.unknown / monthCount);
   const quoteFloor = avgDirectMonthly >= HIGH_VOLUME_DIRECT_COSTS ? MIN_INTERNAL_RATE : MIN_QUOTE_RATE;
+  const unknownBufferWeight = unknownSharePct > 15 ? 1 : unknownSharePct > 7 ? 0.5 : 0.25;
+  const recommendationBasisRatePct = baseRatePct + (unknownRatePct * unknownBufferWeight);
   const recommendedQuoteRatePct = totals.direct > 0
-    ? Math.max(quoteFloor, ceilToFive(bufferedRatePct))
+    ? clamp(Math.max(quoteFloor, ceilToFive(recommendationBasisRatePct)), quoteFloor, 45)
     : 0;
   const internalRatePct = totals.direct > 0
-    ? Math.max(MIN_INTERNAL_RATE, Math.ceil(bufferedRatePct))
+    ? clamp(Math.max(MIN_INTERNAL_RATE, Math.ceil(recommendationBasisRatePct)), MIN_INTERNAL_RATE, 45)
     : 0;
 
   const byMonth = [...byMonthMap.values()].map((row) => ({
@@ -474,6 +571,8 @@ export const summarizeOverheadBurdenRate = (snapshot = {}, options = {}) => {
     rates: {
       baseRatePct: roundPct(baseRatePct),
       bufferedRatePct: roundPct(bufferedRatePct),
+      recommendationBasisRatePct: roundPct(recommendationBasisRatePct),
+      unknownBufferWeight,
       internalRatePct,
       recommendedQuoteRatePct,
       directCostMultiplier: roundMultiplier(1 + recommendedQuoteRatePct / 100),
