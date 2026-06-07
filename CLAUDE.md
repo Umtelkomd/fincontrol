@@ -78,6 +78,16 @@ Firestore docs have a `viewedBy` field that's a plain object (not a Firestore ty
 ### 4. PartialPaymentModal
 Uses wrapper pattern (inner component + outer wrapper) for hooks safety. Don't flatten it.
 
+### 5. Firebase env guardrails (added after the 2026-06 `auth/invalid-api-key` outage)
+A `dist` built without `.env` shipped an empty Firebase config and took prod down.
+Three guards prevent recurrence — **do not remove them**:
+- `vite.config.js` — aborts the build if any `VITE_FIREBASE_*` var is missing.
+- `src/services/firebase.js` — throws a clear error if any config value is empty.
+- `firebase.json` → `hosting.predeploy: ["npm run build"]` — every `firebase deploy`
+  rebuilds from current source + `.env`, so a stale/env-less `dist` can't ship.
+
+Deploy is now just `npx firebase deploy --only hosting` (it rebuilds for you).
+
 ## Design System
 This project uses the **NEXUS.OS** design system. Before making any UI changes, read the agent skill:
 `.claude/agents/nexus-design.md`
