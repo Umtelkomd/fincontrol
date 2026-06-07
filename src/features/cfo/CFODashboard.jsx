@@ -12,6 +12,7 @@ import { Badge, Button, Panel } from '@/components/ui/nexus';
 import { useCFOSnapshot } from './hooks/useCFOSnapshot';
 import CashPositionPanel from './panels/CashPositionPanel';
 import FinancialOrderPanel from './panels/FinancialOrderPanel';
+import OverheadBurdenPanel from './panels/OverheadBurdenPanel';
 
 /**
  * CFODashboard — CFO entry point at /cfo.
@@ -94,6 +95,7 @@ const CFODashboard = ({ user }) => {
       recurringCosts: snapshot.recurringCosts?.length || 0,
       employees: snapshot.employees?.length || 0,
       budgets: snapshot.budgets?.length || 0,
+      payrollPeriods: snapshot.payrollPeriods?.length || 0,
       transactions: snapshot.transactions?.length || 0,
     };
   }, [snapshot]);
@@ -151,6 +153,8 @@ const CFODashboard = ({ user }) => {
 
       {snapshot && <FinancialOrderPanel snapshot={snapshot} />}
 
+      {snapshot && <OverheadBurdenPanel snapshot={snapshot} />}
+
       {snapshot && <CashPositionPanel snapshot={snapshot} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -185,6 +189,7 @@ const CFODashboard = ({ user }) => {
             <DiagRow label="recurringCosts" value={counts.recurringCosts} />
             <DiagRow label="employees" value={counts.employees} />
             <DiagRow label="budgets" value={counts.budgets} />
+            <DiagRow label="payrollPeriods" value={counts.payrollPeriods} />
             <DiagRow label="transactions" value={counts.transactions} />
             <DiagRow
               label="categories.expense"

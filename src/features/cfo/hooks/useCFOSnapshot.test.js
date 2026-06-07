@@ -82,6 +82,7 @@ describe('fetchCFOSnapshot', () => {
       if (path?.includes('recurringCosts')) return flushDocs([{ id: 'rc1', amount: 1000 }]);
       if (path?.includes('employees')) return flushDocs([{ id: 'e1', fullName: 'JR' }]);
       if (path?.includes('budgets')) return flushDocs([{ id: 'b1', year: 2026 }]);
+      if (path?.includes('payrollPeriods')) return flushDocs([{ id: 'pp1', period: '2026-04' }]);
       if (path?.includes('transactions')) return flushDocs([{ id: 't1', amount: 100 }]);
       return flushDocs([]);
     });
@@ -100,10 +101,11 @@ describe('fetchCFOSnapshot', () => {
     expect(snapshot.recurringCosts).toHaveLength(1);
     expect(snapshot.employees).toHaveLength(1);
     expect(snapshot.budgets).toHaveLength(1);
+    expect(snapshot.payrollPeriods).toHaveLength(1);
     expect(snapshot.transactions).toHaveLength(1);
     expect(snapshot.categories.expense).toEqual(['Sueldos']);
     expect(snapshot.categories.income).toEqual(['Ventas']);
-    expect(snapshot.meta.bankMovementsLookbackDays).toBe(120);
+    expect(snapshot.meta.bankMovementsLookbackDays).toBe(190);
   });
 
   it('falls back to default categories when settings doc does not exist', async () => {
@@ -151,7 +153,7 @@ describe('cache behaviour', () => {
     expect(age).toBeGreaterThan(CFO_SNAPSHOT_TTL_MS);
   });
 
-  it('limits bankMovements to last 120 days via where clause', async () => {
+  it('limits bankMovements to last 190 days via where clause', async () => {
     const firestore = await import('firebase/firestore');
     firestore.getDocs.mockResolvedValue(flushDocs([]));
     firestore.getDoc.mockResolvedValue(flushDoc(null));

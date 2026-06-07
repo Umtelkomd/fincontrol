@@ -17,8 +17,9 @@ import { logError } from '../../../utils/logger';
  *
  * IMPORTANT (Firestore quota mitigation):
  *  - Uses getDocs / getDoc, NOT onSnapshot listeners
- *  - bankMovements is filtered to the last 120 days (enough for forecast 13W
- *    + 90d lookback) to keep read counts low
+ *  - bankMovements is filtered to the last 190 days (enough for forecast 13W,
+ *    90d lookback and a 5-month overhead burden rate window) to keep read counts
+ *    bounded
  *  - Snapshot is cached in localStorage under CACHE_KEY for TTL_MS; cache hit
  *    is returned immediately, fetch only happens when expired or refresh()
  *    is called explicitly
@@ -34,6 +35,7 @@ import { logError } from '../../../utils/logger';
  *       recurringCosts: [],
  *       employees: [],
  *       budgets: [],
+ *       payrollPeriods: [],
  *       transactions: [],
  *       categories: { expense: [], income: [] },
  *     } | null,
@@ -48,9 +50,9 @@ import { logError } from '../../../utils/logger';
  * the CFO views are intentionally read-mostly.
  */
 
-export const CFO_SNAPSHOT_CACHE_KEY = 'cfo:snapshot:v2';
+export const CFO_SNAPSHOT_CACHE_KEY = 'cfo:snapshot:v3';
 export const CFO_SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 1 hour
-export const CFO_BANKMOVEMENTS_LOOKBACK_DAYS = 120;
+export const CFO_BANKMOVEMENTS_LOOKBACK_DAYS = 190;
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -117,6 +119,7 @@ export const fetchCFOSnapshot = async () => {
     recurringCostsSnap,
     employeesSnap,
     budgetsSnap,
+    payrollPeriodsSnap,
     transactionsSnap,
     categoriesDocSnap,
     bankAccountDocSnap,
@@ -129,6 +132,7 @@ export const fetchCFOSnapshot = async () => {
     getDocs(dataPath('recurringCosts')),
     getDocs(dataPath('employees')),
     getDocs(dataPath('budgets')),
+    getDocs(dataPath('payrollPeriods')),
     getDocs(dataPath('transactions')),
     getDoc(settingsDoc('categories')),
     getDoc(settingsDoc('bankAccount')),
@@ -146,6 +150,7 @@ export const fetchCFOSnapshot = async () => {
     recurringCosts: mapDocs(recurringCostsSnap),
     employees: mapDocs(employeesSnap),
     budgets: mapDocs(budgetsSnap),
+    payrollPeriods: mapDocs(payrollPeriodsSnap),
     transactions: mapDocs(transactionsSnap),
     categories: {
       expense: categoriesData.expenseCategories || EXPENSE_CATEGORIES,
