@@ -758,7 +758,7 @@ button { font: inherit; cursor: pointer; }
   --color-bone: var(--bone);
   --color-mist: var(--mist);
   --color-accent: var(--accent);
-  --color-accent-hover: var(--ink);
+  --color-accent-hover: #FF6B50;
 
   /* Surfaces — light-mode hierarchy (paper → bone) */
   --color-bg-0: var(--paper);

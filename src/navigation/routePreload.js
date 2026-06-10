@@ -1,5 +1,5 @@
 const routeLoaders = {
-  '/': () => import('../features/dashboard/Dashboard'),
+  '/': () => import('../features/resumen/Resumen'),
   '/ingresos': () => import('../features/ingresos/Ingresos'),
   '/gastos': () => import('../features/gastos/Gastos'),
   '/transactions': () => import('../features/transactions/TransactionList'),

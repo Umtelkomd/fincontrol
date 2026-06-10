@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRight,
   BarChart3,
   Bell,
   Briefcase,
@@ -22,7 +23,6 @@ import {
 // Shared shell navigation. Keep route exposure decisions here so desktop and
 // mobile cannot drift apart.
 // Routes still in App.jsx but NOT exposed here (accessible by URL only):
-//   /conciliacion — DATEV ya viene reconciliado, queda como herramienta avanzada
 //   /import-export — reemplazado por /datev
 //   /transactions — "Mesa central" legacy; las vistas operativas son CXC/CXP/DATEV
 export const NAV_ITEMS = [
@@ -31,6 +31,7 @@ export const NAV_ITEMS = [
   { path: '/cfo', label: 'CFO', icon: Briefcase, permission: 'reports', accent: '.OS' },
   { path: '/clasificar', label: 'Bandeja', icon: Inbox, permission: 'settings' },
   { path: '/movimientos', label: 'Movimientos', icon: Database, permission: 'dashboard' },
+  { path: '/conciliacion', label: 'Conciliación', icon: ArrowLeftRight, permission: 'cxp' },
   { path: '/cashflow', label: 'Tesoreria', icon: WalletCards, permission: 'reports' },
   { path: '/cxc', label: 'CXC', icon: ReceiptText, permission: 'cxc' },
   { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },

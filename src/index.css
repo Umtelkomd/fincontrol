@@ -5,3 +5,8 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
 }
+
+/* NEXUS.OS token extensions */
+:root {
+  --color-accent-hover: #FF6B50;
+}
