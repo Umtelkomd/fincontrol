@@ -8,14 +8,14 @@ React 19 + Vite + Firebase + Tailwind v4 + Recharts.
 ```bash
 cd ~/Dev/fincontrol
 npm run dev          # localhost:5173
-npm run build && npx firebase deploy --only hosting   # deploy
+npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
 ```
 
 ## Repo & Deploy
 - **Local:** `~/Dev/fincontrol/`
 - **GitHub:** jarl9801/fincontrol (public)
 - **Live:** https://umtelkomd-finance.web.app
-- **Deploy:** Firebase Hosting (`npm run build && npx firebase deploy --only hosting`)
+- **Deploy:** Firebase Hosting (`npx -y firebase-tools deploy --only hosting`)
 
 ## Firebase Config
 - **Project:** umtelkomd-finance
@@ -86,7 +86,8 @@ Three guards prevent recurrence — **do not remove them**:
 - `firebase.json` → `hosting.predeploy: ["npm run build"]` — every `firebase deploy`
   rebuilds from current source + `.env`, so a stale/env-less `dist` can't ship.
 
-Deploy is now just `npx firebase deploy --only hosting` (it rebuilds for you).
+Deploy is now just `npx -y firebase-tools deploy --only hosting` (it rebuilds for you).
+Note: plain `npx firebase` resolves to the local `firebase` SDK package (no executable) — always use `firebase-tools`.
 
 ## Design System
 This project uses the **NEXUS.OS** design system. Before making any UI changes, read the agent skill:
