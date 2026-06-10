@@ -21,7 +21,9 @@ const admin = require('firebase-admin');
 
 // ── CONFIGURATION ─────────────────────────────────────────────
 // Get your UID from: Firebase Console > Authentication > click user > UID
-const SERVICE_ACCOUNT = require('./firebase-admin-key.json'); // Download from Firebase Console
+const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
+  || require('path').join(require('os').homedir(), '.credentials', 'umtelkomd-firebase.json');
+const SERVICE_ACCOUNT = require(KEY_PATH);
 const APP_ID = '1:597712756560:web:ad12cd9794f11992641655';   // From .env VITE_FIREBASE_APP_ID
 
 // Add your users here (UID from Firebase Auth, role: admin|manager|editor)

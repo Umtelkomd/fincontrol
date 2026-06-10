@@ -7,12 +7,15 @@
  * HOW TO RUN:
  *   node scripts/purge-2025-data.cjs
  *
- * Requires: firebase-admin, firebase-admin-key.json in scripts/
+ * Requires: firebase-admin and a service account key at
+ * ~/.credentials/umtelkomd-firebase.json (or GOOGLE_APPLICATION_CREDENTIALS)
  */
 
 const admin = require('firebase-admin');
 
-const SERVICE_ACCOUNT = require('./firebase-admin-key.json');
+const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
+  || require('path').join(require('os').homedir(), '.credentials', 'umtelkomd-firebase.json');
+const SERVICE_ACCOUNT = require(KEY_PATH);
 const APP_ID = '1:597712756560:web:ad12cd9794f11992641655';
 
 /** Extract year from a date value (string 'YYYY-MM-DD' or Firebase Timestamp) */
