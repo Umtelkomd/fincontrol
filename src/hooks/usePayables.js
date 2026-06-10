@@ -9,6 +9,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
@@ -220,36 +221,57 @@ export const usePayables = (user) => {
       };
     }
 
+    let nextOpenAmount;
+    let nextPaidAmount;
+    let nextStatus;
+    const paymentAmount = clampMoney(paymentData.amount);
+    const payment = {
+      date: toISODate(paymentData.date) || toISODate(new Date()),
+      amount: paymentAmount,
+      method: paymentData.method,
+      reference: paymentData.reference || '',
+      note: paymentData.note || '',
+      bankMovementId: paymentData.bankMovementId,
+      registeredBy: user.email,
+      timestamp: new Date().toISOString(),
+    };
+
     try {
       const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
-      const nextOpenAmount = clampMoney(payable.openAmount - paymentData.amount);
-      const nextPaidAmount = clampMoney(payable.paidAmount + paymentData.amount);
-      const nextStatus = nextOpenAmount <= 0 ? 'settled' : 'partial';
-      const payment = {
-        date: toISODate(paymentData.date) || toISODate(new Date()),
-        amount: clampMoney(paymentData.amount),
-        method: paymentData.method,
-        reference: paymentData.reference || '',
-        note: paymentData.note || '',
-        bankMovementId: paymentData.bankMovementId,
-        registeredBy: user.email,
-        timestamp: new Date().toISOString(),
-      };
 
-      await updateDoc(payableRef, {
-        openAmount: Math.max(0, nextOpenAmount),
-        pendingAmount: Math.max(0, nextOpenAmount),
-        paidAmount: nextPaidAmount,
-        status: nextStatus,
-        payments: arrayUnion(payment),
-        updatedAt: serverTimestamp(),
-        updatedBy: user.email,
-        auditTrail: arrayUnion({
-          action: 'payment',
-          user: user.email,
-          timestamp: new Date().toISOString(),
-          detail: `Pago registrado por ${clampMoney(payment.amount).toFixed(2)} ${payable.currency || DEFAULT_CURRENCY}`,
-        }),
+      // Atomic read-modify-write: read current amounts from Firestore inside the
+      // transaction so concurrent payments do not race on stale client state.
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(payableRef);
+        if (!snap.exists()) throw new Error('Payable document not found');
+
+        const data = snap.data();
+        const currentPaid = clampMoney(data.paidAmount ?? 0);
+        const currentOpen = clampMoney(data.openAmount ?? data.pendingAmount ?? (data.grossAmount ?? data.amount ?? 0) - currentPaid);
+        if (paymentAmount > currentOpen + 0.01) {
+          throw new Error(
+            `El pago (${paymentAmount.toFixed(2)}) excede el saldo abierto (${currentOpen.toFixed(2)}) de esta factura.`,
+          );
+        }
+        nextOpenAmount = clampMoney(currentOpen - paymentAmount);
+        nextPaidAmount = clampMoney(currentPaid + paymentAmount);
+        nextStatus = nextOpenAmount <= 0 ? 'settled' : 'partial';
+
+        txn.update(payableRef, {
+          openAmount: Math.max(0, nextOpenAmount),
+          pendingAmount: Math.max(0, nextOpenAmount),
+          paidAmount: nextPaidAmount,
+          status: nextStatus,
+          payments: arrayUnion(payment),
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email,
+          auditTrail: arrayUnion({
+            action: 'payment',
+            user: user.email,
+            timestamp: new Date().toISOString(),
+            detail: `Pago registrado por ${paymentAmount.toFixed(2)} ${payable.currency || DEFAULT_CURRENCY}`,
+          }),
+        });
       });
 
       await createPaymentMovement(user, {

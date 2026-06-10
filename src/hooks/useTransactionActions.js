@@ -1,5 +1,5 @@
 import { logError } from '../utils/logger';
-import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { addDoc, updateDoc, deleteDoc, doc, collection, serverTimestamp, arrayUnion, runTransaction } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 import { computeNetFromGross, computeTaxFromGross } from '../utils/formatters';
@@ -322,17 +322,11 @@ export const useTransactionActions = (user) => {
   const registerPayment = async (transaction, paymentData) => {
     if (!user) return { success: false };
 
+    let newPaidAmount;
+    let newStatus;
+
     try {
       const transactionDoc = doc(db, 'artifacts', appId, 'public', 'data', 'transactions', transaction.id);
-      const currentPaid = transaction.paidAmount || 0;
-      const newPaidAmount = currentPaid + paymentData.amount;
-
-      // Validate overpayment
-      if (newPaidAmount > transaction.amount + 0.01) {
-        return { success: false, error: 'El pago excede el monto pendiente' };
-      }
-
-      const newStatus = newPaidAmount >= transaction.amount ? 'paid' : 'partial';
 
       const payment = {
         amount: paymentData.amount,
@@ -343,20 +337,38 @@ export const useTransactionActions = (user) => {
         timestamp: new Date().toISOString()
       };
 
-      await updateDoc(transactionDoc, {
-        paidAmount: newPaidAmount,
-        payments: arrayUnion(payment),
-        status: newStatus,
-        notes: arrayUnion({
-          text: `Pago registrado: €${paymentData.amount.toFixed(2)} vía ${paymentData.method} por ${user.email}${paymentData.note ? ` — ${paymentData.note}` : ''}`,
-          timestamp: new Date().toISOString(),
-          user: user.email,
-          type: 'system'
-        }),
-        hasUnreadUpdates: true,
-        lastModifiedBy: user.email,
-        lastModifiedAt: serverTimestamp()
+      // Atomic read-modify-write: read current paidAmount from Firestore inside
+      // the transaction so concurrent payments do not race on stale client state.
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(transactionDoc);
+        if (!snap.exists()) throw new Error('Transaction document not found');
+
+        const currentPaid = snap.data().paidAmount || 0;
+        newPaidAmount = currentPaid + paymentData.amount;
+        const total = snap.data().amount || transaction.amount;
+
+        if (newPaidAmount > total + 0.01) {
+          throw new Error('El pago excede el monto pendiente');
+        }
+
+        newStatus = newPaidAmount >= total ? 'paid' : 'partial';
+
+        txn.update(transactionDoc, {
+          paidAmount: newPaidAmount,
+          payments: arrayUnion(payment),
+          status: newStatus,
+          notes: arrayUnion({
+            text: `Pago registrado: €${paymentData.amount.toFixed(2)} vía ${paymentData.method} por ${user.email}${paymentData.note ? ` — ${paymentData.note}` : ''}`,
+            timestamp: new Date().toISOString(),
+            user: user.email,
+            type: 'system'
+          }),
+          hasUnreadUpdates: true,
+          lastModifiedBy: user.email,
+          lastModifiedAt: serverTimestamp()
+        });
       });
+
       await writeAuditLogEntry({
         action: 'payment',
         entityType: 'transaction',
@@ -381,7 +393,7 @@ export const useTransactionActions = (user) => {
       return { success: true };
     } catch (error) {
       logError("Error registering payment:", error);
-      return { success: false, error };
+      return { success: false, error: error.message || error };
     }
   };
 
