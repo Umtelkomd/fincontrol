@@ -18,6 +18,7 @@ import {
  YAxis,
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency } from '../../utils/formatters';
 
 const StatCard = ({ title, value, subtitle, accent, icon }) => {
@@ -54,7 +55,8 @@ const ScenarioCard = ({ title, balance, delta, accent, subtitle }) => (
 );
 
 const ProyeccionCashflow = ({ user }) => {
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
 
  const projectionData = useMemo(() => {
  const state = metrics.weeklyProjection.reduce((accumulator, row) => {

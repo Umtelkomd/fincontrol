@@ -8,7 +8,7 @@ import {
  Wallet,
 } from 'lucide-react';
 import { balances2025 } from '../../data/balances2025';
-import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency } from '../../utils/formatters';
 
 const CAPITAL_SOCIAL = 25000;
@@ -44,7 +44,7 @@ const SectionCard = ({ title, icon, accentColor, items, total, totalLabel }) => 
 };
 
 const BalanceGeneral = ({ user }) => {
- const ledger = useFinanceLedger(user);
+ const ledger = useFinanceLedgerContext();
 
  const balance = useMemo(() => {
  const cash = ledger.summary.currentCash;

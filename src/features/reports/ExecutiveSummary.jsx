@@ -8,6 +8,7 @@ import {
  Target,
 } from 'lucide-react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency } from '../../utils/formatters';
 
 const YEAR_OPTIONS = [
@@ -41,7 +42,8 @@ const ExecutiveSummary = ({ user }) => {
  ? {}
  : { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31` };
 
- const metrics = useTreasuryMetrics({ user, ...yearRange });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ...yearRange, ledger });
 
  if (metrics.loading) {
  return (

@@ -13,6 +13,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { usePayables } from '../../hooks/usePayables';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -65,7 +66,8 @@ const toModalTransaction = (row) => ({
 
 const Gastos = ({ userRole, user, onNewTransaction }) => {
  const { showToast } = useToast();
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
  const { registerPayment: registerPayablePayment, markAsPaid: settlePayable } = usePayables(user);
  const { registerPayment: registerLegacyPayment, markAsCompleted: settleLegacyPayable } = useTransactionActions(user);
 

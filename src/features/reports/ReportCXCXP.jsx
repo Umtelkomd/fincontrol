@@ -12,6 +12,7 @@ import {
 import { exportCXCToPDF, exportCXPToPDF } from '../../utils/pdfExport';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { toPdfTransaction } from '../../finance/reporting';
 
 const CONFIG = {
@@ -56,7 +57,8 @@ const buildAging = (rows) => {
 
 const ReportCXCXP = ({ user, type = 'cxc' }) => {
  const cfg = CONFIG[type];
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
  const referenceTime = useMemo(() => {
  const today = new Date();
  return new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();

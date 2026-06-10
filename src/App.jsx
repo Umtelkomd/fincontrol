@@ -7,11 +7,11 @@ import Sidebar from './components/layout/Sidebar';
 import MobileMenu, { MobileMenuButton } from './components/layout/MobileMenu';
 import NexusMark from './components/brand/NexusMark';
 import { ToastProvider, useToast } from './contexts/ToastContext';
+import { FinanceLedgerProvider, useFinanceLedgerContext } from './contexts/FinanceLedgerContext';
 import Login from './features/auth/Login';
 import { useAuth } from './hooks/useAuth';
 import { useFilters } from './hooks/useFilters';
 import { useTransactions } from './hooks/useTransactions';
-import { useTreasuryMetrics } from './hooks/useTreasuryMetrics';
 import { formatCurrency } from './utils/formatters';
 
 const Resumen = lazy(() => import('./features/resumen/Resumen'));
@@ -105,11 +105,12 @@ const LoadingState = () => (
  </div>
 );
 
-function AppContent() {
+// AppContent — only rendered when user is authenticated (provider already mounted).
+function AppContent({ user, userRole, hasPermission }) {
  useToast();
- const { user, userRole, hasPermission, loading: authLoading } = useAuth();
  const { transactions, loading: transactionsLoading } = useTransactions(user);
- const treasury = useTreasuryMetrics({ user });
+ // Header balance comes from the shared ledger (no extra listeners needed here).
+ const ledger = useFinanceLedgerContext();
  const {
  searchTerm,
  setSearchTerm,
@@ -122,7 +123,7 @@ function AppContent() {
  const [launcherDefaultAction, setLauncherDefaultAction] = useState(null);
  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
- const loading = authLoading || transactionsLoading;
+ const loading = transactionsLoading;
  const currentTitle = VIEW_TITLES[location.pathname] || 'Inicio';
 
  const contentRef = useRef(null);
@@ -140,21 +141,17 @@ function AppContent() {
  }
  }, [location.pathname]);
 
- if (!user) {
- return <Login />;
- }
-
  const handleOpenLauncher = (defaultAction = null) => {
  setLauncherDefaultAction(defaultAction);
  setIsActionLauncherOpen(true);
  };
 
- const bankBalanceData = treasury.loading
+ const bankBalanceData = ledger.loading
  ? null
  : {
- currentBalance: treasury.currentCash,
- creditLimit: treasury.bankAccount.creditLineLimit,
- creditUsed: treasury.summary.creditUsed,
+ currentBalance: ledger.summary.currentCash,
+ creditLimit: ledger.bankAccount.creditLineLimit,
+ creditUsed: ledger.summary.creditUsed,
  };
 
  return (
@@ -166,7 +163,7 @@ function AppContent() {
  hasPermission={hasPermission}
  onNewTransaction={handleOpenLauncher}
  bankBalanceData={bankBalanceData}
- bankAccount={treasury.bankAccount}
+ bankAccount={ledger.bankAccount}
  />
 
  <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -329,11 +326,33 @@ function AppContent() {
  );
 }
 
+// AppGate — resolves auth state. Shows Login until user is present, then mounts
+// FinanceLedgerProvider (so Firestore listeners only open after authentication)
+// and hands off to AppContent.
+function AppGate() {
+ useToast();
+ const { user, userRole, hasPermission, loading: authLoading } = useAuth();
+
+ if (authLoading) {
+ return <LoadingState />;
+ }
+
+ if (!user) {
+ return <Login />;
+ }
+
+ return (
+ <FinanceLedgerProvider user={user}>
+ <AppContent user={user} userRole={userRole} hasPermission={hasPermission} />
+ </FinanceLedgerProvider>
+ );
+}
+
 function App() {
  return (
  <ErrorBoundary>
  <ToastProvider>
- <AppContent />
+ <AppGate />
  </ToastProvider>
  </ErrorBoundary>
  );

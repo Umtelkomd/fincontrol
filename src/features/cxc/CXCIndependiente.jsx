@@ -27,6 +27,7 @@ import { useCostCenters } from '../../hooks/useCostCenters';
 import { useProjects } from '../../hooks/useProjects';
 import { useReceivables } from '../../hooks/useReceivables';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPIGrid, KPI, Badge, Button } from '@/components/ui/nexus';
@@ -98,7 +99,8 @@ const isLegacyPayment = (row) => {
 
 const CXCIndependiente = ({ user, userRole }) => {
  const { showToast } = useToast();
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
  const { linkReceivablesToMovement, forceReconcileReceivables } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);

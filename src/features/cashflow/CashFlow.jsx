@@ -22,6 +22,7 @@ import {
  YAxis,
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const TooltipCard = ({ active, payload, label }) => {
@@ -54,7 +55,8 @@ const Section = ({ title, subtitle, children, help }) => (
 const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 const CashFlow = ({ user }) => {
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
  const navigate = useNavigate();
  const movementsRef = useRef(null);
  const reconciliationRef = useRef(null);

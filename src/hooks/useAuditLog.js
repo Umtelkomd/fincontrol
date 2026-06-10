@@ -1,7 +1,7 @@
 import { logError } from '../utils/logger';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  collection, query, onSnapshot, addDoc, serverTimestamp, orderBy
+  collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, limit
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 
@@ -17,7 +17,7 @@ export const useAuditLog = (user) => {
   useEffect(() => {
     if (!user) return undefined;
 
-    const q = query(colRef, orderBy('timestamp', 'desc'));
+    const q = query(colRef, orderBy('timestamp', 'desc'), limit(200));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => {
         const raw = d.data();

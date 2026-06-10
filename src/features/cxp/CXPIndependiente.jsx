@@ -27,6 +27,7 @@ import { useCostCenters } from '../../hooks/useCostCenters';
 import { usePayables } from '../../hooks/usePayables';
 import { useProjects } from '../../hooks/useProjects';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { daysUntil } from '../../finance/utils';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -98,7 +99,8 @@ const isLegacyPayment = (row) => {
 
 const CXPIndependiente = ({ user, userRole }) => {
  const { showToast } = useToast();
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
  const { linkPayablesToMovement, forceReconcilePayables } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);

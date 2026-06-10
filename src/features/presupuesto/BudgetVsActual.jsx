@@ -32,7 +32,7 @@ import {
 import { useToast } from '../../contexts/ToastContext';
 import { useBudgets } from '../../hooks/useBudgets';
 import { useCategories } from '../../hooks/useCategories';
-import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useAllTransactions } from '../../hooks/useAllTransactions';
 import { useProjects } from '../../hooks/useProjects';
 import { useCostCenters } from '../../hooks/useCostCenters';
@@ -481,7 +481,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  const { projects } = useProjects(user);
  const categories = useCategories(user);
  const { costCenters } = useCostCenters(user);
- const ledger = useFinanceLedger(user);
+ const ledger = useFinanceLedgerContext();
  const { allTransactions } = useAllTransactions(user);
  const { periods: payrollPeriods } = usePayrollPeriods(user);
 

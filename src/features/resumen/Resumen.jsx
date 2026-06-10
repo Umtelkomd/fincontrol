@@ -26,6 +26,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useForwardProjection } from '../../hooks/useForwardProjection';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmployees } from '../../hooks/useEmployees';
@@ -91,7 +92,8 @@ const Resumen = ({ user }) => {
   // Single treasury pass (ledger is memoized per user). Blocks 1/3/4 read the
   // full-range metrics; block 2 filters postedMovements to the current month
   // inline — cheaper and simpler than a second hook instance.
-  const metrics = useTreasuryMetrics({ user, payrollByProject });
+  const ledger = useFinanceLedgerContext();
+  const metrics = useTreasuryMetrics({ user, payrollByProject, ledger });
   const projection = useForwardProjection(user);
 
   const now = useMemo(() => new Date(), []);

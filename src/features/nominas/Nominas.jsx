@@ -5,7 +5,7 @@ import { useEmployees } from '../../hooks/useEmployees';
 import { usePayables } from '../../hooks/usePayables';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { useNotifications } from '../../hooks/useNotifications';
-import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useNominas } from './useNominas';
 import CargarNominaModal from './CargarNominaModal';
 import NominasAnalytics from './NominasAnalytics';
@@ -68,7 +68,7 @@ const Nominas = ({ user, userRole }) => {
   const { payables, loading: payablesLoading, createPayable, cancelPayable } = usePayables(user);
   const { employees } = useEmployees(user);
   const { notifications, createNotification } = useNotifications(user);
-  const ledger = useFinanceLedger(user);
+  const ledger = useFinanceLedgerContext();
   const {
     periods,
     loading: periodsLoading,

@@ -54,7 +54,7 @@ const AuditLog = ({ user }) => {
  <div className="space-y-6 animate-fadeIn">
  <div>
  <h2 className="text-xl font-medium text-[var(--color-fg-1)] tracking-tight">Registro de Auditoría</h2>
- <p className="text-[13px] text-[var(--color-fg-4)] mt-0.5">Historial inmutable de todas las acciones</p>
+ <p className="text-[13px] text-[var(--color-fg-4)] mt-0.5">Últimos 200 eventos · historial inmutable de acciones</p>
  </div>
 
  {presetEntityId && (

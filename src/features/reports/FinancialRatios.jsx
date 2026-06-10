@@ -27,7 +27,7 @@ import {
  XAxis,
  YAxis,
 } from 'recharts';
-import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { formatCurrency } from '../../utils/formatters';
 import { MONTH_NAMES, resolvePeriodRange } from '../../finance/reporting';
@@ -122,10 +122,10 @@ const FinancialRatios = ({ user }) => {
  ? {}
  : { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31` };
 
- const globalMetrics = useTreasuryMetrics({ user, ...yearRange });
+ const ledger = useFinanceLedgerContext();
+ const globalMetrics = useTreasuryMetrics({ user, ...yearRange, ledger });
  const periodRange = resolvePeriodRange(selectedPeriod, now, 0);
- const periodMetrics = useTreasuryMetrics({ user, from: periodRange.from, to: periodRange.to });
- const ledger = useFinanceLedger(user);
+ const periodMetrics = useTreasuryMetrics({ user, from: periodRange.from, to: periodRange.to, ledger });
 
  const ratioData = useMemo(() => {
  const receivables = globalMetrics.pendingReceivables;

@@ -177,7 +177,11 @@ export const buildProjectMargins = (movements, payrollByProject = {}) => {
 
 export const useTreasuryMetrics = (options = {}) => {
   const { user, from, to, projectId, accountId = MAIN_ACCOUNT_ID } = options;
-  const ledger = useFinanceLedger(user);
+  // Accept a pre-fetched ledger from FinanceLedgerContext to avoid opening a
+  // duplicate set of Firestore listeners. Falls back to a local instantiation
+  // for call sites that don't have the provider (e.g. isolated routes/tests).
+  const localLedger = useFinanceLedger(options.ledger ? null : user);
+  const ledger = options.ledger ?? localLedger;
 
   return useMemo(() => {
     const referenceDate = options.referenceDate || new Date();

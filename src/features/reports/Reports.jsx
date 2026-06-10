@@ -24,7 +24,7 @@ import {
  YAxis,
 } from 'recharts';
 import HelpButton from '../../components/ui/HelpButton';
-import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { exportReportToPDF } from '../../utils/pdfExport';
 import { formatCurrency } from '../../utils/formatters';
 import {
@@ -77,7 +77,7 @@ const YEAR_OPTIONS = [
 ];
 
 const Reports = ({ user }) => {
- const ledger = useFinanceLedger(user);
+ const ledger = useFinanceLedgerContext();
  const dropdownRef = useRef(null);
  const [initialDate] = useState(() => {
  const d = new Date();

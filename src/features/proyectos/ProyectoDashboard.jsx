@@ -24,7 +24,7 @@ import {
  XAxis,
  YAxis,
 } from 'recharts';
-import { useFinanceLedger } from '../../hooks/useFinanceLedger';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
@@ -138,7 +138,7 @@ const Section = ({ title, subtitle, children, action }) => (
 );
 
 const ProyectoDashboard = ({ user }) => {
- const ledger = useFinanceLedger(user);
+ const ledger = useFinanceLedgerContext();
  const { employees } = useEmployees(user);
  const { periods: payrollPeriods } = usePayrollPeriods(user);
  const [selectedProjectId, setSelectedProjectId] = useState('');

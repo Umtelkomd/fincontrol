@@ -11,6 +11,7 @@ import {
  ReferenceLine,
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency } from '../../utils/formatters';
 import HelpButton from '../../components/ui/HelpButton';
 
@@ -175,7 +176,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function WhatIf({ user }) {
- const metrics = useTreasuryMetrics({ user });
+ const ledger = useFinanceLedgerContext();
+ const metrics = useTreasuryMetrics({ user, ledger });
 
  const [varIngresos, setVarIngresos] = useState(0);
  const [varGastos, setVarGastos] = useState(0);

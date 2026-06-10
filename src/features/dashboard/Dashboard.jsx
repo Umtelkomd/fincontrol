@@ -19,6 +19,7 @@ import {
 } from 'recharts';
 import { useMemo } from 'react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
@@ -84,7 +85,8 @@ const Dashboard = ({ user, setView, onNewTransaction }) => {
     });
     return allocatePayrollCost({ periods: payrollPeriods, employeesById, projectNamesById }).byProject;
   }, [canSeePayroll, payrollPeriods, employees, projects]);
-  const metrics = useTreasuryMetrics({ user, payrollByProject });
+  const ledger = useFinanceLedgerContext();
+  const metrics = useTreasuryMetrics({ user, payrollByProject, ledger });
  const vatSummary = summarizeVAT(metrics.postedMovements || []);
 
  const overdueExposure =
