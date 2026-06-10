@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   DAY_MS,
   MAIN_ACCOUNT_ID,
+  OPERATIONAL_DATA_START,
   TREASURY_LOOKAHEAD_DAYS,
   TREASURY_PROJECTION_WEEKS,
   WEEK_MS,
@@ -236,8 +237,8 @@ export const useTreasuryMetrics = (options = {}) => {
 
     const trailing90Start = toISODate(addDays(referenceDate, -90));
     const trailing90End = toISODate(referenceDate);
-    const year2026Start = '2026-01-01';
-    // Filter to 2026-only movements for burn rate calculation (no 2025 legacy data)
+    const year2026Start = OPERATIONAL_DATA_START;
+    // Filter to operational-data-only movements for burn rate calculation (no 2025 legacy data)
     const trailingOutflows = ledger.postedMovements.filter(
       (entry) =>
         entry.direction === 'out' &&

@@ -42,22 +42,27 @@ export const formatTaxRate = (rate) => {
   return `${pct.toFixed(pct % 1 === 0 ? 0 : 1)}%`;
 };
 
+/** Round a monetary value to 2 decimal places (banker-safe, avoids 119/1.19 = 99.999…). */
+const roundMoney = (v) => Math.round(v * 100) / 100;
+
 /**
- * Compute net amount from gross and tax rate.
+ * Compute net amount from gross and tax rate, rounded to 2 decimal places.
  * For backward compat: if taxRate is missing/null, assumes 19% (standard German VAT).
+ * Example: computeNetFromGross(119, 0.19) === 100 (not 99.99999…)
  */
 export const computeNetFromGross = (grossAmount, taxRate) => {
   const rate = taxRate ?? 0.19;
   if (rate === 0) return grossAmount;
-  return grossAmount / (1 + rate);
+  return roundMoney(grossAmount / (1 + rate));
 };
 
 /**
- * Compute VAT amount from gross and tax rate.
+ * Compute VAT amount from gross and tax rate, rounded to 2 decimal places.
  * For backward compat: if taxRate is missing/null, assumes 19%.
+ * Example: computeTaxFromGross(119, 0.19) === 19
  */
 export const computeTaxFromGross = (grossAmount, taxRate) => {
   const rate = taxRate ?? 0.19;
   const net = computeNetFromGross(grossAmount, rate);
-  return grossAmount - net;
+  return roundMoney(grossAmount - net);
 };

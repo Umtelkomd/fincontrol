@@ -1,6 +1,13 @@
 import { useMemo } from 'react';
 import { useAllTransactions } from './useAllTransactions';
 import { FINANCIAL_CONSTANTS } from '../constants/config';
+import { OPERATIONAL_DATA_START } from '../finance/constants';
+
+// Last year-month of the static 2025 dataset: one month before OPERATIONAL_DATA_START.
+// Anything with ym <= STATIC_DATA_LAST_YM is static 2025 data.
+const _epochDate = new Date(OPERATIONAL_DATA_START);
+_epochDate.setMonth(_epochDate.getMonth() - 1);
+const STATIC_DATA_LAST_YM = `${_epochDate.getFullYear()}-${String(_epochDate.getMonth() + 1).padStart(2, '0')}`;
 
 // Categories excluded from Operating CF
 const FINANCING_CATEGORIES = ['EGR-FIN', 'Intereses', 'Financiero'];
@@ -58,7 +65,7 @@ export const useCashFlow = (user) => {
     // Calculate cumulative net through Dec 2025
     let netThruDec2025 = 0;
     sortedMonths.forEach(ym => {
-      if (ym <= '2025-12') {
+      if (ym <= STATIC_DATA_LAST_YM) {
         netThruDec2025 += buckets[ym].ingresos - buckets[ym].egresos;
       }
     });

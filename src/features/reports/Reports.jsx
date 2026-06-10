@@ -70,10 +70,13 @@ const StatCard = ({ title, value, subtitle, accent, icon, delta }) => {
  );
 };
 
+const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [
- { value: '2026', label: '2026 — Operación actual' },
- { value: '2025', label: '2025 — Histórico' },
- { value: 'all', label: 'Todos los años' },
+  ...Array.from({ length: CURRENT_YEAR - 2024 }, (_, i) => {
+    const y = String(CURRENT_YEAR - i);
+    return { value: y, label: i === 0 ? `${y} — Operación actual` : `${y} — Histórico` };
+  }),
+  { value: 'all', label: 'Todos los años' },
 ];
 
 const Reports = ({ user }) => {

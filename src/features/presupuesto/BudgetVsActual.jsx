@@ -946,7 +946,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  return;
  }
 
- const result = await createBudget({ year: 2026, projectId: null, projectName: 'Empresa', lines });
+ const result = await createBudget({ year: selectedYear, projectId: null, projectName: 'Empresa', lines });
  if (result.success) {
  showToast('Presupuesto 2026 generado desde datos de 2025', 'success');
  } else {

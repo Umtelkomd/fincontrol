@@ -11,10 +11,13 @@ import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency } from '../../utils/formatters';
 
+const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [
- { value: '2026', label: '2026 — Operación actual' },
- { value: '2025', label: '2025 — Histórico' },
- { value: 'all', label: 'Todos los años' },
+  ...Array.from({ length: CURRENT_YEAR - 2024 }, (_, i) => {
+    const y = String(CURRENT_YEAR - i);
+    return { value: y, label: i === 0 ? `${y} — Operación actual` : `${y} — Histórico` };
+  }),
+  { value: 'all', label: 'Todos los años' },
 ];
 
 const Card = ({ title, value, subtitle, accent, icon }) => {
@@ -56,7 +59,7 @@ const ExecutiveSummary = ({ user }) => {
  const alerts = [
  {
  id: 'cash',
- title: 'Posicion de caja',
+ title: 'Posición de caja',
  body: `Caja actual ${formatCurrency(metrics.currentCash)} y liquidez proyectada ${formatCurrency(metrics.projectedLiquidity)}.`,
  tone: metrics.projectedLiquidity >= 0 ? 'good' : 'bad',
  },
@@ -68,16 +71,16 @@ const ExecutiveSummary = ({ user }) => {
  },
  {
  id: 'payments',
- title: 'Presion de pagos',
+ title: 'Presión de pagos',
  body: `${metrics.upcomingPayables.length} pagos dentro de la siguiente ventana por ${formatCurrency(metrics.upcomingPayables.reduce((sum, entry) => sum + entry.openAmount, 0))}.`,
  tone: metrics.upcomingPayables.length > 0 ? 'warning' : 'good',
  },
  ];
 
  const recommendations = [
- 'Actualizar conciliacion bancaria semanalmente antes de revisar caja proyectada.',
+ 'Actualizar conciliación bancaria semanalmente antes de revisar caja proyectada.',
  'Convertir la cartera vencida en foco comercial hasta que caiga por debajo del 10% de la CXC abierta.',
- 'Usar presupuesto anual por proyecto como techo operativo y no solo como referencia historica.',
+ 'Usar presupuesto anual por proyecto como techo operativo y no solo como referencia histórica.',
  ];
 
  return (
@@ -91,7 +94,7 @@ const ExecutiveSummary = ({ user }) => {
  key={opt.value}
  type="button"
  onClick={() => setSelectedYear(opt.value)}
- className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
+ className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-all ${
  selectedYear === opt.value
  ? 'border-[var(--color-line-s)] bg-[var(--color-bg-1)] text-[var(--color-fg-1)]'
  : 'border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-3)] hover:text-[var(--color-fg-1)]'

@@ -11,13 +11,19 @@ import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
 import { formatCurrency } from '../../utils/formatters';
 import { useTheme } from '../../hooks/useTheme';
-import { NAV_ITEMS } from './navItems';
+import { NAV_GROUPS } from './navItems';
 
 const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceData, bankAccount }) => {
  const navigate = useNavigate();
  const location = useLocation();
  const { theme, toggle: toggleTheme } = useTheme();
- const visibleItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
+ // Build visible groups — only include groups that have at least one visible item
+ const visibleGroups = NAV_GROUPS
+   .map((group) => ({
+     ...group,
+     items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
+   }))
+   .filter((group) => group.items.length > 0);
 
  const handleLogout = async () => {
  if (!window.confirm('¿Estás seguro que deseas cerrar sesión?')) return;
@@ -123,38 +129,48 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
   <nav className="relative -mx-5 mt-4 border-t border-[var(--color-line)] px-5 pt-2">
  {/* Right-side fade hint that there is more to scroll */}
  <span aria-hidden="true" className="pointer-events-none absolute right-0 top-2 bottom-0 w-12 bg-gradient-to-l from-[var(--color-bg-0)] to-transparent z-10" />
-  <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-fg-4)]">NEXUS ROUTES</div>
   <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide pb-0.5">
- {visibleItems.map((item) => {
- const Icon = item.icon;
- const active = location.pathname === item.path;
- return (
- <button
- key={item.path}
- type="button"
- onClick={() => navigate(item.path)}
- className={`relative inline-flex flex-shrink-0 items-center gap-2 rounded-md px-3 py-2 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors ${
- active
- ? 'bg-[var(--color-bg-3)] text-[var(--color-fg-1)]'
- : 'text-[var(--color-fg-3)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]'
- }`}
- >
- <Icon size={13} />
- <span>
- {item.label}
- {item.accent && (
- <span style={{ color: 'var(--color-accent)' }}>{item.accent}</span>
- )}
- </span>
- {active && (
- <span
- aria-hidden="true"
- className="pointer-events-none absolute inset-x-3 -bottom-[9px] h-[2px] bg-[var(--color-accent)]"
- />
- )}
- </button>
- );
- })}
+   {visibleGroups.map((group, groupIdx) => (
+     <div key={group.key} className="flex flex-shrink-0 items-center gap-1">
+       {/* Group separator + label (not shown for first group to save space) */}
+       {groupIdx > 0 && (
+         <div className="flex items-center gap-1.5 px-2">
+           <span aria-hidden="true" className="h-3 w-px bg-[var(--color-line-s)]" />
+           <span className="label-mono text-[9px] text-[var(--color-fg-4)]">{group.label}</span>
+         </div>
+       )}
+       {group.items.map((item) => {
+         const Icon = item.icon;
+         const active = location.pathname === item.path;
+         return (
+           <button
+             key={item.path}
+             type="button"
+             onClick={() => navigate(item.path)}
+             className={`relative inline-flex flex-shrink-0 items-center gap-2 rounded-md px-3 py-2 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors ${
+               active
+                 ? 'bg-[var(--color-bg-3)] text-[var(--color-fg-1)]'
+                 : 'text-[var(--color-fg-3)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]'
+             }`}
+           >
+             <Icon size={13} />
+             <span>
+               {item.label}
+               {item.accent && (
+                 <span style={{ color: 'var(--color-accent)' }}>{item.accent}</span>
+               )}
+             </span>
+             {active && (
+               <span
+                 aria-hidden="true"
+                 className="pointer-events-none absolute inset-x-3 -bottom-[9px] h-[2px] bg-[var(--color-accent)]"
+               />
+             )}
+           </button>
+         );
+       })}
+     </div>
+   ))}
  </div>
  </nav>
  </div>

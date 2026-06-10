@@ -146,6 +146,23 @@ function AppContent({ user, userRole, hasPermission }) {
  setIsActionLauncherOpen(true);
  };
 
+ // Cmd+K / Ctrl+K global shortcut to open the action launcher
+ useEffect(() => {
+ const handleKeyDown = (event) => {
+ if (!(event.metaKey || event.ctrlKey) || event.key !== 'k') return;
+ // Don't fire while the user is typing in a form element
+ const tag = document.activeElement?.tagName?.toLowerCase();
+ if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+ // Don't fire if a modal is already open (check for common aria-modal)
+ if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+ event.preventDefault();
+ handleOpenLauncher();
+ };
+ window.addEventListener('keydown', handleKeyDown);
+ return () => window.removeEventListener('keydown', handleKeyDown);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [isActionLauncherOpen]);
+
  const bankBalanceData = ledger.loading
  ? null
  : {

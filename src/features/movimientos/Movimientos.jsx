@@ -234,7 +234,7 @@ const Movimientos = ({ user }) => {
  Revisión de movimientos
  </h2>
  <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
- Historial completo de bankMovements (DATEV + recurrentes generadas + manuales).
+ Historial completo de movimientos bancarios (DATEV + recurrentes generadas + manuales).
  Filtros por año/mes, dirección y estado de clasificación.
  </p>
  </div>

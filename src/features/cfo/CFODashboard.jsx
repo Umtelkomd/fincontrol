@@ -109,8 +109,8 @@ const CFODashboard = ({ user }) => {
             CFO<span className="text-[var(--color-accent)]">.OS</span> — Vista ejecutiva
           </h2>
           <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
-            Caja real, pagos urgentes, cobros pendientes y calidad de datos. Primero control
-            operativo; después proyección útil. Read-only, single-fetch, cacheado.
+            Vista ejecutiva de caja, cobros, pagos y calidad de datos. Carga única por sesión
+            para respetar la cuota de lecturas. Sin edición desde esta pantalla.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -171,7 +171,7 @@ const CFODashboard = ({ user }) => {
                   <Icon size={18} className="text-[var(--color-fg-4)]" />
                 </div>
                 <p className="text-[13px] text-[var(--color-fg-3)]">{p.description}</p>
-                <Badge variant="neutral">Coming soon</Badge>
+                <Badge variant="neutral">Próximamente</Badge>
               </div>
             </Panel>
           );
