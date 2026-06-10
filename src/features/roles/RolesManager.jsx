@@ -4,32 +4,39 @@ import {
 } from 'lucide-react';
 import { USER_ROLES, ROLE_PERMISSIONS } from '../../constants/config';
 
-const AVAILABLE_ROLES = [
-  { key: 'admin', label: 'Administrador', description: 'Acceso total al sistema' },
-  { key: 'finance_manager', label: 'Gerente Financiero', description: 'Transacciones, reportes, presupuestos' },
-  { key: 'project_manager', label: 'Gerente de Proyecto', description: 'Dashboard, transacciones del proyecto' },
-  { key: 'viewer', label: 'Solo lectura', description: 'Visualización sin edición' },
-];
-
-const MODULES = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'transactions', label: 'Transacciones' },
-  { key: 'cxp', label: 'Cuentas por Pagar' },
-  { key: 'cxc', label: 'Cuentas por Cobrar' },
-  { key: 'reports', label: 'Reportes' },
-  { key: 'cashflow', label: 'Flujo de Caja' },
-  { key: 'settings', label: 'Configuración' },
-  { key: 'budget', label: 'Presupuesto' },
-];
-
-// Permission matrix is defined in src/constants/config.js ROLE_PERMISSIONS.
-// These defaults mirror that config for display purposes.
-const DEFAULT_PERMISSION_MATRIX = {
-  admin: ['dashboard', 'transactions', 'cxp', 'cxc', 'reports', 'cashflow', 'settings', 'budget'],
-  finance_manager: ['dashboard', 'transactions', 'cxp', 'cxc', 'reports', 'cashflow', 'budget'],
-  project_manager: ['dashboard', 'transactions', 'reports'],
-  viewer: ['dashboard', 'reports'],
+const ROLE_META = {
+  admin: { label: 'Administrador', description: 'Acceso total al sistema' },
+  manager: { label: 'Gerente', description: 'Transacciones, CXP/CXC y reportes' },
+  editor: { label: 'Editor', description: 'Dashboard y transacciones' },
 };
+
+const MODULE_LABELS = {
+  dashboard: 'Dashboard',
+  transactions: 'Transacciones',
+  cxp: 'Cuentas por Pagar',
+  cxc: 'Cuentas por Cobrar',
+  reports: 'Reportes',
+  cashflow: 'Flujo de Caja',
+  settings: 'Configuración',
+  budget: 'Presupuesto',
+  audit: 'Auditoría',
+  backup: 'Backup',
+};
+
+// Derived from the single source of truth so the display can never drift
+// from the permissions the app actually enforces.
+const AVAILABLE_ROLES = Object.keys(ROLE_PERMISSIONS).map((key) => ({
+  key,
+  label: ROLE_META[key]?.label || key,
+  description: ROLE_META[key]?.description || '',
+}));
+
+const MODULES = [...new Set(Object.values(ROLE_PERMISSIONS).flat())].map((key) => ({
+  key,
+  label: MODULE_LABELS[key] || key,
+}));
+
+const DEFAULT_PERMISSION_MATRIX = ROLE_PERMISSIONS;
 
 const KNOWN_USERS = [
   { email: 'jromero@umtelkomd.com', name: 'Jarl Romero', role: USER_ROLES['jromero@umtelkomd.com'] || 'admin' },

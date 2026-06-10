@@ -92,17 +92,15 @@ const toModalTransaction = (row) => ({
  * family: 'income' | 'expense'
  *
  * Bulk settle semantics:
- *   The "Liquidar" single-row action calls settleReceivable / settlePayable which
- *   internally call markAsPaid on the document WITHOUT requiring a bankMovementId
- *   (it marks the document settled but does NOT create a bank movement). This is
- *   the same path used historically for legacy-transaction rows via markAsCompleted.
- *   The "Abono" (partial payment) path DOES link a bank movement via PartialPaymentModal.
+ *   markAsPaid on receivables/payables is a deprecated guard that ALWAYS fails with
+ *   a policy error: UMTELKOMD policy requires every settlement to link a bank
+ *   movement, which happens through the reconciliation flow (/cxc, /cxp) or the
+ *   "Abono" path (PartialPaymentModal). Only legacy-transaction rows settle here,
+ *   via markAsCompleted, which legitimately predates that policy.
  *
- *   Therefore bulk settle via the same settle path (not Abono) is legitimate — it
- *   marks multiple documents settled in sequence using the same logic as single-row
- *   "Liquidar". We implement a sequential queue: selecting rows and pressing
- *   "Liquidar seleccionados (N)" processes them one-by-one with the same handleSettle
- *   logic. No new policy is invented.
+ *   Bulk settle therefore processes rows sequentially through the same handleSettle
+ *   logic and reports successes vs policy rejections honestly — it must never claim
+ *   a CXC/CXP document was settled when the guard rejected it.
  */
 const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
   const isIncome = family === 'income';
@@ -160,9 +158,10 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
   const totalOverdue = overdueRows.reduce((s, e) => s + e.openAmount, 0);
   const totalPartial = allRows.filter((e) => e.status === 'partial').reduce((s, e) => s + e.paidAmount, 0);
 
-  // Settles a single row using the existing non-Abono path
-  const handleSettle = async (row) => {
-    if (loadingId) return;
+  // Settles a single row using the existing non-Abono path.
+  // Returns the settle result; silent=true suppresses per-row toasts (bulk mode).
+  const handleSettle = async (row, { silent = false } = {}) => {
+    if (!silent && loadingId) return { success: false };
     setLoadingId(row.id);
     try {
       let result = { success: false };
@@ -171,22 +170,29 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         if (row.source === 'legacy-transaction') {
           result = await settleLegacy({ id: row.legacyTransactionId, amount: row.grossAmount, type: 'income' });
         }
-        if (result.success) showToast('Ingreso liquidado');
-        else showToast('No se pudo liquidar el ingreso', 'error');
+        if (!silent) {
+          if (result.success) showToast('Ingreso liquidado');
+          else showToast('No se pudo liquidar el ingreso', 'error');
+        }
       } else {
         if (row.source === 'payable') result = await settlePayable(row);
         if (row.source === 'legacy-transaction') {
           result = await settleLegacy({ id: row.legacyTransactionId, amount: row.grossAmount, type: 'expense' });
         }
-        if (result.success) showToast('Gasto liquidado');
-        else showToast('No se pudo liquidar el gasto', 'error');
+        if (!silent) {
+          if (result.success) showToast('Gasto liquidado');
+          else showToast('No se pudo liquidar el gasto', 'error');
+        }
       }
+      return result;
     } finally {
       setLoadingId(null);
     }
   };
 
-  // Bulk settle: process selected settleable rows one by one using the same handleSettle path
+  // Bulk settle: process selected settleable rows one by one using the same
+  // handleSettle path, counting only real successes — CXC/CXP documents are
+  // rejected by the bank-movement policy guard and must not be reported as settled.
   const handleBulkSettle = async () => {
     const settleableRows = rows.filter(
       (row) =>
@@ -199,12 +205,25 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
     setBulkProcessing(true);
     let succeeded = 0;
     for (const row of settleableRows) {
-      await handleSettle(row);
-      succeeded++;
+      const result = await handleSettle(row, { silent: true });
+      if (result?.success) succeeded++;
     }
     setSelectedIds(new Set());
     setBulkProcessing(false);
-    showToast(`${succeeded} documento(s) liquidado(s)`);
+    const failed = settleableRows.length - succeeded;
+    if (failed === 0) {
+      showToast(`${succeeded} documento(s) liquidado(s)`);
+    } else if (succeeded === 0) {
+      showToast(
+        'No se liquidó ningún documento: las facturas CXC/CXP requieren conciliación con un movimiento bancario.',
+        'error',
+      );
+    } else {
+      showToast(
+        `${succeeded} de ${settleableRows.length} liquidados. ${failed} requieren conciliación con movimiento bancario.`,
+        'error',
+      );
+    }
   };
 
   const handlePartialPayment = async (_transaction, paymentData) => {
