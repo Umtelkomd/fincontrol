@@ -29,6 +29,9 @@ dist-ssr
 .env.production
 
 # Firebase
+# Service account keys — never commit, even if the *.json rule below changes
+firebase-admin-key.json
+scripts/firebase-admin-key.json
 *.json
 !package.json
 !package-lock.json

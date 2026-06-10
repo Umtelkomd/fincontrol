@@ -1,6 +1,7 @@
 // Firebase Admin SDK - get all unique categories from transactions + bankMovements
 const admin = require('firebase-admin');
-const cred = require('./firebase-admin-key.json');
+const cred = require(process.env.GOOGLE_APPLICATION_CREDENTIALS
+  || require('path').join(require('os').homedir(), '.credentials', 'umtelkomd-firebase.json'));
 if (!admin.apps.length) {
   admin.initializeApp({ credential: admin.credential.cert(cred), projectId: 'umtelkomd-finance' });
 }

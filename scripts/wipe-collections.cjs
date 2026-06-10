@@ -12,7 +12,8 @@
  *
  * REQUIREMENTS:
  *   - firebase-admin installed (already in node_modules)
- *   - scripts/firebase-admin-key.json present (Firebase service account)
+ *   - Service account key at ~/.credentials/umtelkomd-firebase.json
+ *     (or set GOOGLE_APPLICATION_CREDENTIALS to an alternate path)
  *
  * SAFETY:
  *   - Lists docs first, asks for confirmation by typing the collection name
@@ -27,7 +28,9 @@
 const admin = require('firebase-admin');
 const readline = require('readline');
 
-const SERVICE_ACCOUNT = require('./firebase-admin-key.json');
+const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
+  || require('path').join(require('os').homedir(), '.credentials', 'umtelkomd-firebase.json');
+const SERVICE_ACCOUNT = require(KEY_PATH);
 const APP_ID = '1:597712756560:web:ad12cd9794f11992641655';
 
 const ALLOWED = [

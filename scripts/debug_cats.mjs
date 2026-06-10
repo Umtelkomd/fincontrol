@@ -2,8 +2,12 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
+import os from 'os';
+import path from 'path';
 
-const cred = JSON.parse(readFileSync('./scripts/firebase-admin-key.json', 'utf8'));
+const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
+  || path.join(os.homedir(), '.credentials', 'umtelkomd-firebase.json');
+const cred = JSON.parse(readFileSync(KEY_PATH, 'utf8'));
 initializeApp({ credential: cert(cred), projectId: 'umtelkomd-finance' });
 const db = getFirestore();
 
