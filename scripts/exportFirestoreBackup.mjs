@@ -4,7 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 import admin from 'firebase-admin';
 
-const DEFAULT_APP_ID = process.env.FIREBASE_APP_ID || '';
+const DEFAULT_APP_ID = process.env.FIREBASE_APP_ID || '1:597712756560:web:ad12cd9794f11992641655';
 const DEFAULT_KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(os.homedir(), '.credentials', 'umtelkomd-firebase.json');
 const DEFAULT_COLLECTIONS = [
   'transactions',
