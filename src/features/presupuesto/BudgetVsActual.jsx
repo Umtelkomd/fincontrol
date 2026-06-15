@@ -40,6 +40,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { buildPayrollBudgetActuals } from '../nominas/lib/payrollBudgetActuals';
+import { OPERATIONAL_DATA_START } from '../../finance/constants';
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MONTHS_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -474,6 +475,11 @@ const DrillDownRow = ({ row, allTransactions, selectedYear, canAct, incToBudgetM
  );
 };
 
+// Year boundary: actuals source switches from static P&L sheet (pre-2026) to
+// DATEV bank movements (2026+). Derived from the authoritative constant so this
+// stays in sync automatically if the boundary ever moves.
+const OPERATIONAL_YEAR = Number(OPERATIONAL_DATA_START.slice(0, 4));
+
 // ── Main Component ──────────────────────────────────────────────
 const BudgetVsActual = ({ user, userRole }) => {
  const { showToast } = useToast();
@@ -511,7 +517,15 @@ const BudgetVsActual = ({ user, userRole }) => {
  );
  }, [budgets, selectedYear, selectedProject]);
 
- // Build actuals: aggregate real amounts per budget category + month
+ // Build actuals: aggregate real amounts per budget category + month.
+ //
+ // Source selection is YEAR-GATED to prevent double-counting:
+ // - year < OPERATIONAL_YEAR (2025 and earlier): use allTransactions (the static
+ //   2025 P&L sheet). It carries category/costCenter classification but is NOT
+ //   bank data — must not be mixed with DATEV.
+ // - year >= OPERATIONAL_YEAR (2026+): use ledger.postedMovements (DATEV only).
+ //   The 2025 P&L sheet has no 2026 entries so there is nothing to merge/dedup.
+ // Never merge both sources for the same year.
  const actuals = useMemo(() => {
  const map = new Map(); // key: "budgetCat|income|monthIndex"
 
@@ -544,8 +558,10 @@ const BudgetVsActual = ({ user, userRole }) => {
  map.set(key, existing);
  };
 
- // ── Source A: allTransactions (Firebase transactions — always categorized) ──
- // These are the manually entered income/expense records with category field
+ if (Number(selectedYear) < OPERATIONAL_YEAR) {
+ // ── Pre-2026: static P&L sheet (allTransactions) is the sole actuals source ──
+ // This is the classified 2025 dataset with category/costCenter. It has no
+ // bank-statement precision but is the only categorized historical record.
  allTransactions.forEach((t) => {
  if (Number(t.date?.slice(0, 4)) !== Number(selectedYear)) return;
  if (selectedCostCenter && normCC(t.costCenter || '') !== selectedCostCenter) return;
@@ -564,17 +580,15 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  addAmount(budCat, isIncome, monthIdx, Math.abs(t.amount || 0));
  });
-
- // ── Source B: bankMovements that have categoryName set ──
- // Only adds movements NOT already represented by allTransactions
- const txIds = new Set(allTransactions.map(t => t.id).filter(Boolean));
-
+ } else {
+ // ── 2026+: DATEV bank movements (ledger.postedMovements) are the sole source ──
+ // allTransactions has no entries for 2026+, so there is nothing to merge.
+ // Only movements with a categoryName contribute (uncategorized imports are
+ // surfaced via the uncategorizedStats banner instead).
  ledger.postedMovements.forEach((m) => {
  if (Number(m.postedDate?.slice(0, 4)) !== Number(selectedYear)) return;
  if (!m.categoryName) return; // skip uncategorized bank imports
  if (selectedCostCenter && normCC(m.costCenterId || '') !== selectedCostCenter) return;
- // Skip if this movement is linked to a transaction already counted above
- if (m.legacyTransactionId && txIds.has(m.legacyTransactionId)) return;
 
  const isIncome = m.direction === 'in';
  const budCat = resolve(m.categoryName, isIncome);
@@ -585,6 +599,7 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  addAmount(budCat, isIncome, monthIdx, Math.abs(m.netAmount ?? m.amount));
  });
+ }
 
  return map;
  }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter]);

@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 import { balances2025 } from '../data/balances2025';
 import {
-  adaptLegacyTransactionToMovement,
-  adaptLegacyTransactionToPayable,
-  adaptLegacyTransactionToReceivable,
   adaptPayableDoc,
   adaptReceivableDoc,
   createLegacyOpeningPayables,
@@ -47,45 +44,23 @@ export const useFinanceLedger = (user) => {
     const canonicalReceivables = receivables.map((entry) => adaptReceivableDoc(entry, 'receivable'));
     const canonicalPayables = payables.map((entry) => adaptPayableDoc(entry, 'payable'));
 
-    // Include ALL movements (any status) to prevent double-counting when a
-    // movement is voided — the legacy transaction must not be re-converted.
-    const movementLegacyIds = new Set(
-      bankMovements
-        .map((entry) => entry.legacyTransactionId)
-        .filter(Boolean),
-    );
-    const receivableLegacyIds = new Set(
-      canonicalReceivables
-        .flatMap((entry) => [entry.legacyTransactionId, entry.linkedTransactionId])
-        .filter(Boolean),
-    );
-    const payableLegacyIds = new Set(
-      canonicalPayables
-        .flatMap((entry) => [entry.legacyTransactionId, entry.linkedTransactionId])
-        .filter(Boolean),
-    );
-
-    const legacyMovements = allTransactions
-      .filter((entry) => !movementLegacyIds.has(entry.id) && !entry.canonicalMovementId)
-      .map(adaptLegacyTransactionToMovement)
-      .filter(Boolean);
-
-    const legacyReceivables = allTransactions
-      .filter((entry) => !receivableLegacyIds.has(entry.id) && !entry.canonicalReceivableId)
-      .map(adaptLegacyTransactionToReceivable)
-      .filter(Boolean);
-
-    const legacyPayables = allTransactions
-      .filter((entry) => !payableLegacyIds.has(entry.id) && !entry.canonicalPayableId)
-      .map(adaptLegacyTransactionToPayable)
-      .filter(Boolean);
-
+    // Cash ledger is DATEV-only: bankMovements is the single source of truth for
+    // posted cash movements. The static 2025 P&L sheet (allTransactions) is kept
+    // for historical budget/project reporting but must NOT feed the cash ledger —
+    // it is a categorized P&L view, not a bank statement, and mixing it would
+    // double-count 2025 (DATEV already contains all 966 2025 bank movements).
     const openingReceivables = createLegacyOpeningReceivables();
     const openingPayables = createLegacyOpeningPayables();
 
-    const receivableRows = [...openingReceivables, ...canonicalReceivables, ...legacyReceivables].sort(sortByDueDate);
-    const payableRows = [...openingPayables, ...canonicalPayables, ...legacyPayables].sort(sortByDueDate);
-    const postedMovements = [...bankMovements, ...legacyMovements]
+    // AR/AP rows: opening anchors + live Firestore canonicals only.
+    // Legacy sheet entries are excluded — they were 2025 operational data that has
+    // since been superseded by the canonical receivables/payables collections.
+    const receivableRows = [...openingReceivables, ...canonicalReceivables].sort(sortByDueDate);
+    const payableRows = [...openingPayables, ...canonicalPayables].sort(sortByDueDate);
+
+    // postedMovements = DATEV bank movements only, filtered to POSTED status and
+    // sorted chronologically. No legacy sheet entries.
+    const postedMovements = bankMovements
       .filter((entry) => entry.status === MOVEMENT_STATUS.POSTED)
       .sort((left, right) => compareIsoDate(left.postedDate, right.postedDate));
 
@@ -99,6 +74,10 @@ export const useFinanceLedger = (user) => {
       taxReserveBalance: balances2025.ivaDic2025,
     };
 
+    // currentCash: opening balance (Dec 2025) + all DATEV movements posted after
+    // the opening date. Since DATEV covers full 2025 + 2026 and postedMovements is
+    // now DATEV-only, movements before or on the opening date are correctly excluded
+    // by the compareIsoDate > 0 guard (same as before).
     const currentCash = sumMoney(
       postedMovements.filter(
         (entry) =>
@@ -113,6 +92,9 @@ export const useFinanceLedger = (user) => {
 
     return {
       loading,
+      // allTransactions (static 2025 P&L sheet) is exposed so consumers that need
+      // the classified historical dataset (BudgetVsActual, DrillDown, etc.) can
+      // read it. It does NOT feed postedMovements, receivables, or payables.
       allTransactions,
       bankAccount: mainAccount,
       postedMovements,
