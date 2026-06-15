@@ -102,7 +102,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
- const { linkPayablesToMovement, forceReconcilePayables } = useClassifier(user);
+ const { linkPayablesToMovement } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { expenseCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -269,30 +269,6 @@ const CXPIndependiente = ({ user, userRole }) => {
  );
  } else {
  showToast(result.error?.message || 'Error al vincular movimiento', 'error');
- }
- return result;
- };
-
- const handleForceReconcile = async (selectedDocuments, options = {}) => {
- if (userRole !== 'admin') {
- const error = new Error('Solo un administrador puede forzar conciliación sin DATEV');
- showToast(error.message, 'error');
- return { success: false, error };
- }
- const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'payable');
- if (documentsToLink.length === 0) {
- return { success: false, error: 'Seleccioná al menos una CXP actual' };
- }
- setLoadingId(selectedRow?.id || documentsToLink[0]?.id);
- const result = await forceReconcilePayables(documentsToLink, {
- ...options,
- userRole,
- });
- setLoadingId(null);
- if (result.success) {
- showToast(`${result.count} CXP conciliada(s) sin DATEV por admin`, 'success');
- } else {
- showToast(result.error?.message || 'Error al forzar conciliación', 'error');
  }
  return result;
  };
@@ -513,8 +489,6 @@ const CXPIndependiente = ({ user, userRole }) => {
  documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
- allowManualForce={userRole === 'admin'}
- onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal

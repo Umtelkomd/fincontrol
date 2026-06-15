@@ -251,157 +251,6 @@ export const useClassifier = (user) => {
  [user],
  );
 
- const forceReconcileDocuments = useCallback(
- async (documents, kind, options = {}) => {
- if (!user) return { success: false, error: 'No user' };
- if (options.userRole !== 'admin') {
- return { success: false, error: new Error('Solo un administrador puede forzar una conciliación sin DATEV') };
- }
-
- const docs = normalizeDocuments(documents);
- if (!docs.length) return { success: false, error: new Error('Seleccioná al menos una orden') };
-
- const total = sumDocumentOpenAmount(docs);
- if (total <= RECONCILIATION_EPSILON) {
- return { success: false, error: new Error('Las órdenes seleccionadas no tienen saldo abierto') };
- }
-
- try {
- const nowIso = new Date().toISOString();
- const postedDate = toISODate(options.postedDate) || toISODate(new Date());
- const reason = (options.reason || '').trim();
- const batch = writeBatch(db);
- const movementRef = doc(movementsCollectionRef());
- const ids = docs.map((document) => document.id);
- const idField = kind === 'receivable' ? 'receivableId' : 'payableId';
- const idsField = kind === 'receivable' ? 'receivableIds' : 'payableIds';
- const allocationField = kind === 'receivable' ? 'receivableAllocations' : 'payableAllocations';
- const label = LABEL_BY_KIND[kind];
- const direction = DIRECTION_BY_KIND[kind];
-
- batch.set(movementRef, {
- accountId: MAIN_ACCOUNT_ID,
- currency: DEFAULT_CURRENCY,
- kind: MOVEMENT_KIND_BY_KIND[kind],
- status: MOVEMENT_STATUS.POSTED,
- direction,
- amount: total,
- postedDate,
- valueDate: postedDate,
- description: reason ? `Conciliación manual admin: ${reason}` : `Conciliación manual admin ${label}`,
- counterpartyName: docs.length === 1 ? docs[0].counterpartyName || '' : 'Múltiples contrapartes',
- documentNumber: docs.length === 1 ? docs[0].documentNumber || '' : '',
- projectId: getCommonValue(docs, 'projectId'),
- projectName: getCommonValue(docs, 'projectName') || (docs.length > 1 ? 'Múltiples proyectos' : ''),
- costCenterId: getCommonValue(docs, 'costCenterId'),
- categoryName: getCommonValue(docs, 'categoryName'),
- [idField]: ids[0],
- [idsField]: ids,
- [allocationField]: docs.map((document) => ({
- documentId: document.id,
- amount: getDocumentOpenAmount(document),
- openAmountBefore: getDocumentOpenAmount(document),
- openAmountAfter: 0,
- })),
- reconciledAt: serverTimestamp(),
- reconciliationId: `manual:${movementRef.id}`,
- reconciliationMode: 'manual-admin',
- reconciledAmount: total,
- manualReconciliation: true,
- manualReason: reason,
- createdBy: user.email,
- createdAt: serverTimestamp(),
- updatedBy: user.email,
- updatedAt: serverTimestamp(),
- auditTrail: [
- {
- action: 'manual-reconcile',
- user: user.email,
- timestamp: nowIso,
- detail: `Conciliación forzada sin DATEV con ${ids.length} ${label}`,
- },
- ],
- });
-
- docs.forEach((documentItem) => {
- const amount = getDocumentOpenAmount(documentItem);
- const documentRef = doc(
- db,
- 'artifacts',
- appId,
- 'public',
- 'data',
- COLLECTION_BY_KIND[kind],
- documentItem.id,
- );
- batch.update(documentRef, {
- openAmount: 0,
- pendingAmount: 0,
- paidAmount: clampMoney((Number(documentItem.paidAmount) || 0) + amount),
- status: 'settled',
- payments: arrayUnion({
- date: postedDate,
- amount,
- method: 'Conciliación manual admin',
- reference: movementRef.id,
- note: reason ? `Forzado sin DATEV: ${reason}` : 'Forzado sin DATEV por administrador',
- bankMovementId: movementRef.id,
- reconciliationMode: 'manual-admin',
- manualReconciliation: true,
- registeredBy: user.email,
- timestamp: nowIso,
- }),
- updatedBy: user.email,
- updatedAt: serverTimestamp(),
- auditTrail: arrayUnion({
- action: 'manual-reconcile',
- user: user.email,
- timestamp: nowIso,
- detail: 'Conciliación forzada sin DATEV por administrador',
- }),
- });
- });
-
- await batch.commit();
-
- await Promise.all([
- writeAuditLogEntry({
- action: 'manual-reconcile',
- entityType: 'bankMovement',
- entityId: movementRef.id,
- description: `Movimiento manual admin creado para conciliar ${ids.length} ${label}`,
- userEmail: user.email,
- metadata: {
- documentIds: ids,
- amount: total,
- reason,
- },
- }),
- ...docs.map((documentItem) =>
- writeAuditLogEntry({
- action: 'manual-reconcile',
- entityType: ENTITY_TYPE_BY_KIND[kind],
- entityId: documentItem.id,
- description: `${label} conciliada sin DATEV: ${getDocumentLabel(documentItem)}`,
- userEmail: user.email,
- metadata: {
- bankMovementId: movementRef.id,
- amount: getDocumentOpenAmount(documentItem),
- reason,
- },
- }),
- ),
- ]);
-
- return { success: true, status: 'settled', count: docs.length, bankMovementId: movementRef.id };
- } catch (err) {
- logError(`forceReconcileDocuments ${kind} error:`, err);
- return { success: false, error: err };
- }
- },
- [user],
- );
-
  const linkToReceivable = useCallback(
  async (movement, receivable) => {
  return linkDocumentsToMovement(movement, [receivable], 'receivable');
@@ -424,16 +273,6 @@ export const useClassifier = (user) => {
  const linkPayablesToMovement = useCallback(
  (movement, selectedPayables) => linkDocumentsToMovement(movement, selectedPayables, 'payable'),
  [linkDocumentsToMovement],
- );
-
- const forceReconcileReceivables = useCallback(
- (selectedReceivables, options) => forceReconcileDocuments(selectedReceivables, 'receivable', options),
- [forceReconcileDocuments],
- );
-
- const forceReconcilePayables = useCallback(
- (selectedPayables, options) => forceReconcileDocuments(selectedPayables, 'payable', options),
- [forceReconcileDocuments],
  );
 
  const categorize = useCallback(
@@ -532,8 +371,6 @@ export const useClassifier = (user) => {
  linkToPayable,
  linkReceivablesToMovement,
  linkPayablesToMovement,
- forceReconcileReceivables,
- forceReconcilePayables,
  categorize,
  suggestMatches,
  };

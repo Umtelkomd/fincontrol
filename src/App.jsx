@@ -25,7 +25,6 @@ const ConfiguracionUnified = lazy(() => import('./features/configuracion/Configu
 const CXCIndependiente = lazy(() => import('./features/cxc/CXCIndependiente'));
 const CXPIndependiente = lazy(() => import('./features/cxp/CXPIndependiente'));
 const BudgetVsActual = lazy(() => import('./features/presupuesto/BudgetVsActual'));
-const Conciliacion = lazy(() => import('./features/conciliacion/Conciliacion'));
 const Alertas = lazy(() => import('./features/alertas/Alertas'));
 const AuditLog = lazy(() => import('./features/auditoria/AuditLog'));
 const Adjuntos = lazy(() => import('./features/adjuntos/Adjuntos'));
@@ -69,7 +68,6 @@ const VIEW_TITLES = {
  '/cxp': 'Cuentas por Pagar',
  '/nominas': 'Nóminas',
  '/presupuesto': 'Presupuesto',
- '/conciliacion': 'Conciliación Bancaria',
  '/alertas': 'Alertas',
  '/auditoria': 'Auditoría',
  '/adjuntos': 'Adjuntos',
@@ -282,7 +280,6 @@ function AppContent({ user, userRole, hasPermission }) {
  <Route path="/cxc" element={<ProtectedRoute hasPermission={hasPermission} permission="cxc"><CXCIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/cxp" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><CXPIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/presupuesto" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BudgetVsActual user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/conciliacion" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><Conciliacion user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/alertas" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><Alertas user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/auditoria" element={<ProtectedRoute hasPermission={hasPermission} permission="audit"><AuditLog user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/adjuntos" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Adjuntos user={user} userRole={userRole} /></ProtectedRoute>} />

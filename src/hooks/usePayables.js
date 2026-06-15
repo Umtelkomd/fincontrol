@@ -17,8 +17,6 @@ import { adaptPayableDoc } from '../finance/adapters';
 import {
   DEFAULT_CURRENCY,
   MAIN_ACCOUNT_ID,
-  MOVEMENT_KIND,
-  MOVEMENT_STATUS,
 } from '../finance/constants';
 import { clampMoney, toISODate } from '../finance/utils';
 import { db, appId } from '../services/firebase';
@@ -42,65 +40,6 @@ const buildPayableSnapshot = (payable, override = {}) => ({
   updatedAt: override.updatedAt ?? payable?.updatedAt ?? payable?.createdAt ?? null,
 });
 
-const createPaymentMovement = async (user, movementData) => {
-  const bankMovementsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bankMovements');
-  const payload = {
-    accountId: movementData.accountId || MAIN_ACCOUNT_ID,
-    currency: movementData.currency || DEFAULT_CURRENCY,
-    kind: MOVEMENT_KIND.PAYMENT,
-    status: MOVEMENT_STATUS.POSTED,
-    direction: 'out',
-    amount: clampMoney(movementData.amount),
-    postedDate: toISODate(movementData.date) || toISODate(new Date()),
-    valueDate: toISODate(movementData.date) || toISODate(new Date()),
-    description: movementData.description || '',
-    counterpartyName: movementData.counterpartyName || '',
-    documentNumber: movementData.documentNumber || '',
-    projectId: movementData.projectId || '',
-    projectName: movementData.projectName || '',
-    costCenterId: movementData.costCenterId || '',
-    payableId: movementData.payableId || null,
-    linkedTransactionId: movementData.linkedTransactionId || null,
-    legacyTransactionId: movementData.legacyTransactionId || null,
-    createdBy: user.email,
-    createdAt: serverTimestamp(),
-    updatedBy: user.email,
-    updatedAt: serverTimestamp(),
-    auditTrail: arrayUnion({
-      action: 'create',
-      user: user.email,
-      timestamp: new Date().toISOString(),
-      detail: 'Movimiento bancario de pago generado automaticamente',
-    }),
-  };
-  const docRef = await addDoc(bankMovementsRef, payload);
-  await writeAuditLogEntry({
-    action: 'create',
-    entityType: 'bankMovement',
-    entityId: docRef.id,
-    description: `Movimiento bancario de pago creado: ${payload.description || payload.documentNumber || docRef.id}`,
-    userEmail: user.email,
-    after: {
-      direction: payload.direction,
-      amount: payload.amount,
-      status: payload.status,
-      postedDate: payload.postedDate,
-      valueDate: payload.valueDate,
-      description: payload.description,
-      counterpartyName: payload.counterpartyName,
-      documentNumber: payload.documentNumber,
-      projectId: payload.projectId,
-      projectName: payload.projectName,
-      costCenterId: payload.costCenterId,
-      updatedBy: user.email,
-      updatedAt: new Date().toISOString(),
-    },
-    metadata: {
-      source: 'payable-payment',
-      payableId: movementData.payableId || null,
-    },
-  });
-};
 
 export const usePayables = (user) => {
   const [payables, setPayables] = useState([]);
@@ -272,20 +211,6 @@ export const usePayables = (user) => {
             detail: `Pago registrado por ${paymentAmount.toFixed(2)} ${payable.currency || DEFAULT_CURRENCY}`,
           }),
         });
-      });
-
-      await createPaymentMovement(user, {
-        amount: payment.amount,
-        date: payment.date,
-        description: payable.description || `Pago ${payable.documentNumber || payable.counterpartyName}`,
-        counterpartyName: payable.counterpartyName,
-        documentNumber: payable.documentNumber,
-        projectId: payable.projectId,
-        projectName: payable.projectName,
-        costCenterId: payable.costCenterId,
-        payableId: payable.id,
-        linkedTransactionId: payable.linkedTransactionId,
-        legacyTransactionId: payable.legacyTransactionId,
       });
 
       await writeAuditLogEntry({

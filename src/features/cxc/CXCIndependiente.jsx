@@ -102,7 +102,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
- const { linkReceivablesToMovement, forceReconcileReceivables } = useClassifier(user);
+ const { linkReceivablesToMovement } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -244,30 +244,6 @@ const CXCIndependiente = ({ user, userRole }) => {
  );
  } else {
  showToast(result.error?.message || 'Error al vincular movimiento', 'error');
- }
- return result;
- };
-
- const handleForceReconcile = async (selectedDocuments, options = {}) => {
- if (userRole !== 'admin') {
- const error = new Error('Solo un administrador puede forzar conciliación sin DATEV');
- showToast(error.message, 'error');
- return { success: false, error };
- }
- const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'receivable');
- if (documentsToLink.length === 0) {
- return { success: false, error: 'Seleccioná al menos una CXC actual' };
- }
- setLoadingId(selectedRow?.id || documentsToLink[0]?.id);
- const result = await forceReconcileReceivables(documentsToLink, {
- ...options,
- userRole,
- });
- setLoadingId(null);
- if (result.success) {
- showToast(`${result.count} CXC conciliada(s) sin DATEV por admin`, 'success');
- } else {
- showToast(result.error?.message || 'Error al forzar conciliación', 'error');
  }
  return result;
  };
@@ -490,8 +466,6 @@ const CXCIndependiente = ({ user, userRole }) => {
  documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
- allowManualForce={userRole === 'admin'}
- onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal

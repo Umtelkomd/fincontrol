@@ -10,7 +10,6 @@ const routeLoaders = {
   '/cxc': () => import('../features/cxc/CXCIndependiente'),
   '/cxp': () => import('../features/cxp/CXPIndependiente'),
   '/presupuesto': () => import('../features/presupuesto/BudgetVsActual'),
-  '/conciliacion': () => import('../features/conciliacion/Conciliacion'),
   '/alertas': () => import('../features/alertas/Alertas'),
   '/auditoria': () => import('../features/auditoria/AuditLog'),
   '/adjuntos': () => import('../features/adjuntos/Adjuntos'),
