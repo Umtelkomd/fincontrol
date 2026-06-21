@@ -25,6 +25,16 @@ import {
   CalendarClock,
   Wallet,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useForwardProjection } from '../../hooks/useForwardProjection';
 import { useAuth } from '../../hooks/useAuth';
@@ -34,7 +44,7 @@ import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
-import { computeMonthlyResult, selectDueWithinDays } from './lib/resumenMetrics';
+import { computeMonthlyResult, selectDueWithinDays, buildMonthlyCashFlowSeries } from './lib/resumenMetrics';
 
 const DUE_WINDOW_DAYS = 30;
 const UPCOMING_LIMIT = 6;
@@ -213,6 +223,31 @@ const Resumen = ({ user }) => {
   // ── Block 4: project margins (labor already folded by buildProjectMargins) ──
   const projectMargins = metrics.projectMargins || [];
 
+  // ── Block 5: monthly cash-flow series (12 months) for the charts ───────────
+  // startingBalance = currentCash − sum(net of movements within the 12-month window)
+  // so the running balance ends exactly at currentCash for the current month.
+  const monthlySeries = useMemo(() => {
+    const windowStart = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const inWindow = (metrics.postedMovements || []).filter((m) => {
+      const key = (m.postedDate || '').slice(0, 7);
+      return key >= windowStart;
+    });
+    const netInWindow = inWindow.reduce((sum, m) => {
+      const amt = Number(m.amount) || 0;
+      return sum + (m.direction === 'in' ? amt : -amt);
+    }, 0);
+    const startingBalance = (metrics.currentCash ?? 0) - netInWindow;
+    return buildMonthlyCashFlowSeries({
+      postedMovements: metrics.postedMovements || [],
+      referenceDate: now,
+      monthsCount: 12,
+      startingBalance,
+    });
+  }, [metrics.postedMovements, metrics.currentCash, now]);
+
+  const receivablesAging = metrics.receivablesAging || [];
+  const payablesAging = metrics.payablesAging || [];
+
   if (metrics.loading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -374,6 +409,110 @@ const Resumen = ({ user }) => {
           </div>
         )}
       </Panel>
+
+      {/* ──────────────────── BLOCK 5 — FLUJO DE CAJA MENSUAL ─────────────────── */}
+      <Panel title="Flujo de caja" meta="Últimos 12 meses">
+        <div
+          style={{ width: '100%', height: 260, minHeight: 260, minWidth: 0 }}
+          className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-2 py-3"
+        >
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ComposedChart data={monthlySeries} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="cashBalanceFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="2 4" stroke="var(--color-line)" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: 'var(--color-fg-4)' }}
+                interval="preserveStartEnd"
+                minTickGap={24}
+                stroke="var(--color-line)"
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: 'var(--color-fg-4)' }}
+                tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+                width={42}
+                stroke="var(--color-line)"
+              />
+              <Tooltip content={<CashFlowTooltip />} cursor={{ stroke: 'var(--color-line-s)' }} />
+              <Bar dataKey="inflows" name="Ingresos" fill="var(--color-ok)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="outflows" name="Gastos" fill="var(--color-err)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Line
+                type="monotone"
+                dataKey="balance"
+                name="Caja"
+                stroke="var(--color-accent)"
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-fg-4)]">
+          <Badge variant="neutral">Barras verdes: ingresos mensuales</Badge>
+          <Badge variant="neutral">Barras rojas: gastos mensuales</Badge>
+          <Badge variant="neutral">Línea naranja: evolución de caja</Badge>
+        </div>
+      </Panel>
+
+      {/* ──────────────────── BLOCK 6 — AGING POR COBRAR / PAGAR ──────────────── */}
+      <Panel title="Aging de cartera" meta="Días de vencimiento">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <AgingBuckets title="Por cobrar (CXC)" buckets={receivablesAging} tone="ok" />
+          <AgingBuckets title="Por pagar (CXP)" buckets={payablesAging} tone="warn" />
+        </div>
+      </Panel>
+    </div>
+  );
+};
+
+// Dark-themed tooltip for the cash-flow chart. Reads the bucket payload.
+const CashFlowTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-3 py-2">
+      <p className="font-mono text-[11px] text-[var(--color-fg-3)]">{d.label}</p>
+      <p className="font-mono text-[12px] tabular-nums text-[var(--color-ok)]">
+        Ingresos {formatCurrency(d.inflows)}
+      </p>
+      <p className="font-mono text-[12px] tabular-nums text-[var(--color-err)]">
+        Gastos {formatCurrency(d.outflows)}
+      </p>
+      <p className="font-mono text-[12px] tabular-nums text-[var(--color-accent)]">
+        Caja {formatCurrency(d.balance)}
+      </p>
+    </div>
+  );
+};
+
+// Compact aging buckets card. `buckets` comes from useTreasuryMetrics
+// (receivablesAging / payablesAging): [{ label, total }, …] (4 buckets).
+const AgingBuckets = ({ title, buckets, tone }) => {
+  const accent = tone === 'ok' ? 'var(--color-ok)' : 'var(--color-warn)';
+  return (
+    <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
+      <div className="border-b border-[var(--color-line)] px-4 py-2.5">
+        <p className="label-mono text-[var(--color-fg-3)]">{title}</p>
+      </div>
+      <div className="grid grid-cols-4 divide-x divide-[var(--color-line)]">
+        {buckets.map((b) => (
+          <div key={b.label} className="px-3 py-3 text-center">
+            <p className="label-mono text-[10px] text-[var(--color-fg-4)]">{b.label}</p>
+            <p
+              className="mt-1 font-mono text-[13px] tabular-nums"
+              style={{ color: b.total > 0 ? accent : 'var(--color-fg-4)' }}
+            >
+              {formatCurrency(b.total)}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

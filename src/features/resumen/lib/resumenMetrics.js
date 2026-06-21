@@ -133,6 +133,74 @@ export const runwayWeeks = (months) => {
   return round1(value * WEEKS_PER_MONTH);
 };
 
+/**
+ * Monthly cash-flow series for the Resumen charts.
+ *
+ * Builds N monthly buckets ending with the month containing `referenceDate`.
+ * Each bucket aggregates posted bank movements by direction ('in'/'out') and
+ * walks a running balance forward from `startingBalance`. Movements outside
+ * the window are skipped. Empty months produce zero inflows/outflows and carry
+ * the previous balance forward.
+ *
+ * @param {object} args
+ * @param {Array} args.postedMovements  movements with { postedDate, direction, amount }
+ * @param {string|Date} [args.referenceDate] defaults to today
+ * @param {number} [args.monthsCount=12]  number of monthly buckets
+ * @param {number} [args.startingBalance=0]  balance at the beginning of the window
+ * @returns {Array<{ key, label, inflows, outflows, net, balance }>}
+ */
+export const buildMonthlyCashFlowSeries = ({
+  postedMovements = [],
+  referenceDate = new Date(),
+  monthsCount = 12,
+  startingBalance = 0,
+} = {}) => {
+  const asOf = toIso(referenceDate) || todayIso();
+  const asOfDate = new Date(`${asOf}T00:00:00Z`);
+  const safeMonths = Math.max(1, Math.floor(Number(monthsCount) || 12));
+  const startBalance = round2(Number(startingBalance) || 0);
+
+  // Build the bucket keys (YYYY-MM) from N-1 months before asOf up to asOf's month.
+  const buckets = [];
+  for (let offset = safeMonths - 1; offset >= 0; offset -= 1) {
+    const d = new Date(Date.UTC(asOfDate.getUTCFullYear(), asOfDate.getUTCMonth() - offset, 1));
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+    buckets.push({ key, label, inflows: 0, outflows: 0, net: 0, balance: startBalance });
+  }
+
+  // Index buckets by key for O(1) lookup
+  const byKey = new Map(buckets.map((b, i) => [b.key, i]));
+
+  // Aggregate movements into buckets
+  const windowStartKey = buckets[0].key;
+  const windowEndKey = buckets[buckets.length - 1].key;
+
+  postedMovements.forEach((entry) => {
+    const iso = toIso(entry?.postedDate);
+    if (!iso) return;
+    const key = iso.slice(0, 7); // YYYY-MM
+    if (key < windowStartKey || key > windowEndKey) return;
+    const idx = byKey.get(key);
+    if (idx === undefined) return;
+    const amount = Number(entry?.amount) || 0;
+    if (entry?.direction === 'in') buckets[idx].inflows += amount;
+    else if (entry?.direction === 'out') buckets[idx].outflows += amount;
+  });
+
+  // Round inflows/outflows and walk running balance forward
+  let running = startBalance;
+  buckets.forEach((b) => {
+    b.inflows = round2(b.inflows);
+    b.outflows = round2(b.outflows);
+    b.net = round2(b.inflows - b.outflows);
+    running = round2(running + b.net);
+    b.balance = running;
+  });
+
+  return buckets;
+};
+
 // Exposed for tests
 export const __internal = {
   round2,

@@ -98,13 +98,14 @@ const Gastos = ({ userRole, user, onNewTransaction }) => {
  .sort((left, right) => (right.dueDate || '').localeCompare(left.dueDate || ''));
  }, [metrics.payables, searchTerm, statusFilter]);
 
- const openRows = metrics.payables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status));
- const totalOpen = openRows.reduce((sum, entry) => sum + entry.openAmount, 0);
- const totalOverdue = metrics.overduePayables.reduce((sum, entry) => sum + entry.openAmount, 0);
- const totalPartial = metrics.payables
- .filter((entry) => entry.status === 'partial')
- .reduce((sum, entry) => sum + entry.paidAmount, 0);
- const paidReal = paymentMovements.reduce((sum, entry) => sum + entry.amount, 0);
+  const openRows = metrics.payables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status));
+  const totalOpen = openRows.reduce((sum, entry) => sum + entry.openAmount, 0);
+  const totalOverdue = metrics.overduePayables.reduce((sum, entry) => sum + entry.openAmount, 0);
+  const totalPartial = metrics.payables
+  .filter((entry) => entry.status === 'partial')
+  .reduce((sum, entry) => sum + entry.paidAmount, 0);
+  const paidReal = paymentMovements.reduce((sum, entry) => sum + entry.amount, 0);
+  const payablesAging = metrics.payablesAging || [];
 
  const handleSettle = async (row) => {
  if (loadingId) return;
@@ -177,12 +178,29 @@ const Gastos = ({ userRole, user, onNewTransaction }) => {
  </div>
  </section>
 
- <div className="grid gap-4 lg:grid-cols-4">
-  <StatCard title="Pagado real" value={formatCurrency(paidReal)} subtitle={`${paymentMovements.length} pagos bancarios registrados`} accent="var(--color-accent)" icon={Wallet} onClick={() => setStatusFilter('settled')} />
-  <StatCard title="Deuda abierta" value={formatCurrency(totalOpen)} subtitle={`${openRows.length} documentos activos`} accent="var(--color-warn)" icon={BadgeEuro} onClick={() => setStatusFilter('all')} />
-  <StatCard title="Pago parcial" value={formatCurrency(totalPartial)} subtitle="Importe ya pagado sobre facturas aún abiertas" accent="var(--color-fg-3)" icon={ArrowDownCircle} />
-  <StatCard title="Vencido" value={formatCurrency(totalOverdue)} subtitle={`${metrics.overduePayables.length} documentos fuera de plazo`} accent="var(--color-accent)" icon={AlertTriangle} onClick={() => setStatusFilter('overdue')} />
- </div>
+  <div className="grid gap-4 lg:grid-cols-4">
+   <StatCard title="Pagado real" value={formatCurrency(paidReal)} subtitle={`${paymentMovements.length} pagos bancarios registrados`} accent="var(--color-accent)" icon={Wallet} onClick={() => setStatusFilter('settled')} />
+   <StatCard title="Deuda abierta" value={formatCurrency(totalOpen)} subtitle={`${openRows.length} documentos activos`} accent="var(--color-warn)" icon={BadgeEuro} onClick={() => setStatusFilter('all')} />
+   <StatCard title="Pago parcial" value={formatCurrency(totalPartial)} subtitle="Importe ya pagado sobre facturas aún abiertas" accent="var(--color-fg-3)" icon={ArrowDownCircle} />
+   <StatCard title="Vencido" value={formatCurrency(totalOverdue)} subtitle={`${metrics.overduePayables.length} documentos fuera de plazo`} accent="var(--color-accent)" icon={AlertTriangle} onClick={() => setStatusFilter('overdue')} />
+  </div>
+
+  <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5">
+   <div className="mb-3 flex items-center justify-between">
+    <p className="label-mono text-[var(--color-fg-3)]">Aging de pagos</p>
+    <p className="text-[11px] text-[var(--color-fg-4)]">Días desde vencimiento</p>
+   </div>
+   <div className="grid grid-cols-4 divide-x divide-[var(--color-line)]">
+    {payablesAging.map((b) => (
+    <div key={b.label} className="px-3 py-3 text-center">
+    <p className="label-mono text-[10px] text-[var(--color-fg-4)]">{b.label}</p>
+    <p className="mt-1 font-mono text-[14px] tabular-nums" style={{ color: b.total > 0 ? 'var(--color-warn)' : 'var(--color-fg-4)' }}>
+    {formatCurrency(b.total)}
+    </p>
+    </div>
+    ))}
+   </div>
+  </section>
 
   <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5">
  <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

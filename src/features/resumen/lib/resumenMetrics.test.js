@@ -11,6 +11,7 @@ import {
   computeMonthlyResult,
   selectDueWithinDays,
   runwayWeeks,
+  buildMonthlyCashFlowSeries,
   __internal,
 } from './resumenMetrics.js';
 
@@ -178,7 +179,124 @@ describe('runwayWeeks', () => {
   });
 });
 
-// ── internal helpers exposed for parity testing ──────────────────────────────
+// ── buildMonthlyCashFlowSeries ───────────────────────────────────────────────
+const movement = (postedDate, direction, amount, extra = {}) => ({
+  id: extra.id || `${postedDate}-${direction}-${amount}`,
+  postedDate,
+  direction,
+  amount,
+  accountId: 'main',
+  ...extra,
+});
+
+describe('buildMonthlyCashFlowSeries', () => {
+  const asOf = new Date('2026-06-15T00:00:00Z');
+
+  it('returns N monthly buckets ending with the month of referenceDate', () => {
+    const series = buildMonthlyCashFlowSeries({
+      postedMovements: [],
+      referenceDate: asOf,
+      monthsCount: 12,
+      startingBalance: 5000,
+    });
+    expect(series).toHaveLength(12);
+    expect(series[0].key).toBe('2025-07');
+    expect(series[11].key).toBe('2026-06');
+  });
+
+  it('aggregates inflows and outflows per month and computes net', () => {
+    const movs = [
+      movement('2026-06-05', 'in', 10000),
+      movement('2026-06-12', 'out', 3000),
+      movement('2026-05-20', 'in', 5000),
+      movement('2026-05-22', 'out', 2000),
+    ];
+    const series = buildMonthlyCashFlowSeries({
+      postedMovements: movs,
+      referenceDate: asOf,
+      monthsCount: 3,
+      startingBalance: 0,
+    });
+    const may = series.find((s) => s.key === '2026-05');
+    const jun = series.find((s) => s.key === '2026-06');
+    expect(may.inflows).toBe(5000);
+    expect(may.outflows).toBe(2000);
+    expect(may.net).toBe(3000);
+    expect(jun.inflows).toBe(10000);
+    expect(jun.outflows).toBe(3000);
+    expect(jun.net).toBe(7000);
+  });
+
+  it('walks running balance forward from startingBalance', () => {
+    const movs = [
+      movement('2026-05-20', 'in', 5000),
+      movement('2026-06-05', 'in', 10000),
+      movement('2026-06-12', 'out', 3000),
+    ];
+    const series = buildMonthlyCashFlowSeries({
+      postedMovements: movs,
+      referenceDate: asOf,
+      monthsCount: 3,
+      startingBalance: 1000,
+    });
+    const apr = series.find((s) => s.key === '2026-04');
+    const may = series.find((s) => s.key === '2026-05');
+    const jun = series.find((s) => s.key === '2026-06');
+    expect(apr.balance).toBe(1000);
+    expect(may.balance).toBe(6000); // 1000 + 5000
+    expect(jun.balance).toBe(13000); // 6000 + 10000 - 3000
+  });
+
+  it('skips movements outside the window', () => {
+    const movs = [
+      movement('2025-06-01', 'in', 99999), // before window
+      movement('2026-07-01', 'in', 99999), // after window (future)
+      movement('2026-06-05', 'in', 1000), // in window
+    ];
+    const series = buildMonthlyCashFlowSeries({
+      postedMovements: movs,
+      referenceDate: asOf,
+      monthsCount: 12,
+      startingBalance: 0,
+    });
+    const totalInflows = series.reduce((sum, s) => sum + s.inflows, 0);
+    expect(totalInflows).toBe(1000);
+  });
+
+  it('handles empty movements (all buckets zero inflow/outflow, balance = starting)', () => {
+    const series = buildMonthlyCashFlowSeries({
+      postedMovements: [],
+      referenceDate: asOf,
+      monthsCount: 6,
+      startingBalance: 2000,
+    });
+    expect(series).toHaveLength(6);
+    series.forEach((bucket) => {
+      expect(bucket.inflows).toBe(0);
+      expect(bucket.outflows).toBe(0);
+      expect(bucket.net).toBe(0);
+      expect(bucket.balance).toBe(2000);
+    });
+  });
+
+  it('labels months in short Spanish form', () => {
+    const series = buildMonthlyCashFlowSeries({
+      postedMovements: [],
+      referenceDate: asOf,
+      monthsCount: 3,
+      startingBalance: 0,
+    });
+    expect(series[2].label).toMatch(/jun/);
+    expect(series[2].label).toMatch(/26/);
+  });
+
+  it('default monthsCount is 12 and default referenceDate is now', () => {
+    const series = buildMonthlyCashFlowSeries({ postedMovements: [], startingBalance: 0 });
+    expect(series).toHaveLength(12);
+  });
+});
+
+// ── internal helpers exposed for parity testing ─────────────────────────────
 describe('__internal', () => {
   it('round2 matches runway.js rounding semantics (incl. IEEE-754 ties)', () => {
     // Same Math.round((n*100))/100 used by runway.js — binary float ties land
