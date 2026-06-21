@@ -1,7 +1,15 @@
 const routeLoaders = {
+  '/': () => import('../features/resumen/Resumen'),
+  '/resumen': () => import('../features/resumen/Resumen'),
   '/ingresos': () => import('../features/ingresos/Ingresos'),
   '/gastos': () => import('../features/gastos/Gastos'),
+  '/clasificar': () => import('../features/classifier/Classifier'),
+  '/movimientos': () => import('../features/movimientos/Movimientos'),
+  '/nominas': () => import('../features/nominas/Nominas'),
+  '/empleados': () => import('../features/employees/Employees'),
   '/configuracion': () => import('../features/configuracion/ConfiguracionUnified'),
+  '/reglas': () => import('../features/classification-rules/Rules'),
+  '/datev': () => import('../features/datev-import/DatevImport'),
 };
 
 const preloadCache = new Map();
