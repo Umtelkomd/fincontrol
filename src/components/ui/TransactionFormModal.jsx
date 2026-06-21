@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, ArrowUpCircle, ArrowDownCircle, Save, Loader2, RefreshCw, Calculator, UserPlus, Building2, HardHat } from 'lucide-react';
+import { X, ArrowUpCircle, ArrowDownCircle, Save, Loader2, RefreshCw, Calculator, HardHat } from 'lucide-react';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../../constants/categories';
 import { useProjects } from '../../hooks/useProjects';
-import { usePartners } from '../../hooks/usePartners';
 import { useEmployees } from '../../hooks/useEmployees';
 import { TAX_RATES } from '../../constants/config';
 import { formatCurrency, formatTaxRate } from '../../utils/formatters';
@@ -21,7 +20,6 @@ const TransactionFormModal = ({
  defaultType = null
 }) => {
  const { projects, loading: projectsLoading } = useProjects(user);
- const { partners, loading: partnersLoading } = usePartners(user);
  const { employees, loading: employeesLoading } = useEmployees(user);
 
  const [submitting, setSubmitting] = useState(false);
@@ -50,18 +48,10 @@ const TransactionFormModal = ({
  // Description autocomplete state (legacy — kept for backward compat)
  const [showSuggestions, setShowSuggestions] = useState(false);
  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
- const descriptionRef = useRef(null);
- const suggestionsRef = useRef(null);
+  const descriptionRef = useRef(null);
+  const suggestionsRef = useRef(null);
 
- // Partner autocomplete state
- const [showPartnerSuggestions, setShowPartnerSuggestions] = useState(false);
- const [activePartnerIndex, setActivePartnerIndex] = useState(-1);
- const [partnerInput, setPartnerInput] = useState('');
- const partnerInputRef = useRef(null);
- const partnerSuggestionsRef = useRef(null);
- const [, setShowCreateNewPartner] = useState(false);
-
- // Employee picker state (multi-select typeahead)
+  // Employee picker state (multi-select typeahead)
  const [employeeInput, setEmployeeInput] = useState('');
  const [showEmployeeSuggestions, setShowEmployeeSuggestions] = useState(false);
  const [activeEmployeeIndex, setActiveEmployeeIndex] = useState(-1);
@@ -113,52 +103,23 @@ const TransactionFormModal = ({
  return true;
  })
  .slice(0, 5);
- }, [formData.description, formData.type, transactions]);
+  }, [formData.description, formData.type, transactions]);
 
- // Partner type filter: for income → client, for expense → vendor
- const partnerTypeFilter = formData.type === 'income' ? 'client' : 'vendor';
-
- // Compute active partners for autocomplete (filter by type + status active)
- const partnerSuggestions = useMemo(() => {
- const query = partnerInput.trim().toLowerCase();
- if (!query || query.length < 1) return [];
- return partners
- .filter(p => {
- const typeOk = p.type === partnerTypeFilter || p.type === 'both';
- return p.status === 'active' && typeOk && p.name.toLowerCase().includes(query);
- })
- .slice(0, 8);
- }, [partnerInput, partners, partnerTypeFilter]);
-
- // Whether user typed a name that doesn't exist as a partner
- const typedPartnerNotInList = useMemo(() => {
- const query = partnerInput.trim();
- if (!query || query.length < 2) return false;
- return !partners.some(p => p.name.toLowerCase() === query.toLowerCase());
- }, [partnerInput, partners]);
-
- // Close suggestions on click outside
+  // Close suggestions on click outside
  useEffect(() => {
  const handleClickOutside = (e) => {
- if (
- suggestionsRef.current && !suggestionsRef.current.contains(e.target) &&
- descriptionRef.current && !descriptionRef.current.contains(e.target)
- ) {
- setShowSuggestions(false);
- }
- if (
- partnerSuggestionsRef.current && !partnerSuggestionsRef.current.contains(e.target) &&
- partnerInputRef.current && !partnerInputRef.current.contains(e.target)
- ) {
- setShowPartnerSuggestions(false);
- setShowCreateNewPartner(false);
- }
- if (
- employeeSuggestionsRef.current && !employeeSuggestionsRef.current.contains(e.target) &&
- employeeInputRef.current && !employeeInputRef.current.contains(e.target)
- ) {
- setShowEmployeeSuggestions(false);
- }
+  if (
+  suggestionsRef.current && !suggestionsRef.current.contains(e.target) &&
+  descriptionRef.current && !descriptionRef.current.contains(e.target)
+  ) {
+  setShowSuggestions(false);
+  }
+  if (
+  employeeSuggestionsRef.current && !employeeSuggestionsRef.current.contains(e.target) &&
+  employeeInputRef.current && !employeeInputRef.current.contains(e.target)
+  ) {
+  setShowEmployeeSuggestions(false);
+  }
  };
  document.addEventListener('mousedown', handleClickOutside);
  return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -186,13 +147,9 @@ const TransactionFormModal = ({
  taxRate: existingTaxRate,
  counterpartyId: editingTransaction.counterpartyId || '',
  counterpartyName: editingTransaction.counterpartyName || '',
- employeeIds: Array.isArray(editingTransaction.employeeIds) ? editingTransaction.employeeIds : [],
- });
- // Pre-fill partner input if editing a transaction with a known counterparty
- setPartnerInput(editingTransaction.counterpartyName || '');
- setShowPartnerSuggestions(false);
- setShowCreateNewPartner(false);
- } else {
+  employeeIds: Array.isArray(editingTransaction.employeeIds) ? editingTransaction.employeeIds : [],
+  });
+  } else {
  const firstProject = activeProjects[0];
  const firstProjectDisplay = firstProject?.displayName || (firstProject ? `${firstProject.code} (${firstProject.name})` : '');
  const initialType = defaultType || 'expense';
@@ -215,13 +172,10 @@ const TransactionFormModal = ({
  taxRate: TAX_RATES.STANDARD,
  counterpartyId: '',
  counterpartyName: '',
- employeeIds: [],
- });
- setPartnerInput('');
- setShowPartnerSuggestions(false);
- setShowCreateNewPartner(false);
- }
- setShowSuggestions(false);
+  employeeIds: [],
+  });
+  }
+  setShowSuggestions(false);
  setEmployeeInput('');
  setShowEmployeeSuggestions(false);
  // Intentionally seed form state only when the modal opens or the edited
@@ -296,81 +250,11 @@ const TransactionFormModal = ({
  e.preventDefault();
  handleSelectSuggestion(suggestions[activeSuggestionIndex]);
  }
- };
+  };
 
- const handlePartnerInputChange = (e) => {
- const value = e.target.value;
- setPartnerInput(value);
- setShowPartnerSuggestions(value.trim().length >= 1);
- setActivePartnerIndex(-1);
- setShowCreateNewPartner(false);
- // Clear counterparty if user clears the input
- if (!value.trim()) {
- setFormData(prev => ({ ...prev, counterpartyId: '', counterpartyName: '' }));
- }
- };
-
- const handleSelectPartner = (partner) => {
- setPartnerInput(partner.name);
- setFormData(prev => ({
- ...prev,
- counterpartyId: partner.id,
- counterpartyName: partner.name,
- // Auto-fill partner's default tax rate if current tax rate is still the default
- taxRate: prev.taxRate === TAX_RATES.STANDARD
- ? (partner.defaultTaxRate ?? TAX_RATES.STANDARD)
- : prev.taxRate,
- }));
- setShowPartnerSuggestions(false);
- setShowCreateNewPartner(false);
- };
-
- const handlePartnerKeyDown = (e) => {
- const totalItems = partnerSuggestions.length + (typedPartnerNotInList ? 1 : 0);
- if (!showPartnerSuggestions || totalItems === 0) return;
-
- if (e.key === 'Escape') {
- setShowPartnerSuggestions(false);
- setShowCreateNewPartner(false);
- return;
- }
- if (e.key === 'ArrowDown') {
- e.preventDefault();
- setActivePartnerIndex(prev => Math.min(prev + 1, totalItems - 1));
- } else if (e.key === 'ArrowUp') {
- e.preventDefault();
- setActivePartnerIndex(prev => Math.max(prev - 1, 0));
- } else if (e.key === 'Enter') {
- e.preventDefault();
- if (activePartnerIndex >= 0 && activePartnerIndex < partnerSuggestions.length) {
- handleSelectPartner(partnerSuggestions[activePartnerIndex]);
- } else if (activePartnerIndex === partnerSuggestions.length && typedPartnerNotInList) {
- // "Crear nuevo" selected via keyboard
- handleSelectPartner({
- id: '__new__',
- name: partnerInput.trim(),
- defaultTaxRate: TAX_RATES.STANDARD,
- });
- }
- }
- };
-
- const handleCreateNewPartner = () => {
- // Signal that user wants to create a new partner — store typed name
- setFormData(prev => ({
- ...prev,
- counterpartyId: '__new__',
- counterpartyName: partnerInput.trim(),
- }));
- setShowPartnerSuggestions(false);
- setShowCreateNewPartner(false);
- // Parent should detect counterpartyId === '__new__' and open partner creation modal
- // For now we just store the name; partner will be created on first transaction save
- };
-
- // ============================================
- // Employee picker handlers
- // ============================================
+  // ============================================
+  // Employee picker handlers
+  // ============================================
  const handleEmployeeInputChange = (e) => {
  const value = e.target.value;
  setEmployeeInput(value);
@@ -594,87 +478,11 @@ const TransactionFormModal = ({
  </div>
  </div>
  </div>
- )}
+  )}
 
- {/* Partner / Geschäftspartner autocomplete */}
- <div className="relative">
- <label className="mb-2 flex items-center gap-2 block text-sm font-medium text-[var(--color-fg-4)]">
- <Building2 size={14} className="text-[var(--color-fg-3)]" />
- {formData.type === 'income' ? 'Cliente' : 'Proveedor'}
- <span className="text-xs font-normal text-[var(--color-fg-3)]">(opcional — autocompletado)</span>
- </label>
- {partnersLoading ? (
- <div className="flex w-full items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-3)]">
- <Loader2 className="w-4 h-4 animate-spin" />
- Cargando partners...
- </div>
- ) : (
- <>
- <input
- ref={partnerInputRef}
- type="text"
- placeholder={
- formData.type === 'income'
- ? "Buscar o crear cliente..."
- : "Buscar o crear proveedor..."
- }
- className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)] "
- value={partnerInput}
- onChange={handlePartnerInputChange}
- onKeyDown={handlePartnerKeyDown}
- onFocus={() => partnerInput.trim().length >= 1 && setShowPartnerSuggestions(true)}
- autoComplete="off"
- />
- {showPartnerSuggestions && (partnerSuggestions.length > 0 || typedPartnerNotInList) && (
- <div
- ref={partnerSuggestionsRef}
- className="absolute left-0 right-0 z-[300] mt-1 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)]"
- style={{ boxShadow: 'none' }}
- >
- {partnerSuggestions.map((p, idx) => (
- <button
- key={p.id}
- type="button"
- onClick={() => handleSelectPartner(p)}
- className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
- idx === activePartnerIndex ? 'bg-transparent' : 'hover:bg-[var(--color-bg-1)]'
- } ${idx > 0 ? 'border-t border-[var(--color-bg-1)]' : ''}`}
- >
- <span className="font-medium text-[var(--color-fg-1)]">{p.name}</span>
- {p.email && <span className="ml-2 text-xs text-[var(--color-fg-3)]">{p.email}</span>}
- {p.defaultTaxRate != null && p.defaultTaxRate !== 0.19 && (
- <span className="ml-2 rounded bg-transparent px-1.5 py-0.5 text-xs text-[var(--color-warn)]">
- IVA {(p.defaultTaxRate * 100).toFixed(0)}%
- </span>
- )}
- </button>
- ))}
- {typedPartnerNotInList && (
- <button
- type="button"
- onClick={handleCreateNewPartner}
- className={`w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors border-t border-[var(--color-bg-1)] hover:bg-[var(--color-bg-1)] ${
- activePartnerIndex === partnerSuggestions.length ? 'bg-transparent' : ''
- }`}
- >
- <span className="flex items-center gap-2 font-medium text-[var(--color-fg-1)]">
- <UserPlus size={14} />
- Crear nuevo: "{partnerInput.trim()}"
- </span>
- <span className="ml-6 text-xs text-[var(--color-fg-3)]">
- Se creará automáticamente al guardar la transacción
- </span>
- </button>
- )}
- </div>
- )}
- </>
- )}
- </div>
-
- <div className="relative">
- <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
- Descripción <span className="text-[var(--color-accent)]">*</span>
+  <div className="relative">
+  <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">
+  Descripción <span className="text-[var(--color-accent)]">*</span>
  </label>
  <input
  ref={descriptionRef}

@@ -37,12 +37,7 @@ const RolesManager = lazy(() => import('./features/roles/RolesManager'));
 const WhatIf = lazy(() => import('./features/whatif/WhatIf'));
 const BackupManager = lazy(() => import('./features/backup/BackupManager'));
 const UserProfile = lazy(() => import('./features/perfil/UserProfile'));
-const Partners = lazy(() => import('./features/partners/Partners'));
 const Employees = lazy(() => import('./features/employees/Employees'));
-const Properties = lazy(() => import('./features/properties/Properties'));
-const Vehicles = lazy(() => import('./features/vehicles/Vehicles'));
-const Insurances = lazy(() => import('./features/insurances/Insurances'));
-const RecurringCosts = lazy(() => import('./features/recurring-costs/RecurringCosts'));
 const DatevImport = lazy(() => import('./features/datev-import/DatevImport'));
 const Classifier = lazy(() => import('./features/classifier/Classifier'));
 const Movimientos = lazy(() => import('./features/movimientos/Movimientos'));
@@ -78,14 +73,9 @@ const VIEW_TITLES = {
  '/roles': 'Roles',
  '/backup': 'Backup',
  '/perfil': 'Perfil',
- '/whatif': 'Simulación',
- '/partners': 'Partners',
- '/empleados': 'Empleados',
- '/viviendas': 'Viviendas',
- '/vehiculos': 'Vehículos',
- '/seguros': 'Seguros',
- '/costos-recurrentes': 'Costos recurrentes',
- '/datev': 'Importar DATEV',
+  '/whatif': 'Simulación',
+  '/empleados': 'Empleados',
+  '/datev': 'Importar DATEV',
  '/clasificar': 'Bandeja semanal',
  '/movimientos': 'Movimientos bancarios',
  '/reglas': 'Reglas de clasificación',
@@ -275,14 +265,9 @@ function AppContent() {
  <Route path="/multi-moneda" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><MultiMoneda user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/roles" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><RolesManager user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/backup" element={<ProtectedRoute hasPermission={hasPermission} permission="backup"><BackupManager user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/perfil" element={<UserProfile user={user} userRole={userRole} />} />
- <Route path="/partners" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Partners user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/empleados" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Employees user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/viviendas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Properties user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/vehiculos" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Vehicles user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/seguros" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Insurances user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/costos-recurrentes" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><RecurringCosts user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/datev" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><DatevImport user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/perfil" element={<UserProfile user={user} userRole={userRole} />} />
+  <Route path="/empleados" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Employees user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/datev" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><DatevImport user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/clasificar" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Classifier user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/movimientos" element={<ProtectedRoute hasPermission={hasPermission} permission="dashboard"><Movimientos user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/reglas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Rules user={user} userRole={userRole} /></ProtectedRoute>} />
