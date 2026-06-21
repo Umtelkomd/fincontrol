@@ -17,7 +17,7 @@
  * margins WITHOUT labor instead of breaking. UI copy is Spanish; identifiers and
  * comments are English. NEXUS.OS tokens only; accent reserved for highlights.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -223,11 +223,45 @@ const Resumen = ({ user }) => {
   // ── Block 4: project margins (labor already folded by buildProjectMargins) ──
   const projectMargins = metrics.projectMargins || [];
 
-  // ── Block 5: monthly cash-flow series (12 months) for the charts ───────────
-  // startingBalance = currentCash − sum(net of movements within the 12-month window)
-  // so the running balance ends exactly at currentCash for the current month.
+  // ── Block 5: monthly cash-flow series for the charts ───────────────────────
+  // Year filter: 'trailing' = 12 months ending current month, or a specific
+  // year (e.g. 2026) = Jan–Dec of that year. startingBalance is computed so
+  // the running balance ends at currentCash for trailing mode, or at the
+  // end-of-year balance for specific-year mode.
+  const [cashFlowYear, setCashFlowYear] = useState('trailing');
+
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    (metrics.postedMovements || []).forEach((m) => {
+      const y = (m.postedDate || '').slice(0, 4);
+      if (y) years.add(Number(y));
+    });
+    years.add(now.getFullYear());
+    return Array.from(years).sort((a, b) => b - a);
+  }, [metrics.postedMovements, now]);
+
   const monthlySeries = useMemo(() => {
-    const windowStart = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (cashFlowYear === 'trailing') {
+      const windowStart = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const inWindow = (metrics.postedMovements || []).filter((m) => {
+        const key = (m.postedDate || '').slice(0, 7);
+        return key >= windowStart;
+      });
+      const netInWindow = inWindow.reduce((sum, m) => {
+        const amt = Number(m.amount) || 0;
+        return sum + (m.direction === 'in' ? amt : -amt);
+      }, 0);
+      const startingBalance = (metrics.currentCash ?? 0) - netInWindow;
+      return buildMonthlyCashFlowSeries({
+        postedMovements: metrics.postedMovements || [],
+        referenceDate: now,
+        monthsCount: 12,
+        startingBalance,
+      });
+    }
+    // Specific year: Jan–Dec. referenceDate = Dec 1 of that year → buckets Jan..Dec.
+    const yearEnd = new Date(Date.UTC(Number(cashFlowYear), 11, 1));
+    const windowStart = `${cashFlowYear}-01`;
     const inWindow = (metrics.postedMovements || []).filter((m) => {
       const key = (m.postedDate || '').slice(0, 7);
       return key >= windowStart;
@@ -239,11 +273,11 @@ const Resumen = ({ user }) => {
     const startingBalance = (metrics.currentCash ?? 0) - netInWindow;
     return buildMonthlyCashFlowSeries({
       postedMovements: metrics.postedMovements || [],
-      referenceDate: now,
+      referenceDate: yearEnd,
       monthsCount: 12,
       startingBalance,
     });
-  }, [metrics.postedMovements, metrics.currentCash, now]);
+  }, [metrics.postedMovements, metrics.currentCash, now, cashFlowYear]);
 
   const receivablesAging = metrics.receivablesAging || [];
   const payablesAging = metrics.payablesAging || [];
@@ -411,52 +445,127 @@ const Resumen = ({ user }) => {
       </Panel>
 
       {/* ──────────────────── BLOCK 5 — FLUJO DE CAJA MENSUAL ─────────────────── */}
-      <Panel title="Flujo de caja" meta="Últimos 12 meses">
+      <Panel
+        title="Flujo de caja"
+        meta={cashFlowYear === 'trailing' ? 'Últimos 12 meses' : `Año ${cashFlowYear}`}
+      >
+        {/* Year filter pills + period summary */}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCashFlowYear('trailing')}
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+                cashFlowYear === 'trailing'
+                  ? 'border-[var(--color-line-s)] bg-[var(--color-bg-2)] text-[var(--color-accent)]'
+                  : 'border-[var(--color-line)] text-[var(--color-fg-4)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]'
+              }`}
+            >
+              12 meses
+            </button>
+            {availableYears.map((y) => (
+              <button
+                key={y}
+                type="button"
+                onClick={() => setCashFlowYear(y)}
+                className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+                  cashFlowYear === y
+                    ? 'border-[var(--color-line-s)] bg-[var(--color-bg-2)] text-[var(--color-accent)]'
+                    : 'border-[var(--color-line)] text-[var(--color-fg-4)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]'
+                }`}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-4 text-[12px]">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-[var(--color-ok)]" />
+              <span className="text-[var(--color-fg-4)]">Ingresos</span>
+              <span className="font-mono tabular-nums text-[var(--color-fg-1)]">
+                {formatCurrency(monthlySeries.reduce((s, b) => s + b.inflows, 0))}
+              </span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-[var(--color-err)]" />
+              <span className="text-[var(--color-fg-4)]">Gastos</span>
+              <span className="font-mono tabular-nums text-[var(--color-fg-1)]">
+                {formatCurrency(monthlySeries.reduce((s, b) => s + b.outflows, 0))}
+              </span>
+            </span>
+          </div>
+        </div>
+
         <div
-          style={{ width: '100%', height: 260, minHeight: 260, minWidth: 0 }}
-          className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-2 py-3"
+          style={{ width: '100%', height: 300, minHeight: 300, minWidth: 0 }}
+          className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-4"
         >
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <ComposedChart data={monthlySeries} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+            <ComposedChart
+              data={monthlySeries}
+              margin={{ top: 8, right: 16, left: 4, bottom: 4 }}
+              barGap={2}
+              barCategoryGap="22%"
+            >
               <defs>
-                <linearGradient id="cashBalanceFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.2} />
+                <linearGradient id="inflowBarFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-ok)" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="var(--color-ok)" stopOpacity={0.55} />
+                </linearGradient>
+                <linearGradient id="outflowBarFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-err)" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="var(--color-err)" stopOpacity={0.55} />
+                </linearGradient>
+                <linearGradient id="cashBalanceArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.28} />
                   <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="2 4" stroke="var(--color-line)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 6" stroke="var(--color-line)" vertical={false} strokeOpacity={0.6} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: 'var(--color-fg-4)' }}
+                tick={{ fontSize: 11, fill: 'var(--color-fg-4)', fontFamily: 'var(--font-mono)' }}
                 interval="preserveStartEnd"
-                minTickGap={24}
-                stroke="var(--color-line)"
+                minTickGap={20}
+                axisLine={{ stroke: 'var(--color-line)' }}
+                tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: 'var(--color-fg-4)' }}
+                tick={{ fontSize: 11, fill: 'var(--color-fg-4)', fontFamily: 'var(--font-mono)' }}
                 tickFormatter={(v) => `${Math.round(v / 1000)}k`}
-                width={42}
-                stroke="var(--color-line)"
+                width={48}
+                axisLine={false}
+                tickLine={false}
               />
-              <Tooltip content={<CashFlowTooltip />} cursor={{ stroke: 'var(--color-line-s)' }} />
-              <Bar dataKey="inflows" name="Ingresos" fill="var(--color-ok)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="outflows" name="Gastos" fill="var(--color-err)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Tooltip content={<CashFlowTooltip />} cursor={{ fill: 'var(--color-bg-3)', stroke: 'var(--color-line-s)' }} />
+              <Bar dataKey="inflows" name="Ingresos" fill="url(#inflowBarFill)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="outflows" name="Gastos" fill="url(#outflowBarFill)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
               <Line
                 type="monotone"
                 dataKey="balance"
                 name="Caja"
                 stroke="var(--color-accent)"
-                strokeWidth={1.5}
-                dot={false}
+                strokeWidth={2}
+                dot={{ r: 2.5, fill: 'var(--color-accent)', strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: 'var(--color-accent)', strokeWidth: 2, stroke: 'var(--color-bg-2)' }}
                 isAnimationActive={false}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-fg-4)]">
-          <Badge variant="neutral">Barras verdes: ingresos mensuales</Badge>
-          <Badge variant="neutral">Barras rojas: gastos mensuales</Badge>
-          <Badge variant="neutral">Línea naranja: evolución de caja</Badge>
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-[var(--color-fg-4)]">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-sm bg-[var(--color-ok)]" />
+            Ingresos mensuales
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-sm bg-[var(--color-err)]" />
+            Gastos mensuales
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-0.5 w-4 rounded-full bg-[var(--color-accent)]" />
+            Evolución de caja
+          </span>
         </div>
       </Panel>
 
@@ -475,18 +584,49 @@ const Resumen = ({ user }) => {
 const CashFlowTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  const net = d.inflows - d.outflows;
   return (
-    <div className="rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-3 py-2">
-      <p className="font-mono text-[11px] text-[var(--color-fg-3)]">{d.label}</p>
-      <p className="font-mono text-[12px] tabular-nums text-[var(--color-ok)]">
-        Ingresos {formatCurrency(d.inflows)}
-      </p>
-      <p className="font-mono text-[12px] tabular-nums text-[var(--color-err)]">
-        Gastos {formatCurrency(d.outflows)}
-      </p>
-      <p className="font-mono text-[12px] tabular-nums text-[var(--color-accent)]">
-        Caja {formatCurrency(d.balance)}
-      </p>
+    <div className="rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-3 shadow-lg">
+      <p className="label-mono text-[10px] uppercase tracking-wider text-[var(--color-fg-4)] mb-2">{d.label}</p>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-2 text-[11px] text-[var(--color-fg-3)]">
+            <span className="h-2 w-2 rounded-sm bg-[var(--color-ok)]" />
+            Ingresos
+          </span>
+          <span className="font-mono text-[12px] tabular-nums text-[var(--color-ok)]">
+            {formatCurrency(d.inflows)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-2 text-[11px] text-[var(--color-fg-3)]">
+            <span className="h-2 w-2 rounded-sm bg-[var(--color-err)]" />
+            Gastos
+          </span>
+          <span className="font-mono text-[12px] tabular-nums text-[var(--color-err)]">
+            {formatCurrency(d.outflows)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4 border-t border-[var(--color-line)] pt-1.5 mt-1.5">
+          <span className="text-[11px] text-[var(--color-fg-3)]">Neto</span>
+          <span
+            className="font-mono text-[12px] tabular-nums font-medium"
+            style={{ color: net >= 0 ? 'var(--color-ok)' : 'var(--color-err)' }}
+          >
+            {net >= 0 ? '+' : '−'}
+            {formatCurrency(Math.abs(net))}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-2 text-[11px] text-[var(--color-fg-3)]">
+            <span className="h-0.5 w-3 rounded-full bg-[var(--color-accent)]" />
+            Caja
+          </span>
+          <span className="font-mono text-[12px] tabular-nums text-[var(--color-accent)]">
+            {formatCurrency(d.balance)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -495,17 +635,21 @@ const CashFlowTooltip = ({ active, payload }) => {
 // (receivablesAging / payablesAging): [{ label, total }, …] (4 buckets).
 const AgingBuckets = ({ title, buckets, tone }) => {
   const accent = tone === 'ok' ? 'var(--color-ok)' : 'var(--color-warn)';
+  const total = buckets.reduce((sum, b) => sum + (Number(b.total) || 0), 0);
   return (
     <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
-      <div className="border-b border-[var(--color-line)] px-4 py-2.5">
+      <div className="flex items-center justify-between border-b border-[var(--color-line)] px-4 py-2.5">
         <p className="label-mono text-[var(--color-fg-3)]">{title}</p>
+        <p className="font-mono text-[12px] tabular-nums" style={{ color: total > 0 ? accent : 'var(--color-fg-4)' }}>
+          {formatCurrency(total)}
+        </p>
       </div>
       <div className="grid grid-cols-4 divide-x divide-[var(--color-line)]">
         {buckets.map((b) => (
-          <div key={b.label} className="px-3 py-3 text-center">
-            <p className="label-mono text-[10px] text-[var(--color-fg-4)]">{b.label}</p>
+          <div key={b.label} className="px-3 py-4 text-center">
+            <p className="label-mono text-[10px] uppercase tracking-wider text-[var(--color-fg-4)]">{b.label}</p>
             <p
-              className="mt-1 font-mono text-[13px] tabular-nums"
+              className="mt-1.5 font-mono text-[14px] tabular-nums font-medium"
               style={{ color: b.total > 0 ? accent : 'var(--color-fg-4)' }}
             >
               {formatCurrency(b.total)}
