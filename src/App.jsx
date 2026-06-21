@@ -25,12 +25,10 @@ const ConfiguracionUnified = lazy(() => import('./features/configuracion/Configu
 const CXCIndependiente = lazy(() => import('./features/cxc/CXCIndependiente'));
 const CXPIndependiente = lazy(() => import('./features/cxp/CXPIndependiente'));
 const BudgetVsActual = lazy(() => import('./features/presupuesto/BudgetVsActual'));
-const Conciliacion = lazy(() => import('./features/conciliacion/Conciliacion'));
 const Alertas = lazy(() => import('./features/alertas/Alertas'));
 const AuditLog = lazy(() => import('./features/auditoria/AuditLog'));
 const Adjuntos = lazy(() => import('./features/adjuntos/Adjuntos'));
 const Recurrencia = lazy(() => import('./features/recurrencia/Recurrencia'));
-const ImportExport = lazy(() => import('./features/importexport/ImportExport'));
 const BalanceGeneral = lazy(() => import('./features/balance/BalanceGeneral'));
 const ProyectoDashboard = lazy(() => import('./features/proyectos/ProyectoDashboard'));
 const ProyeccionCashflow = lazy(() => import('./features/cashflow/ProyeccionCashflow'));
@@ -68,14 +66,12 @@ const VIEW_TITLES = {
  '/cxc': 'Cuentas por Cobrar',
  '/cxp': 'Cuentas por Pagar',
  '/nominas': 'Nóminas',
- '/presupuesto': 'Presupuesto',
- '/conciliacion': 'Conciliación Bancaria',
- '/alertas': 'Alertas',
+  '/presupuesto': 'Presupuesto',
+  '/alertas': 'Alertas',
  '/auditoria': 'Auditoría',
  '/adjuntos': 'Adjuntos',
- '/recurrencia': 'Recurrentes',
- '/import-export': 'Importación y Exportación',
- '/balance': 'Balance General',
+  '/recurrencia': 'Recurrentes',
+  '/balance': 'Balance General',
  '/proyectos': 'Proyectos',
  '/proyeccion': 'Proyección',
  '/multi-moneda': 'Multi-moneda',
@@ -267,14 +263,12 @@ function AppContent() {
  <Route path="/configuracion" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ConfiguracionUnified user={user} transactions={filteredTransactions} /></ProtectedRoute>} />
  <Route path="/cxc" element={<ProtectedRoute hasPermission={hasPermission} permission="cxc"><CXCIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/cxp" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><CXPIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/presupuesto" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BudgetVsActual user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/conciliacion" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><Conciliacion user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/alertas" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><Alertas user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/presupuesto" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BudgetVsActual user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/alertas" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><Alertas user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/auditoria" element={<ProtectedRoute hasPermission={hasPermission} permission="audit"><AuditLog user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/adjuntos" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Adjuntos user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/recurrencia" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Recurrencia user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/import-export" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ImportExport user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/balance" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BalanceGeneral user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/recurrencia" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Recurrencia user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/balance" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BalanceGeneral user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/whatif" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><WhatIf user={user} /></ProtectedRoute>} />
  <Route path="/proyectos" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ProyectoDashboard user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/proyeccion" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ProyeccionCashflow user={user} userRole={userRole} /></ProtectedRoute>} />
