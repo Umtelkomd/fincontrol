@@ -19,8 +19,8 @@
  *   runwayWeeks(months)
  *     → months * 4.345 rounded to 1 decimal; Infinity/null/NaN → Infinity.
  *
- * Conventions (round2, toIso, addDaysIso, __internal) mirror
- * src/features/cfo/lib/runway.js so the two modules read the same way.
+ * Conventions (round2, toIso, addDaysIso, __internal) keep the helpers
+ * deterministic and easy to unit-test without React or Firestore.
  */
 
 const WEEKS_PER_MONTH = 4.345;

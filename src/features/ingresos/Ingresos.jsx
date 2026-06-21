@@ -111,14 +111,10 @@ const Ingresos = ({ userRole, user, onNewTransaction }) => {
   const openRows = metrics.receivables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status));
   const totalOpen = openRows.reduce((sum, entry) => sum + entry.openAmount, 0);
   const totalOverdue = metrics.overdueReceivables.reduce((sum, entry) => sum + entry.openAmount, 0);
-  const totalPartial = metrics.receivables
-    .filter((entry) => entry.status === 'partial')
-    .reduce((sum, entry) => sum + entry.paidAmount, 0);
   const collectedReal = collectionMovements.reduce((sum, entry) => sum + entry.amount, 0);
   const receivablesAging = metrics.receivablesAging || [];
 
   const pendingValidation = openRows.filter((entry) => !isDatevValidated(entry));
-  const datevValidated = metrics.receivables.filter((entry) => isDatevValidated(entry));
 
   const openReceivablesForLink = useMemo(
     () => metrics.receivables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status)),

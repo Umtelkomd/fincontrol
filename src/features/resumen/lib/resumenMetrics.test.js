@@ -1,8 +1,8 @@
 /**
  * Unit tests for resumenMetrics.js — pure math, no mocks needed.
  *
- * Vitest API. Style mirrors src/features/cfo/lib/runway.test.js:
- * plain object factories, a frozen asOfDate, no Firestore, no React.
+ * Vitest API. Pure-function tests use plain object factories, frozen dates,
+ * no Firestore, and no React.
  */
 
 import { describe, expect, it } from 'vitest';

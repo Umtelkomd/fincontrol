@@ -111,9 +111,6 @@ const Gastos = ({ userRole, user, onNewTransaction }) => {
   const openRows = metrics.payables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status));
   const totalOpen = openRows.reduce((sum, entry) => sum + entry.openAmount, 0);
   const totalOverdue = metrics.overduePayables.reduce((sum, entry) => sum + entry.openAmount, 0);
-  const totalPartial = metrics.payables
-    .filter((entry) => entry.status === 'partial')
-    .reduce((sum, entry) => sum + entry.paidAmount, 0);
   const paidReal = paymentMovements.reduce((sum, entry) => sum + entry.amount, 0);
   const payablesAging = metrics.payablesAging || [];
 
