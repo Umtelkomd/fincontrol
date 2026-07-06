@@ -168,7 +168,7 @@ const RecordAuditTrailModal = ({ isOpen, onClose, record, logs = [], loading = f
  <div className="flex items-center justify-center py-18">
  <div className="flex items-center gap-3 text-[var(--color-fg-4)]">
  <History size={18} />
- [CARGANDO...]
+ Cargando…
  </div>
  </div>
  ) : timeline.length === 0 ? (

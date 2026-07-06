@@ -167,7 +167,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canRegisterPayment && (
  <button
  onClick={() => onRegisterPayment(t)}
- className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-full px-2.5 py-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-md px-2.5 py-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
  title={t.paymentActionLabel || 'Abono'}
  >
  {t.paymentActionLabel || 'Abono'}
@@ -177,7 +177,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canChangeStatus && (
  <button
  onClick={() => onChangeStatus(t)}
- className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-full px-2.5 py-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-line-s)] rounded-md px-2.5 py-1.5 text-[var(--color-fg-3)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
  title="Cambiar estado"
  >
  Estado
@@ -217,7 +217,7 @@ const TransactionRow = ({ t, onDelete, onEdit, onViewNotes, onRegisterPayment, o
  {canVoid && (
  <button
  onClick={() => onVoid(t)}
- className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-err)] rounded-full px-2.5 py-1.5 text-[var(--color-err)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
+ className="font-mono text-[10px] uppercase tracking-[0.06em] border border-[var(--color-err)] rounded-md px-2.5 py-1.5 text-[var(--color-err)] transition-colors hover:text-[var(--color-fg-1)] hover:border-[var(--color-fg-1)]"
  title={t.voidActionLabel || 'Anular'}
  >
  {t.voidActionLabel || 'Anular'}

@@ -124,7 +124,7 @@ const TransactionFilters = ({
  key={key}
  type="button"
  onClick={() => setQuickFilter(key)}
- className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-all ${
+ className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-all ${
  quickFilter === key
  ? 'border border-[var(--color-accent)] bg-transparent text-[var(--color-accent)]'
  : 'border border-[var(--color-line)] bg-[var(--color-bg-1)] text-[var(--color-fg-4)] hover:bg-[var(--color-bg-1)] hover:text-[var(--color-fg-1)]'

@@ -52,10 +52,10 @@
   --f-mono: "JetBrains Mono", ui-monospace, monospace;
   --f-text: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* Radius — disciplinado */
+  /* Radius — disciplinado (spec: 4 / 6 / 10) */
   --r-sm: 4px;
   --r-md: 6px;
-  --r-lg: 8px;
+  --r-lg: 10px;
 
   /* Spacing — escala geométrica */
   --s-1: 4px;
@@ -68,14 +68,16 @@
   --s-8: 64px;
 }
 
-/* Dark mode opt-in: agregá class="nx-dark" a html o body */
+/* Dark mode (FinControl default — see useTheme.js): aligned to the NEXUS.OS
+   spec surface scale so canonical components (paper/bone consumers) land on
+   the same steps as the --color-bg-* tokens. */
 .nx-dark {
   --ink: #F5F3EE;
-  --paper: #0A0B0D;
-  --bone: #1A1C20;
-  --graphite: #2A2C30;
-  --rule: rgba(245, 243, 238, 0.14);
-  --rule-strong: rgba(245, 243, 238, 0.22);
+  --paper: #07080A;    /* page — spec bg-0 */
+  --bone: #161920;     /* card — spec bg-2 */
+  --graphite: #1D2029; /* elevated — spec bg-3 */
+  --rule: #222630;
+  --rule-strong: #2E3440;
 }
 
 /* ---------- RESET ---------- */
@@ -787,6 +789,44 @@ button { font: inherit; cursor: pointer; }
   --font-display: var(--f-display);
   --font-mono: var(--f-mono);
   --font-sans: var(--f-text);
+
+  /* Radius aliases — spec contract is --radius-sm/md/lg = 4/6/10 */
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+}
+
+/* ============================================================
+   ▼ NEXUS.OS dark theme — THE canonical FinControl rendering
+   The spec (.claude/agents/nexus-design.md) is dark-first and
+   strict: a 4-step surface escalation, explicit fg scale, and
+   its own semantic signal set. These exact hex values ARE the
+   contract — do not derive them from paper/bone/color-mix.
+   Light mode (no .nx-dark) remains available via the toggle.
+   ============================================================ */
+.nx-dark {
+  /* Surfaces — page → panel → card → elevated → hover */
+  --color-bg-0: #07080A;
+  --color-bg-1: #0E1014;
+  --color-bg-2: #161920;
+  --color-bg-3: #1D2029;
+  --color-bg-4: #262A34;
+
+  /* Rules */
+  --color-line: #222630;
+  --color-line-s: #2E3440;
+
+  /* Text scale */
+  --color-fg-1: #F5F3EE;
+  --color-fg-2: #B9BAB4;
+  --color-fg-3: #7B7D7A;
+  --color-fg-4: #4A4C50;
+
+  /* Semantic — spec signal set (not the light-mode Material palette) */
+  --color-ok: #4ADE80;
+  --color-warn: #FFB020;
+  --color-err: #FF4D2E;
+  --color-info: #6BA6FF;
 }
 
 /* Legacy button classes — mirror canonical .nx-btn variants */

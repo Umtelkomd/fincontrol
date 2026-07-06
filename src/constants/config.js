@@ -1,15 +1,3 @@
-// NEXUS.OS — Monochrome Chart Palette
-export const COLORS = [
-  '#E8E8E8', // Primary white
-  '#999999', // Secondary gray
-  '#666666', // Tertiary gray
-  '#444444', // Quaternary gray
-  '#333333', // Quinary gray
-  '#D71921', // Accent red (sparingly)
-  '#4A9E5C', // Success green (sparingly)
-  '#D4A843', // Warning amber (sparingly)
-];
-
 export const ADMIN_EMAIL = 'jromero@umtelkomd.com';
 
 // Role assignments by email

@@ -342,7 +342,7 @@ const Reports = () => {
  <div className="absolute left-0 top-full z-20 mt-2 max-h-[320px] min-w-[220px] overflow-y-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] py-2 ">
  {monthsByYear.map(([year, months]) => (
  <div key={year}>
- <div className="px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-fg-4)]">
+ <div className="px-4 py-1.5 text-xs font-medium uppercase tracking-[0.14em] text-[var(--color-fg-4)]">
  {year}
  </div>
  {months.map((key) => (

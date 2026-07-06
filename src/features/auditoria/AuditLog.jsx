@@ -71,7 +71,7 @@ const AuditLog = ({ user }) => {
  <button
  type="button"
  onClick={clearContextFilter}
- className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line)] px-3 py-2 text-[12px] font-medium text-[var(--color-fg-3)] transition-colors hover:bg-[var(--color-bg-1)]"
+ className="inline-flex items-center gap-2 rounded-md border border-[var(--color-line)] px-3 py-2 text-[12px] font-medium text-[var(--color-fg-3)] transition-colors hover:bg-[var(--color-bg-1)]"
  >
  <X size={14} />
  Quitar filtro

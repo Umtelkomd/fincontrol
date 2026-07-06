@@ -147,7 +147,7 @@ const Partners = ({ user }) => {
  <button
  type="button"
  onClick={handleOpenCreate}
- className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-5 py-2.5 text-sm font-medium text-[var(--color-fg-1)] transition hover:"
+ className="inline-flex items-center gap-2 rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-5 py-2.5 text-sm font-medium text-[var(--color-fg-1)] transition hover:"
  >
  <Plus size={15} />
  Nuevo Partner
@@ -349,7 +349,7 @@ const Partners = ({ user }) => {
  type="button"
  onClick={() => handleToggleStatus(partner)}
  disabled={actionLoading === partner.id}
- className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+ className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
  isInactive
  ? 'bg-[var(--color-bg-1)] text-[var(--color-fg-3)]'
  : 'bg-transparent text-[var(--color-ok)]'
