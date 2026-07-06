@@ -253,13 +253,26 @@ const countDuplicates = (rows, fingerprint) => {
   return { groups, redundant };
 };
 
+// The purpose/reference is part of the fingerprint on purpose: date+amount+
+// counterparty alone flags real distinct payments (e.g. office rent €50 AND a
+// loan installment €50 to the same person on the same day — verified against
+// production 2026-07: all 31 coarse-fingerprint groups were legitimate pairs).
+// A true re-import carries the identical bank purpose string.
 const movementFingerprint = (m) =>
   [m.postedDate || m.date, m.amount ?? m.signedAmount, m.direction,
-    (m.counterpartyName || '').trim().toLowerCase()].join('|');
+    (m.counterpartyName || '').trim().toLowerCase(),
+    (m.purpose || m.description || '').trim().toLowerCase().slice(0, 60)].join('|');
 
-const documentFingerprint = (d) =>
-  [(d.vendor || d.client || d.counterpartyName || '').trim().toLowerCase(),
-    d.invoiceNumber || d.invoice || '', d.amount ?? d.total ?? ''].join('|');
+// With an invoice number, vendor+invoice+amount is a true duplicate. Without
+// one, installment series (same vendor, same amount, monthly) are normal —
+// require same description AND same issueDate before calling it a duplicate.
+const documentFingerprint = (d) => {
+  const vendor = (d.vendor || d.client || d.counterpartyName || '').trim().toLowerCase();
+  const amount = d.amount ?? d.total ?? '';
+  const invoice = d.invoiceNumber || d.invoice || '';
+  if (invoice) return `${vendor}|inv:${invoice}|${amount}`;
+  return `${vendor}|desc:${(d.description || '').trim().toLowerCase()}|${d.issueDate || ''}|${amount}`;
+};
 
 export const summarizeDataQuality = (snapshot = {}) => {
   const warnings = [];

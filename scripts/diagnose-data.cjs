@@ -68,15 +68,26 @@ async function diagnose() {
       bump(byYear, getYear(d.date || d.dueDate || d.transactionDate || d.postedDate));
       bump(byOrigin, d.importSource || d.migrationSource || d.source || '(untagged)');
 
+      // Fingerprints mirror src/features/cfo/lib/cfoMetrics.js — keep in sync.
+      // Purpose is included because date|amount|dir|counterparty alone flags
+      // legitimate distinct payments (rent + loan installment, same day/person).
       if (coll === 'bankMovements') {
         if (d.rowHash) bump(hashCounts, d.rowHash);
         const fp = [d.postedDate || d.date, d.amount ?? d.signedAmount, d.direction,
-          (d.counterpartyName || '').trim().toLowerCase()].join('|');
+          (d.counterpartyName || '').trim().toLowerCase(),
+          (d.purpose || d.description || '').trim().toLowerCase().slice(0, 60)].join('|');
         bump(fpCounts, fp);
       }
+      // Installment series (same vendor+amount, no invoice, different dates)
+      // are normal — only same invoice number, or same description+issueDate,
+      // counts as a duplicate.
       if (coll === 'receivables' || coll === 'payables') {
-        const fp = [(d.vendor || d.client || d.counterpartyName || '').trim().toLowerCase(),
-          d.invoiceNumber || d.invoice || '', d.amount ?? d.total ?? ''].join('|');
+        const vendor = (d.vendor || d.client || d.counterpartyName || '').trim().toLowerCase();
+        const amount = d.amount ?? d.total ?? '';
+        const invoice = d.invoiceNumber || d.invoice || '';
+        const fp = invoice
+          ? `${vendor}|inv:${invoice}|${amount}`
+          : `${vendor}|desc:${(d.description || '').trim().toLowerCase()}|${d.issueDate || ''}|${amount}`;
         bump(apFpCounts, fp);
       }
     });

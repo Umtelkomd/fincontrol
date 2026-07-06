@@ -99,9 +99,14 @@ export const usePayables = (user) => {
         payrollPeriod: data.payrollPeriod || null,
         payrollPeriodId: data.payrollPeriodId || null,
         payrollKind: data.payrollKind || null,
-        source: data.source || null,
-        // Document fingerprint (Nóminas): which DATEV PDF this payable came from.
-        sourceDocument: data.sourceDocument || null,
+        // `source` is an origin TAG and must stay a string — external ingestions
+        // have passed provenance objects here, which render as "[object Object]"
+        // in every origin breakdown. Objects are rerouted to sourceDocument.
+        source: typeof data.source === 'string' ? data.source : data.source ? 'external-import' : null,
+        // Document fingerprint: which PDF/attachment this payable came from.
+        sourceDocument:
+          data.sourceDocument
+          || (data.source && typeof data.source === 'object' ? data.source : null),
         description: data.description || '',
         grossAmount: amount,
         amount,

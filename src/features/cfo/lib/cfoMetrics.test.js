@@ -176,16 +176,16 @@ describe('summarizeDataQuality', () => {
     expect(out.stats.unknownProjectRefs).toBe(2);
   });
 
-  it('warns when bank movements share date, amount, direction and counterparty', () => {
+  it('warns when bank movements share date, amount, direction, counterparty AND purpose', () => {
     const out = summarizeDataQuality({
       transactions: [{ id: 't1' }],
       recurringCosts: [{ id: 'rc1' }],
       projects: [],
       budgets: [{ id: 'b1' }],
       bankMovements: [
-        movement('2026-04-25', 'in', 100, { id: 'm1', counterpartyName: 'ACME GmbH' }),
-        movement('2026-04-25', 'in', 100, { id: 'm2', counterpartyName: 'acme gmbh ' }),
-        movement('2026-04-26', 'out', 50, { id: 'm3', counterpartyName: 'Otro' }),
+        movement('2026-04-25', 'in', 100, { id: 'm1', counterpartyName: 'ACME GmbH', purpose: 'SVWZ+Rechnung 42' }),
+        movement('2026-04-25', 'in', 100, { id: 'm2', counterpartyName: 'acme gmbh ', purpose: 'svwz+rechnung 42' }),
+        movement('2026-04-26', 'out', 50, { id: 'm3', counterpartyName: 'Otro', purpose: 'x' }),
       ],
       receivables: [],
       payables: [],
@@ -195,6 +195,43 @@ describe('summarizeDataQuality', () => {
     expect(warning).toBeDefined();
     expect(warning.variant).toBe('warn');
     expect(out.stats.duplicateBankMovements).toBe(1);
+  });
+
+  it('does NOT flag distinct same-day payments to the same counterparty (rent + loan case)', () => {
+    const out = summarizeDataQuality({
+      transactions: [{ id: 't1' }],
+      recurringCosts: [{ id: 'rc1' }],
+      projects: [],
+      budgets: [{ id: 'b1' }],
+      bankMovements: [
+        movement('2026-06-05', 'out', 50, { id: 'm1', counterpartyName: 'Beatriz Sandoval', purpose: 'SVWZ+Bueromiete Juni' }),
+        movement('2026-06-05', 'out', 50, { id: 'm2', counterpartyName: 'Beatriz Sandoval', purpose: 'SVWZ+Darlehn vom 12.06.2024' }),
+      ],
+      receivables: [],
+      payables: [],
+    });
+
+    expect(out.warnings.find((w) => w.id === 'bank-movements-duplicated')).toBeUndefined();
+    expect(out.stats.duplicateBankMovements).toBe(0);
+  });
+
+  it('does NOT flag installment series (same vendor+amount, no invoice, different dates)', () => {
+    const out = summarizeDataQuality({
+      transactions: [{ id: 't1' }],
+      recurringCosts: [{ id: 'rc1' }],
+      projects: [],
+      budgets: [{ id: 'b1' }],
+      bankMovements: [],
+      receivables: [],
+      payables: [
+        payable({ id: 'p1', counterpartyName: 'Incerval', invoiceNumber: '', amount: 940, description: 'Sopladora', issueDate: '2026-04-30' }),
+        payable({ id: 'p2', counterpartyName: 'Incerval', invoiceNumber: '', amount: 940, description: 'Sopladora', issueDate: '2026-05-29' }),
+        payable({ id: 'p3', counterpartyName: 'Incerval', invoiceNumber: '', amount: 940, description: 'Sopladora', issueDate: '2026-06-29' }),
+      ],
+    });
+
+    expect(out.warnings.find((w) => w.id === 'documents-duplicated')).toBeUndefined();
+    expect(out.stats.duplicatePayables).toBe(0);
   });
 
   it('warns when CXC/CXP repeat vendor, invoice and amount', () => {
