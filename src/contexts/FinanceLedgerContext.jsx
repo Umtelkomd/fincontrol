@@ -35,6 +35,7 @@ export const FinanceLedgerProvider = ({ user, children }) => {
  * Throws a descriptive error when called outside the provider so misconfiguration
  * is caught immediately in development.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- provider + hook ship together; splitting breaks no consumers but Fast Refresh already bails on context files
 export const useFinanceLedgerContext = () => {
   const ctx = useContext(FinanceLedgerContext);
   if (ctx === null) {

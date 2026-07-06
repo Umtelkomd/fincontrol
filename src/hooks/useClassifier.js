@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import {
  arrayUnion,
- collection,
  doc,
  serverTimestamp,
  updateDoc,
@@ -15,8 +14,6 @@ import {
 } from '../finance/constants';
 import {
  buildMovementAllocations,
- getDocumentOpenAmount,
- sumDocumentOpenAmount,
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
@@ -99,7 +96,6 @@ export const useClassifier = (user) => {
  const { receivables } = useReceivables(user);
  const { payables } = usePayables(user);
 
- const movementsCollectionRef = () => collection(db, 'artifacts', appId, 'public', 'data', 'bankMovements');
  const movementsRef = (id) => doc(db, 'artifacts', appId, 'public', 'data', 'bankMovements', id);
 
  const linkDocumentsToMovement = useCallback(

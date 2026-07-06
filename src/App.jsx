@@ -158,7 +158,6 @@ function AppContent({ user, userRole, hasPermission }) {
  };
  window.addEventListener('keydown', handleKeyDown);
  return () => window.removeEventListener('keydown', handleKeyDown);
- // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [isActionLauncherOpen]);
 
  const bankBalanceData = ledger.loading

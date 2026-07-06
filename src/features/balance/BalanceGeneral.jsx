@@ -43,7 +43,7 @@ const SectionCard = ({ title, icon, accentColor, items, total, totalLabel }) => 
  );
 };
 
-const BalanceGeneral = ({ user }) => {
+const BalanceGeneral = () => {
  const ledger = useFinanceLedgerContext();
 
  const balance = useMemo(() => {

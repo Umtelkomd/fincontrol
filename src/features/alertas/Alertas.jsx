@@ -34,7 +34,7 @@ const Alertas = ({ user }) => {
  const { payables } = usePayables(user);
  const { transactions } = useTransactions(user);
  const { budgets } = useBudgets(user);
- const { allTransactions, loading: allTxLoading } = useAllTransactions(user);
+ const { allTransactions } = useAllTransactions(user);
  const [filter, setFilter] = useState('all');
 
  const { showToast } = useToast();
