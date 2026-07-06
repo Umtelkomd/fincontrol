@@ -44,6 +44,7 @@ const buildPayableSnapshot = (payable, override = {}) => ({
 export const usePayables = (user) => {
   const [payables, setPayables] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const payablesRef = useMemo(
     () => collection(db, 'artifacts', appId, 'public', 'data', 'payables'),
@@ -59,10 +60,12 @@ export const usePayables = (user) => {
       (snapshot) => {
         const data = snapshot.docs.map((entry) => adaptPayableDoc({ id: entry.id, ...entry.data() }));
         setPayables(data);
+        setError(null);
         setLoading(false);
       },
-      (error) => {
-        logError('Error loading payables:', error);
+      (snapshotError) => {
+        logError('Error loading payables:', snapshotError);
+        setError(snapshotError);
         setLoading(false);
       },
     );
@@ -454,7 +457,7 @@ export const usePayables = (user) => {
     ),
   });
 
-  return { payables, loading, createPayable, registerPayment, updatePayable, cancelPayable, convertToReceivable, markAsPaid };
+  return { payables, loading, error, createPayable, registerPayment, updatePayable, cancelPayable, convertToReceivable, markAsPaid };
 };
 
 export default usePayables;

@@ -7,6 +7,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
+import { LEDGER_OPENING_DATE } from '../finance/constants';
 
 export const useBankAccount = (user) => {
   const [bankAccount, setBankAccount] = useState(null);
@@ -64,7 +65,9 @@ export const useBankAccount = (user) => {
   const calculateRealBalance = (transactions) => {
     if (!bankAccount) return { currentBalance: 0, availableCredit: 0, creditUsed: 0 };
 
-    const balanceDate = bankAccount.balanceDate;
+    // Same fallback as useFinanceLedger's openingDate — a missing balanceDate must
+    // not silently mean "count nothing" (comparing against undefined excludes all).
+    const balanceDate = bankAccount.balanceDate || LEDGER_OPENING_DATE;
     const startingBalance = bankAccount.balance;
     const creditLimit = bankAccount.creditLineLimit; // negative number like -40000
 

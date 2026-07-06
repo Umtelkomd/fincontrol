@@ -23,7 +23,12 @@ const addDays = (date, n) => {
  return d;
 };
 
-const isoDate = (d) => d.toISOString().slice(0, 10);
+// Local date parts, not toISOString(): the projection starts at local midnight,
+// and in Europe/Berlin toISOString() would shift the whole series back one day.
+const isoDate = (d) => {
+ const pad = (n) => String(n).padStart(2, '0');
+ return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 /**
  * useForwardProjection — projects cashflow N days into the future.

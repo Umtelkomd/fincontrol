@@ -33,7 +33,7 @@ const load2025 = () => {
 };
 
 export const useAllTransactions = (user) => {
-  const { transactions: firebaseTransactions, loading: fbLoading } = useTransactions(user);
+  const { transactions: firebaseTransactions, loading: fbLoading, error: fbError } = useTransactions(user);
 
   // Initialise with the cache if already populated (avoids a loading flash on
   // subsequent mounts after the chunk has been fetched the first time).
@@ -70,6 +70,7 @@ export const useAllTransactions = (user) => {
   return {
     allTransactions,
     loading,
+    error: fbError || null,
     csvError: null,
     transactions2025: data2025 || [],
     transactions2026: liveTransactions,

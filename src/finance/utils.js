@@ -12,18 +12,26 @@ export const clampMoney = (value) => {
   return Math.round(numeric * 100) / 100;
 };
 
+// Format using LOCAL date parts, never toISOString(): startOfDay/addDays build
+// local-midnight Dates, and in Europe/Berlin (UTC+1/+2) toISOString() lands on
+// the PREVIOUS day (22:00/23:00 UTC), shifting every boundary date back by one.
+const formatLocalISO = (date) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
 export const toISODate = (value) => {
   if (!value) return null;
   if (typeof value === 'string') {
     if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toISOString().slice(0, 10);
+      return formatLocalISO(parsed);
     }
     return null;
   }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    return formatLocalISO(value);
   }
   return null;
 };

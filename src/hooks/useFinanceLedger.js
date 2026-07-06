@@ -6,7 +6,7 @@ import {
   createLegacyOpeningPayables,
   createLegacyOpeningReceivables,
 } from '../finance/adapters';
-import { DEFAULT_CURRENCY, MAIN_ACCOUNT_ID, MOVEMENT_STATUS } from '../finance/constants';
+import { DEFAULT_CURRENCY, LEDGER_OPENING_DATE, MAIN_ACCOUNT_ID, MOVEMENT_STATUS } from '../finance/constants';
 import { compareIsoDate, getSignedMovementAmount, sumMoney } from '../finance/utils';
 import { useAllTransactions } from './useAllTransactions';
 import { useBankAccount } from './useBankAccount';
@@ -23,13 +23,13 @@ const sortByDueDate = (left, right) => {
 };
 
 export const useFinanceLedger = (user) => {
-  const { allTransactions, loading: txLoading } = useAllTransactions(user);
-  const { bankAccount, loading: accountLoading } = useBankAccount(user);
-  const { bankMovements, loading: movementLoading } = useBankMovements(user);
-  const { receivables, loading: receivablesLoading } = useReceivables(user);
-  const { payables, loading: payablesLoading } = usePayables(user);
-  const { budgets, loading: budgetsLoading } = useBudgets(user);
-  const { projects, loading: projectsLoading } = useProjects(user);
+  const { allTransactions, loading: txLoading, error: txError } = useAllTransactions(user);
+  const { bankAccount, loading: accountLoading, error: accountError } = useBankAccount(user);
+  const { bankMovements, loading: movementLoading, error: movementError } = useBankMovements(user);
+  const { receivables, loading: receivablesLoading, error: receivablesError } = useReceivables(user);
+  const { payables, loading: payablesLoading, error: payablesError } = usePayables(user);
+  const { budgets, loading: budgetsLoading, error: budgetsError } = useBudgets(user);
+  const { projects, loading: projectsLoading, error: projectsError } = useProjects(user);
 
   return useMemo(() => {
     const loading =
@@ -40,6 +40,22 @@ export const useFinanceLedger = (user) => {
       payablesLoading ||
       budgetsLoading ||
       projectsLoading;
+
+    // A failed source must never render as "€0, everything fine". Consumers check
+    // `error` (first failure) or `sourceErrors` (per-collection detail) and show a
+    // partial-data warning instead of presenting incomplete figures as real.
+    const sourceErrors = {
+      transactions: txError || null,
+      bankAccount: accountError || null,
+      bankMovements: movementError || null,
+      receivables: receivablesError || null,
+      payables: payablesError || null,
+      budgets: budgetsError || null,
+      projects: projectsError || null,
+    };
+    const error =
+      movementError || accountError || receivablesError || payablesError ||
+      txError || budgetsError || projectsError || null;
 
     const canonicalReceivables = receivables.map((entry) => adaptReceivableDoc(entry, 'receivable'));
     const canonicalPayables = payables.map((entry) => adaptPayableDoc(entry, 'payable'));
@@ -69,7 +85,7 @@ export const useFinanceLedger = (user) => {
       currency: DEFAULT_CURRENCY,
       name: bankAccount?.bankName || 'Cuenta principal',
       openingBalance: Number(bankAccount?.balance ?? balances2025.bancoDic2025),
-      openingDate: bankAccount?.balanceDate || '2025-12-31',
+      openingDate: bankAccount?.balanceDate || LEDGER_OPENING_DATE,
       creditLineLimit: Number(bankAccount?.creditLineLimit || 0),
       taxReserveBalance: balances2025.ivaDic2025,
     };
@@ -92,6 +108,8 @@ export const useFinanceLedger = (user) => {
 
     return {
       loading,
+      error,
+      sourceErrors,
       // allTransactions (static 2025 P&L sheet) is exposed so consumers that need
       // the classified historical dataset (BudgetVsActual, DrillDown, etc.) can
       // read it. It does NOT feed postedMovements, receivables, or payables.
@@ -112,19 +130,26 @@ export const useFinanceLedger = (user) => {
       },
     };
   }, [
+    accountError,
     accountLoading,
     allTransactions,
     bankAccount,
     bankMovements,
     budgets,
+    budgetsError,
     budgetsLoading,
+    movementError,
     movementLoading,
     payables,
+    payablesError,
     payablesLoading,
     projects,
+    projectsError,
     projectsLoading,
     receivables,
+    receivablesError,
     receivablesLoading,
+    txError,
     txLoading,
   ]);
 };

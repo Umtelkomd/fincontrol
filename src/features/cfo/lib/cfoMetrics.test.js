@@ -175,6 +175,70 @@ describe('summarizeDataQuality', () => {
     expect(out.stats.uncategorizedBankMovements).toBe(1);
     expect(out.stats.unknownProjectRefs).toBe(2);
   });
+
+  it('warns when bank movements share date, amount, direction and counterparty', () => {
+    const out = summarizeDataQuality({
+      transactions: [{ id: 't1' }],
+      recurringCosts: [{ id: 'rc1' }],
+      projects: [],
+      budgets: [{ id: 'b1' }],
+      bankMovements: [
+        movement('2026-04-25', 'in', 100, { id: 'm1', counterpartyName: 'ACME GmbH' }),
+        movement('2026-04-25', 'in', 100, { id: 'm2', counterpartyName: 'acme gmbh ' }),
+        movement('2026-04-26', 'out', 50, { id: 'm3', counterpartyName: 'Otro' }),
+      ],
+      receivables: [],
+      payables: [],
+    });
+
+    const warning = out.warnings.find((w) => w.id === 'bank-movements-duplicated');
+    expect(warning).toBeDefined();
+    expect(warning.variant).toBe('warn');
+    expect(out.stats.duplicateBankMovements).toBe(1);
+  });
+
+  it('warns when CXC/CXP repeat vendor, invoice and amount', () => {
+    const out = summarizeDataQuality({
+      transactions: [{ id: 't1' }],
+      recurringCosts: [{ id: 'rc1' }],
+      projects: [],
+      budgets: [{ id: 'b1' }],
+      bankMovements: [],
+      receivables: [
+        receivable({ id: 'r1', counterpartyName: 'Cliente A', invoiceNumber: 'F-001', amount: 500 }),
+        receivable({ id: 'r2', counterpartyName: 'Cliente A', invoiceNumber: 'F-001', amount: 500 }),
+      ],
+      payables: [
+        payable({ id: 'p1', counterpartyName: 'Prov X', invoiceNumber: 'X-9', amount: 200 }),
+        payable({ id: 'p2', counterpartyName: 'prov x', invoiceNumber: 'X-9', amount: 200 }),
+        payable({ id: 'p3', counterpartyName: 'Prov Y', invoiceNumber: 'Y-1', amount: 300 }),
+      ],
+    });
+
+    const warning = out.warnings.find((w) => w.id === 'documents-duplicated');
+    expect(warning).toBeDefined();
+    expect(out.stats.duplicateReceivables).toBe(1);
+    expect(out.stats.duplicatePayables).toBe(1);
+  });
+
+  it('does not emit duplicate warnings on clean data', () => {
+    const out = summarizeDataQuality({
+      transactions: [{ id: 't1' }],
+      recurringCosts: [{ id: 'rc1' }],
+      projects: [],
+      budgets: [{ id: 'b1' }],
+      bankMovements: [
+        movement('2026-04-25', 'in', 100, { id: 'm1', counterpartyName: 'A' }),
+        movement('2026-04-26', 'in', 100, { id: 'm2', counterpartyName: 'A' }),
+      ],
+      receivables: [],
+      payables: [],
+    });
+
+    expect(out.warnings.find((w) => w.id === 'bank-movements-duplicated')).toBeUndefined();
+    expect(out.warnings.find((w) => w.id === 'documents-duplicated')).toBeUndefined();
+    expect(out.stats.duplicateBankMovements).toBe(0);
+  });
 });
 
 describe('summarizeCFOOrder', () => {

@@ -232,6 +232,35 @@ const hasUnknownProject = (record, projectRefs) => {
   return false;
 };
 
+// Same fingerprints as scripts/diagnose-data.cjs — keep in sync. Duplicated
+// bank movements double-count cash/burn/runway, so this is the single most
+// financially dangerous data-health invariant; it must be visible in-app, not
+// only in the offline script.
+const countDuplicates = (rows, fingerprint) => {
+  const counts = new Map();
+  for (const row of rows) {
+    const fp = fingerprint(row);
+    counts.set(fp, (counts.get(fp) || 0) + 1);
+  }
+  let groups = 0;
+  let redundant = 0;
+  for (const count of counts.values()) {
+    if (count > 1) {
+      groups += 1;
+      redundant += count - 1;
+    }
+  }
+  return { groups, redundant };
+};
+
+const movementFingerprint = (m) =>
+  [m.postedDate || m.date, m.amount ?? m.signedAmount, m.direction,
+    (m.counterpartyName || '').trim().toLowerCase()].join('|');
+
+const documentFingerprint = (d) =>
+  [(d.vendor || d.client || d.counterpartyName || '').trim().toLowerCase(),
+    d.invoiceNumber || d.invoice || '', d.amount ?? d.total ?? ''].join('|');
+
 export const summarizeDataQuality = (snapshot = {}) => {
   const warnings = [];
   const bankMovements = snapshot.bankMovements || [];
@@ -290,6 +319,31 @@ export const summarizeDataQuality = (snapshot = {}) => {
     });
   }
 
+  const duplicateMovements = countDuplicates(bankMovements, movementFingerprint);
+  if (duplicateMovements.redundant > 0) {
+    warnings.push({
+      id: 'bank-movements-duplicated',
+      variant: 'warn',
+      title: 'Movimientos bancarios posiblemente duplicados',
+      message:
+        `${duplicateMovements.redundant} movimientos comparten fecha, importe, dirección y contraparte con otro ` +
+        `(${duplicateMovements.groups} grupos). Duplicados inflan caja, burn y runway — revisar con scripts/diagnose-data.cjs.`,
+    });
+  }
+
+  const duplicateReceivables = countDuplicates(snapshot.receivables || [], documentFingerprint);
+  const duplicatePayables = countDuplicates(snapshot.payables || [], documentFingerprint);
+  if (duplicateReceivables.redundant + duplicatePayables.redundant > 0) {
+    warnings.push({
+      id: 'documents-duplicated',
+      variant: 'warn',
+      title: 'CXC/CXP posiblemente duplicadas',
+      message:
+        `${duplicateReceivables.redundant} CXC y ${duplicatePayables.redundant} CXP repiten proveedor, factura e importe. ` +
+        'Duplicados distorsionan los pendientes de cobro/pago.',
+    });
+  }
+
   return {
     warnings,
     stats: {
@@ -299,6 +353,9 @@ export const summarizeDataQuality = (snapshot = {}) => {
       unknownProjectRefs: unknownProjectRefs.length,
       budgets: budgets.length,
       projects: (snapshot.projects || []).length,
+      duplicateBankMovements: duplicateMovements.redundant,
+      duplicateReceivables: duplicateReceivables.redundant,
+      duplicatePayables: duplicatePayables.redundant,
     },
   };
 };

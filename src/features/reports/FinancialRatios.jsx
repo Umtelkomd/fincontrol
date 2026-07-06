@@ -119,7 +119,7 @@ const FinancialRatios = ({ user }) => {
  const now = new Date();
  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
  const [selectedPeriod, setSelectedPeriod] = useState(`month:${defaultMonth}`);
- const [selectedYear, setSelectedYear] = useState('2026');
+ const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
 
  const yearRange = selectedYear === 'all'
  ? {}

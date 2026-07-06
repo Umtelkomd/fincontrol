@@ -42,3 +42,11 @@ export const WEEK_MS = 7 * DAY_MS;
  * deliberate data-architecture boundary, not a UI preference.
  */
 export const OPERATIONAL_DATA_START = '2026-01-01';
+
+/**
+ * LEDGER_OPENING_DATE — fallback opening date for the main bank account when the
+ * settings doc lacks `balanceDate`. Every cash engine MUST use this same value:
+ * divergent fallbacks (e.g. "today") make the ledger and the bank-account widget
+ * disagree about which movements count toward the current balance.
+ */
+export const LEDGER_OPENING_DATE = '2025-12-31';

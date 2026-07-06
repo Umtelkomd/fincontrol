@@ -51,6 +51,7 @@ const migrateBudgetLines = (budget) => {
 export const useBudgets = (user) => {
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(() => !!user);
+  const [error, setError] = useState(null);
 
   const colRef = useMemo(() => collection(db, 'artifacts', appId, 'public', 'data', 'budgets'), []);
 
@@ -69,9 +70,11 @@ export const useBudgets = (user) => {
         };
       });
       setBudgets(data);
+      setError(null);
       setLoading(false);
     }, (err) => {
       logError('Error loading budgets:', err);
+      setError(err);
       setLoading(false);
     });
 
@@ -254,6 +257,7 @@ export const useBudgets = (user) => {
   return {
     budgets,
     loading,
+    error,
     createBudget,
     updateBudget,
     upsertBudgetLine,

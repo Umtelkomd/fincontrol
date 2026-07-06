@@ -44,6 +44,15 @@ describe('finance utils ISO date handling', () => {
     expect(toISODate(new Date('not-a-date'))).toBeNull();
   });
 
+  it('round-trips local-midnight Dates without shifting a day (Berlin TZ regression)', () => {
+    // startOfDay builds a LOCAL-midnight Date; formatting it via toISOString()
+    // in any UTC+ timezone lands on the previous day. toISODate must return the
+    // same calendar day the Date represents locally.
+    expect(toISODate(new Date('2026-04-15T00:00:00'))).toBe('2026-04-15');
+    expect(toISODate(new Date(2026, 0, 1))).toBe('2026-01-01');
+    expect(toISODate(new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31');
+  });
+
   it('compares and filters fixed ISO ranges deterministically', () => {
     expect(compareIsoDate('2026-04-10', '2026-04-09')).toBeGreaterThan(0);
     expect(isWithinRange('2026-04-15', '2026-04-01', '2026-04-30')).toBe(true);

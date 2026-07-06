@@ -44,6 +44,7 @@ const buildReceivableSnapshot = (receivable, override = {}) => ({
 export const useReceivables = (user) => {
   const [receivables, setReceivables] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const receivablesRef = useMemo(
     () => collection(db, 'artifacts', appId, 'public', 'data', 'receivables'),
@@ -59,10 +60,12 @@ export const useReceivables = (user) => {
       (snapshot) => {
         const data = snapshot.docs.map((entry) => adaptReceivableDoc({ id: entry.id, ...entry.data() }));
         setReceivables(data);
+        setError(null);
         setLoading(false);
       },
-      (error) => {
-        logError('Error loading receivables:', error);
+      (snapshotError) => {
+        logError('Error loading receivables:', snapshotError);
+        setError(snapshotError);
         setLoading(false);
       },
     );
@@ -440,7 +443,7 @@ export const useReceivables = (user) => {
     ),
   });
 
-  return { receivables, loading, createReceivable, registerPayment, updateReceivable, cancelReceivable, convertToPayable, markAsPaid };
+  return { receivables, loading, error, createReceivable, registerPayment, updateReceivable, cancelReceivable, convertToPayable, markAsPaid };
 };
 
 export default useReceivables;

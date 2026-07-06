@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../../../services/firebase';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../../../constants/categories';
+import { LEDGER_OPENING_DATE } from '../../../finance/constants';
 import { logError } from '../../../utils/logger';
 
 /**
@@ -50,7 +51,9 @@ import { logError } from '../../../utils/logger';
  * the CFO views are intentionally read-mostly.
  */
 
-export const CFO_SNAPSHOT_CACHE_KEY = 'cfo:snapshot:v3';
+// v4: movements window extended to reach balanceDate (cash-today fix) — old
+// cached snapshots hold a truncated window and must not be reused.
+export const CFO_SNAPSHOT_CACHE_KEY = 'cfo:snapshot:v4';
 export const CFO_SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 1 hour
 export const CFO_BANKMOVEMENTS_LOOKBACK_DAYS = 190;
 
@@ -103,7 +106,17 @@ const writeCache = (snapshot, fetchedAt) => {
 };
 
 export const fetchCFOSnapshot = async () => {
-  const cutoffDate = isoDaysAgo(CFO_BANKMOVEMENTS_LOOKBACK_DAYS);
+  // The movements window must ALWAYS reach back to the bank account's
+  // balanceDate: computeCashToday() sums every movement after that date, so a
+  // cutoff later than balanceDate silently drops early movements and corrupts
+  // cash/runway/burn (this happened once the 190-day window passed Dec 2025).
+  // The 190-day lookback is only a floor for burn/forecast windows.
+  const bankAccountPreSnap = await getDoc(settingsDoc('bankAccount'));
+  const openingDate =
+    (bankAccountPreSnap.exists() && bankAccountPreSnap.data().balanceDate) ||
+    LEDGER_OPENING_DATE;
+  const lookbackDate = isoDaysAgo(CFO_BANKMOVEMENTS_LOOKBACK_DAYS);
+  const cutoffDate = openingDate < lookbackDate ? openingDate : lookbackDate;
 
   const bankMovementsQuery = query(
     dataPath('bankMovements'),
@@ -122,7 +135,6 @@ export const fetchCFOSnapshot = async () => {
     payrollPeriodsSnap,
     transactionsSnap,
     categoriesDocSnap,
-    bankAccountDocSnap,
   ] = await Promise.all([
     getDocs(bankMovementsQuery),
     getDocs(dataPath('receivables')),
@@ -135,11 +147,10 @@ export const fetchCFOSnapshot = async () => {
     getDocs(dataPath('payrollPeriods')),
     getDocs(dataPath('transactions')),
     getDoc(settingsDoc('categories')),
-    getDoc(settingsDoc('bankAccount')),
   ]);
 
   const categoriesData = categoriesDocSnap.exists() ? categoriesDocSnap.data() : {};
-  const bankAccountData = bankAccountDocSnap.exists() ? bankAccountDocSnap.data() : null;
+  const bankAccountData = bankAccountPreSnap.exists() ? bankAccountPreSnap.data() : null;
 
   return {
     bankMovements: mapDocs(bankMovementsSnap),

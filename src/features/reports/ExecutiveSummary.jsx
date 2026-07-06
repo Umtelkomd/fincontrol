@@ -39,7 +39,7 @@ const Card = ({ title, value, subtitle, accent, icon }) => {
 };
 
 const ExecutiveSummary = ({ user }) => {
- const [selectedYear, setSelectedYear] = useState('2026');
+ const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
 
  const yearRange = selectedYear === 'all'
  ? {}

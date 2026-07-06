@@ -79,7 +79,7 @@ const YEAR_OPTIONS = [
   { value: 'all', label: 'Todos los años' },
 ];
 
-const Reports = ({ user }) => {
+const Reports = () => {
  const ledger = useFinanceLedgerContext();
  const dropdownRef = useRef(null);
  const [initialDate] = useState(() => {
@@ -89,7 +89,7 @@ const Reports = ({ user }) => {
  const defaultMonth = `${initialDate.year}-${String(initialDate.month + 1).padStart(2, '0')}`;
 
  const [selectedPeriod, setSelectedPeriod] = useState(`month:${defaultMonth}`);
- const [selectedYear, setSelectedYear] = useState('2026');
+ const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
  const [compareMode, setCompareMode] = useState(true);
  const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
 

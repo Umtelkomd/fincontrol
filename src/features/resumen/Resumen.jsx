@@ -225,6 +225,25 @@ const Resumen = ({ user }) => {
 
   return (
     <div className="space-y-6 pb-16">
+      {/* Partial-data guard: a failed Firestore source must never render as
+          authoritative €-figures. Every KPI below is suspect until it clears. */}
+      {ledger.error && (
+        <div className="flex items-start gap-3 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-2)] px-4 py-3">
+          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[var(--color-err)]" />
+          <div>
+            <p className="font-mono text-[12px] text-[var(--color-err)]">
+              Datos incompletos — no confíes en estas cifras
+            </p>
+            <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+              Falló la carga de: {Object.entries(ledger.sourceErrors || {})
+                .filter(([, err]) => err)
+                .map(([name]) => name)
+                .join(', ')}. Recargá la página; si persiste, revisá la conexión o los permisos de Firestore.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <header>
         <p className="label-mono text-[var(--color-accent)] mb-2">§ Resumen</p>
