@@ -8,7 +8,7 @@ React 19 + Vite + Firebase + Tailwind v4 + Recharts.
 ```bash
 cd ~/Dev/fincontrol
 npm run dev          # localhost:5173
-npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
+npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
 ```
 
 ## Repo & Deploy
@@ -32,8 +32,11 @@ npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
 ## Key Files
 - `src/App.jsx` — Main app with routing
 - `src/hooks/useTransactions.js` — Transaction CRUD + sanitizer
-- `src/hooks/useMetrics.js` — Financial metrics/calculations
-- `src/components/Dashboard.jsx` — Main dashboard view
+- `src/hooks/useFinanceLedger.js` — Single shared cash ledger (source of truth for currentCash)
+- `src/hooks/useTreasuryMetrics.js` — Treasury and liquidity metrics
+- `src/hooks/useForwardProjection.js` — Forward cash projections
+- `src/features/cfo/CFODashboard.jsx` — CFO dashboard view
+- `src/features/proyectos/ProyectoDashboard.jsx` — Project dashboard view
 - `src/data/balances2025.js` — Starting balances
 - `firebase.json` — Hosting config with no-cache headers
 
@@ -48,6 +51,22 @@ npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
 - `recharts@^3` — Charts
 - `lucide-react` — Icons
 - `jspdf` + `jspdf-autotable` — PDF export
+- `react-router-dom@^7` — Client-side routing
+- `pdfjs-dist@^6` — PDF rendering
+
+## Architecture — Feature-First Structure
+App uses feature-first modular design under `src/features/`:
+- `cxc/` — Accounts receivable (CXC) feature
+- `cxp/` — Accounts payable (CXP) feature
+- `cashflow/` — Cash flow management
+- `presupuesto/` — Budget planning
+- `datev-import/` — DATEV integration
+- `nominas/` — Payroll
+- `employees/` — Employee records
+- `cfo/` — CFO dashboards and reporting
+- `proyectos/` — Project tracking
+
+Financial calculation utilities live in `src/finance/` (separate from hooks), hooks in `src/hooks/`.
 
 ## Theme — NEXUS.OS (dark-first, strict)
 - Accent: `#FF4D2E` (orange) — used for CTAs, brand `.OS`, active nav, chart highlights
@@ -77,6 +96,17 @@ Firestore docs have a `viewedBy` field that's a plain object (not a Firestore ty
 
 ### 4. PartialPaymentModal
 Uses wrapper pattern (inner component + outer wrapper) for hooks safety. Don't flatten it.
+
+## Commands
+```bash
+npm run dev              # Start dev server (localhost:5173)
+npm test                 # Run vitest unit tests
+npm run lint             # ESLint checks
+npm run preview          # Preview production build
+npm run backup:firestore # Export Firestore data
+npm run migrate:legacy   # Migrate legacy transactions
+npm run build            # Build for production
+```
 
 ### 5. Firebase env guardrails (added after the 2026-06 `auth/invalid-api-key` outage)
 A `dist` built without `.env` shipped an empty Firebase config and took prod down.
