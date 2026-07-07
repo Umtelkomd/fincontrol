@@ -49,6 +49,28 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────
+    // employees — holds IBAN/BIC and per-employee salary data (brutto/netto/
+    // gesamtkosten). Same confinement pattern as payrollPeriods: dedicated
+    // manager/admin-only block here, plus an explicit exclusion in the generic
+    // read grant below (grants are OR-unioned, so the exclusion is what
+    // actually keeps editors out).
+    // ─────────────────────────────────────────────
+    match /artifacts/{appId}/public/data/employees/{document=**} {
+      function eUserRole() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      }
+      function eOwnTenant() {
+        return request.auth != null
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
+      }
+      function eManagerOrAbove() {
+        return request.auth != null && (eUserRole() == 'admin' || eUserRole() == 'manager');
+      }
+      allow read: if request.auth != null && eOwnTenant() && eManagerOrAbove();
+      allow write: if request.auth != null && eOwnTenant() && eManagerOrAbove();
+    }
+
+    // ─────────────────────────────────────────────
     // Tenant-scoped FinControl data
     // appId acts as tenant key for multi-app isolation
     // ─────────────────────────────────────────────
@@ -63,10 +85,13 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
       }
 
-      // Read: any authenticated tenant user — EXCEPT payrollPeriods, which is
-      // confined to manager/admin by its own dedicated match above (grants are
-      // OR-unioned, so this exclusion is what actually restricts editors).
-      allow read: if request.auth != null && isOwnTenant() && collection != 'payrollPeriods';
+      // Read: any authenticated tenant user — EXCEPT payrollPeriods and
+      // employees, which are confined to manager/admin by their own dedicated
+      // match blocks above (grants are OR-unioned, so these exclusions are
+      // what actually restrict editors).
+      allow read: if request.auth != null && isOwnTenant()
+        && collection != 'payrollPeriods'
+        && collection != 'employees';
 
       // Write: admins and managers of this tenant
       function isManagerOrAbove() {
