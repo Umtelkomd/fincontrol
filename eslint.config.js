@@ -32,7 +32,9 @@ export default defineConfig([
     },
   },
   {
-    files: ['scripts/**/*.{js,jsx}'],
+    // Node-context files: build scripts and the Vite config (it reads
+    // process.cwd() for the env-guard added after the 2026-06 outage).
+    files: ['scripts/**/*.{js,jsx}', 'vite.config.js'],
     languageOptions: {
       globals: globals.node,
     },

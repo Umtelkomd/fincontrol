@@ -36,6 +36,8 @@ export default defineConfig(({ command, mode }) => {
     test: {
       environment: 'jsdom',
       include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+      // A stray .only would silently shrink the suite to one test in CI.
+      forbidOnly: true,
     },
     resolve: {
       alias: {
