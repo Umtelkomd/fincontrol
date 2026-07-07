@@ -70,6 +70,8 @@ const Projects = ({ user }) => {
  startDate: '',
  endDate: '',
  budget: '',
+ contractValue: '',
+ percentComplete: '',
  status: 'active'
  });
 
@@ -84,6 +86,8 @@ const Projects = ({ user }) => {
  startDate: '',
  endDate: '',
  budget: '',
+ contractValue: '',
+ percentComplete: '',
  status: 'active'
  });
  };
@@ -106,6 +110,8 @@ const Projects = ({ user }) => {
  startDate: project.startDate || '',
  endDate: project.endDate || '',
  budget: project.budget || '',
+ contractValue: project.contractValue || '',
+ percentComplete: project.percentComplete ?? '',
  status: project.status || 'active'
  });
  setShowAddModal(true);
@@ -119,8 +125,22 @@ const Projects = ({ user }) => {
  return;
  }
 
+ // Duplicate guard: project code/name resolve legacy ledger docs by string,
+ // so two projects sharing either would silently merge their financials.
+ const codeNorm = formData.code.trim().toUpperCase();
+ const nameNorm = formData.name.trim().toLowerCase();
+ const duplicate = projects.find((p) =>
+ p.id !== editingProject?.id &&
+ ((p.code || '').trim().toUpperCase() === codeNorm ||
+ (p.name || '').trim().toLowerCase() === nameNorm)
+ );
+ if (duplicate) {
+ setToast({ message: 'Ya existe un proyecto con ese código o nombre', type: 'error' });
+ return;
+ }
+
  const projectData = {
- code: formData.code.trim().toUpperCase(),
+ code: codeNorm,
  name: formData.name.trim(),
  client: formData.client.trim(),
  operator: formData.operator || 'INSYTE',
@@ -128,9 +148,13 @@ const Projects = ({ user }) => {
  description: formData.description.trim(),
  startDate: formData.startDate,
  endDate: formData.endDate,
- budget: parseFloat(formData.budget) || 0,
+ // Money baselines clamped to >= 0 — a negative budget/contract would
+ // silently invert margins downstream.
+ budget: Math.max(0, parseFloat(formData.budget) || 0),
+ contractValue: Math.max(0, parseFloat(formData.contractValue) || 0),
+ percentComplete: Math.min(100, Math.max(0, parseFloat(formData.percentComplete) || 0)),
  status: formData.status,
- displayName: `${formData.code.trim().toUpperCase()} (${formData.name.trim()})`
+ displayName: `${codeNorm} (${formData.name.trim()})`
  };
 
  if (editingProject) {
@@ -742,9 +766,27 @@ const Projects = ({ user }) => {
  </div>
  </div>
 
+ <div className="grid grid-cols-2 gap-4">
  <div>
   <label className="mb-2 block label-mono text-[var(--color-fg-3)]">
- Presupuesto (EUR)
+ Valor de contrato (EUR)
+ </label>
+ <div className="relative">
+  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-[var(--color-fg-3)]">€</span>
+ <input
+ type="number"
+ step="0.01"
+ min="0"
+ placeholder="0.00"
+  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] py-3 pl-8 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
+ value={formData.contractValue}
+ onChange={e => setFormData({...formData, contractValue: e.target.value})}
+ />
+ </div>
+ </div>
+ <div>
+  <label className="mb-2 block label-mono text-[var(--color-fg-3)]">
+ Presupuesto de costos (EUR)
  </label>
  <div className="relative">
   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-[var(--color-fg-3)]">€</span>
@@ -756,6 +798,26 @@ const Projects = ({ user }) => {
   className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] py-3 pl-8 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
  value={formData.budget}
  onChange={e => setFormData({...formData, budget: e.target.value})}
+ />
+ </div>
+ </div>
+ </div>
+
+ <div>
+  <label className="mb-2 block label-mono text-[var(--color-fg-3)]">
+ Avance físico (%)
+ </label>
+ <div className="relative">
+  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-[var(--color-fg-3)]">%</span>
+ <input
+ type="number"
+ step="1"
+ min="0"
+ max="100"
+ placeholder="0"
+  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] py-3 pl-8 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
+ value={formData.percentComplete}
+ onChange={e => setFormData({...formData, percentComplete: e.target.value})}
  />
  </div>
  </div>

@@ -18,6 +18,7 @@
  * comments are English. NEXUS.OS tokens only; accent reserved for highlights.
  */
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -81,8 +82,11 @@ const Resumen = ({ user }) => {
   const canSeePayroll = hasPermission('cxp');
 
   // ── Payroll → project allocation (verbatim wiring from Dashboard.jsx) ───────
+  // employees is gated like payrollPeriods: firestore.rules confines the
+  // employees collection (IBAN, salaries) to manager/admin, and this view only
+  // uses it for the cxp-gated allocation — editors never subscribe.
   const { periods: payrollPeriods } = usePayrollPeriods(canSeePayroll ? user : null);
-  const { employees } = useEmployees(user);
+  const { employees } = useEmployees(canSeePayroll ? user : null);
   const { projects } = useProjects(user);
 
   const payrollByProject = useMemo(() => {
@@ -413,6 +417,16 @@ const Resumen = ({ user }) => {
       <Panel
         title="Margen por proyecto"
         meta={canSeePayroll ? 'Mano de obra deducida' : 'Sin mano de obra (sin permiso)'}
+        actions={
+          hasPermission('budget') ? (
+            <Link
+              to="/proyectos"
+              className="label-mono text-[var(--color-accent)] transition-opacity hover:opacity-80"
+            >
+              Control completo →
+            </Link>
+          ) : null
+        }
       >
         {projectMargins.length === 0 ? (
           <EmptyState title="Sin proyectos" description="No hay movimientos por proyecto todavía." />

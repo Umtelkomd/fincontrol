@@ -6,6 +6,7 @@ const routeLoaders = {
   '/clasificar': () => import('../features/classifier/Classifier'),
   '/movimientos': () => import('../features/movimientos/Movimientos'),
   '/nominas': () => import('../features/nominas/Nominas'),
+  '/proyectos': () => import('../features/proyectos/ProyectosControl'),
   '/empleados': () => import('../features/employees/Employees'),
   '/configuracion': () => import('../features/configuracion/ConfiguracionUnified'),
   '/reglas': () => import('../features/classification-rules/Rules'),

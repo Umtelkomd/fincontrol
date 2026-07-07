@@ -2,6 +2,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Database,
+  FolderKanban,
   HardHat,
   Home,
   Inbox,
@@ -20,6 +21,7 @@ export const NAV_ITEMS = [
   { path: '/clasificar', label: 'Bandeja', icon: Inbox, permission: 'settings' },
   { path: '/movimientos', label: 'Movimientos', icon: Database, permission: 'dashboard' },
   { path: '/nominas', label: 'Nóminas', icon: WalletCards, permission: 'cxp' },
+  { path: '/proyectos', label: 'Proyectos', icon: FolderKanban, permission: 'budget' },
   // Datos maestros
   { path: '/empleados', label: 'Empleados', icon: HardHat, permission: 'settings' },
   // Configuración

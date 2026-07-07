@@ -24,6 +24,7 @@ const Classifier = lazy(() => import('./features/classifier/Classifier'));
 const Movimientos = lazy(() => import('./features/movimientos/Movimientos'));
 const Rules = lazy(() => import('./features/classification-rules/Rules'));
 const Nominas = lazy(() => import('./features/nominas/Nominas'));
+const ProyectosControl = lazy(() => import('./features/proyectos/ProyectosControl'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
 
 const VIEW_TITLES = {
@@ -33,6 +34,7 @@ const VIEW_TITLES = {
   '/gastos': 'Gastos',
   '/configuracion': 'Configuración',
   '/nominas': 'Nóminas',
+ '/proyectos': 'Control de Proyectos',
   '/empleados': 'Empleados',
   '/datev': 'Importar DATEV',
   '/clasificar': 'Bandeja semanal',
@@ -194,6 +196,7 @@ function AppContent() {
  <Route path="/movimientos" element={<ProtectedRoute hasPermission={hasPermission} permission="dashboard"><Movimientos user={user} userRole={userRole} /></ProtectedRoute>} />
   <Route path="/reglas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Rules user={user} userRole={userRole} /></ProtectedRoute>} />
   <Route path="/nominas" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><Nominas user={user} userRole={userRole} /></ProtectedRoute>} />
+  <Route path="/proyectos" element={<ProtectedRoute hasPermission={hasPermission} permission="budget"><ProyectosControl user={user} /></ProtectedRoute>} />
  <Route path="*" element={<Navigate to="/" replace />} />
  </Routes>
  </Suspense>
