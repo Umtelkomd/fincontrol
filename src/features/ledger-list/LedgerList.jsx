@@ -8,9 +8,11 @@ import {
   Search,
   Wallet,
 } from 'lucide-react';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import PartialPaymentModal from '../../components/ui/PartialPaymentModal';
 import RecordDetailModal from '../../components/ui/RecordDetailModal';
 import { useToast } from '../../contexts/ToastContext';
+import { useClassifier } from '../../hooks/useClassifier';
 import { useReceivables } from '../../hooks/useReceivables';
 import { usePayables } from '../../hooks/usePayables';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
@@ -91,15 +93,19 @@ const toModalTransaction = (row) => ({
  *
  * family: 'income' | 'expense'
  *
- * Bulk settle semantics:
- *   markAsPaid on receivables/payables is a deprecated guard that ALWAYS fails with
- *   a policy error: UMTELKOMD policy requires every settlement to link a bank
- *   movement, which happens through the reconciliation flow (/cxc, /cxp) or the
- *   "Abono" path (PartialPaymentModal). Only legacy-transaction rows settle here,
- *   via markAsCompleted, which legitimately predates that policy.
+ * Settle semantics:
+ *   UMTELKOMD policy requires every settlement to link a bank movement, which
+ *   happens through the reconciliation flow (/cxc, /cxp) or the "Abono" path
+ *   (PartialPaymentModal). legacy-transaction rows settle via markAsCompleted,
+ *   which legitimately predates that policy.
  *
- *   Bulk settle therefore processes rows sequentially through the same handleSettle
- *   logic and reports successes vs policy rejections honestly — it must never claim
+ *   For CXC/CXP document rows, "Liquidar" is an ADMIN-ONLY escape hatch: it runs
+ *   the audited force-reconcile path (forceReceivablesReconcile /
+ *   forcePayablesReconcile) after asking for a mandatory reason — same mechanism
+ *   as "Forzar sin DATEV" in the reconciliation modal. Managers still get the
+ *   policy error and must reconcile through /cxc /cxp.
+ *
+ *   Bulk settle reports successes vs rejections honestly — it must never claim
  *   a CXC/CXP document was settled when the guard rejected it.
  */
 const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
@@ -111,6 +117,7 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
   const { registerPayment: registerReceivablePayment, markAsPaid: settleReceivable } = useReceivables(user);
   const { registerPayment: registerPayablePayment, markAsPaid: settlePayable } = usePayables(user);
   const { registerPayment: registerLegacyPayment, markAsCompleted: settleLegacy } = useTransactionActions(user);
+  const { forceReceivablesReconcile, forcePayablesReconcile } = useClassifier(user);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -122,7 +129,11 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
+  // Admin force-settle confirmation: { docRows, legacyRows } | null
+  const [forceTarget, setForceTarget] = useState(null);
+
   const canAct = userRole === 'admin' || userRole === 'manager';
+  const isAdmin = userRole === 'admin';
 
   // Movement stats differ by family
   const movementStat = useMemo(() => {
@@ -160,6 +171,8 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
 
   // Settles a single row using the existing non-Abono path.
   // Returns the settle result; silent=true suppresses per-row toasts (bulk mode).
+  // For CXC/CXP doc rows this hits the markAsPaid policy guard and fails loudly —
+  // admins never reach this path for doc rows (they go through handleForceConfirm).
   const handleSettle = async (row, { silent = false } = {}) => {
     if (!silent && loadingId) return { success: false };
     setLoadingId(row.id);
@@ -172,7 +185,7 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         }
         if (!silent) {
           if (result.success) showToast('Ingreso liquidado');
-          else showToast('No se pudo liquidar el ingreso', 'error');
+          else showToast(result.error?.message || 'No se pudo liquidar el ingreso', 'error');
         }
       } else {
         if (row.source === 'payable') result = await settlePayable(row);
@@ -181,7 +194,7 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         }
         if (!silent) {
           if (result.success) showToast('Gasto liquidado');
-          else showToast('No se pudo liquidar el gasto', 'error');
+          else showToast(result.error?.message || 'No se pudo liquidar el gasto', 'error');
         }
       }
       return result;
@@ -190,9 +203,50 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
     }
   };
 
+  // "Liquidar" click on a single row. Doc rows (CXC/CXP) require the audited
+  // admin force path with a mandatory reason; legacy rows settle directly.
+  const handleSettleClick = (row) => {
+    if (isAdmin && (row.source === 'receivable' || row.source === 'payable')) {
+      setForceTarget({ docRows: [row], legacyRows: [] });
+      return;
+    }
+    handleSettle(row);
+  };
+
+  // Confirmed force-settle (admin): legacy rows keep their native settle path,
+  // doc rows go through the audited force-reconcile in one batch.
+  const handleForceConfirm = async (reason) => {
+    if (!forceTarget) return true;
+    if (bulkProcessing) return false; // guard against double-submit while awaiting
+    const { docRows, legacyRows } = forceTarget;
+    setBulkProcessing(true);
+    let legacySucceeded = 0;
+    for (const row of legacyRows) {
+      const result = await handleSettle(row, { silent: true });
+      if (result?.success) legacySucceeded += 1;
+    }
+    const forceFn = isIncome ? forceReceivablesReconcile : forcePayablesReconcile;
+    const result = docRows.length > 0 ? await forceFn(docRows, { reason }) : { success: true, count: 0 };
+    setBulkProcessing(false);
+    if (!result.success) {
+      showToast(result.error?.message || 'Error al forzar la liquidación', 'error');
+      return false; // keep the modal open so the admin can retry/fix the reason
+    }
+    setSelectedIds(new Set());
+    setForceTarget(null);
+    const total = legacySucceeded + (result.count || 0);
+    showToast(
+      docRows.length > 0
+        ? `${total} documento(s) liquidado(s) sin DATEV (forzado, auditado)`
+        : `${total} documento(s) liquidado(s)`,
+    );
+    return true;
+  };
+
   // Bulk settle: process selected settleable rows one by one using the same
   // handleSettle path, counting only real successes — CXC/CXP documents are
   // rejected by the bank-movement policy guard and must not be reported as settled.
+  // Admins instead confirm the audited force path (one reason for the batch).
   const handleBulkSettle = async () => {
     const settleableRows = rows.filter(
       (row) =>
@@ -202,6 +256,14 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         row.status !== 'cancelled',
     );
     if (settleableRows.length === 0) return;
+    const docRows = settleableRows.filter((row) => row.source === 'receivable' || row.source === 'payable');
+    if (isAdmin && docRows.length > 0) {
+      setForceTarget({
+        docRows,
+        legacyRows: settleableRows.filter((row) => row.source === 'legacy-transaction'),
+      });
+      return;
+    }
     setBulkProcessing(true);
     let succeeded = 0;
     for (const row of settleableRows) {
@@ -477,7 +539,7 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleSettle(row)}
+                                onClick={() => handleSettleClick(row)}
                                 disabled={loadingId === row.id}
                                 className="nx-btn nx-btn-primary nx-btn-sm disabled:opacity-50"
                               >
@@ -508,6 +570,40 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         onClose={() => setSelectedRow(null)}
         transaction={selectedRow ? toModalTransaction(selectedRow) : null}
         onSubmit={handlePartialPayment}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(forceTarget)}
+        onClose={() => setForceTarget(null)}
+        onConfirm={handleForceConfirm}
+        title="Liquidar sin DATEV"
+        message={
+          isIncome
+            ? 'Vas a marcar como cobradas estas facturas SIN vincular un movimiento bancario DATEV. La operación queda auditada con tu usuario y motivo.'
+            : 'Vas a marcar como pagadas estas facturas SIN vincular un movimiento bancario DATEV. La operación queda auditada con tu usuario y motivo.'
+        }
+        confirmText={bulkProcessing ? 'Procesando…' : 'Forzar liquidación'}
+        variant="warning"
+        details={
+          forceTarget
+            ? [
+                { label: 'Documentos', value: String(forceTarget.docRows.length + forceTarget.legacyRows.length), emphasis: true },
+                {
+                  label: 'Importe abierto',
+                  value: formatCurrency(
+                    [...forceTarget.docRows, ...forceTarget.legacyRows].reduce(
+                      (sum, row) => sum + (Number(row.openAmount) || 0),
+                      0,
+                    ),
+                  ),
+                  emphasis: true,
+                },
+              ]
+            : []
+        }
+        warning="Política UMTELKOMD: la vía normal es conciliar con el extracto DATEV. Usá esto solo cuando el banco confirmó y el DATEV todavía no llegó."
+        reasonLabel="Motivo para forzar sin DATEV"
+        reasonPlaceholder="Ej: pago confirmado por banco, DATEV pendiente"
       />
 
       <RecordDetailModal record={detailRecord} onClose={() => setDetailRecord(null)} userRole={userRole} />

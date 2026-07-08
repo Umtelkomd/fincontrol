@@ -15,22 +15,29 @@ const ConfirmModal = ({
  confirmKeywordLabel = 'Confirmación',
  confirmKeywordPlaceholder = '',
  warning = '',
+ reasonLabel = '',
+ reasonPlaceholder = '',
 }) => {
  const [confirmationValue, setConfirmationValue] = useState('');
+ const [reasonValue, setReasonValue] = useState('');
 
  if (!isOpen) return null;
 
  const requiresKeyword = Boolean(confirmKeyword);
  const keywordMatches = !requiresKeyword || confirmationValue.trim().toUpperCase() === confirmKeyword.trim().toUpperCase();
+ const requiresReason = Boolean(reasonLabel);
+ const reasonProvided = !requiresReason || reasonValue.trim().length > 0;
+ const canConfirm = keywordMatches && reasonProvided;
 
  const handleClose = () => {
  setConfirmationValue('');
+ setReasonValue('');
  onClose();
  };
 
  const handleConfirm = async () => {
- if (!keywordMatches) return;
- const shouldClose = await onConfirm();
+ if (!canConfirm) return;
+ const shouldClose = await onConfirm(reasonValue.trim());
  if (shouldClose !== false) {
  handleClose();
  }
@@ -86,6 +93,19 @@ const ConfirmModal = ({
  </p>
  )}
 
+ {requiresReason && (
+ <label className="mt-4 block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">{reasonLabel}</span>
+ <input
+ type="text"
+ value={reasonValue}
+ onChange={(event) => setReasonValue(event.target.value)}
+ placeholder={reasonPlaceholder}
+ className="w-full rounded-lg border border-[var(--color-line-s)] bg-transparent px-3 py-2.5 text-sm font-mono text-[var(--color-fg-1)] focus:outline-none focus:border-[var(--color-fg-1)]"
+ />
+ </label>
+ )}
+
  {requiresKeyword && (
  <label className="mt-4 block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
@@ -112,7 +132,7 @@ const ConfirmModal = ({
  </button>
  <button
  onClick={handleConfirm}
- disabled={!keywordMatches}
+ disabled={!canConfirm}
  className={`flex-1 px-4 py-2.5 font-mono text-[13px] uppercase tracking-[0.06em] rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${style.button}`}
  >
  {confirmText}
