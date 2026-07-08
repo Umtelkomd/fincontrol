@@ -102,7 +102,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
- const { linkReceivablesToMovement } = useClassifier(user);
+ const { linkReceivablesToMovement, forceReceivablesReconcile } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -244,6 +244,29 @@ const CXCIndependiente = ({ user, userRole }) => {
  );
  } else {
  showToast(result.error?.message || 'Error al vincular movimiento', 'error');
+ }
+ return result;
+ };
+
+ // Admin-only escape hatch: settle CXC without a DATEV movement (audited).
+ const handleForceReconcile = async (selectedDocuments = [selectedRow], { reason } = {}) => {
+ if (!selectedRow) return { success: false, error: 'Sin CXC seleccionada' };
+ const documentsToForce = selectedDocuments.filter((entry) => entry?.source === 'receivable');
+ if (documentsToForce.length === 0) {
+ return { success: false, error: 'Seleccioná al menos una CXC actual' };
+ }
+ setLoadingId(selectedRow.id);
+ const result = await forceReceivablesReconcile(documentsToForce, { reason });
+ setLoadingId(null);
+ if (result.success) {
+ showToast(
+ result.count > 1
+ ? `${result.count} CXC liquidadas sin DATEV (forzado)`
+ : 'CXC liquidada sin DATEV (forzado)',
+ 'success',
+ );
+ } else {
+ showToast(result.error?.message || 'Error al forzar la conciliación', 'error');
  }
  return result;
  };
@@ -466,6 +489,8 @@ const CXCIndependiente = ({ user, userRole }) => {
  documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
+ allowManualForce={userRole === 'admin'}
+ onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal

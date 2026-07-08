@@ -14,6 +14,7 @@ import {
 } from '../finance/constants';
 import {
  buildMovementAllocations,
+ getDocumentOpenAmount,
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
@@ -247,6 +248,101 @@ export const useClassifier = (user) => {
  [user],
  );
 
+ // Admin escape hatch: settle one or more orders WITHOUT a DATEV bankMovement.
+ // Used when the bank confirms a payment/collection but the DATEV extract is not
+ // yet available. Every forced settle is audited with a mandatory reason so the
+ // deviation from the "DATEV is the sole source" policy stays traceable.
+ const forceReconcileDocuments = useCallback(
+ async (documents, kind, { reason } = {}) => {
+ if (!user) return { success: false, error: new Error('No user') };
+ const docs = normalizeDocuments(documents);
+ if (!docs.length) return { success: false, error: new Error('Seleccioná al menos una orden') };
+ const trimmedReason = String(reason || '').trim();
+ if (!trimmedReason) {
+ return { success: false, error: new Error('Indicá el motivo para forzar la conciliación sin DATEV') };
+ }
+
+ const settlements = docs
+ .map((document) => ({ document, openAmount: getDocumentOpenAmount(document) }))
+ .filter((entry) => entry.openAmount > RECONCILIATION_EPSILON);
+ if (!settlements.length) {
+ return { success: false, error: new Error('Las órdenes seleccionadas no tienen saldo abierto') };
+ }
+
+ try {
+ const nowIso = new Date().toISOString();
+ const label = LABEL_BY_KIND[kind];
+ const batch = writeBatch(db);
+
+ settlements.forEach(({ document, openAmount }) => {
+ const documentRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_BY_KIND[kind], document.id);
+ const nextPaid = clampMoney((Number(document.paidAmount) || 0) + openAmount);
+ batch.update(documentRef, {
+ openAmount: 0,
+ pendingAmount: 0,
+ paidAmount: nextPaid,
+ status: 'settled',
+ forcedReconciliation: true,
+ payments: arrayUnion({
+ date: toISODate(new Date()),
+ amount: openAmount,
+ method: 'Manual',
+ reference: '',
+ note: `Conciliación forzada sin DATEV: ${trimmedReason}`,
+ bankMovementId: null,
+ reconciliationMode: 'manual-force',
+ registeredBy: user.email,
+ timestamp: nowIso,
+ }),
+ updatedBy: user.email,
+ updatedAt: serverTimestamp(),
+ auditTrail: arrayUnion({
+ action: 'force-reconcile',
+ user: user.email,
+ timestamp: nowIso,
+ detail: `Conciliación forzada sin DATEV por ${openAmount.toFixed(2)}. Motivo: ${trimmedReason}`,
+ }),
+ });
+ });
+
+ await batch.commit();
+
+ await Promise.all(
+ settlements.map(({ document, openAmount }) =>
+ writeAuditLogEntry({
+ action: 'force-reconcile',
+ entityType: ENTITY_TYPE_BY_KIND[kind],
+ entityId: document.id,
+ description: `${label} conciliada sin DATEV (forzada por admin): ${getDocumentLabel(document)}`,
+ userEmail: user.email,
+ metadata: {
+ amount: openAmount,
+ reason: trimmedReason,
+ reconciliationMode: 'manual-force',
+ },
+ }),
+ ),
+ );
+
+ return { success: true, status: 'settled', count: settlements.length };
+ } catch (err) {
+ logError(`forceReconcileDocuments ${kind} error:`, err);
+ return { success: false, error: err };
+ }
+ },
+ [user],
+ );
+
+ const forceReceivablesReconcile = useCallback(
+ (documents, options) => forceReconcileDocuments(documents, 'receivable', options),
+ [forceReconcileDocuments],
+ );
+
+ const forcePayablesReconcile = useCallback(
+ (documents, options) => forceReconcileDocuments(documents, 'payable', options),
+ [forceReconcileDocuments],
+ );
+
  const linkToReceivable = useCallback(
  async (movement, receivable) => {
  return linkDocumentsToMovement(movement, [receivable], 'receivable');
@@ -367,6 +463,8 @@ export const useClassifier = (user) => {
  linkToPayable,
  linkReceivablesToMovement,
  linkPayablesToMovement,
+ forceReceivablesReconcile,
+ forcePayablesReconcile,
  categorize,
  suggestMatches,
  };
