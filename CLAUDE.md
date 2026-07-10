@@ -13,15 +13,19 @@ npm run build && npx firebase deploy --only hosting   # deploy
 
 ## Repo & Deploy
 - **Local:** `~/Dev/fincontrol/`
-- **GitHub:** jarl9801/fincontrol (public)
+- **GitHub:** Umtelkomd/fincontrol
 - **Live:** https://umtelkomd-finance.web.app
-- **Deploy:** Firebase Hosting (`npm run build && npx firebase deploy --only hosting`)
+- **Deploy:** Firebase Hosting (`npx firebase deploy --only hosting` — predeploy rebuilds)
 
 ## Firebase Config
 - **Project:** umtelkomd-finance
 - **App ID:** `1:597712756560:web:ad12cd9794f11992641655`
 - **Firestore path:** `artifacts/{APP_ID}/public/data/{collection}`
-- **Collections:** transactions, projects, costCenters, categories
+- **Collections:** bankMovements (canonical cash ledger, DATEV-fed), receivables (CXC),
+  payables (CXP), payrollPeriods, employees, projects, projectControl, costCenters,
+  categories, classificationRules, recurringCosts, budgets, notifications, auditLog,
+  settings (singletons: bankAccount, categories, overhead, reconciliation, treasury).
+  `transactions` is legacy and EMPTY — its code paths were removed in July 2026.
 - **Service account key:** `~/.credentials/umtelkomd-firebase.json`
 
 ## User Roles
@@ -30,18 +34,26 @@ npm run build && npx firebase deploy --only hosting   # deploy
 - Others — editor
 
 ## Key Files
-- `src/App.jsx` — Main app with routing
-- `src/hooks/useTransactions.js` — Transaction CRUD + sanitizer
-- `src/hooks/useMetrics.js` — Financial metrics/calculations
-- `src/components/Dashboard.jsx` — Main dashboard view
-- `src/data/balances2025.js` — Starting balances
+- `src/App.jsx` — Main app with routing (single router; nav in `src/components/layout/navItems.js`)
+- `src/lib/finance/` — PURE finance engine (cash position via reconciliation anchors,
+  13-week forecast, aging, burn/runway, German fiscal calendar incl. Dauerfristverlängerung,
+  alerts). Fully unit-tested; no Firebase imports allowed here.
+- `src/hooks/useFinanceLedger.js` — canonical ledger + anchor-derived cash position (cashMeta)
+- `src/hooks/useTreasuryMetrics.js` — aging, projections, runway on top of the ledger
+- `src/hooks/useForwardProjection.js` — 90-day daily forecast (wraps `src/finance/forwardProjection.js`)
+- `src/hooks/useReconciliation.js` / `useTreasurySettings.js` — settings/reconciliation & settings/treasury
+- `src/features/resumen/Resumen.jsx` — "Cómo va la empresa" cockpit (default landing, alerts panel)
+- `src/utils/sanitizeFirestore.js` — the React-301 sanitizer (tested; see CRITICAL #1)
+- `src/data/balances2025.js` — legacy starting balances (fallback only; anchors supersede it)
 - `firebase.json` — Hosting config with no-cache headers
 
-## Starting Balance (Dec 2025)
-- Banco: €28,450
-- IVA: €7,332.94
-- Total: €35,782.94
-- Defined in `src/data/balances2025.js`
+## Cash position (July 2026 model)
+- Reconciliation anchors live in `settings/reconciliation` (Configuración → Tesorería).
+  Cash today = newest anchor ≤ today + signed bank movements after it. Verified anchor:
+  2026-05-31 → +1,214.20 € (DATEV SuSa 1200). `scripts/seed-reconciliation-anchor.cjs` seeds it.
+- Bank movements imported before May 2026 have NO usable `signedAmount` — always derive via
+  `direction` fallback (`signedAmountOf` in `src/lib/finance/movementAmount.js`).
+- VAT estimates per month live in `settings/treasury` (due the 10th of M+2, Dauerfrist).
 
 ## Dependencies (key)
 - `firebase@^12` — Backend
@@ -58,8 +70,9 @@ npm run build && npx firebase deploy --only hosting   # deploy
 
 ## ⚠️ CRITICAL — DO NOT BREAK THESE
 
-### 1. sanitizeValue() in useTransactions.js
+### 1. sanitizeValue() in src/utils/sanitizeFirestore.js
 Recursive sanitizer that prevents **React error 301** (non-serializable Firestore objects).
+Extracted from the removed useTransactions hook in July 2026, now unit-tested.
 **DO NOT remove or simplify it.**
 
 ### 2. viewedBy field

@@ -120,6 +120,45 @@ export const selectDueWithinDays = (items, days, asOfDate) => {
 };
 
 /**
+ * Estimated fiscal obligations (IVA / SV / Lohnsteuer / nómina) shaped as
+ * DueList pseudo-items for the "Próximos pagos" list. Documents (`kind:
+ * 'payable'`) are excluded — the real payables list already carries them.
+ * Calendar-safe UTC date math (same addDaysIso as selectDueWithinDays) so a
+ * document and an estimate due the same day never land on opposite sides of
+ * the window cutoff.
+ *
+ * @param {Array<{ date: string, kind: string, label: string, amount: number, month?: string }>} obligations
+ * @param {number} days       window size in days
+ * @param {string|Date} [asOfDate] defaults to today
+ * @returns {Array<{ id, counterpartyName, dueDate, openAmount, estimated }>}
+ */
+export const selectUpcomingObligations = (obligations, days, asOfDate) => {
+  if (!Array.isArray(obligations) || obligations.length === 0) return [];
+
+  const safeDays = Math.max(0, Math.floor(Number(days) || 0));
+  const asOf = toIso(asOfDate) || todayIso();
+  const windowEnd = addDaysIso(asOf, safeDays);
+
+  return obligations
+    .filter(
+      (item) =>
+        item &&
+        item.kind !== 'payable' &&
+        typeof item.date === 'string' &&
+        item.date >= asOf &&
+        item.date <= windowEnd &&
+        (Number(item.amount) || 0) > 0,
+    )
+    .map((item) => ({
+      id: `obligation:${item.kind}:${item.month || item.date}`,
+      counterpartyName: item.label,
+      dueDate: item.date,
+      openAmount: Number(item.amount) || 0,
+      estimated: true,
+    }));
+};
+
+/**
  * Convert a runway expressed in months to whole weeks for a scannable display.
  * Non-finite / null months (infinite runway, no burn) collapse to Infinity so
  * the caller can render an ∞ sentinel.

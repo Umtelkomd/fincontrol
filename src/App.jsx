@@ -9,8 +9,6 @@ import NexusMark from './components/brand/NexusMark';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import Login from './features/auth/Login';
 import { useAuth } from './hooks/useAuth';
-import { useFilters } from './hooks/useFilters';
-import { useTransactions } from './hooks/useTransactions';
 import { useTreasuryMetrics } from './hooks/useTreasuryMetrics';
 import { formatCurrency } from './utils/formatters';
 
@@ -53,11 +51,7 @@ const LoadingState = () => (
 function AppContent() {
  useToast();
  const { user, userRole, hasPermission, loading: authLoading } = useAuth();
- const { transactions, loading: transactionsLoading } = useTransactions(user);
  const treasury = useTreasuryMetrics({ user });
- const {
- filteredTransactions,
- } = useFilters(transactions);
 
  const location = useLocation();
 
@@ -65,7 +59,7 @@ function AppContent() {
  const [launcherDefaultAction, setLauncherDefaultAction] = useState(null);
  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
- const loading = authLoading || transactionsLoading;
+ const loading = authLoading;
  const currentTitle = VIEW_TITLES[location.pathname] || 'Inicio';
 
  const contentRef = useRef(null);
@@ -141,20 +135,12 @@ function AppContent() {
  </div>
  </div>
 
- {!loading && (
+ {!loading && bankBalanceData && (
   <div className="relative hidden items-center gap-2 md:flex">
- {bankBalanceData && (
   <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3.5 py-2">
  <Landmark size={12} className={bankBalanceData.currentBalance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'} />
  <span className={`font-mono text-[12px] font-medium tabular-nums ${bankBalanceData.currentBalance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
  {formatCurrency(bankBalanceData.currentBalance)}
- </span>
- </div>
- )}
-  <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3.5 py-2">
- <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-ok)]" />
- <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">
- {transactions.length} registros
  </span>
  </div>
  </div>
@@ -189,7 +175,7 @@ function AppContent() {
  />
  <Route path="/ingresos" element={<ProtectedRoute hasPermission={hasPermission} permission="transactions"><Ingresos userRole={userRole} user={user} onNewTransaction={handleOpenLauncher} /></ProtectedRoute>} />
   <Route path="/gastos" element={<ProtectedRoute hasPermission={hasPermission} permission="transactions"><Gastos userRole={userRole} user={user} onNewTransaction={handleOpenLauncher} /></ProtectedRoute>} />
-  <Route path="/configuracion" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ConfiguracionUnified user={user} transactions={filteredTransactions} /></ProtectedRoute>} />
+  <Route path="/configuracion" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ConfiguracionUnified user={user} /></ProtectedRoute>} />
    <Route path="/empleados" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Employees user={user} userRole={userRole} /></ProtectedRoute>} />
   <Route path="/datev" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><DatevImport user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/clasificar" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Classifier user={user} userRole={userRole} /></ProtectedRoute>} />

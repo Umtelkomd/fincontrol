@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeMonthlyResult,
   selectDueWithinDays,
+  selectUpcomingObligations,
   runwayWeeks,
   buildMonthlyCashFlowSeries,
   __internal,
@@ -315,5 +316,44 @@ describe('__internal', () => {
 
   it('WEEKS_PER_MONTH constant is the canonical 4.345', () => {
     expect(__internal.WEEKS_PER_MONTH).toBe(4.345);
+  });
+});
+
+// ── selectUpcomingObligations ────────────────────────────────────────────────
+describe('selectUpcomingObligations', () => {
+  const OBLIGATIONS = [
+    { date: '2026-07-15', kind: 'vat', label: 'IVA 2026-05', amount: 13269.06, month: '2026-05' },
+    { date: '2026-07-28', kind: 'social', label: 'Seguridad social 2026-07', amount: 14000, month: '2026-07' },
+    { date: '2026-08-09', kind: 'payable', label: 'Factura real', amount: 500 },
+    { date: '2026-07-20', kind: 'wage-tax', label: 'Lohnsteuer 2026-06', amount: 0, month: '2026-06' },
+    { date: '2026-09-30', kind: 'vat', label: 'IVA 2026-07', amount: 9000, month: '2026-07' },
+  ];
+
+  it('keeps only estimated kinds inside the window with positive amounts', () => {
+    const items = selectUpcomingObligations(OBLIGATIONS, 30, '2026-07-10');
+    expect(items.map((i) => i.id)).toEqual([
+      'obligation:vat:2026-05',
+      'obligation:social:2026-07',
+    ]);
+    expect(items[0]).toEqual({
+      id: 'obligation:vat:2026-05',
+      counterpartyName: 'IVA 2026-05',
+      dueDate: '2026-07-15',
+      openAmount: 13269.06,
+      estimated: true,
+    });
+  });
+
+  it('window end is calendar-inclusive on day N (parity with selectDueWithinDays)', () => {
+    const edge = [{ date: '2026-08-09', kind: 'vat', label: 'IVA', amount: 100, month: '2026-06' }];
+    expect(selectUpcomingObligations(edge, 30, '2026-07-10')).toHaveLength(1);
+    expect(selectUpcomingObligations(edge, 29, '2026-07-10')).toHaveLength(0);
+  });
+
+  it('drops payable kinds, past dates and empty inputs', () => {
+    expect(selectUpcomingObligations([], 30, '2026-07-10')).toEqual([]);
+    expect(selectUpcomingObligations(null, 30, '2026-07-10')).toEqual([]);
+    const past = [{ date: '2026-07-01', kind: 'vat', label: 'IVA', amount: 100, month: '2026-05' }];
+    expect(selectUpcomingObligations(past, 30, '2026-07-10')).toEqual([]);
   });
 });

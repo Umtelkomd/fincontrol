@@ -55,61 +55,39 @@ const login = async () => {
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
   }
 
-  await page.getByText('Inicio operativo', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByText('Cómo va la', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
 };
 
 await login();
 
-await record('launcher opens and closes', async () => {
-  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+await record('resumen cockpit renders cash and reconciliation meta', async () => {
+  await page.goto(baseUrl + '/resumen', { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-  const trigger = page.getByRole('button', { name: 'Nuevo registro' });
-  await trigger.waitFor({ state: 'visible', timeout: 20000 });
-  await trigger.click();
-  await page.getByText('Centro de tesoreria', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByText('Registrar cobro', { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByRole('button', { name: 'Cerrar centro de tesoreria' }).click();
-  await page.getByText('Centro de tesoreria', { exact: false }).waitFor({ state: 'hidden', timeout: 15000 });
+  await page.getByText('Caja y runway', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByText('Caja actual', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
+  // Reconciliation meta line: either anchored ("Conciliado al …") or the
+  // explicit unanchored fallback — both prove the anchors path is wired.
+  const anchored = page.getByText('Conciliado al', { exact: false });
+  const unanchored = page.getByText('Sin conciliar', { exact: false });
+  await Promise.race([
+    anchored.first().waitFor({ state: 'visible', timeout: 30000 }),
+    unanchored.first().waitFor({ state: 'visible', timeout: 30000 }),
+  ]);
 });
 
-await record('cxc abono modal opens and closes', async () => {
-  await page.goto(baseUrl + '/cxc', { waitUntil: 'domcontentloaded' });
+await record('configuracion treasury tab manages anchors and vat estimates', async () => {
+  await page.goto(baseUrl + '/configuracion', { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-  const abono = page.getByRole('button', { name: 'Abono' }).first();
-  await abono.waitFor({ state: 'visible', timeout: 20000 });
-  await abono.click();
-  await page.locator('h3').filter({ hasText: 'Registrar Pago' }).first().waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByText('Monto del pago', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByRole('button', { name: 'Cerrar registro de pago' }).click();
-  await page.locator('h3').filter({ hasText: 'Registrar Pago' }).first().waitFor({ state: 'hidden', timeout: 15000 });
+  await page.getByRole('button', { name: 'Tesorería' }).click();
+  await page.getByText('Anclas de conciliación', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByText('IVA estimado por mes', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByText('Saldo derivado hoy', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
 });
 
-await record('cxp abono modal opens and closes', async () => {
-  await page.goto(baseUrl + '/cxp', { waitUntil: 'domcontentloaded' });
+await record('movimientos ledger loads', async () => {
+  await page.goto(baseUrl + '/movimientos', { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-  const abono = page.getByRole('button', { name: 'Abono' }).first();
-  await abono.waitFor({ state: 'visible', timeout: 20000 });
-  await abono.click();
-  await page.locator('h3').filter({ hasText: 'Registrar Pago' }).first().waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByText('Monto del pago', { exact: false }).waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByRole('button', { name: 'Cerrar registro de pago' }).click();
-  await page.locator('h3').filter({ hasText: 'Registrar Pago' }).first().waitFor({ state: 'hidden', timeout: 15000 });
-});
-
-await record('report export triggers download', async () => {
-  await page.goto(baseUrl + '/reportes', { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-  await page.getByRole('button', { name: 'Estado de Resultados' }).click();
-  await page.getByText('Estado de resultados operativo', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
-  const exportButton = page.getByRole('button', { name: 'Exportar PDF' }).first();
-  await exportButton.waitFor({ state: 'visible', timeout: 20000 });
-  const downloadPromise = page.waitForEvent('download', { timeout: 90000 });
-  await exportButton.click();
-  const download = await downloadPromise;
-  const suggestedFilename = download.suggestedFilename();
-  if (!suggestedFilename.endsWith('.pdf')) {
-    throw new Error('Unexpected download: ' + suggestedFilename);
-  }
+  await page.getByText('Movimientos', { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 });
 });
 
 console.log(JSON.stringify(results, null, 2));
