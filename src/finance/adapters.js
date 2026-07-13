@@ -64,6 +64,7 @@ const normalizeDocument = (raw, kind, source) => {
     documentNumber: raw.documentNumber || raw.invoiceNumber || '',
     projectId: raw.projectId || '',
     projectName: raw.projectName || raw.project || 'Sin proyecto',
+    projectCode: raw.projectCode || '',
     costCenterId: raw.costCenterId || raw.costCenter || '',
     payments: normalizePayments(raw.payments),
     linkedTransactionId: raw.linkedTransactionId || null,
@@ -82,6 +83,12 @@ const normalizeDocument = (raw, kind, source) => {
     payrollPeriodId: raw.payrollPeriodId || null,
     payrollKind: raw.payrollKind || null,
     sourceDocument: raw.sourceDocument || null,
+    // S2 — Lumen integration / idempotency
+    sourceKey: raw.sourceKey || '',
+    sourceSystem: raw.sourceSystem || (raw.sourceKey ? 'lumen' : ''),
+    lumenWorkOrderId: raw.lumenWorkOrderId || '',
+    lumenOrderNumber: raw.lumenOrderNumber || '',
+    lumenCycleId: raw.lumenCycleId || '',
     // F1 ops production gate (primarily payables; harmless on receivables)
     opsCleared: Boolean(raw.opsCleared),
     opsClearedAt: raw.opsClearedAt || null,

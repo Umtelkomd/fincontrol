@@ -6,12 +6,15 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { adaptPayableDoc } from '../finance/adapters';
 import {
@@ -20,6 +23,7 @@ import {
 } from '../finance/constants';
 import { clampMoney, toISODate } from '../finance/utils';
 import { assertPayablePaymentAllowed } from '../finance/opsControl';
+import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
@@ -88,6 +92,13 @@ export const usePayables = (user) => {
         counterpartyName: data.vendor,
         projectId: data.projectId || '',
         projectName: data.projectName || data.project || '',
+        projectCode: normalizeProjectCode(data.projectCode || data.projectName || ''),
+        // S2 Lumen linkage / idempotency
+        sourceKey: data.sourceKey || '',
+        sourceSystem: data.sourceSystem || (data.sourceKey ? LUMEN_SOURCE_SYSTEM : ''),
+        lumenWorkOrderId: data.lumenWorkOrderId || '',
+        lumenOrderNumber: data.lumenOrderNumber || '',
+        lumenCycleId: data.lumenCycleId || '',
         // NEW (Phase 2A): array of employee doc ids attached to this payable.
         // Persists which technicians the invoice is FOR (e.g., "this CXP from
         // subcontractor X covers Jorge + Andres for week Y"). Defaults to [].
@@ -154,7 +165,8 @@ export const usePayables = (user) => {
           updatedAt: new Date().toISOString(),
         }),
       });
-      return { success: true, id: docRef.id };
+      return { success: true, id: docRef.id }; // id required for sourceKey upserts
+
     } catch (error) {
       logError('Error creating payable:', error);
       return { success: false, error };
@@ -535,6 +547,76 @@ export const usePayables = (user) => {
     }
   };
 
+  /**
+   * S2/S4: create or update a payable by sourceKey (Lumen cycle close).
+   * Does not reduce amount below paidAmount; never reopens settled docs.
+   */
+  const upsertPayableBySourceKey = async (data) => {
+    if (!user) return { success: false, error: new Error('No user') };
+    const sourceKey = String(data.sourceKey || '').trim();
+    if (!sourceKey) return { success: false, error: new Error('sourceKey requerido') };
+
+    try {
+      const q = query(payablesRef, where('sourceKey', '==', sourceKey), limit(1));
+      const snap = await getDocs(q);
+      const amount = clampMoney(data.amount);
+
+      if (!snap.empty) {
+        const existing = adaptPayableDoc({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        if (existing.status === 'settled' || existing.status === 'cancelled') {
+          return { success: true, id: existing.id, action: 'skipped', reason: existing.status };
+        }
+        const paid = clampMoney(existing.paidAmount || 0);
+        const nextGross = Math.max(amount, paid);
+        const nextOpen = clampMoney(nextGross - paid);
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'payables', existing.id);
+        await updateDoc(ref, {
+          grossAmount: nextGross,
+          amount: nextGross,
+          openAmount: nextOpen,
+          pendingAmount: nextOpen,
+          description: data.description || existing.description,
+          counterpartyName: data.vendor || data.counterpartyName || existing.counterpartyName,
+          vendor: data.vendor || data.counterpartyName || existing.vendor,
+          projectId: data.projectId || existing.projectId || '',
+          projectName: data.projectName || existing.projectName || '',
+          projectCode: normalizeProjectCode(data.projectCode || existing.projectCode || ''),
+          productionWeekRef: data.productionWeekRef || existing.productionWeekRef || '',
+          lumenCycleId: data.lumenCycleId || existing.lumenCycleId || '',
+          lumenWorkOrderId: data.lumenWorkOrderId || existing.lumenWorkOrderId || '',
+          lumenOrderNumber: data.lumenOrderNumber || existing.lumenOrderNumber || '',
+          opsGateRequired: data.opsGateRequired != null ? Boolean(data.opsGateRequired) : true,
+          opsCleared: data.opsCleared != null ? Boolean(data.opsCleared) : existing.opsCleared,
+          opsClearedAt: data.opsCleared ? new Date().toISOString() : existing.opsClearedAt || null,
+          opsClearedBy: data.opsCleared ? user.email : existing.opsClearedBy || '',
+          dueDate: toISODate(data.dueDate) || existing.dueDate,
+          sourceSystem: LUMEN_SOURCE_SYSTEM,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email,
+          auditTrail: arrayUnion({
+            action: 'upsert-sourceKey',
+            user: user.email,
+            timestamp: new Date().toISOString(),
+            detail: `Upsert Lumen ${sourceKey}`,
+          }),
+        });
+        return { success: true, id: existing.id, action: 'updated' };
+      }
+
+      const created = await createPayable({
+        ...data,
+        amount,
+        sourceKey,
+        sourceSystem: LUMEN_SOURCE_SYSTEM,
+        source: 'lumen',
+      });
+      return { ...created, action: created.success ? 'created' : 'error' };
+    } catch (error) {
+      logError('upsertPayableBySourceKey:', error);
+      return { success: false, error };
+    }
+  };
+
   return {
     payables,
     loading,
@@ -546,6 +628,7 @@ export const usePayables = (user) => {
     convertToReceivable,
     markAsPaid,
     setOpsCleared,
+    upsertPayableBySourceKey,
   };
 };
 

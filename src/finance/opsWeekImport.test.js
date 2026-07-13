@@ -41,7 +41,7 @@ describe('matchClearRowsToPayables', () => {
 });
 
 describe('buildCxcDraftsFromRows', () => {
-  it('builds receivable payloads', () => {
+  it('builds receivable payloads with sourceKey', () => {
     const drafts = buildCxcDraftsFromRows(
       [
         {
@@ -49,19 +49,21 @@ describe('buildCxcDraftsFromRows', () => {
           week: '2026-W29',
           counterparty: 'Insyte',
           amount: 15000,
-          projectCode: 'PROY-004',
+          projectCode: 'NE4',
           projectId: '',
           description: 'LN',
-          documentNumber: 'LN-1',
+          documentNumber: 'WO-1',
           dueDate: '2026-08-01',
           crew: '',
+          lumenWorkOrderId: 'wo-uuid',
           line: 2,
         },
       ],
-      [{ id: 'px', code: 'PROY-004', name: 'NE4' }],
+      [{ id: 'px', code: 'NE4', name: 'NE4' }],
     );
     expect(drafts[0].payload.client).toBe('Insyte');
     expect(drafts[0].payload.projectId).toBe('px');
     expect(drafts[0].payload.amount).toBe(15000);
+    expect(drafts[0].payload.sourceKey).toBe('lumen:cxc:wo-uuid');
   });
 });

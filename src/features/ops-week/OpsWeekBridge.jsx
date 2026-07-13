@@ -15,6 +15,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import {
   buildCxcDraftsFromRows,
+  buildCxpDraftsFromClearRows,
   matchClearRowsToPayables,
   OPS_WEEK_CSV_TEMPLATE,
   parseOpsWeekCsv,
@@ -23,17 +24,17 @@ import { formatCurrency } from '../../utils/formatters';
 import { Badge, Button, EmptyState, KPI, KPIGrid, Panel } from '@/components/ui/nexus';
 
 /**
- * F1 bridge: import weekly production CSV →
- *  - clear ops on matching CXP
- *  - draft CXC for client billing
+ * S3/S4 bridge: import Lumen finance-week CSV (event serialization) →
+ *  - upsert CXP by sourceKey (cycle close, opsCleared)
+ *  - upsert CXC by sourceKey (client_accepted)
  */
 const OpsWeekBridge = ({ user }) => {
   const { showToast } = useToast();
   const ledger = useFinanceLedgerContext();
   const metrics = useTreasuryMetrics({ user, ledger });
   const { projects } = useProjects(user);
-  const { setOpsCleared } = usePayables(user);
-  const { createReceivable } = useReceivables(user);
+  const { setOpsCleared, upsertPayableBySourceKey } = usePayables(user);
+  const { upsertReceivableBySourceKey } = useReceivables(user);
 
   const [parseResult, setParseResult] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -56,6 +57,11 @@ const OpsWeekBridge = ({ user }) => {
   const clearMatches = useMemo(
     () => matchClearRowsToPayables(clearRows, payables, projects),
     [clearRows, payables, projects],
+  );
+
+  const cxpDrafts = useMemo(
+    () => buildCxpDraftsFromClearRows(clearRows, projects),
+    [clearRows, projects],
   );
 
   const cxcDrafts = useMemo(
@@ -86,16 +92,32 @@ const OpsWeekBridge = ({ user }) => {
     }
   };
 
+  /** Upsert CXP from clear rows (preferred) + legacy match-only clear */
   const applyClears = async () => {
-    const toApply = clearMatches.filter((m) => m.match?.payable && !m.alreadyCleared);
-    if (!toApply.length) {
-      showToast('No hay CXP nuevas para validar', 'info');
+    if (!cxpDrafts.length && !clearMatches.length) {
+      showToast('No hay filas clear', 'info');
       return;
     }
     setBusy(true);
     const lines = [];
     let ok = 0;
-    for (const m of toApply) {
+    let total = 0;
+
+    for (const d of cxpDrafts) {
+      total += 1;
+      const r = await upsertPayableBySourceKey(d.payload);
+      if (r.success) {
+        ok += 1;
+        lines.push(`✓ CXP ${r.action || 'ok'} ${d.payload.vendor} ${formatCurrency(d.payload.amount)} · ${d.payload.sourceKey}`);
+      } else {
+        lines.push(`✗ CXP ${d.payload.vendor}: ${r.error?.message || 'error'}`);
+      }
+    }
+
+    // Legacy path: clear existing match without sourceKey create
+    for (const m of clearMatches.filter((x) => x.match?.payable && !x.alreadyCleared)) {
+      if (m.row.sourceKey || m.row.lumenCycleId) continue; // already handled via upsert
+      total += 1;
       const r = await setOpsCleared(m.match.payable, {
         cleared: true,
         productionWeekRef: m.row.week,
@@ -103,14 +125,15 @@ const OpsWeekBridge = ({ user }) => {
       });
       if (r.success) {
         ok += 1;
-        lines.push(`✓ ${m.match.payable.counterpartyName} · ${m.row.week}`);
+        lines.push(`✓ clear match ${m.match.payable.counterpartyName}`);
       } else {
-        lines.push(`✗ ${m.row.counterparty}: ${r.error?.message || 'error'}`);
+        lines.push(`✗ clear match ${m.row.counterparty}: ${r.error?.message || 'error'}`);
       }
     }
+
     setLog((prev) => [...lines, ...prev]);
     setBusy(false);
-    showToast(`${ok}/${toApply.length} CXP validadas`, ok ? 'success' : 'error');
+    showToast(`${ok}/${total || 1} CXP (upsert/clear)`, ok ? 'success' : 'error');
   };
 
   const createCxcDrafts = async () => {
@@ -122,21 +145,23 @@ const OpsWeekBridge = ({ user }) => {
     const lines = [];
     let ok = 0;
     for (const d of cxcDrafts) {
-      const r = await createReceivable(d.payload);
+      const r = await upsertReceivableBySourceKey(d.payload);
       if (r.success) {
         ok += 1;
-        lines.push(`✓ CXC ${d.payload.client} ${formatCurrency(d.payload.amount)}`);
+        lines.push(
+          `✓ CXC ${r.action || 'ok'} ${d.payload.client} ${formatCurrency(d.payload.amount)} · ${d.payload.sourceKey}`,
+        );
       } else {
         lines.push(`✗ CXC ${d.payload.client}: ${r.error?.message || 'error'}`);
       }
     }
     setLog((prev) => [...lines, ...prev]);
     setBusy(false);
-    showToast(`${ok}/${cxcDrafts.length} borradores CXC creados`, ok ? 'success' : 'error');
+    showToast(`${ok}/${cxcDrafts.length} CXC upsert`, ok ? 'success' : 'error');
   };
 
   const matchedCount = clearMatches.filter((m) => m.match).length;
-  const pendingClear = clearMatches.filter((m) => m.match && !m.alreadyCleared).length;
+  const pendingClear = cxpDrafts.length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -147,8 +172,8 @@ const OpsWeekBridge = ({ user }) => {
             Semana de producción
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-[var(--color-fg-3)]">
-            Importá el CSV semanal: validá CXP de cuadrillas (sin parte validado no se paga) y
-            generá borradores CXC de cobro a cliente.
+            Contrato Lumen → FinControl: upsert por <code className="font-mono text-[11px]">sourceKey</code>{' '}
+            (ciclo publicado = CXP clear; client_accepted = CXC). Reimportar no duplica.
           </p>
         </div>
         <div className="flex gap-2">
@@ -209,8 +234,8 @@ const OpsWeekBridge = ({ user }) => {
       {parseResult?.ok && (
         <>
           <Panel
-            title="Validar producción → CXP"
-            meta={`${pendingClear} por aplicar`}
+            title="CXP desde ciclos (clear)"
+            meta={`${pendingClear} fila(s) → upsert sourceKey`}
             actions={
               <Button
                 variant="primary"
@@ -218,7 +243,7 @@ const OpsWeekBridge = ({ user }) => {
                 disabled={busy || !pendingClear}
                 onClick={applyClears}
               >
-                Aplicar validaciones
+                Upsert CXP + clear
               </Button>
             }
             padding={false}
@@ -268,8 +293,8 @@ const OpsWeekBridge = ({ user }) => {
           </Panel>
 
           <Panel
-            title="Borradores CXC (cobro)"
-            meta={`${cxcDrafts.length} filas`}
+            title="CXC desde client_accepted"
+            meta={`${cxcDrafts.length} filas → upsert sourceKey`}
             actions={
               <Button
                 variant="primary"
@@ -277,7 +302,7 @@ const OpsWeekBridge = ({ user }) => {
                 disabled={busy || !cxcDrafts.length}
                 onClick={createCxcDrafts}
               >
-                Crear borradores CXC
+                Upsert CXC
               </Button>
             }
             padding={false}

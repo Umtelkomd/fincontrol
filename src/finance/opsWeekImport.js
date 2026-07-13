@@ -10,13 +10,19 @@
  */
 
 import { canonicalizeProjectCode, projectCodesMatch } from './projectCodeAliases.js';
+import {
+  cxcSourceKey,
+  cxpSourceKey,
+  resolveProjectIdByCode,
+  sourceKeyFromOpsRow,
+} from './lumenContract.js';
 
 const REQUIRED = ['kind', 'week', 'counterparty', 'amount'];
 
 export const OPS_WEEK_CSV_TEMPLATE = [
-  'kind,week,project_code,project_id,counterparty,amount,description,document_number,due_date,crew',
-  'clear,2026-W29,PROY-004,,Melgarejo,5000,Producción validada KW29,,,Melgarejo',
-  'cxc,2026-W29,PROY-004,,Insyte,15000,Leistungsnachweis KW29,LN-2026-W29,2026-08-20,',
+  'kind,week,project_code,project_id,counterparty,amount,description,document_number,due_date,crew,source_key,lumen_work_order_id,lumen_cycle_id',
+  'clear,2026-W29,QFF,,Melgarejo,5000,Ciclo publicado,,,Melgarejo,lumen:cxp:cycle-abc,,abc',
+  'cxc,2026-W29,NE4,,Insyte,15000,client_accepted WO-1,WO-1,,,lumen:cxc:wo-wo1,wo1,',
 ].join('\n');
 
 const normalizeHeader = (h) =>
@@ -119,6 +125,9 @@ export function parseOpsWeekCsv(text) {
       documentNumber: String(row.document_number || '').trim(),
       dueDate: String(row.due_date || '').trim(),
       crew: String(row.crew || '').trim(),
+      sourceKey: String(row.source_key || '').trim(),
+      lumenWorkOrderId: String(row.lumen_work_order_id || '').trim(),
+      lumenCycleId: String(row.lumen_cycle_id || '').trim(),
       line: row._line,
     });
   });
@@ -200,35 +209,72 @@ export function matchClearRowsToPayables(clearRows, payables, projects = []) {
  * Build receivable payloads for cxc rows (not yet written).
  */
 export function buildCxcDraftsFromRows(cxcRows, projects = []) {
-  const projectByCode = new Map();
-  projects.forEach((p) => {
-    const code = canonicalizeProjectCode(p.code || p.codigo || p.name || p.displayName || '');
-    if (code) projectByCode.set(code, p);
-  });
-
   return cxcRows.map((row) => {
-    const project =
-      (row.projectId && projects.find((p) => p.id === row.projectId)) ||
-      projectByCode.get(canonicalizeProjectCode(row.projectCode)) ||
-      null;
+    const resolved = resolveProjectIdByCode(projects, row.projectCode);
+    const sourceKey =
+      sourceKeyFromOpsRow({
+        kind: 'cxc',
+        source_key: row.sourceKey,
+        lumen_work_order_id: row.lumenWorkOrderId,
+      }) ||
+      (row.documentNumber ? cxcSourceKey(row.documentNumber) : '') ||
+      `lumen:cxc:line-${row.week}-${row.line}`;
+
     return {
       row,
       payload: {
         client: row.counterparty,
         amount: row.amount,
-        projectId: row.projectId || project?.id || '',
-        projectName:
-          project?.displayName ||
-          project?.name ||
-          row.projectCode ||
-          '',
+        projectId: row.projectId || resolved.projectId || '',
+        projectName: resolved.projectName || row.projectCode || '',
+        projectCode: resolved.projectCode || canonicalizeProjectCode(row.projectCode),
         description: row.description || `Producción ${row.week}`,
         documentNumber: row.documentNumber || `DRAFT-${row.week}-${row.line}`,
         issueDate: new Date().toISOString().slice(0, 10),
         dueDate: row.dueDate || '',
         notes: `ops-week import ${row.week}${row.crew ? ` · crew ${row.crew}` : ''}`,
         productionWeekRef: row.week,
-        source: 'ops-week-import',
+        source: 'lumen',
+        sourceSystem: 'lumen',
+        sourceKey,
+        lumenWorkOrderId: row.lumenWorkOrderId || '',
+        lumenOrderNumber: row.documentNumber || '',
+      },
+    };
+  });
+}
+
+/** Build CXP upsert payloads from clear rows (cycle close). */
+export function buildCxpDraftsFromClearRows(clearRows, projects = []) {
+  return clearRows.map((row) => {
+    const resolved = resolveProjectIdByCode(projects, row.projectCode);
+    const sourceKey =
+      sourceKeyFromOpsRow({
+        kind: 'clear',
+        source_key: row.sourceKey,
+        lumen_cycle_id: row.lumenCycleId,
+      }) ||
+      (row.lumenCycleId ? cxpSourceKey(row.lumenCycleId) : '') ||
+      `lumen:cxp:line-${row.week}-${row.line}`;
+
+    return {
+      row,
+      payload: {
+        vendor: row.counterparty,
+        amount: row.amount,
+        projectId: row.projectId || resolved.projectId || '',
+        projectName: resolved.projectName || row.projectCode || '',
+        projectCode: resolved.projectCode || canonicalizeProjectCode(row.projectCode),
+        description: row.description || `Ciclo ${row.week}`,
+        documentNumber: row.documentNumber || '',
+        dueDate: row.dueDate || '',
+        productionWeekRef: row.week,
+        source: 'lumen',
+        sourceSystem: 'lumen',
+        sourceKey,
+        lumenCycleId: row.lumenCycleId || '',
+        opsGateRequired: true,
+        opsCleared: true,
       },
     };
   });

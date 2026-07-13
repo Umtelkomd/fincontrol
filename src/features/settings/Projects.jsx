@@ -21,6 +21,8 @@ import { formatDate } from '../../utils/formatters';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import Toast from '../../components/ui/Toast';
 import { Button } from '@/components/ui/nexus';
+import { LUMEN_CANONICAL_PROJECT_SEED } from '../../finance/lumenContract';
+import { canonicalizeProjectCode } from '../../finance/projectCodeAliases';
 
 // ============================================
 // Operators (Auftraggeber) — known UMTELKOMD project owners.
@@ -32,19 +34,10 @@ const OPERATORS = [
 ];
 
 // ============================================
-// Default project catalog — used by the "Importar predefinidos" button
-// to bootstrap the project list. Idempotent: only creates projects whose
-// `code` doesn't already exist.
+// Default project catalog — Lumen-canonical codes (S1).
+// "Importar predefinidos" is idempotent by `code`.
 // ============================================
-const DEFAULT_PROJECTS = [
- { code: 'FBX', name: 'FBX', operator: 'INSYTE', zone: '' },
- { code: 'QFF', name: 'QFF', operator: 'INSYTE', zone: '' },
- { code: 'BIE', name: 'Bielefeld', operator: 'INSYTE', zone: 'Nordrhein-Westfalen' },
- { code: 'WUR', name: 'Würzburg', operator: 'INSYTE', zone: 'Bayern' },
- { code: 'BAM', name: 'Bamberg', operator: 'INSYTE', zone: 'Bayern' },
- { code: 'LGN', name: 'Langenau', operator: 'VANCOM', zone: 'Baden-Württemberg' },
- { code: 'EHR', name: 'Ehrenkirchen', operator: 'VANCOM', zone: 'Baden-Württemberg' },
-];
+const DEFAULT_PROJECTS = LUMEN_CANONICAL_PROJECT_SEED;
 
 const operatorColor = (value) => {
   if (value === 'INSYTE') return 'text-[var(--color-ok)] border-[var(--color-line-s)]';
@@ -219,37 +212,45 @@ const Projects = ({ user }) => {
  }
  };
 
- // Idempotent bootstrap: creates any DEFAULT_PROJECTS whose `code` doesn't
- // already exist in the current Firestore collection. Existing projects are
- // never touched, so this is safe to click multiple times.
+ // Idempotent bootstrap: Lumen-canonical codes. Existing projects are never
+ // overwritten — only missing codes are created (S1 master alignment).
  const [importing, setImporting] = useState(false);
  const handleImportDefaults = async () => {
  if (importing) return;
- if (!window.confirm('Importar los 7 proyectos predefinidos de UMTELKOMD? Solo se crearán los que aún no existan.')) return;
+ if (!window.confirm(
+ `Importar ${DEFAULT_PROJECTS.length} proyectos con código canónico Lumen (QFF, NE4, …)? Solo se crean los que faltan.`,
+ )) return;
  setImporting(true);
- const existingCodes = new Set(projects.map((p) => (p.code || '').toUpperCase()));
+ const existingCodes = new Set(
+ projects.map((p) => canonicalizeProjectCode(p.code || p.name || '')).filter(Boolean),
+ );
  let created = 0;
  let skipped = 0;
  for (const def of DEFAULT_PROJECTS) {
- if (existingCodes.has(def.code.toUpperCase())) {
+ const code = canonicalizeProjectCode(def.code);
+ if (existingCodes.has(code)) {
  skipped += 1;
  continue;
  }
  const result = await createProject({
  ...def,
+ code,
  client: '',
  description: '',
  startDate: '',
  endDate: '',
  budget: 0,
  status: 'active',
- displayName: `${def.code} (${def.name})`,
+ displayName: `${code} (${def.name})`,
  });
- if (result.success) created += 1;
+ if (result.success) {
+ created += 1;
+ existingCodes.add(code);
+ }
  }
  setImporting(false);
  setToast({
- message: `Importación completa: ${created} creados, ${skipped} ya existían`,
+ message: `Códigos Lumen: ${created} creados, ${skipped} ya existían`,
  type: created > 0 ? 'success' : 'info',
  });
  };
@@ -298,9 +299,9 @@ const Projects = ({ user }) => {
  disabled={importing}
  loading={importing}
  onClick={handleImportDefaults}
- title="Crear los 8 proyectos predefinidos de UMTELKOMD (idempotente)"
+ title="Crear catálogo canónico Lumen (QFF, NE4, …) — idempotente"
  >
- {importing ? 'Importando…' : 'Importar predefinidos'}
+ {importing ? 'Importando…' : 'Importar códigos Lumen'}
  </Button>
  <Button variant="primary" icon={Plus} onClick={handleOpenAdd}>
  Nuevo proyecto

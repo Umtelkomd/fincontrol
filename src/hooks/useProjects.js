@@ -12,6 +12,20 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
+import { canonicalizeProjectCode } from '../finance/projectCodeAliases';
+
+const normalizeProjectPayload = (projectData = {}) => {
+  const code = canonicalizeProjectCode(projectData.code || projectData.codigo || '');
+  const name = String(projectData.name || projectData.nombre || code || '').trim();
+  return {
+    ...projectData,
+    code,
+    name,
+    displayName:
+      projectData.displayName ||
+      (code && name ? `${code} (${name})` : name || code),
+  };
+};
 
 export const useProjects = (user) => {
   const [projects, setProjects] = useState([]);
@@ -52,11 +66,23 @@ export const useProjects = (user) => {
     if (!user) return { success: false, error: 'No user' };
 
     try {
+      const normalized = normalizeProjectPayload(projectData);
+      if (!normalized.code) {
+        return { success: false, error: new Error('code canónico requerido (ej. QFF, NE4)') };
+      }
+      // Prevent duplicate canonical codes
+      const exists = projects.some(
+        (p) => canonicalizeProjectCode(p.code) === normalized.code && p.status !== 'inactive',
+      );
+      if (exists) {
+        return { success: false, error: new Error(`Ya existe un proyecto con code ${normalized.code}`) };
+      }
       await addDoc(projectsRef, {
-        ...projectData,
+        ...normalized,
         createdAt: serverTimestamp(),
         createdBy: user.email,
-        active: true
+        active: true,
+        status: normalized.status || 'active',
       });
       return { success: true };
     } catch (err) {
@@ -69,9 +95,13 @@ export const useProjects = (user) => {
     if (!user) return { success: false, error: 'No user' };
 
     try {
+      const normalized =
+        updates.code != null || updates.name != null
+          ? normalizeProjectPayload({ ...updates })
+          : updates;
       const projectDoc = doc(db, 'artifacts', appId, 'public', 'data', 'projects', projectId);
       await updateDoc(projectDoc, {
-        ...updates,
+        ...normalized,
         updatedAt: serverTimestamp(),
         updatedBy: user.email
       });

@@ -6,12 +6,15 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { adaptReceivableDoc } from '../finance/adapters';
 import {
@@ -19,6 +22,7 @@ import {
   MAIN_ACCOUNT_ID,
 } from '../finance/constants';
 import { clampMoney, toISODate } from '../finance/utils';
+import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
@@ -87,6 +91,7 @@ export const useReceivables = (user) => {
         counterpartyName: data.client,
         projectId: data.projectId || '',
         projectName: data.projectName || data.project || '',
+        projectCode: normalizeProjectCode(data.projectCode || data.projectName || ''),
         costCenterId: data.costCenterId || '',
         description: data.description || '',
         grossAmount: amount,
@@ -102,6 +107,11 @@ export const useReceivables = (user) => {
         notes: data.notes || '',
         productionWeekRef: data.productionWeekRef || '',
         source: typeof data.source === 'string' ? data.source : null,
+        sourceKey: data.sourceKey || '',
+        sourceSystem: data.sourceSystem || (data.sourceKey ? LUMEN_SOURCE_SYSTEM : ''),
+        lumenWorkOrderId: data.lumenWorkOrderId || '',
+        lumenOrderNumber: data.lumenOrderNumber || data.documentNumber || '',
+        lumenCycleId: data.lumenCycleId || '',
         linkedTransactionId: data.linkedTransactionId || null,
         legacyTransactionId: data.legacyTransactionId || null,
         createdBy: user.email,
@@ -126,7 +136,7 @@ export const useReceivables = (user) => {
           updatedAt: new Date().toISOString(),
         }),
       });
-      return { success: true };
+      return { success: true, id: docRef.id };
     } catch (error) {
       logError('Error creating receivable:', error);
       return { success: false, error };
@@ -445,7 +455,83 @@ export const useReceivables = (user) => {
     ),
   });
 
-  return { receivables, loading, error, createReceivable, registerPayment, updateReceivable, cancelReceivable, convertToPayable, markAsPaid };
+  /**
+   * S2/S4: create or update receivable by sourceKey (Lumen client_accepted).
+   */
+  const upsertReceivableBySourceKey = async (data) => {
+    if (!user) return { success: false, error: new Error('No user') };
+    const sourceKey = String(data.sourceKey || '').trim();
+    if (!sourceKey) return { success: false, error: new Error('sourceKey requerido') };
+
+    try {
+      const q = query(receivablesRef, where('sourceKey', '==', sourceKey), limit(1));
+      const snap = await getDocs(q);
+      const amount = clampMoney(data.amount);
+
+      if (!snap.empty) {
+        const existing = adaptReceivableDoc({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        if (existing.status === 'settled' || existing.status === 'cancelled') {
+          return { success: true, id: existing.id, action: 'skipped', reason: existing.status };
+        }
+        const paid = clampMoney(existing.paidAmount || 0);
+        const nextGross = Math.max(amount, paid);
+        const nextOpen = clampMoney(nextGross - paid);
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'receivables', existing.id);
+        await updateDoc(ref, {
+          grossAmount: nextGross,
+          amount: nextGross,
+          openAmount: nextOpen,
+          pendingAmount: nextOpen,
+          description: data.description || existing.description,
+          counterpartyName: data.client || data.counterpartyName || existing.counterpartyName,
+          client: data.client || data.counterpartyName || existing.client,
+          projectId: data.projectId || existing.projectId || '',
+          projectName: data.projectName || existing.projectName || '',
+          projectCode: normalizeProjectCode(data.projectCode || existing.projectCode || ''),
+          productionWeekRef: data.productionWeekRef || existing.productionWeekRef || '',
+          lumenWorkOrderId: data.lumenWorkOrderId || existing.lumenWorkOrderId || '',
+          lumenOrderNumber: data.lumenOrderNumber || existing.lumenOrderNumber || '',
+          documentNumber: data.documentNumber || existing.documentNumber || '',
+          dueDate: toISODate(data.dueDate) || existing.dueDate,
+          sourceSystem: LUMEN_SOURCE_SYSTEM,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email,
+          auditTrail: arrayUnion({
+            action: 'upsert-sourceKey',
+            user: user.email,
+            timestamp: new Date().toISOString(),
+            detail: `Upsert Lumen ${sourceKey}`,
+          }),
+        });
+        return { success: true, id: existing.id, action: 'updated' };
+      }
+
+      const created = await createReceivable({
+        ...data,
+        amount,
+        sourceKey,
+        sourceSystem: LUMEN_SOURCE_SYSTEM,
+        source: 'lumen',
+      });
+      return { ...created, action: created.success ? 'created' : 'error' };
+    } catch (error) {
+      logError('upsertReceivableBySourceKey:', error);
+      return { success: false, error };
+    }
+  };
+
+  return {
+    receivables,
+    loading,
+    error,
+    createReceivable,
+    registerPayment,
+    updateReceivable,
+    cancelReceivable,
+    convertToPayable,
+    markAsPaid,
+    upsertReceivableBySourceKey,
+  };
 };
 
 export default useReceivables;
