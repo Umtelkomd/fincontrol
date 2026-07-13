@@ -100,6 +100,8 @@ export const useReceivables = (user) => {
         status: 'issued',
         payments: [],
         notes: data.notes || '',
+        productionWeekRef: data.productionWeekRef || '',
+        source: typeof data.source === 'string' ? data.source : null,
         linkedTransactionId: data.linkedTransactionId || null,
         legacyTransactionId: data.legacyTransactionId || null,
         createdBy: user.email,

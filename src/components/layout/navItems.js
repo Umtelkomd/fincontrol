@@ -15,6 +15,7 @@ import {
   Settings,
   SlidersHorizontal,
   TableProperties,
+  CalendarRange,
   WalletCards,
   Wand2,
 } from 'lucide-react';
@@ -38,6 +39,7 @@ export const NAV_GROUPS = [
       { path: '/cxc', label: 'CXC', icon: ReceiptText, permission: 'cxc' },
       { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },
       { path: '/nominas', label: 'Nóminas', icon: WalletCards, permission: 'cxp' },
+      { path: '/ops-semana', label: 'Ops semana', icon: CalendarRange, permission: 'cxp' },
       { path: '/alertas-op', label: 'Alertas', icon: Bell, permission: 'dashboard' },
     ],
   },

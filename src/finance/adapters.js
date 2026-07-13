@@ -82,6 +82,13 @@ const normalizeDocument = (raw, kind, source) => {
     payrollPeriodId: raw.payrollPeriodId || null,
     payrollKind: raw.payrollKind || null,
     sourceDocument: raw.sourceDocument || null,
+    // F1 ops production gate (primarily payables; harmless on receivables)
+    opsCleared: Boolean(raw.opsCleared),
+    opsClearedAt: raw.opsClearedAt || null,
+    opsClearedBy: raw.opsClearedBy || '',
+    opsGateRequired: raw.opsGateRequired,
+    productionWeekRef: raw.productionWeekRef || '',
+    employeeIds: Array.isArray(raw.employeeIds) ? raw.employeeIds : [],
     raw,
   };
 };

@@ -19,6 +19,7 @@ import {
   MAIN_ACCOUNT_ID,
 } from '../finance/constants';
 import { clampMoney, toISODate } from '../finance/utils';
+import { assertPayablePaymentAllowed } from '../finance/opsControl';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
@@ -99,6 +100,16 @@ export const usePayables = (user) => {
         payrollPeriod: data.payrollPeriod || null,
         payrollPeriodId: data.payrollPeriodId || null,
         payrollKind: data.payrollKind || null,
+        // F1: production gate. Payroll never requires ops clear.
+        // New operational CXP defaults to gated until Bauleiter validates week.
+        opsGateRequired:
+          data.opsGateRequired != null
+            ? Boolean(data.opsGateRequired)
+            : !(data.payrollPeriodId || data.payrollKind),
+        opsCleared: Boolean(data.opsCleared),
+        opsClearedAt: data.opsCleared ? new Date().toISOString() : null,
+        opsClearedBy: data.opsCleared ? user.email : '',
+        productionWeekRef: data.productionWeekRef || '',
         // `source` is an origin TAG and must stay a string — external ingestions
         // have passed provenance objects here, which render as "[object Object]"
         // in every origin breakdown. Objects are rerouted to sourceDocument.
@@ -152,6 +163,15 @@ export const usePayables = (user) => {
 
   const registerPayment = async (payable, paymentData) => {
     if (!user) return { success: false };
+
+    // F1: production gate before any payment path.
+    const gate = assertPayablePaymentAllowed(payable, {
+      adminOverride: Boolean(paymentData?.adminOpsOverride),
+      overrideReason: paymentData?.opsOverrideReason || '',
+    });
+    if (!gate.allowed) {
+      return { success: false, error: gate.error };
+    }
 
     // POLICY GUARD: every status change must reference a real bankMovement
     // (typically imported from DATEV). The Bandeja flow uses linkToPayable
@@ -462,7 +482,71 @@ export const usePayables = (user) => {
     ),
   });
 
-  return { payables, loading, error, createPayable, registerPayment, updatePayable, cancelPayable, convertToReceivable, markAsPaid };
+  /**
+   * F1: Bauleiter / admin validates production for a CXP week.
+   * cleared=true unlocks DATEV reconcile / payment.
+   */
+  const setOpsCleared = async (payable, { cleared = true, productionWeekRef = '', note = '' } = {}) => {
+    if (!user) return { success: false, error: new Error('No user') };
+    if (!payable?.id) return { success: false, error: new Error('CXP inválida') };
+
+    try {
+      const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
+      const nowIso = new Date().toISOString();
+      const week = (productionWeekRef || payable.productionWeekRef || '').trim();
+      const payload = {
+        opsCleared: Boolean(cleared),
+        opsClearedAt: cleared ? nowIso : null,
+        opsClearedBy: cleared ? user.email : '',
+        productionWeekRef: week,
+        // Once touched, keep gate on (unless payroll)
+        opsGateRequired: payable.payrollPeriodId || payable.payrollKind ? false : true,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email,
+        auditTrail: arrayUnion({
+          action: cleared ? 'ops-clear' : 'ops-unclear',
+          user: user.email,
+          timestamp: nowIso,
+          detail: cleared
+            ? `Producción validada${week ? ` (${week})` : ''}${note ? `: ${note}` : ''}`
+            : `Validación de producción retirada${note ? `: ${note}` : ''}`,
+        }),
+      };
+      await updateDoc(payableRef, payload);
+      await writeAuditLogEntry({
+        action: cleared ? 'ops-clear' : 'ops-unclear',
+        entityType: 'payable',
+        entityId: payable.id,
+        description: cleared
+          ? `CXP producción validada: ${payable.documentNumber || payable.counterpartyName || payable.id}`
+          : `CXP producción invalidada: ${payable.documentNumber || payable.counterpartyName || payable.id}`,
+        userEmail: user.email,
+        before: buildPayableSnapshot(payable),
+        after: buildPayableSnapshot(payable, {
+          ...payload,
+          updatedAt: nowIso,
+        }),
+        metadata: { productionWeekRef: week, note },
+      });
+      return { success: true };
+    } catch (error) {
+      logError('Error setOpsCleared:', error);
+      return { success: false, error };
+    }
+  };
+
+  return {
+    payables,
+    loading,
+    error,
+    createPayable,
+    registerPayment,
+    updatePayable,
+    cancelPayable,
+    convertToReceivable,
+    markAsPaid,
+    setOpsCleared,
+  };
 };
 
 export default usePayables;

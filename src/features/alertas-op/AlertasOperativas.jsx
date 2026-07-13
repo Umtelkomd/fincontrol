@@ -22,7 +22,11 @@ import { useRecurringCosts } from '../../hooks/useRecurringCosts';
 import { usePartners } from '../../hooks/usePartners';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useProperties } from '../../hooks/useProperties';
-import { assetsMissingProjectAssignment } from '../../finance/opsControl';
+import {
+  assetsMissingProjectAssignment,
+  payableIsOpsCleared,
+  payableRequiresOpsClear,
+} from '../../finance/opsControl';
 import { useNominas } from '../nominas/useNominas';
 import { derivePeriodStatus, statusLabel, statusBadgeTone } from '../nominas/lib/payrollStatus';
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
@@ -269,6 +273,14 @@ const AlertasOperativas = ({ user }) => {
     [properties, today],
   );
 
+  const cxpOpsPending = useMemo(() => {
+    return (payables || []).filter((p) => {
+      if (p.status === 'cancelled' || p.status === 'settled') return false;
+      if ((Number(p.openAmount) || 0) <= 0.01) return false;
+      return payableRequiresOpsClear(p) && !payableIsOpsCleared(p);
+    });
+  }, [payables]);
+
   const totalUrgent =
     cxpBuckets.overdue.length +
     cxpBuckets.due7.length +
@@ -278,7 +290,8 @@ const AlertasOperativas = ({ user }) => {
     payrollTile.missing.length +
     complianceAlerts.length +
     fleetWithoutProject.length +
-    housingWithoutProject.length;
+    housingWithoutProject.length +
+    cxpOpsPending.length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -397,6 +410,43 @@ const AlertasOperativas = ({ user }) => {
             tone="err"
             renderMeta={(d) => `Cliente vencido hace ${d.daysOverdue}d · ${d.dueDate}`}
           />
+        </Panel>
+      )}
+
+      {/* F1: CXP sin producción validada */}
+      {cxpOpsPending.length > 0 && (
+        <Panel
+          title="CXP sin producción validada"
+          meta={`${cxpOpsPending.length} no se pueden conciliar/pagar hasta ops clear`}
+          padding={false}
+          actions={
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/ops-semana')}>
+                Ops semana
+              </Button>
+              <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/cxp')}>
+                Ir a CXP
+              </Button>
+            </div>
+          }
+        >
+          <ul className="divide-y divide-[var(--color-line)]">
+            {cxpOpsPending.slice(0, 12).map((p) => (
+              <li key={p.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-fg-1)]">
+                    {p.counterpartyName || p.vendor}
+                  </p>
+                  <p className="text-[12px] text-[var(--color-fg-3)]">
+                    {p.projectName || 'Sin proyecto'} · {p.documentNumber || 'sin doc'}
+                  </p>
+                </div>
+                <span className="font-mono text-sm text-[var(--color-warn)]">
+                  {formatCurrency(p.openAmount)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Panel>
       )}
 

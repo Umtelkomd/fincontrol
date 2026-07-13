@@ -121,6 +121,59 @@ export function lacksProject(record) {
   return true;
 }
 
+/**
+ * F1 — production gate on CXP (subcontractor payables).
+ * - Payroll: never gated
+ * - opsGateRequired === false: never gated (rent, Sixt, software…)
+ * - opsGateRequired === true: gated (new operational CXP from createPayable)
+ * - Legacy (field missing): only gated if productionWeekRef or employeeIds set
+ */
+export function payableRequiresOpsClear(payable) {
+  if (!payable) return false;
+  if (payable.payrollPeriodId || payable.payrollKind) return false;
+  if (payable.opsGateRequired === false) return false;
+  if (payable.opsGateRequired === true) return true;
+  if (payable.productionWeekRef) return true;
+  if (Array.isArray(payable.employeeIds) && payable.employeeIds.length > 0) return true;
+  return false;
+}
+
+export function payableIsOpsCleared(payable) {
+  if (!payableRequiresOpsClear(payable)) return true;
+  return Boolean(payable.opsCleared);
+}
+
+/**
+ * Whether a payment / DATEV reconcile is allowed.
+ * Admin can override with a non-empty reason.
+ */
+export function assertPayablePaymentAllowed(payable, { adminOverride = false, overrideReason = '' } = {}) {
+  if (payableIsOpsCleared(payable)) {
+    return { allowed: true };
+  }
+  if (adminOverride && String(overrideReason || '').trim().length >= 5) {
+    return { allowed: true, override: true };
+  }
+  const name = payable?.counterpartyName || payable?.vendor || payable?.documentNumber || payable?.id || 'CXP';
+  return {
+    allowed: false,
+    error: new Error(
+      `CXP sin producción validada (ops): ${name}. ` +
+        'Marcá "Validar producción" o importá la semana en /ops-semana. ' +
+        'Admin puede forzar con motivo ≥5 caracteres.',
+    ),
+  };
+}
+
+export function isoWeekLabel(date = new Date()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
 export function emptyAssignment() {
   return {
     projectId: '',

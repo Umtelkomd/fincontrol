@@ -125,6 +125,8 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  dueDate: initialIssueDate(),
  projectId: '',
  employeeIds: [], // NEW (Phase 2A): technicians the CXP is for
+ opsGateRequired: true, // F1: require production clear before pay
+ productionWeekRef: '',
  });
  const [collectionForm, setCollectionForm] = useState({
  receivableId: '',
@@ -210,9 +212,16 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  projectName,
  amount: Number(payableForm.amount),
  employeeIds: payableForm.employeeIds, // NEW (Phase 2A)
+ opsGateRequired: Boolean(payableForm.opsGateRequired),
+ productionWeekRef: payableForm.productionWeekRef || '',
+ opsCleared: false,
  });
  if (!result.success) throw new Error('No se pudo crear la factura CXP');
- showToast('Factura CXP creada');
+ showToast(
+ payableForm.opsGateRequired
+ ? 'CXP creada (bloqueada hasta validar producción)'
+ : 'Factura CXP creada',
+ );
  };
 
  const submitCollection = async () => {
@@ -587,6 +596,34 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  value={payableForm.employeeIds}
  onChange={(ids) => setPayableForm((state) => ({ ...state, employeeIds: ids }))}
  />
+ </div>
+ <Field label="Semana producción" optional>
+ <input
+ className={inputClassName}
+ placeholder="2026-W29"
+ value={payableForm.productionWeekRef}
+ onChange={(event) =>
+ setPayableForm((state) => ({ ...state, productionWeekRef: event.target.value }))
+ }
+ />
+ </Field>
+ <div className="xl:col-span-2 flex items-start gap-3 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-3">
+ <input
+ type="checkbox"
+ id="opsGateRequired"
+ className="mt-1"
+ checked={Boolean(payableForm.opsGateRequired)}
+ onChange={(event) =>
+ setPayableForm((state) => ({ ...state, opsGateRequired: event.target.checked }))
+ }
+ />
+ <label htmlFor="opsGateRequired" className="text-sm text-[var(--color-fg-2)]">
+ <span className="font-medium text-[var(--color-fg-1)]">Requiere validación de producción</span>
+ <span className="mt-0.5 block text-[12px] text-[var(--color-fg-3)]">
+ Si está activo, no se puede conciliar/pagar hasta validar la semana (cuadrillas).
+ Desactivá para alquiler, Sixt, software, etc.
+ </span>
+ </label>
  </div>
  </>
  )}

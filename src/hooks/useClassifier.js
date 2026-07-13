@@ -100,13 +100,27 @@ export const useClassifier = (user) => {
  const movementsRef = (id) => doc(db, 'artifacts', appId, 'public', 'data', 'bankMovements', id);
 
  const linkDocumentsToMovement = useCallback(
- async (movement, documents, kind) => {
+ async (movement, documents, kind, options = {}) => {
  if (!user) return { success: false, error: 'No user' };
  const docs = normalizeDocuments(documents);
  if (!movement?.id) return { success: false, error: new Error('Movimiento bancario inválido') };
  if (!docs.length) return { success: false, error: new Error('Seleccioná al menos una orden') };
  if (movement.direction !== DIRECTION_BY_KIND[kind]) {
  return { success: false, error: new Error('La dirección del movimiento no coincide con el tipo de orden') };
+ }
+
+ // F1: block reconcile on CXP without production validation.
+ if (kind === 'payable') {
+ const { assertPayablePaymentAllowed } = await import('../finance/opsControl');
+ for (const document of docs) {
+ const gate = assertPayablePaymentAllowed(document, {
+ adminOverride: Boolean(options.adminOpsOverride),
+ overrideReason: options.opsOverrideReason || '',
+ });
+ if (!gate.allowed) {
+ return { success: false, error: gate.error };
+ }
+ }
  }
 
  const allocationPlan = buildMovementAllocations(movement.amount, docs);
@@ -253,13 +267,27 @@ export const useClassifier = (user) => {
  // yet available. Every forced settle is audited with a mandatory reason so the
  // deviation from the "DATEV is the sole source" policy stays traceable.
  const forceReconcileDocuments = useCallback(
- async (documents, kind, { reason } = {}) => {
+ async (documents, kind, { reason, adminOpsOverride = true } = {}) => {
  if (!user) return { success: false, error: new Error('No user') };
  const docs = normalizeDocuments(documents);
  if (!docs.length) return { success: false, error: new Error('Seleccioná al menos una orden') };
  const trimmedReason = String(reason || '').trim();
  if (!trimmedReason) {
  return { success: false, error: new Error('Indicá el motivo para forzar la conciliación sin DATEV') };
+ }
+
+ // F1: forced DATEV-less settle still needs production clear (or reason as override).
+ if (kind === 'payable') {
+ const { assertPayablePaymentAllowed } = await import('../finance/opsControl');
+ for (const document of docs) {
+ const gate = assertPayablePaymentAllowed(document, {
+ adminOverride: adminOpsOverride,
+ overrideReason: trimmedReason,
+ });
+ if (!gate.allowed) {
+ return { success: false, error: gate.error };
+ }
+ }
  }
 
  const settlements = docs

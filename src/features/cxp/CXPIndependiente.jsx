@@ -29,6 +29,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { daysUntil } from '../../finance/utils';
+import { isoWeekLabel, payableIsOpsCleared, payableRequiresOpsClear } from '../../finance/opsControl';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPIGrid, KPI, Badge, Button } from '@/components/ui/nexus';
@@ -47,6 +48,8 @@ const filters = [
  { id: 'partial', label: 'Parciales' },
  { id: 'overdue', label: 'Vencidas' },
  { id: 'settled', label: 'Liquidadas' },
+ { id: 'ops-pending', label: 'Sin producción' },
+ { id: 'ops-cleared', label: 'Prod. OK' },
 ];
 
 const bucketColor = ['var(--color-warn)', 'var(--color-accent)', 'var(--color-accent)', 'var(--color-accent)'];
@@ -107,7 +110,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  const { expenseCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { projects } = useProjects(user);
- const { updatePayable, convertToReceivable } = usePayables(user);
+ const { updatePayable, convertToReceivable, setOpsCleared } = usePayables(user);
 
  const [searchTerm, setSearchTerm] = useState('');
  const [statusFilter, setStatusFilter] = useState('all');
@@ -129,6 +132,11 @@ const CXPIndependiente = ({ user, userRole }) => {
  .filter((entry) => {
  if (statusFilter === 'partial') {
  if (entry.stage !== 'partial' && !(entry.paidAmount > 0 && entry.openAmount > 0)) return false;
+ } else if (statusFilter === 'ops-pending') {
+ if (!payableRequiresOpsClear(entry) || payableIsOpsCleared(entry)) return false;
+ if (entry.status === 'cancelled' || entry.status === 'settled') return false;
+ } else if (statusFilter === 'ops-cleared') {
+ if (!payableRequiresOpsClear(entry) || !payableIsOpsCleared(entry)) return false;
  } else if (statusFilter !== 'all' && entry.status !== statusFilter) {
  return false;
  }
@@ -241,6 +249,23 @@ const CXPIndependiente = ({ user, userRole }) => {
    return false;
  };
 
+ const handleToggleOpsClear = async (row) => {
+ if (!row || row.source !== 'payable') return;
+ const next = !payableIsOpsCleared(row);
+ setLoadingId(row.id);
+ const result = await setOpsCleared(row, {
+ cleared: next,
+ productionWeekRef: row.productionWeekRef || isoWeekLabel(),
+ note: next ? 'Validado desde CXP' : 'Retirado desde CXP',
+ });
+ setLoadingId(null);
+ if (result.success) {
+ showToast(next ? 'Producción validada — CXP liberada para pago' : 'Validación retirada', 'success');
+ } else {
+ showToast(result.error?.message || 'No se pudo actualizar ops clear', 'error');
+ }
+ };
+
  // Política UMTELKOMD: cambiar status de una CXP SIEMPRE requiere
  // vincular un bankMovement existente (importado de DATEV).
  const handleLinkMovement = async (movement, selectedDocuments = [selectedRow]) => {
@@ -254,6 +279,13 @@ const CXPIndependiente = ({ user, userRole }) => {
  const documentsToLink = selectedDocuments.filter((entry) => entry?.source === 'payable');
  if (documentsToLink.length === 0) {
  return { success: false, error: 'Seleccioná al menos una CXP actual' };
+ }
+ // Block UI early if any selected CXP lacks production clear
+ const blocked = documentsToLink.filter((d) => payableRequiresOpsClear(d) && !payableIsOpsCleared(d));
+ if (blocked.length) {
+ const msg = `CXP sin producción validada: ${blocked.map((d) => d.counterpartyName || d.documentNumber).join(', ')}. Usá "Validar prod." o /ops-semana.`;
+ showToast(msg, 'error');
+ return { success: false, error: msg };
  }
  setLoadingId(selectedRow.id);
  const result = await linkPayablesToMovement(movement, documentsToLink);
@@ -413,10 +445,13 @@ const CXPIndependiente = ({ user, userRole }) => {
   <tbody className="divide-y divide-[var(--color-line)]">
  {rows.map((row) => {
  const isLegacy = isLegacyPayment(row);
+ const needsOps = payableRequiresOpsClear(row);
+ const opsOk = payableIsOpsCleared(row);
  const canReconcile =
  row.source === 'payable' &&
  row.status !== 'cancelled' &&
- (row.status !== 'settled' || isLegacy);
+ (row.status !== 'settled' || isLegacy) &&
+ (!needsOps || opsOk);
  return (
    <tr key={row.id} {...rowButtonProps(() => handleOpenDetail(row), 'hover:bg-[var(--color-bg-2)]')}>
  <td className="px-4 py-4">
@@ -441,12 +476,29 @@ const CXPIndependiente = ({ user, userRole }) => {
  {statusLabels[row.status]}
  </Badge>
  {isLegacy && <Badge variant="warn">Pago legacy</Badge>}
+ {needsOps && (
+ <Badge variant={opsOk ? 'ok' : 'err'}>
+ {opsOk ? `Prod. OK${row.productionWeekRef ? ` ${row.productionWeekRef}` : ''}` : 'Sin prod.'}
+ </Badge>
+ )}
  </div>
  </td>
   <td className="px-4 py-4 text-center text-xs text-[var(--color-fg-3)]">{row.source}</td>
  {canAct && (
  <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
- <div className="flex justify-end gap-2">
+ <div className="flex justify-end gap-2 flex-wrap">
+ {needsOps && row.status !== 'cancelled' && row.status !== 'settled' && (
+ <Button
+ variant={opsOk ? 'ghost' : 'secondary'}
+ size="sm"
+ disabled={loadingId === row.id}
+ loading={loadingId === row.id}
+ onClick={() => handleToggleOpsClear(row)}
+ title={opsOk ? 'Retirar validación de producción' : 'Validar producción de la semana'}
+ >
+ {opsOk ? 'Quitar prod.' : 'Validar prod.'}
+ </Button>
+ )}
  <Button
  variant="ghost"
  size="sm"
@@ -486,7 +538,9 @@ const CXPIndependiente = ({ user, userRole }) => {
  loading={loadingId === row.id}
  onClick={() => setSelectedRow(row)}
  title={
- isLegacy
+ !opsOk && needsOps
+ ? 'Bloqueado: falta validar producción'
+ : isLegacy
  ? 'Pago legacy — vinculá el movimiento DATEV correspondiente'
  : 'Vincular con movimiento bancario'
  }
