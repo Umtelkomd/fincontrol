@@ -50,7 +50,7 @@ test('production tail qa', async ({ page }) => {
   });
 
   await record('proyeccion renders', async () => {
-    await gotoAndExpect('/proyeccion', 'Horizonte de 8 semanas usando CXC, CXP y caja real.');
+    await gotoAndExpect('/proyeccion', 'Horizonte de 13 semanas usando CXC, CXP y caja real.');
     await requireText(page, 'Saldo proyectado por semana', 10000);
   });
 

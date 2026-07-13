@@ -436,6 +436,7 @@ const TransactionFormModal = ({
  return;
  }
  if (!formData.projectId) {
+ window.alert('Selecciona un proyecto. Es obligatorio para control de costos por obra.');
  return;
  }
 

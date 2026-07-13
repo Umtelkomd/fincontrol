@@ -1,23 +1,38 @@
-import { useState, useEffect } from 'react';
-import { X, Save, Loader2, Home } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { X, Save, Home } from 'lucide-react';
 import { propertyDefaults, PROPERTY_TYPES, PROPERTY_USES } from '../../finance/assetSchemas';
+import { emptyAssignment } from '../../finance/opsControl';
 import { Button } from '@/components/ui/nexus';
 
-const PropertyFormModal = ({ isOpen, onClose, onSubmit, editingProperty }) => {
+const PropertyFormModal = ({ isOpen, onClose, onSubmit, editingProperty, projects = [] }) => {
  const [form, setForm] = useState(propertyDefaults());
  const [submitting, setSubmitting] = useState(false);
  const [error, setError] = useState('');
 
  useEffect(() => {
  if (isOpen) {
- setForm(editingProperty ? { ...propertyDefaults(), ...editingProperty } : propertyDefaults());
+ const base = editingProperty ? { ...propertyDefaults(), ...editingProperty } : propertyDefaults();
+ setForm({
+ ...base,
+ currentAssignment: { ...emptyAssignment(), ...(editingProperty?.currentAssignment || {}) },
+ });
  setError('');
  }
  }, [isOpen, editingProperty]);
 
+ const activeProjects = useMemo(
+ () => (projects || []).filter((p) => p.status !== 'inactive'),
+ [projects],
+ );
+
  if (!isOpen) return null;
 
  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+ const setAssignment = (k, v) =>
+ setForm((f) => ({
+ ...f,
+ currentAssignment: { ...emptyAssignment(), ...(f.currentAssignment || {}), [k]: v },
+ }));
 
  const handleSubmit = async (e) => {
  e.preventDefault();
@@ -172,6 +187,57 @@ const PropertyFormModal = ({ isOpen, onClose, onSubmit, editingProperty }) => {
  onChange={(e) => set('endDate', e.target.value)}
  />
  </label>
+ </div>
+
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] p-4 space-y-3">
+ <p className="label-mono text-[var(--color-fg-3)]">Asignación a proyecto (alojamiento)</p>
+ <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+ <label className="block md:col-span-2">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Proyecto actual</span>
+ <select
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+ value={form.currentAssignment?.projectId || ''}
+ onChange={(e) => {
+ const id = e.target.value;
+ const proj = activeProjects.find((p) => p.id === id);
+ setForm((f) => ({
+ ...f,
+ currentAssignment: {
+ ...emptyAssignment(),
+ ...(f.currentAssignment || {}),
+ projectId: id,
+ projectName: proj ? (proj.displayName || proj.name || proj.code || '') : '',
+ },
+ }));
+ }}
+ >
+ <option value="">— Sin asignar —</option>
+ {activeProjects.map((p) => (
+ <option key={p.id} value={p.id}>
+ {p.displayName || p.name || p.code || p.id}
+ </option>
+ ))}
+ </select>
+ </label>
+ <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Desde</span>
+ <input
+ type="date"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+ value={form.currentAssignment?.from || ''}
+ onChange={(e) => setAssignment('from', e.target.value)}
+ />
+ </label>
+ <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Hasta</span>
+ <input
+ type="date"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+ value={form.currentAssignment?.to || ''}
+ onChange={(e) => setAssignment('to', e.target.value)}
+ />
+ </label>
+ </div>
  </div>
 
  <label className="block">

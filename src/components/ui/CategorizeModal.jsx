@@ -46,6 +46,11 @@ const CategorizeModal = ({
  setError('La categoría es obligatoria');
  return;
  }
+ // Outbound movements need project for obra costeo (F0).
+ if (movement.direction === 'out' && !form.projectId) {
+ setError('El proyecto es obligatorio en gastos (control por obra)');
+ return;
+ }
  setSubmitting(true);
  const result = await onSubmit(form);
  setSubmitting(false);
@@ -120,7 +125,9 @@ const CategorizeModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Proyecto</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
+ Proyecto {movement.direction === 'out' ? '*' : ''}
+ </span>
  <select
  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.projectId}
@@ -131,7 +138,7 @@ const CategorizeModal = ({
  setForm((f) => ({ ...f, projectId: id, projectName: name }));
  }}
  >
- <option value="">— Sin asignar —</option>
+ <option value="">{movement.direction === 'out' ? '— Seleccionar proyecto —' : '— Sin asignar —'}</option>
  {projects.map((p) => {
  const id = String(p.id || '');
  const label = String(p.nombre || p.name || p.codigo || p.code || id);

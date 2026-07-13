@@ -412,6 +412,29 @@ const EmployeeFormModal = ({ isOpen, onClose, onSubmit, editingEmployee, user })
  />
  </label>
 
+ <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Cuadrilla / crew (nombre)</span>
+ <input
+ type="text"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+ value={form.crewName || ''}
+ onChange={(e) => set('crewName', e.target.value)}
+ placeholder="Ej: Melgarejo, Rot, Grün"
+ />
+ </label>
+ <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Crew ID (opcional)</span>
+ <input
+ type="text"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none font-mono"
+ value={form.crewId || ''}
+ onChange={(e) => set('crewId', e.target.value)}
+ placeholder="crew-melgarejo"
+ />
+ </label>
+ </div>
+
  <div>
  <span className="mb-2 block label-mono text-[var(--color-fg-4)]">Proyectos asignados</span>
  {activeProjects.length === 0 ? (

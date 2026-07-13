@@ -19,6 +19,10 @@ import { useClassifier } from '../../hooks/useClassifier';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useForwardProjection } from '../../hooks/useForwardProjection';
 import { useRecurringCosts } from '../../hooks/useRecurringCosts';
+import { usePartners } from '../../hooks/usePartners';
+import { useVehicles } from '../../hooks/useVehicles';
+import { useProperties } from '../../hooks/useProperties';
+import { assetsMissingProjectAssignment } from '../../finance/opsControl';
 import { useNominas } from '../nominas/useNominas';
 import { derivePeriodStatus, statusLabel, statusBadgeTone } from '../nominas/lib/payrollStatus';
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
@@ -57,6 +61,9 @@ const AlertasOperativas = ({ user }) => {
   const { receivables } = useReceivables(user);
   const { payables, createPayable, cancelPayable } = usePayables(user);
   const { recurringCosts } = useRecurringCosts(user);
+  const { partners } = usePartners(user);
+  const { vehicles } = useVehicles(user);
+  const { properties } = useProperties(user);
   const { inboxMovements } = useClassifier(user);
   const { rules, createRule } = useClassificationRules(user);
   const projection = useForwardProjection(user, 90);
@@ -245,13 +252,33 @@ const AlertasOperativas = ({ user }) => {
     };
   }, [seedCounterparty]);
 
+  // ─── F0: compliance + logistics assignment ───
+  const complianceAlerts = useMemo(() => {
+    return (partners || [])
+      .filter((p) => p.status === 'active' && (p.type === 'vendor' || p.type === 'both'))
+      .map((p) => ({ partner: p, compliance: p.compliance }))
+      .filter(({ compliance }) => compliance && compliance.status !== 'ok');
+  }, [partners]);
+
+  const fleetWithoutProject = useMemo(
+    () => assetsMissingProjectAssignment(vehicles, { todayIso: today, costTypes: ['rented', 'leased'] }),
+    [vehicles, today],
+  );
+  const housingWithoutProject = useMemo(
+    () => assetsMissingProjectAssignment(properties, { todayIso: today, costTypes: ['rented', 'mixed'] }),
+    [properties, today],
+  );
+
   const totalUrgent =
     cxpBuckets.overdue.length +
     cxpBuckets.due7.length +
     cxcBuckets.overdue.length +
     (negativeAlert ? 1 : 0) +
     recurringPending.length +
-    payrollTile.missing.length;
+    payrollTile.missing.length +
+    complianceAlerts.length +
+    fleetWithoutProject.length +
+    housingWithoutProject.length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -370,6 +397,69 @@ const AlertasOperativas = ({ user }) => {
             tone="err"
             renderMeta={(d) => `Cliente vencido hace ${d.daysOverdue}d · ${d.dueDate}`}
           />
+        </Panel>
+      )}
+
+      {/* Compliance subcontratas */}
+      {complianceAlerts.length > 0 && (
+        <Panel
+          title="Compliance de proveedores"
+          meta={`${complianceAlerts.length} partner(s) con doc vencido / faltante / por vencer`}
+          padding={false}
+          actions={
+            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/partners')}>
+              Ir a Partners
+            </Button>
+          }
+        >
+          <ul className="divide-y divide-[var(--color-line)]">
+            {complianceAlerts.slice(0, 12).map(({ partner, compliance }) => (
+              <li key={partner.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-fg-1)]">{partner.name}</p>
+                  <p className="text-[12px] text-[var(--color-fg-3)]">{compliance.label}</p>
+                </div>
+                <Badge
+                  variant={
+                    compliance.status === 'warn' ? 'warn' : compliance.status === 'ok' ? 'ok' : 'err'
+                  }
+                >
+                  {compliance.status}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {/* Flota / vivienda sin proyecto */}
+      {(fleetWithoutProject.length > 0 || housingWithoutProject.length > 0) && (
+        <Panel
+          title="Logística sin proyecto"
+          meta={`${fleetWithoutProject.length} vehículo(s) · ${housingWithoutProject.length} vivienda(s)`}
+          padding={false}
+        >
+          <div className="px-5 py-3 space-y-2">
+            <p className="text-[12px] text-[var(--color-fg-3)]">
+              Alquileres/leasing sin asignación a obra no se pueden prorratear al costeo.
+            </p>
+            {fleetWithoutProject.slice(0, 6).map((v) => (
+              <div key={v.id} className="flex items-center justify-between text-sm">
+                <span className="text-[var(--color-fg-1)]">🚗 {v.name || v.plate}</span>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/vehiculos')}>
+                  Asignar
+                </Button>
+              </div>
+            ))}
+            {housingWithoutProject.slice(0, 6).map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm">
+                <span className="text-[var(--color-fg-1)]">🏠 {p.name}</span>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/viviendas')}>
+                  Asignar
+                </Button>
+              </div>
+            ))}
+          </div>
         </Panel>
       )}
 

@@ -126,14 +126,14 @@ const ProyeccionCashflow = ({ user }) => {
  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
  <div>
  <p className="label-mono text-[var(--color-fg-3)] mb-3">Proyección de tesorería</p>
- <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Horizonte de 8 semanas usando CXC, CXP y caja real.</h2>
+ <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Horizonte de 13 semanas usando CXC, CXP y caja real.</h2>
  <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--color-fg-3)]">
  La proyección parte del saldo bancario actual y suma o resta solo compromisos abiertos con vencimiento conocido.
  </p>
  </div>
  <div className="rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-3">
  <p className="label-mono text-[var(--color-fg-3)]">Horizonte</p>
- <p className="mt-1 text-sm font-medium text-[var(--color-fg-1)]">Próximas 8 semanas</p>
+ <p className="mt-1 text-sm font-medium text-[var(--color-fg-1)]">Próximas 13 semanas</p>
  </div>
  </div>
  </section>

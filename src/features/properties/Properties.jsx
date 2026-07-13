@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Home, Search, Building2 } from 'lucide-react';
 import { useProperties } from '../../hooks/useProperties';
+import { useProjects } from '../../hooks/useProjects';
 import { useRecurringCosts } from '../../hooks/useRecurringCosts';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
@@ -13,6 +14,7 @@ const USE_LABELS = { housing: 'Vivienda', office: 'Oficina', storage: 'Almacén'
 
 const Properties = ({ user }) => {
  const { properties, loading, createProperty, updateProperty, deleteProperty } = useProperties(user);
+ const { projects } = useProjects(user);
  const { recurringCosts, totalMonthlyEquivalent } = useRecurringCosts(user);
 
  const [searchQuery, setSearchQuery] = useState('');
@@ -177,6 +179,7 @@ const Properties = ({ user }) => {
  onClose={() => setIsModalOpen(false)}
  onSubmit={editingProperty ? handleUpdate : handleCreate}
  editingProperty={editingProperty}
+ projects={projects}
  />
 
  <ConfirmModal

@@ -44,6 +44,9 @@ export const employeeDefaults = () => ({
   projectIds: [],
   role: '',
   defaultCostCenter: '',
+  // Crew / cuadrilla tag for ops cost grouping (FinControl F0)
+  crewId: '',
+  crewName: '',
 
   // Identity & contact
   email: '',
@@ -88,6 +91,14 @@ export const propertyDefaults = () => ({
   landlordOrOwner: '', // Counterparty name
   defaultCostCenter: '',
   projectIds: [],
+  // Temporary project assignment for logistics cost allocation (F0)
+  currentAssignment: {
+    projectId: '',
+    projectName: '',
+    from: '',
+    to: '',
+    notes: '',
+  },
   notes: '',
 });
 
@@ -112,6 +123,14 @@ export const vehicleDefaults = () => ({
   fuelBudgetMonthly: 0, // Reference budget €
   defaultCostCenter: '',
   projectIds: [],
+  // Temporary project assignment for fleet cost allocation (F0)
+  currentAssignment: {
+    projectId: '',
+    projectName: '',
+    from: '',
+    to: '',
+    notes: '',
+  },
   notes: '',
 });
 

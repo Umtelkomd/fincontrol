@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { normalizeAssignment } from '../finance/opsControl';
 
 const PROPERTIES_COLLECTION = 'properties';
 
@@ -64,6 +65,7 @@ export const useProperties = (user) => {
             landlordOrOwner: raw.landlordOrOwner || '',
             defaultCostCenter: raw.defaultCostCenter || '',
             projectIds: Array.isArray(raw.projectIds) ? raw.projectIds : [],
+            currentAssignment: normalizeAssignment(raw.currentAssignment || {}),
             notes: raw.notes || '',
             createdAt: raw.createdAt?.toDate?.()?.toISOString() || null,
             updatedAt: raw.updatedAt?.toDate?.()?.toISOString() || null,
@@ -110,7 +112,13 @@ export const useProperties = (user) => {
       endDate: data.endDate || '',
       landlordOrOwner: (data.landlordOrOwner || '').trim(),
       defaultCostCenter: (data.defaultCostCenter || '').trim(),
-      projectIds: Array.isArray(data.projectIds) ? data.projectIds.filter(Boolean) : [],
+      currentAssignment: normalizeAssignment(data.currentAssignment || {}),
+      projectIds: (() => {
+        const ids = Array.isArray(data.projectIds) ? data.projectIds.filter(Boolean) : [];
+        const assigned = normalizeAssignment(data.currentAssignment || {}).projectId;
+        if (assigned && !ids.includes(assigned)) ids.push(assigned);
+        return ids;
+      })(),
       notes: (data.notes || '').trim(),
     };
   };

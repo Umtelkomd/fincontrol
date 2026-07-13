@@ -233,7 +233,7 @@ const CashFlow = ({ user }) => {
  </div>
  </Section>
 
- <Section title="Compromisos por semana" subtitle="Entradas y salidas comprometidas en la siguiente ventana de 8 semanas." help={
+ <Section title="Compromisos por semana" subtitle="Entradas y salidas comprometidas en la siguiente ventana de 13 semanas." help={
  <HelpButton title="Compromisos por semana" size={14}>
  <p>Cobros y pagos pendientes agrupados por semana de vencimiento.</p>
  <p>Ayuda a anticipar semanas con alta presion de salida o entrada de caja.</p>

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { normalizeAssignment } from '../finance/opsControl';
 
 const VEHICLES_COLLECTION = 'vehicles';
 
@@ -63,6 +64,7 @@ export const useVehicles = (user) => {
             fuelBudgetMonthly: num(raw.fuelBudgetMonthly),
             defaultCostCenter: raw.defaultCostCenter || '',
             projectIds: Array.isArray(raw.projectIds) ? raw.projectIds : [],
+            currentAssignment: normalizeAssignment(raw.currentAssignment || {}),
             notes: raw.notes || '',
             createdAt: raw.createdAt?.toDate?.()?.toISOString() || null,
             updatedAt: raw.updatedAt?.toDate?.()?.toISOString() || null,
@@ -107,7 +109,13 @@ export const useVehicles = (user) => {
       assignedDriver: (data.assignedDriver || '').trim(),
       fuelBudgetMonthly: num(data.fuelBudgetMonthly),
       defaultCostCenter: (data.defaultCostCenter || '').trim(),
-      projectIds: Array.isArray(data.projectIds) ? data.projectIds.filter(Boolean) : [],
+      currentAssignment: normalizeAssignment(data.currentAssignment || {}),
+      projectIds: (() => {
+        const ids = Array.isArray(data.projectIds) ? data.projectIds.filter(Boolean) : [];
+        const assigned = normalizeAssignment(data.currentAssignment || {}).projectId;
+        if (assigned && !ids.includes(assigned)) ids.push(assigned);
+        return ids;
+      })(),
       notes: (data.notes || '').trim(),
     };
   };

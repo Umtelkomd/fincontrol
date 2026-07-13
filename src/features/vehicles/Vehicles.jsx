@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Car, Search, Fuel } from 'lucide-react';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useEmployees } from '../../hooks/useEmployees';
+import { useProjects } from '../../hooks/useProjects';
 import { useRecurringCosts } from '../../hooks/useRecurringCosts';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
@@ -15,6 +16,7 @@ const STATUS_LABELS = { active: 'Activo', maintenance: 'Mantenimiento', inactive
 const Vehicles = ({ user }) => {
  const { vehicles, loading, createVehicle, updateVehicle, deleteVehicle } = useVehicles(user);
  const { employees } = useEmployees(user);
+ const { projects } = useProjects(user);
  const { recurringCosts, totalMonthlyEquivalent } = useRecurringCosts(user);
 
  const [searchQuery, setSearchQuery] = useState('');
@@ -193,6 +195,7 @@ const Vehicles = ({ user }) => {
  onSubmit={editingVehicle ? handleUpdate : handleCreate}
  editingVehicle={editingVehicle}
  drivers={drivers}
+ projects={projects}
  />
 
  <ConfirmModal

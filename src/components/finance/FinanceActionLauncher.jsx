@@ -187,6 +187,9 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  if (!isOpen) return null;
 
  const submitReceivable = async () => {
+ if (!receivableForm.projectId) {
+ throw new Error('El proyecto es obligatorio para CXC (control de cobro por obra)');
+ }
  const projectName = resolveProjectName(projects, receivableForm.projectId);
  const result = await createReceivable({
  ...receivableForm,
@@ -198,6 +201,9 @@ const FinanceActionLauncher = ({ isOpen, onClose, user, defaultAction }) => {
  };
 
  const submitPayable = async () => {
+ if (!payableForm.projectId) {
+ throw new Error('El proyecto es obligatorio para CXP operativos (costeo por obra)');
+ }
  const projectName = resolveProjectName(projects, payableForm.projectId);
  const result = await createPayable({
  ...payableForm,

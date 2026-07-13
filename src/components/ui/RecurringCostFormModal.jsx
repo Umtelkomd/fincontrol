@@ -89,6 +89,11 @@ const RecurringCostFormModal = ({
  setError('El monto debe ser mayor a cero');
  return;
  }
+ // Vehicle / property / insurance recurrents must hit a project for obra costeo.
+ if (['vehicle', 'property', 'insurance'].includes(form.ownerType) && !form.projectId) {
+ setError('El proyecto es obligatorio para costos de flota, vivienda o seguro');
+ return;
+ }
  setSubmitting(true);
  const result = await onSubmit(form);
  setSubmitting(false);
@@ -227,7 +232,9 @@ const RecurringCostFormModal = ({
  </label>
 
  <label className="block">
- <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Proyecto</span>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
+ Proyecto {['vehicle', 'property', 'insurance'].includes(form.ownerType) ? '*' : ''}
+ </span>
  <select
  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
  value={form.projectId}

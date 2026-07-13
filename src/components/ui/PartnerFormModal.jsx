@@ -12,7 +12,7 @@ const PartnerFormModal = ({
  const [submitting, setSubmitting] = useState(false);
  const [errors, setErrors] = useState({});
 
- const [formData, setFormData] = useState({
+ const emptyForm = () => ({
  name: '',
  type: 'both',
  legalName: '',
@@ -24,12 +24,21 @@ const PartnerFormModal = ({
  defaultTaxRate: TAX_RATES.STANDARD,
  notes: '',
  status: 'active',
+ freistellungExpiresAt: '',
+ mindestlohnExpiresAt: '',
+ insuranceExpiresAt: '',
+ a1ExpiresAt: '',
+ tradeLicenseExpiresAt: '',
+ complianceNotes: '',
  });
+
+ const [formData, setFormData] = useState(emptyForm);
 
  useEffect(() => {
  if (!isOpen) return;
  if (editingPartner) {
  setFormData({
+ ...emptyForm(),
  name: editingPartner.name || '',
  type: editingPartner.type || 'both',
  legalName: editingPartner.legalName || '',
@@ -41,21 +50,15 @@ const PartnerFormModal = ({
  defaultTaxRate: editingPartner.defaultTaxRate ?? TAX_RATES.STANDARD,
  notes: editingPartner.notes || '',
  status: editingPartner.status || 'active',
+ freistellungExpiresAt: editingPartner.freistellungExpiresAt || '',
+ mindestlohnExpiresAt: editingPartner.mindestlohnExpiresAt || '',
+ insuranceExpiresAt: editingPartner.insuranceExpiresAt || '',
+ a1ExpiresAt: editingPartner.a1ExpiresAt || '',
+ tradeLicenseExpiresAt: editingPartner.tradeLicenseExpiresAt || '',
+ complianceNotes: editingPartner.complianceNotes || '',
  });
  } else {
- setFormData({
- name: '',
- type: 'both',
- legalName: '',
- taxId: '',
- email: '',
- phone: '',
- address: '',
- defaultPaymentMethod: '',
- defaultTaxRate: TAX_RATES.STANDARD,
- notes: '',
- status: 'active',
- });
+ setFormData(emptyForm());
  }
  setErrors({});
  }, [isOpen, editingPartner]);
@@ -283,6 +286,50 @@ const PartnerFormModal = ({
  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
  />
  </div>
+
+ {/* Compliance (subcontratas) */}
+ {(formData.type === 'vendor' || formData.type === 'both') && (
+ <>
+ <div className="flex items-center gap-2 pt-1">
+ <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--color-fg-3)]">
+ Compliance subcontrata
+ </span>
+ <div className="h-px flex-1 bg-[var(--color-line)]" />
+ </div>
+ <p className="text-[11px] text-[var(--color-fg-4)] leading-relaxed">
+ Vencimientos usados para alertas y control de pago. Freistellung §48b y Mindestlohn son críticos.
+ </p>
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+ {[
+ { key: 'freistellungExpiresAt', label: 'Freistellung §48b *' },
+ { key: 'mindestlohnExpiresAt', label: 'Mindestlohn *' },
+ { key: 'insuranceExpiresAt', label: 'Seguro / Haftpflicht' },
+ { key: 'a1ExpiresAt', label: 'A1 / posted workers' },
+ { key: 'tradeLicenseExpiresAt', label: 'Gewerbeanmeldung' },
+ ].map(({ key, label }) => (
+ <div key={key}>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">{label}</label>
+ <input
+ type="date"
+ className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)]"
+ value={formData[key]}
+ onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+ />
+ </div>
+ ))}
+ </div>
+ <div>
+ <label className="mb-2 block text-sm font-medium text-[var(--color-fg-4)]">Notas compliance</label>
+ <textarea
+ rows="2"
+ placeholder="Nº documento, observaciones FKS…"
+ className="w-full resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3 text-sm text-[var(--color-fg-1)] outline-none transition focus:border-[var(--color-fg-1)]"
+ value={formData.complianceNotes}
+ onChange={(e) => setFormData({ ...formData, complianceNotes: e.target.value })}
+ />
+ </div>
+ </>
+ )}
 
  {/* Divider */}
  <div className="flex items-center gap-2 pt-1">

@@ -253,6 +253,9 @@ const Partners = ({ user }) => {
  <th className="px-4 py-3.5 text-left label-monost text-[var(--color-fg-3)]">
  IVA default
  </th>
+ <th className="px-4 py-3.5 text-left label-monost text-[var(--color-fg-3)]">
+ Compliance
+ </th>
  <th className="px-4 py-3.5 text-center label-monost text-[var(--color-fg-3)]">
  Estado
  </th>
@@ -341,6 +344,27 @@ const Partners = ({ user }) => {
  ) : (
  <span className="text-[var(--color-fg-3)]">19%</span>
  )}
+ </td>
+
+ {/* Compliance */}
+ <td className="px-4 py-3.5">
+ {(() => {
+ const c = partner.compliance;
+ if (!c || partner.type === 'client') {
+ return <span className="text-[var(--color-fg-3)]">—</span>;
+ }
+ const tone =
+ c.status === 'ok'
+ ? 'text-[var(--color-ok)] border-[var(--color-ok)]'
+ : c.status === 'warn'
+ ? 'text-[var(--color-warn)] border-[var(--color-warn)]'
+ : 'text-[var(--color-err)] border-[var(--color-err)]';
+ return (
+ <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${tone}`}>
+ {c.label}
+ </span>
+ );
+ })()}
  </td>
 
  {/* Status */}

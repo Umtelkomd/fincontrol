@@ -30,7 +30,8 @@ export const MOVEMENT_KIND = {
 };
 
 export const TREASURY_LOOKAHEAD_DAYS = 14;
-export const TREASURY_PROJECTION_WEEKS = 8;
+/** Managerial cash ritual: 13-week treasury window (was 8). */
+export const TREASURY_PROJECTION_WEEKS = 13;
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
 

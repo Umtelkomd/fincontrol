@@ -12,8 +12,18 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { partnerComplianceStatus } from '../finance/opsControl';
 
 const PARTNERS_COLLECTION = 'partners';
+
+const complianceFieldsFrom = (data = {}) => ({
+  freistellungExpiresAt: data.freistellungExpiresAt || '',
+  mindestlohnExpiresAt: data.mindestlohnExpiresAt || '',
+  insuranceExpiresAt: data.insuranceExpiresAt || '',
+  a1ExpiresAt: data.a1ExpiresAt || '',
+  tradeLicenseExpiresAt: data.tradeLicenseExpiresAt || '',
+  complianceNotes: (data.complianceNotes || '').trim(),
+});
 
 export const usePartners = (user) => {
   const [partners, setPartners] = useState([]);
@@ -34,7 +44,7 @@ export const usePartners = (user) => {
       (snapshot) => {
         const data = snapshot.docs.map((doc) => {
           const raw = doc.data();
-          return {
+          const partner = {
             id: doc.id,
             type: raw.type || 'both',
             name: raw.name || '',
@@ -47,9 +57,12 @@ export const usePartners = (user) => {
             defaultTaxRate: raw.defaultTaxRate ?? 0.19,
             notes: raw.notes || '',
             status: raw.status || 'active',
+            ...complianceFieldsFrom(raw),
             createdAt: raw.createdAt?.toDate?.()?.toISOString() || null,
             updatedAt: raw.updatedAt?.toDate?.()?.toISOString() || null,
           };
+          partner.compliance = partnerComplianceStatus(partner);
+          return partner;
         });
         setPartners(data);
         setLoading(false);
@@ -110,6 +123,7 @@ export const usePartners = (user) => {
         defaultTaxRate: typeof data.defaultTaxRate === 'number' ? data.defaultTaxRate : 0.19,
         notes: data.notes?.trim() || '',
         status: data.status || 'active',
+        ...complianceFieldsFrom(data),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -148,6 +162,7 @@ export const usePartners = (user) => {
         defaultTaxRate: typeof data.defaultTaxRate === 'number' ? data.defaultTaxRate : 0.19,
         notes: data.notes?.trim() || '',
         status: data.status || 'active',
+        ...complianceFieldsFrom(data),
         updatedAt: serverTimestamp(),
       };
 
