@@ -9,6 +9,8 @@
  *   cxc   — create CXC draft (receivable) for client billing
  */
 
+import { canonicalizeProjectCode, projectCodesMatch } from './projectCodeAliases.js';
+
 const REQUIRED = ['kind', 'week', 'counterparty', 'amount'];
 
 export const OPS_WEEK_CSV_TEMPLATE = [
@@ -136,18 +138,20 @@ const norm = (s) =>
 /**
  * Match a clear-row to open payables.
  * Score: counterparty name + optional project id/code + optional amount tolerance.
+ * Project codes are compared via Lumen↔FinControl alias map.
  */
 export function matchClearRowsToPayables(clearRows, payables, projects = []) {
   const projectByCode = new Map();
   projects.forEach((p) => {
-    const code = norm(p.code || p.codigo);
+    const code = canonicalizeProjectCode(p.code || p.codigo || p.name || p.displayName || '');
     if (code) projectByCode.set(code, p);
   });
 
   return clearRows.map((row) => {
+    const rowCanon = canonicalizeProjectCode(row.projectCode);
     const targetProjectId =
       row.projectId ||
-      projectByCode.get(norm(row.projectCode))?.id ||
+      (rowCanon ? projectByCode.get(rowCanon)?.id : '') ||
       '';
 
     const open = (payables || []).filter((p) => {
@@ -171,7 +175,8 @@ export function matchClearRowsToPayables(clearRows, payables, projects = []) {
           return { payable: p, score: 0 };
         }
         if (targetProjectId && p.projectId === targetProjectId) score += 30;
-        else if (row.projectCode && norm(p.projectName).includes(norm(row.projectCode))) score += 15;
+        else if (row.projectCode && projectCodesMatch(row.projectCode, p.projectName)) score += 25;
+        else if (row.projectCode && projectCodesMatch(row.projectCode, p.projectId)) score += 15;
         const openAmt = Number(p.openAmount) || 0;
         if (Math.abs(openAmt - row.amount) < 0.5) score += 20;
         else if (Math.abs(openAmt - row.amount) / Math.max(openAmt, row.amount) < 0.05) score += 10;
@@ -197,14 +202,14 @@ export function matchClearRowsToPayables(clearRows, payables, projects = []) {
 export function buildCxcDraftsFromRows(cxcRows, projects = []) {
   const projectByCode = new Map();
   projects.forEach((p) => {
-    const code = norm(p.code || p.codigo);
+    const code = canonicalizeProjectCode(p.code || p.codigo || p.name || p.displayName || '');
     if (code) projectByCode.set(code, p);
   });
 
   return cxcRows.map((row) => {
     const project =
       (row.projectId && projects.find((p) => p.id === row.projectId)) ||
-      projectByCode.get(norm(row.projectCode)) ||
+      projectByCode.get(canonicalizeProjectCode(row.projectCode)) ||
       null;
     return {
       row,
