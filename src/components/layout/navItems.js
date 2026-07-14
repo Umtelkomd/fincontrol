@@ -5,6 +5,7 @@ import {
   Building2,
   Car,
   Database,
+  FileBarChart,
   FolderKanban,
   HardHat,
   Home,
@@ -33,6 +34,7 @@ export const NAV_GROUPS = [
     items: [
       { path: '/resumen', label: 'Resumen', icon: Home, permission: 'dashboard' },
       { path: '/cfo', label: 'CFO', icon: Briefcase, permission: 'reports', accent: '.OS' },
+      { path: '/reporte-gerencial', label: 'Reporte gerencial', icon: FileBarChart, permission: 'reports' },
       { path: '/clasificar', label: 'Bandeja', icon: Inbox, permission: 'settings' },
       { path: '/movimientos', label: 'Movimientos', icon: Database, permission: 'dashboard' },
       { path: '/cashflow', label: 'Tesoreria', icon: WalletCards, permission: 'reports' },

@@ -50,6 +50,7 @@ const Movimientos = lazy(() => import('./features/movimientos/Movimientos'));
 const Rules = lazy(() => import('./features/classification-rules/Rules'));
 const AlertasOperativas = lazy(() => import('./features/alertas-op/AlertasOperativas'));
 const CFODashboard = lazy(() => import('./features/cfo/CFODashboard'));
+const ReporteGerencial = lazy(() => import('./features/reporte/ReporteGerencial'));
 const Nominas = lazy(() => import('./features/nominas/Nominas'));
 const OpsWeekBridge = lazy(() => import('./features/ops-week/OpsWeekBridge'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
@@ -95,6 +96,7 @@ const VIEW_TITLES = {
  '/reglas': 'Reglas de clasificación',
  '/alertas-op': 'Alertas operativas',
  '/cfo': 'CFO.OS',
+ '/reporte-gerencial': 'Reporte gerencial',
 };
 
 const LoadingState = () => (
@@ -306,6 +308,7 @@ function AppContent({ user, userRole, hasPermission }) {
  <Route path="/reglas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Rules user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/alertas-op" element={<ProtectedRoute hasPermission={hasPermission} permission="dashboard"><AlertasOperativas user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/cfo" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><CFODashboard user={user} userRole={userRole} /></ProtectedRoute>} />
+ <Route path="/reporte-gerencial" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ReporteGerencial user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/nominas" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><Nominas user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/ops-semana" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><OpsWeekBridge user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="*" element={<Navigate to="/" replace />} />
