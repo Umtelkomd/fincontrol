@@ -9,8 +9,7 @@
     "build": "vite build",
     "test": "vitest run",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "migrate:legacy": "node scripts/migrateLegacyTransactions.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "firebase": "^12.7.0",

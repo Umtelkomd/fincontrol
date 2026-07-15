@@ -31,11 +31,19 @@ import { useForwardProjection } from '../../hooks/useForwardProjection';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
+import { useTreasurySettings } from '../../hooks/useTreasurySettings';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
+import { missingPayrollMonths } from '../nominas/lib/missingMonths';
+import { agingBuckets, forecastWeeks } from '../../lib/finance';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
-import { computeMonthlyResult, selectDueWithinDays } from './lib/resumenMetrics';
+import {
+  computeMonthlyResult,
+  selectDueWithinDays,
+  selectUpcomingObligations,
+} from './lib/resumenMetrics';
+import { buildResumenAlerts } from './lib/alertsPanel';
 
 const DUE_WINDOW_DAYS = 30;
 const UPCOMING_LIMIT = 6;
@@ -94,11 +102,50 @@ const Resumen = ({ user }) => {
   // inline — cheaper and simpler than a second hook instance.
   const ledger = useFinanceLedgerContext();
   const metrics = useTreasuryMetrics({ user, payrollByProject, ledger });
-  const projection = useForwardProjection(user);
+  // Anchor-derived cash feeds the projection so "day zero" starts from the
+  // reconciled balance, not the stale static one.
+  const projection = useForwardProjection(user, 90, {
+    startingBalance: metrics.loading ? undefined : metrics.currentCash,
+  });
+  const { alertBufferEur } = useTreasurySettings(user);
 
   const now = useMemo(() => new Date(), []);
   const monthRange = useMemo(() => currentMonthRange(now), [now]);
   const monthKey = useMemo(() => currentMonthKey(now), [now]);
+
+  // ── Alerts: localized, action-routed, severity-sorted ──────────────────────
+  const alerts = useMemo(() => {
+    if (metrics.loading) return [];
+    const todayIso = now.toISOString().slice(0, 10);
+    const openReceivables = (metrics.receivables || []).filter(
+      (r) => (r.openAmount || 0) > 0.005 && r.status !== 'cancelled',
+    );
+    const openPayables = (metrics.payables || []).filter(
+      (p) => (p.openAmount || 0) > 0.005 && p.status !== 'cancelled',
+    );
+    const forecast = forecastWeeks({
+      startBalance: metrics.currentCash ?? 0,
+      today: todayIso,
+      receivables: openReceivables,
+      payables: openPayables,
+      obligations: projection.obligations || [],
+    });
+    return buildResumenAlerts({
+      position: { balance: metrics.currentCash ?? 0, anchor: metrics.cashMeta?.anchor ?? null },
+      forecast,
+      receivablesAging: agingBuckets({ docs: openReceivables, today: todayIso }),
+      payablesAging: agingBuckets({ docs: openPayables, today: todayIso }),
+      importGap: metrics.cashMeta?.importGap ?? { hasGap: false },
+      missingMonths: canSeePayroll
+        ? missingPayrollMonths(payrollPeriods, todayIso.slice(0, 7))
+        : [],
+      today: todayIso,
+      config: {
+        bufferEur: alertBufferEur,
+        creditFloorEur: metrics.bankAccount?.creditLineLimit ?? 0,
+      },
+    });
+  }, [alertBufferEur, canSeePayroll, metrics, now, payrollPeriods, projection.obligations]);
 
   // ── Block 1: cash + runway ─────────────────────────────────────────────────
   const currentCash = metrics.currentCash ?? 0;
@@ -193,15 +240,23 @@ const Resumen = ({ user }) => {
   // Feed the FULL open document sets (NOT the 14-day-capped upcoming* arrays) so
   // the 30-day window is real and payroll obligations due ~next month (Lohnsteuer
   // on the 10th, month-end Krankenkassen) actually appear.
-  const upcomingPayables = useMemo(
-    () =>
-      selectDueWithinDays(
-        (metrics.payables || []).filter((p) => (p.openAmount || 0) > 0 && p.status !== 'cancelled'),
-        DUE_WINDOW_DAYS,
-        now,
-      ).slice(0, UPCOMING_LIMIT),
-    [metrics.payables, now],
-  );
+  const upcomingPayables = useMemo(() => {
+    const documents = selectDueWithinDays(
+      (metrics.payables || []).filter((p) => (p.openAmount || 0) > 0 && p.status !== 'cancelled'),
+      DUE_WINDOW_DAYS,
+      now,
+    );
+    // Estimated fiscal obligations (IVA / SV / Lohnsteuer / nómina) that are
+    // not yet materialized as payables join the same list, flagged "estimado".
+    const estimated = selectUpcomingObligations(
+      projection.obligations || [],
+      DUE_WINDOW_DAYS,
+      now,
+    );
+    return [...documents, ...estimated]
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+      .slice(0, UPCOMING_LIMIT);
+  }, [metrics.payables, now, projection.obligations]);
   const upcomingReceivables = useMemo(
     () =>
       selectDueWithinDays(
@@ -255,6 +310,45 @@ const Resumen = ({ user }) => {
         </p>
       </header>
 
+      {/* ───────────────────────── ALERTAS ────────────────────────────────────── */}
+      {alerts.length > 0 && (
+        <Panel title="Alertas" meta={`${alerts.length} activa${alerts.length === 1 ? '' : 's'}`}>
+          <ul className="divide-y divide-[var(--color-line)]">
+            {alerts.map((alert) => {
+              const severityColor =
+                alert.severity === 'critical'
+                  ? 'var(--color-err)'
+                  : alert.severity === 'serious'
+                    ? 'var(--color-warn)'
+                    : 'var(--color-fg-3)';
+              return (
+                <li key={alert.id} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: severityColor }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium" style={{ color: severityColor }}>
+                        {alert.title}
+                      </p>
+                      <p className="mt-0.5 text-[12px] text-[var(--color-fg-4)]">{alert.detail}</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={alert.href}
+                    className="label-mono flex-shrink-0 text-[var(--color-accent)] transition-opacity hover:opacity-80"
+                  >
+                    Ver →
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+      )}
+
       {/* ───────────────────────── BLOCK 1 — CAJA Y RUNWAY ───────────────────── */}
       <Panel title="Caja y runway" meta="¿Cuánto aguantamos?">
         <KPIGrid cols={2}>
@@ -264,7 +358,15 @@ const Resumen = ({ user }) => {
             size="lg"
             tone={currentCash < 0 ? 'err' : 'default'}
             icon={Wallet}
-            meta="Saldo real en banco hoy"
+            meta={
+              metrics.cashSource === 'anchors' && metrics.cashMeta?.anchor
+                ? `Conciliado al ${formatDate(metrics.cashMeta.anchor.date)} · últ. mov. ${
+                    metrics.cashMeta.lastMovementDate
+                      ? formatDate(metrics.cashMeta.lastMovementDate)
+                      : '—'
+                  }`
+                : 'Sin conciliar — registra un ancla en Configuración → Tesorería'
+            }
           />
           <KPI
             label="Runway"
@@ -424,6 +526,11 @@ const DueList = ({ title, items, emptyText, direction }) => {
                     {kindLabel && (
                       <Badge variant="info" className="flex-shrink-0">
                         {kindLabel}
+                      </Badge>
+                    )}
+                    {item.estimated && (
+                      <Badge variant="neutral" className="flex-shrink-0">
+                        estimado
                       </Badge>
                     )}
                   </div>
