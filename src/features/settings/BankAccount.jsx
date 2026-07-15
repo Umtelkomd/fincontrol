@@ -4,7 +4,7 @@ import { useBankAccount } from '../../hooks/useBankAccount';
 import { formatCurrency } from '../../utils/formatters';
 import { Button } from '@/components/ui/nexus';
 
-const BankAccount = ({ user, transactions }) => {
+const BankAccount = ({ user }) => {
  const { bankAccount, loading, saveBankAccount, calculateRealBalance } = useBankAccount(user);
  const [form, setForm] = useState({
  bankName: '',
@@ -36,7 +36,9 @@ const BankAccount = ({ user, transactions }) => {
  }
  };
 
- const realBalance = calculateRealBalance(transactions || []);
+ // Legacy transactions feed was removed; the base balance stands on its own
+ // until canonical bank movements are wired into this view.
+ const realBalance = calculateRealBalance([]);
 
  if (loading) {
  return (
@@ -62,7 +64,7 @@ const BankAccount = ({ user, transactions }) => {
  <div>
   <p className="label-mono text-[var(--color-fg-1)]">Tesorería</p>
   <h2 className="font-display text-[24px] font-light tracking-[-0.03em] text-[var(--color-fg-1)]">Cuenta bancaria</h2>
-  <p className="text-sm text-[var(--color-fg-3)]">Define el saldo base y el límite operativo para medir la liquidez disponible.</p>
+  <p className="text-sm text-[var(--color-fg-3)]">Define el límite de crédito operativo. El saldo base es solo un respaldo: la caja real se calcula con las anclas de la pestaña Tesorería.</p>
  </div>
  </div>
  </div>

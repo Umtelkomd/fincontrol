@@ -1,11 +1,7 @@
 import { useMemo } from 'react';
 import { balances2025 } from '../data/balances2025';
-import {
-  adaptPayableDoc,
-  adaptReceivableDoc,
-  createLegacyOpeningPayables,
-  createLegacyOpeningReceivables,
-} from '../finance/adapters';
+import { adaptPayableDoc, adaptReceivableDoc } from '../finance/adapters';
+import { resolveCashSource } from '../finance/cashSource';
 import { DEFAULT_CURRENCY, LEDGER_OPENING_DATE, MAIN_ACCOUNT_ID, MOVEMENT_STATUS } from '../finance/constants';
 import { compareIsoDate, getSignedMovementAmount, sumMoney } from '../finance/utils';
 import { useAllTransactions } from './useAllTransactions';
@@ -15,6 +11,7 @@ import { useBudgets } from './useBudgets';
 import { usePayables } from './usePayables';
 import { useProjects } from './useProjects';
 import { useReceivables } from './useReceivables';
+import { useReconciliation } from './useReconciliation';
 
 const sortByDueDate = (left, right) => {
   const dueComparison = compareIsoDate(left.dueDate, right.dueDate);
@@ -30,6 +27,7 @@ export const useFinanceLedger = (user) => {
   const { payables, loading: payablesLoading, error: payablesError } = usePayables(user);
   const { budgets, loading: budgetsLoading, error: budgetsError } = useBudgets(user);
   const { projects, loading: projectsLoading, error: projectsError } = useProjects(user);
+  const { anchors, loading: anchorsLoading } = useReconciliation(user);
 
   return useMemo(() => {
     const loading =
@@ -39,7 +37,8 @@ export const useFinanceLedger = (user) => {
       receivablesLoading ||
       payablesLoading ||
       budgetsLoading ||
-      projectsLoading;
+      projectsLoading ||
+      anchorsLoading;
 
     // A failed source must never render as "€0, everything fine". Consumers check
     // `error` (first failure) or `sourceErrors` (per-collection detail) and show a
@@ -65,17 +64,10 @@ export const useFinanceLedger = (user) => {
     // for historical budget/project reporting but must NOT feed the cash ledger —
     // it is a categorized P&L view, not a bank statement, and mixing it would
     // double-count 2025 (DATEV already contains all 966 2025 bank movements).
-    const openingReceivables = createLegacyOpeningReceivables();
-    const openingPayables = createLegacyOpeningPayables();
-
-    // AR/AP rows: opening anchors + live Firestore canonicals only.
-    // Legacy sheet entries are excluded — they were 2025 operational data that has
-    // since been superseded by the canonical receivables/payables collections.
-    const receivableRows = [...openingReceivables, ...canonicalReceivables].sort(sortByDueDate);
-    const payableRows = [...openingPayables, ...canonicalPayables].sort(sortByDueDate);
-
-    // postedMovements = DATEV bank movements only, filtered to POSTED status and
-    // sorted chronologically. No legacy sheet entries.
+    // AR/AP rows: live Firestore canonicals only — synthetic legacy openings were
+    // retired with the anchors model (treasury-anchors PR).
+    const receivableRows = [...canonicalReceivables].sort(sortByDueDate);
+    const payableRows = [...canonicalPayables].sort(sortByDueDate);
     const postedMovements = bankMovements
       .filter((entry) => entry.status === MOVEMENT_STATUS.POSTED)
       .sort((left, right) => compareIsoDate(left.postedDate, right.postedDate));
@@ -90,11 +82,9 @@ export const useFinanceLedger = (user) => {
       taxReserveBalance: balances2025.ivaDic2025,
     };
 
-    // currentCash: opening balance (Dec 2025) + all DATEV movements posted after
-    // the opening date. Since DATEV covers full 2025 + 2026 and postedMovements is
-    // now DATEV-only, movements before or on the opening date are correctly excluded
-    // by the compareIsoDate > 0 guard (same as before).
-    const currentCash = sumMoney(
+    // Legacy formula kept byte-identical: it is the fallback until a
+    // reconciliation anchor exists (see resolveCashSource).
+    const legacyCash = sumMoney(
       postedMovements.filter(
         (entry) =>
           entry.accountId === MAIN_ACCOUNT_ID && compareIsoDate(entry.postedDate, mainAccount.openingDate) > 0,
@@ -102,7 +92,18 @@ export const useFinanceLedger = (user) => {
       getSignedMovementAmount,
     ) + mainAccount.openingBalance;
 
-    const currentBalance = Math.round(currentCash * 100) / 100;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const mainAccountMovements = postedMovements.filter(
+      (entry) => entry.accountId === MAIN_ACCOUNT_ID,
+    );
+    const { currentCash, source: cashSource, cashMeta } = resolveCashSource({
+      anchors,
+      movements: mainAccountMovements,
+      today: todayIso,
+      legacyBalance: legacyCash,
+    });
+
+    const currentBalance = currentCash;
     const creditUsed = currentBalance < 0 ? Math.abs(currentBalance) : 0;
     const availableCredit = currentBalance - mainAccount.creditLineLimit;
 
@@ -121,6 +122,9 @@ export const useFinanceLedger = (user) => {
       payables: payableRows,
       budgets,
       projects,
+      anchors,
+      cashSource,
+      cashMeta,
       summary: {
         currentCash: currentBalance,
         creditUsed,
@@ -132,9 +136,10 @@ export const useFinanceLedger = (user) => {
   }, [
     accountError,
     accountLoading,
-    allTransactions,
     bankAccount,
     bankMovements,
+    anchors,
+    anchorsLoading,
     budgets,
     budgetsError,
     budgetsLoading,
@@ -151,6 +156,7 @@ export const useFinanceLedger = (user) => {
     receivablesLoading,
     txError,
     txLoading,
+    allTransactions,
   ]);
 };
 

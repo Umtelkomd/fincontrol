@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { canonicalizeProjectCode } from '../finance/projectCodeAliases';
+import { sanitizeValue } from '../utils/sanitizeFirestore';
 
 const normalizeProjectPayload = (projectData = {}) => {
   const code = canonicalizeProjectCode(projectData.code || projectData.codigo || '');
@@ -45,9 +46,10 @@ export const useProjects = (user) => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        // Sanitize doc fields so Timestamps and audit arrays stay render-safe
         const data = snapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
+          ...sanitizeValue(doc.data())
         }));
         setProjects(data);
         setLoading(false);
