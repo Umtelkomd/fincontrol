@@ -1,78 +1,60 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTransactions } from './useTransactions';
+import { OPERATIONAL_DATA_START } from '../finance/constants';
 
 /**
- * useAllTransactions — merges 2025 static data + 2026 Firebase transactions.
+ * useAllTransactions — all transactions (2025 historical + 2026+ operational)
+ * read from the live Firestore `transactions` collection via useTransactions.
  *
- * The 2025 dataset (112 kB, 419 records) is loaded via a dynamic import so it
- * lands in its own chunk and does not inflate the main bundle. A module-level
- * cache (data2025Cache) means the chunk is fetched exactly once per session
- * regardless of how many components mount this hook simultaneously; subsequent
- * mounts receive the cached array synchronously via the useState initializer.
+ * History: until Plan 003 the 2025 records (419 rows, ids `sheet-2025-N`,
+ * source `2025-sheet`) were bundled as a static JS chunk and merged with the
+ * live snapshot here. They now live in Firestore alongside operational data
+ * (migrated by scripts/migrate2025ToFirestore.mjs), so this hook is a thin
+ * derivation over the single live source.
  *
- * Loading semantics: the hook stays in loading=true until BOTH the live
- * Firebase snapshot AND the 2025 chunk have resolved. This prevents opening
- * balances from rendering with only half the data (e.g. cashflow anchoring on
- * Dec 2025 totals would produce a wrong intermediate number if 2025 data
- * arrived late).
+ * The return shape is unchanged for the 6 consumers:
+ *   - allTransactions: every record, sorted descending by date.
+ *   - loading / error: passed through from the live snapshot. loading is true
+ *     until the snapshot resolves — with a single source, "both sources ready"
+ *     collapses to "snapshot ready", preserving the old gate semantics.
+ *   - transactions2025 / transactions2026: split on OPERATIONAL_DATA_START
+ *     (the deliberate architecture boundary in src/finance/constants.js) —
+ *     records dated before it are the historical sheet, the rest operational.
  */
-
-// Module-level cache — survives remounts, cleared only on full page reload.
-let data2025Cache = null;
-let data2025Promise = null;
-
-const load2025 = () => {
-  if (data2025Cache) return Promise.resolve(data2025Cache);
-  if (!data2025Promise) {
-    data2025Promise = import('../data/transactions2025').then((mod) => {
-      data2025Cache = mod.transactions2025 || mod.default || [];
-      return data2025Cache;
-    });
-  }
-  return data2025Promise;
-};
-
 export const useAllTransactions = (user) => {
-  const { transactions: firebaseTransactions, loading: fbLoading, error: fbError } = useTransactions(user);
-
-  // Initialise with the cache if already populated (avoids a loading flash on
-  // subsequent mounts after the chunk has been fetched the first time).
-  const [data2025, setData2025] = useState(() => data2025Cache || null);
-
-  useEffect(() => {
-    if (data2025Cache) return; // already loaded
-    let active = true;
-    load2025().then((data) => {
-      if (active) setData2025(data);
-    });
-    return () => { active = false; };
-  }, []);
-
-  const liveTransactions = useMemo(() => {
-    if (!firebaseTransactions) return [];
-    return firebaseTransactions.map((t) => ({
-      ...t,
-      source: t.source || 'firebase-live',
-      year: t.date ? new Date(t.date).getFullYear() : null,
-    }));
-  }, [firebaseTransactions]);
+  const {
+    transactions: firebaseTransactions,
+    loading,
+    error,
+  } = useTransactions(user);
 
   const allTransactions = useMemo(() => {
-    if (!data2025) return liveTransactions;
-    return [...data2025, ...liveTransactions].sort(
-      (a, b) => new Date(b.date) - new Date(a.date),
-    );
-  }, [data2025, liveTransactions]);
+    if (!firebaseTransactions) return [];
+    return firebaseTransactions
+      .map((t) => ({
+        ...t,
+        source: t.source || 'firebase-live',
+        year: t.date ? new Date(t.date).getFullYear() : null,
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [firebaseTransactions]);
 
-  // Stay in loading state until BOTH sources are ready.
-  const loading = fbLoading || !data2025;
+  const transactions2025 = useMemo(
+    () => allTransactions.filter((t) => t.date && String(t.date) < OPERATIONAL_DATA_START),
+    [allTransactions],
+  );
+
+  const transactions2026 = useMemo(
+    () => allTransactions.filter((t) => !t.date || String(t.date) >= OPERATIONAL_DATA_START),
+    [allTransactions],
+  );
 
   return {
     allTransactions,
     loading,
-    error: fbError || null,
+    error: error || null,
     csvError: null,
-    transactions2025: data2025 || [],
-    transactions2026: liveTransactions,
+    transactions2025,
+    transactions2026,
   };
 };

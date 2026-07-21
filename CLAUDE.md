@@ -25,7 +25,11 @@ npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predepl
   payables (CXP), payrollPeriods, employees, projects, projectControl, costCenters,
   categories, classificationRules, recurringCosts, budgets, notifications, auditLog,
   settings (singletons: bankAccount, categories, overhead, reconciliation, treasury).
-  `transactions` is legacy and EMPTY — its code paths were removed in July 2026.
+  `transactions` holds the 2025 historical P&L records (419 docs, ids `sheet-2025-N`,
+  migrated from the old bundled array on 2026-07-22) plus entries written via the
+  Transacciones view. Read through `useAllTransactions` for historical reporting
+  (BudgetVsActual pre-2026 actuals, Recurrencia dedupe, Alertas, ImportExport).
+  Cash NEVER derives from it — bankMovements + reconciliation anchors are canonical.
 - **Service account key:** `~/.credentials/umtelkomd-firebase.json`
 
 ## User Roles
