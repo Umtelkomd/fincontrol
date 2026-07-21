@@ -1,22 +1,26 @@
 import React, { useState } from 'react';
-import { Tag, Building2, FolderOpen, Landmark } from 'lucide-react';
+import { Tag, Building2, FolderOpen, Landmark, Anchor } from 'lucide-react';
 import Categories from '../settings/Categories';
 import CostCenters from '../settings/CostCenters';
 import Projects from '../settings/Projects';
 import BankAccount from '../settings/BankAccount';
+import Treasury from '../settings/Treasury';
 
 const TABS = [
+ { key: 'treasury', label: 'Tesorería', icon: Anchor },
  { key: 'projects', label: 'Proyectos', icon: FolderOpen },
  { key: 'categories', label: 'Categorías', icon: Tag },
  { key: 'cost-centers', label: 'Centros de Costo', icon: Building2 },
  { key: 'bank-account', label: 'Cuenta Bancaria', icon: Landmark },
 ];
 
-const ConfiguracionUnified = ({ user, transactions }) => {
- const [activeTab, setActiveTab] = useState('projects');
+const ConfiguracionUnified = ({ user }) => {
+ const [activeTab, setActiveTab] = useState('treasury');
 
  const renderTab = () => {
  switch (activeTab) {
+ case 'treasury':
+ return <Treasury user={user} />;
  case 'projects':
  return <Projects user={user} />;
  case 'categories':
@@ -24,7 +28,7 @@ const ConfiguracionUnified = ({ user, transactions }) => {
  case 'cost-centers':
  return <CostCenters user={user} />;
  case 'bank-account':
- return <BankAccount user={user} transactions={transactions} />;
+ return <BankAccount user={user} />;
  default:
  return null;
  }

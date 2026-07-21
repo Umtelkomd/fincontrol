@@ -1,160 +1,97 @@
-import { logError } from '../utils/logger';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  addDoc,
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-} from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
+import { logError } from '../utils/logger';
+import { writeAuditLogEntry } from '../utils/auditLog';
 
-const normalizeReconciliation = (raw) => ({
-  id: raw.id,
-  accountId: raw.accountId || 'main',
-  month: raw.month,
-  bankBalance: Number(raw.bankBalance || 0),
-  systemBalance: Number(raw.systemBalance || 0),
-  discrepancy: Number(raw.discrepancy || 0),
-  status: raw.status === 'pending' ? 'open' : raw.status || 'open',
-  movementIds: raw.movementIds || raw.reconciledTransactions || [],
-  unreconciledItems: raw.unreconciledItems || [],
-  notes: raw.notes || '',
-  createdBy: raw.createdBy || '',
-  createdAt: raw.createdAt?.toDate?.() ? raw.createdAt.toDate().toISOString() : raw.createdAt,
-  updatedBy: raw.updatedBy || '',
-  updatedAt: raw.updatedAt?.toDate?.() ? raw.updatedAt.toDate().toISOString() : raw.updatedAt,
-  reconciledBy: raw.reconciledBy || '',
-  reconciledAt: raw.reconciledAt?.toDate?.() ? raw.reconciledAt.toDate().toISOString() : raw.reconciledAt,
-});
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+const sortByDateDesc = (left, right) => (right.date || '').localeCompare(left.date || '');
+
+/**
+ * Reconciliation anchors (settings/reconciliation): verified bank balances
+ * the cash position derives from. The newest anchor ≤ today wins; movements
+ * after it complete the balance. Managed from Configuración → Tesorería.
+ */
 export const useReconciliation = (user) => {
-  const [reconciliations, setReconciliations] = useState([]);
+  const [anchors, setAnchors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const reconciliationsRef = useMemo(
-    () => collection(db, 'artifacts', appId, 'public', 'data', 'bankReconciliation'),
+  const docRef = useMemo(
+    () => doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'reconciliation'),
     [],
   );
 
   useEffect(() => {
     if (!user) return undefined;
 
-    const q = query(reconciliationsRef, orderBy('month', 'desc'));
     const unsubscribe = onSnapshot(
-      q,
+      docRef,
       (snapshot) => {
-        const data = snapshot.docs.map((entry) => normalizeReconciliation({ id: entry.id, ...entry.data() }));
-        setReconciliations(data);
+        const data = snapshot.exists() ? snapshot.data() : null;
+        const list = Array.isArray(data?.anchors) ? data.anchors : [];
+        setAnchors([...list].sort(sortByDateDesc));
         setLoading(false);
       },
-      (error) => {
-        logError('Error loading reconciliations:', error);
+      (err) => {
+        logError('Error loading reconciliation anchors:', err);
+        setError(err);
         setLoading(false);
       },
     );
 
     return () => unsubscribe();
-  }, [reconciliationsRef, user]);
+  }, [docRef, user]);
 
-  const createReconciliation = async (data) => {
-    if (!user) return { success: false };
-
+  const persist = async (nextAnchors, description) => {
+    if (!user) return { success: false, error: 'No user' };
     try {
-      const discrepancy = Number(data.bankBalance || 0) - Number(data.systemBalance || 0);
-      await addDoc(reconciliationsRef, {
-        accountId: data.accountId || 'main',
-        month: data.month,
-        bankBalance: Number(data.bankBalance || 0),
-        systemBalance: Number(data.systemBalance || 0),
-        discrepancy,
-        status: 'open',
-        movementIds: data.movementIds || [],
-        unreconciledItems: data.unreconciledItems || [],
-        notes: data.notes || '',
-        createdBy: user.email,
-        createdAt: serverTimestamp(),
-        updatedBy: user.email,
+      await setDoc(docRef, {
+        anchors: nextAnchors,
         updatedAt: serverTimestamp(),
+        updatedBy: user.email,
+      });
+      await writeAuditLogEntry({
+        action: 'update',
+        entityType: 'settings',
+        entityId: 'reconciliation',
+        description,
+        userEmail: user.email,
+        after: { anchors: nextAnchors },
       });
       return { success: true };
-    } catch (error) {
-      logError('Error creating reconciliation:', error);
-      return { success: false, error };
+    } catch (err) {
+      logError('Error saving reconciliation anchors:', err);
+      return { success: false, error: err };
     }
   };
 
-  const updateReconciliation = async (id, data) => {
-    if (!user) return { success: false };
+  const addAnchor = async ({ date, balance, source, note = '' }) => {
+    if (!ISO_DATE_RE.test(date || '')) return { success: false, error: 'invalid-date' };
+    const numericBalance = Number(balance);
+    if (!Number.isFinite(numericBalance)) return { success: false, error: 'invalid-balance' };
+    if (!source || !source.trim()) return { success: false, error: 'missing-source' };
 
-    try {
-      const reconciliationRef = doc(
-        db,
-        'artifacts',
-        appId,
-        'public',
-        'data',
-        'bankReconciliation',
-        id,
-      );
-      const discrepancy = Number(data.bankBalance || 0) - Number(data.systemBalance || 0);
-      await updateDoc(reconciliationRef, {
-        ...data,
-        discrepancy,
-        updatedBy: user.email,
-        updatedAt: serverTimestamp(),
-      });
-      return { success: true };
-    } catch (error) {
-      logError('Error updating reconciliation:', error);
-      return { success: false, error };
-    }
+    const anchor = {
+      date,
+      balance: Math.round(numericBalance * 100) / 100,
+      source: source.trim(),
+      note: note.trim(),
+      confirmedBy: user?.email || '',
+      confirmedAt: new Date().toISOString(),
+    };
+    const next = [...anchors.filter((entry) => entry.date !== date), anchor].sort(sortByDateDesc);
+    return persist(next, `Ancla de conciliación registrada: ${date} → ${anchor.balance} €`);
   };
 
-  const markReconciled = async (id, movementIds = []) => {
-    if (!user) return { success: false };
-
-    try {
-      const reconciliationRef = doc(
-        db,
-        'artifacts',
-        appId,
-        'public',
-        'data',
-        'bankReconciliation',
-        id,
-      );
-      await updateDoc(reconciliationRef, {
-        status: 'reconciled',
-        movementIds,
-        reconciledBy: user.email,
-        reconciledAt: serverTimestamp(),
-        updatedBy: user.email,
-        updatedAt: serverTimestamp(),
-      });
-
-      const movementUpdates = movementIds.map(async (movementId) => {
-        const movementRef = doc(db, 'artifacts', appId, 'public', 'data', 'bankMovements', movementId);
-        return updateDoc(movementRef, {
-          reconciliationId: id,
-          reconciledAt: serverTimestamp(),
-          updatedBy: user.email,
-          updatedAt: serverTimestamp(),
-        });
-      });
-
-      await Promise.all(movementUpdates);
-      return { success: true };
-    } catch (error) {
-      logError('Error marking reconciled:', error);
-      return { success: false, error };
-    }
+  const removeAnchor = async (date) => {
+    const next = anchors.filter((entry) => entry.date !== date);
+    if (next.length === anchors.length) return { success: false, error: 'not-found' };
+    return persist(next, `Ancla de conciliación eliminada: ${date}`);
   };
 
-  return { reconciliations, loading, createReconciliation, updateReconciliation, markReconciled };
+  return { anchors, loading, error, addAnchor, removeAnchor };
 };
 
 export default useReconciliation;

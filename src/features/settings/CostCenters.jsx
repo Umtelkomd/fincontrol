@@ -4,7 +4,6 @@ import {
  Loader2, Calendar, ChevronDown, ChevronUp, BarChart3
 } from 'lucide-react';
 import { useCostCenters } from '../../hooks/useCostCenters';
-import { useTransactions } from '../../hooks/useTransactions';
 import { COST_CENTERS as PREDEFINED_COST_CENTERS } from '../../constants/costCenters';
 import { formatCurrency } from '../../utils/formatters';
 import { Button } from '@/components/ui/nexus';
@@ -14,7 +13,9 @@ const MONTH_FULL_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
 
 const CostCenters = ({ user }) => {
  const { costCenters: allCenters, loading, createCostCenter, updateCostCenter, deleteCostCenter } = useCostCenters(user);
- const { transactions } = useTransactions(user);
+ // Legacy transactions feed was removed (collection is empty in production);
+ // executed amounts stay at zero until canonical finance data is wired in.
+ const transactions = [];
  const [showNewModal, setShowNewModal] = useState(false);
  const [editingCenter, setEditingCenter] = useState(null);
  const [expandedCenter, setExpandedCenter] = useState(null);
