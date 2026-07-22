@@ -18,6 +18,7 @@
  * comments are English. NEXUS.OS tokens only; accent reserved for highlights.
  */
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownRight,
