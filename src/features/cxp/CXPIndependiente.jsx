@@ -270,7 +270,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  // Block UI early if any selected CXP lacks production clear
  const blocked = documentsToLink.filter((d) => payableRequiresOpsClear(d) && !payableIsOpsCleared(d));
  if (blocked.length) {
- const msg = `CXP sin producción validada: ${blocked.map((d) => d.counterpartyName || d.documentNumber).join(', ')}. Usá "Validar prod." o /ops-semana.`;
+ const msg = `CXP sin producción validada: ${blocked.map((d) => d.counterpartyName || d.documentNumber).join(', ')}. Usá "Validar prod." antes de conciliar.`;
  showToast(msg, 'error');
  return { success: false, error: msg };
  }

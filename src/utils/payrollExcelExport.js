@@ -1,11 +1,10 @@
 // Payroll Excel/CSV export (Phase 3, item 8).
 //
 // The "2-sheet workbook" requirement (Sheet 1 = obligations, Sheet 2 =
-// per-employee) is delivered as TWO Excel-compatible BOM-CSV files. The shared
-// excelExport.js util is CSV-only and cannot author a true multi-sheet .xlsx;
-// adding a sheetjs (xlsx) dependency was deliberately deferred (bundle size +
-// new dep) — see the Phase 3 report. The BOM + semicolon + download-link
-// pattern below mirrors src/utils/excelExport.js exactly.
+// per-employee) is delivered as TWO Excel-compatible BOM-CSV files. Authoring a
+// true multi-sheet .xlsx would need a sheetjs (xlsx) dependency, deliberately
+// deferred (bundle size + new dep) — see the Phase 3 report. Hence the BOM +
+// semicolon + download-link pattern below.
 
 import {
   buildObligationsRows,

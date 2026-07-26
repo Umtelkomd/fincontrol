@@ -36,6 +36,7 @@ import { ruleAppliesToPeriod, periodKey } from '../../finance/recurringGenerator
 import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
 import RuleFormModal from '../../components/ui/RuleFormModal';
+import GenerateMonthModal from '../../components/ui/GenerateMonthModal';
 import { useCategories } from '../../hooks/useCategories';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { useProjects } from '../../hooks/useProjects';
@@ -83,6 +84,8 @@ const AlertasOperativas = ({ user }) => {
   const { showToast } = useToast();
 
   const [seedCounterparty, setSeedCounterparty] = useState(null);
+  // The dedicated recurring-costs screen is gone; the month generator lives here now.
+  const [isGenerateMonthOpen, setIsGenerateMonthOpen] = useState(false);
 
   // ─── Payroll (Nóminas) tile data ───
   // Read-only consumer: pass createPayable/cancelPayable so the hook is happy,
@@ -419,14 +422,9 @@ const AlertasOperativas = ({ user }) => {
           meta={`${cxpOpsPending.length} no se pueden conciliar/pagar hasta ops clear`}
           padding={false}
           actions={
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/ops-semana')}>
-                Ops semana
-              </Button>
-              <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/cxp')}>
-                Ir a CXP
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/cxp')}>
+              Ir a CXP
+            </Button>
           }
         >
           <ul className="divide-y divide-[var(--color-line)]">
@@ -455,11 +453,6 @@ const AlertasOperativas = ({ user }) => {
           title="Compliance de proveedores"
           meta={`${complianceAlerts.length} partner(s) con doc vencido / faltante / por vencer`}
           padding={false}
-          actions={
-            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/partners')}>
-              Ir a Partners
-            </Button>
-          }
         >
           <ul className="divide-y divide-[var(--color-line)]">
             {complianceAlerts.slice(0, 12).map(({ partner, compliance }) => (
@@ -607,7 +600,7 @@ const AlertasOperativas = ({ user }) => {
               variant="primary"
               size="sm"
               icon={Repeat}
-              onClick={() => navigate('/costos-recurrentes')}
+              onClick={() => setIsGenerateMonthOpen(true)}
             >
               Generar mes
             </Button>
@@ -693,6 +686,12 @@ const AlertasOperativas = ({ user }) => {
         costCenters={costCenters || []}
         projects={projects || []}
         pendingMovements={inboxMovements}
+      />
+
+      <GenerateMonthModal
+        isOpen={isGenerateMonthOpen}
+        onClose={() => setIsGenerateMonthOpen(false)}
+        user={user}
       />
     </div>
   );

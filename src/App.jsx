@@ -15,9 +15,6 @@ import { useTransactions } from './hooks/useTransactions';
 import { formatCurrency } from './utils/formatters';
 
 const Resumen = lazy(() => import('./features/resumen/Resumen'));
-const Ingresos = lazy(() => import('./features/ingresos/Ingresos'));
-const Gastos = lazy(() => import('./features/gastos/Gastos'));
-const TransactionList = lazy(() => import('./features/transactions/TransactionList'));
 const CashFlow = lazy(() => import('./features/cashflow/CashFlow'));
 const FlujoCajaAnual = lazy(() => import('./features/cashflow/FlujoCajaAnual'));
 const ReportesUnified = lazy(() => import('./features/reportes/ReportesUnified'));
@@ -26,38 +23,26 @@ const CXCIndependiente = lazy(() => import('./features/cxc/CXCIndependiente'));
 const CXPIndependiente = lazy(() => import('./features/cxp/CXPIndependiente'));
 const BudgetVsActual = lazy(() => import('./features/presupuesto/BudgetVsActual'));
 const AuditLog = lazy(() => import('./features/auditoria/AuditLog'));
-const ImportExport = lazy(() => import('./features/importexport/ImportExport'));
-const BalanceGeneral = lazy(() => import('./features/balance/BalanceGeneral'));
 const ProyectoDashboard = lazy(() => import('./features/proyectos/ProyectoDashboard'));
 const ProyeccionCashflow = lazy(() => import('./features/cashflow/ProyeccionCashflow'));
-const MultiMoneda = lazy(() => import('./features/multimoneda/MultiMoneda'));
 const RolesManager = lazy(() => import('./features/roles/RolesManager'));
-const WhatIf = lazy(() => import('./features/whatif/WhatIf'));
 const BackupManager = lazy(() => import('./features/backup/BackupManager'));
 const UserProfile = lazy(() => import('./features/perfil/UserProfile'));
-const Partners = lazy(() => import('./features/partners/Partners'));
 const Employees = lazy(() => import('./features/employees/Employees'));
 const Properties = lazy(() => import('./features/properties/Properties'));
 const Vehicles = lazy(() => import('./features/vehicles/Vehicles'));
 const Insurances = lazy(() => import('./features/insurances/Insurances'));
-const RecurringCosts = lazy(() => import('./features/recurring-costs/RecurringCosts'));
 const DatevImport = lazy(() => import('./features/datev-import/DatevImport'));
 const Classifier = lazy(() => import('./features/classifier/Classifier'));
 const Movimientos = lazy(() => import('./features/movimientos/Movimientos'));
 const Rules = lazy(() => import('./features/classification-rules/Rules'));
 const AlertasOperativas = lazy(() => import('./features/alertas-op/AlertasOperativas'));
-const CFODashboard = lazy(() => import('./features/cfo/CFODashboard'));
-const ReporteGerencial = lazy(() => import('./features/reporte/ReporteGerencial'));
 const Nominas = lazy(() => import('./features/nominas/Nominas'));
-const OpsWeekBridge = lazy(() => import('./features/ops-week/OpsWeekBridge'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
 
 const VIEW_TITLES = {
  '/': 'Resumen',
  '/resumen': 'Resumen',
- '/ingresos': 'Ingresos',
- '/gastos': 'Gastos',
- '/transactions': 'Transacciones',
  '/cashflow': 'Tesorería',
  '/flujo-caja-anual': 'Flujo Anual',
  '/tesoreria': 'Tesorería',
@@ -66,31 +51,22 @@ const VIEW_TITLES = {
  '/cxc': 'Cuentas por Cobrar',
  '/cxp': 'Cuentas por Pagar',
  '/nominas': 'Nóminas',
- '/ops-semana': 'Ops semana',
  '/presupuesto': 'Presupuesto',
  '/auditoria': 'Auditoría',
- '/import-export': 'Importación y Exportación',
- '/balance': 'Balance General',
  '/proyectos': 'Proyectos',
  '/proyeccion': 'Proyección',
- '/multi-moneda': 'Multi-moneda',
  '/roles': 'Roles',
  '/backup': 'Backup',
  '/perfil': 'Perfil',
- '/whatif': 'Simulación',
- '/partners': 'Partners',
  '/empleados': 'Empleados',
  '/viviendas': 'Viviendas',
  '/vehiculos': 'Vehículos',
  '/seguros': 'Seguros',
- '/costos-recurrentes': 'Costos recurrentes',
  '/datev': 'Importar DATEV',
  '/clasificar': 'Bandeja semanal',
  '/movimientos': 'Movimientos bancarios',
  '/reglas': 'Reglas de clasificación',
  '/alertas-op': 'Alertas operativas',
- '/cfo': 'CFO.OS',
- '/reporte-gerencial': 'Reporte gerencial',
 };
 
 const LoadingState = () => (
@@ -108,8 +84,6 @@ function AppContent({ user, userRole, hasPermission }) {
  // Header balance comes from the shared ledger (no extra listeners needed here).
  const ledger = useFinanceLedgerContext();
  const {
- searchTerm,
- setSearchTerm,
  filteredTransactions,
  } = useFilters(transactions);
 
@@ -227,37 +201,12 @@ function AppContent({ user, userRole, hasPermission }) {
  ) : (
  <Suspense fallback={<LoadingState />}>
  <Routes>
- <Route
- path="/"
- element={
- hasPermission('dashboard') ? (
- <Resumen user={user} />
- ) : (
- <Navigate to="/transactions" replace />
- )
- }
- />
+ <Route path="/" element={<Navigate to="/resumen" replace />} />
  <Route
  path="/resumen"
  element={
  <ProtectedRoute hasPermission={hasPermission} permission="dashboard">
  <Resumen user={user} />
- </ProtectedRoute>
- }
- />
- <Route path="/ingresos" element={<ProtectedRoute hasPermission={hasPermission} permission="transactions"><Ingresos userRole={userRole} user={user} onNewTransaction={handleOpenLauncher} /></ProtectedRoute>} />
- <Route path="/gastos" element={<ProtectedRoute hasPermission={hasPermission} permission="transactions"><Gastos userRole={userRole} user={user} onNewTransaction={handleOpenLauncher} /></ProtectedRoute>} />
- <Route
- path="/transactions"
- element={
- <ProtectedRoute hasPermission={hasPermission} permission="dashboard">
- <TransactionList
- transactions={transactions}
- userRole={userRole}
- searchTerm={searchTerm}
- setSearchTerm={setSearchTerm}
- user={user}
- />
  </ProtectedRoute>
  }
  />
@@ -270,30 +219,21 @@ function AppContent({ user, userRole, hasPermission }) {
  <Route path="/cxp" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><CXPIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/presupuesto" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BudgetVsActual user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/auditoria" element={<ProtectedRoute hasPermission={hasPermission} permission="audit"><AuditLog user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/import-export" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ImportExport user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/balance" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BalanceGeneral user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/whatif" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><WhatIf user={user} /></ProtectedRoute>} />
  <Route path="/proyectos" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ProyectoDashboard user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/proyeccion" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ProyeccionCashflow user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/multi-moneda" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><MultiMoneda user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/roles" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><RolesManager user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/backup" element={<ProtectedRoute hasPermission={hasPermission} permission="backup"><BackupManager user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/perfil" element={<UserProfile user={user} userRole={userRole} />} />
- <Route path="/partners" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Partners user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/empleados" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Employees user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/viviendas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Properties user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/vehiculos" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Vehicles user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/seguros" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Insurances user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/costos-recurrentes" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><RecurringCosts user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/datev" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><DatevImport user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/clasificar" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Classifier user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/movimientos" element={<ProtectedRoute hasPermission={hasPermission} permission="dashboard"><Movimientos user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/reglas" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><Rules user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/alertas-op" element={<ProtectedRoute hasPermission={hasPermission} permission="dashboard"><AlertasOperativas user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/cfo" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><CFODashboard user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/reporte-gerencial" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ReporteGerencial user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/nominas" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><Nominas user={user} userRole={userRole} /></ProtectedRoute>} />
- <Route path="/ops-semana" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><OpsWeekBridge user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="*" element={<Navigate to="/" replace />} />
  </Routes>
  </Suspense>

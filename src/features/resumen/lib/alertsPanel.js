@@ -59,7 +59,7 @@ const ANCHOR_STALE_DAYS = 45;
  * fails a test instead of dead-ending the user at the catch-all redirect.
  * Keep in sync with the `href` values assigned below.
  */
-export const ALERT_HREFS = ['/gastos', '/ingresos', '/configuracion', '/datev', '/nominas'];
+export const ALERT_HREFS = ['/movimientos', '/configuracion', '/datev', '/nominas'];
 
 /**
  * @param {{
@@ -99,7 +99,7 @@ export const buildResumenAlerts = ({
         severity: worst.projectedBalance < 0 ? 'critical' : 'serious',
         title: 'Caja proyectada bajo el colchón',
         detail: `Mínimo proyectado: ${fmtEur(worst.projectedBalance)} en la semana del ${fmtDayMonth(worst.weekStart)}.`,
-        href: '/gastos',
+        href: '/movimientos',
       });
     }
   }
@@ -115,7 +115,7 @@ export const buildResumenAlerts = ({
       severity: 'critical',
       title: 'Pagos vencidos a acreedores críticos',
       detail: `Finanzamt/Sozialversicherung y similares: ${fmtEur(amount)} vencidos.`,
-      href: '/gastos',
+      href: '/movimientos',
     });
   }
 
@@ -127,7 +127,7 @@ export const buildResumenAlerts = ({
       severity: 'serious',
       title: 'Cuentas por pagar vencidas',
       detail: `Total vencido: ${fmtEur(payablesOverdue)}.`,
-      href: '/gastos',
+      href: '/movimientos',
     });
   }
 
@@ -139,7 +139,7 @@ export const buildResumenAlerts = ({
       severity: 'warning',
       title: 'Cobros vencidos sin gestionar',
       detail: `Facturas vencidas por ${fmtEur(receivablesOverdue)}.`,
-      href: '/ingresos',
+      href: '/movimientos',
     });
   }
 

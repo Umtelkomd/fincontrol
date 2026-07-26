@@ -159,7 +159,7 @@ export function assertPayablePaymentAllowed(payable, { adminOverride = false, ov
     allowed: false,
     error: new Error(
       `CXP sin producción validada (ops): ${name}. ` +
-        'Marcá "Validar producción" o importá la semana en /ops-semana. ' +
+        'Marcá "Validar producción" antes de pagar. ' +
         'Admin puede forzar con motivo ≥5 caracteres.',
     ),
   };

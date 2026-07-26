@@ -2,21 +2,16 @@ import {
   BarChart3,
   Bell,
   Briefcase,
-  Building2,
   Car,
   Database,
-  FileBarChart,
   FolderKanban,
   HardHat,
   Home,
   Inbox,
   ReceiptText,
-  Repeat,
   Shield,
   Settings,
-  SlidersHorizontal,
   TableProperties,
-  CalendarRange,
   WalletCards,
   Wand2,
 } from 'lucide-react';
@@ -24,8 +19,7 @@ import {
 // Shared shell navigation. Keep route exposure decisions here so desktop and
 // mobile cannot drift apart.
 // Routes still in App.jsx but NOT exposed here (accessible by URL only):
-//   /import-export — reemplazado por /datev
-//   /transactions — "Mesa central" legacy; las vistas operativas son CXC/CXP/DATEV
+//   /backup, /roles, /auditoria, /perfil, /proyeccion
 
 export const NAV_GROUPS = [
   {
@@ -33,15 +27,12 @@ export const NAV_GROUPS = [
     label: 'Operativo',
     items: [
       { path: '/resumen', label: 'Resumen', icon: Home, permission: 'dashboard' },
-      { path: '/cfo', label: 'CFO', icon: Briefcase, permission: 'reports', accent: '.OS' },
-      { path: '/reporte-gerencial', label: 'Reporte gerencial', icon: FileBarChart, permission: 'reports' },
       { path: '/clasificar', label: 'Bandeja', icon: Inbox, permission: 'settings' },
       { path: '/movimientos', label: 'Movimientos', icon: Database, permission: 'dashboard' },
       { path: '/cashflow', label: 'Tesoreria', icon: WalletCards, permission: 'reports' },
       { path: '/cxc', label: 'CXC', icon: ReceiptText, permission: 'cxc' },
       { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },
       { path: '/nominas', label: 'Nóminas', icon: WalletCards, permission: 'cxp' },
-      { path: '/ops-semana', label: 'Ops semana', icon: CalendarRange, permission: 'cxp' },
       { path: '/alertas-op', label: 'Alertas', icon: Bell, permission: 'dashboard' },
     ],
   },
@@ -53,7 +44,6 @@ export const NAV_GROUPS = [
       { path: '/reportes', label: 'Reportes', icon: BarChart3, permission: 'reports' },
       { path: '/proyectos', label: 'Proyectos', icon: FolderKanban, permission: 'reports' },
       { path: '/presupuesto', label: 'Presupuesto', icon: Briefcase, permission: 'reports' },
-      { path: '/whatif', label: 'Simulador', icon: SlidersHorizontal, permission: 'reports' },
     ],
   },
   {
@@ -64,14 +54,12 @@ export const NAV_GROUPS = [
       { path: '/vehiculos', label: 'Vehículos', icon: Car, permission: 'settings' },
       { path: '/viviendas', label: 'Viviendas', icon: Home, permission: 'settings' },
       { path: '/seguros', label: 'Seguros', icon: Shield, permission: 'settings' },
-      { path: '/partners', label: 'Partners', icon: Building2, permission: 'settings' },
     ],
   },
   {
     key: 'configuracion',
     label: 'Configuración',
     items: [
-      { path: '/costos-recurrentes', label: 'Recurrentes', icon: Repeat, permission: 'settings' },
       { path: '/reglas', label: 'Reglas', icon: Wand2, permission: 'settings' },
       { path: '/datev', label: 'DATEV', icon: Database, permission: 'settings' },
       { path: '/configuracion', label: 'Config', icon: Settings, permission: 'settings' },

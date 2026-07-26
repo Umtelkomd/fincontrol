@@ -8,9 +8,9 @@ export const USER_ROLES = {
 
 // Permissions per role
 export const ROLE_PERMISSIONS = {
-  admin: ['dashboard', 'transactions', 'cxp', 'cxc', 'reports', 'cashflow', 'settings', 'budget', 'audit', 'backup'],
-  manager: ['dashboard', 'transactions', 'cxp', 'cxc', 'reports'],
-  editor: ['dashboard', 'transactions'],
+  admin: ['dashboard', 'cxp', 'cxc', 'reports', 'cashflow', 'settings', 'budget', 'audit', 'backup'],
+  manager: ['dashboard', 'cxp', 'cxc', 'reports'],
+  editor: ['dashboard'],
 };
 export const ALERT_THRESHOLDS = {
   overdueDays: 15,

@@ -25,7 +25,7 @@ describe('buildResumenAlerts — quiet state', () => {
 });
 
 describe('buildResumenAlerts — localized engine alerts', () => {
-  it('localizes the projected-buffer alert and points it at /gastos', () => {
+  it('localizes the projected-buffer alert and points it at /movimientos', () => {
     const alerts = buildResumenAlerts({
       ...healthyBase,
       forecast: [
@@ -39,7 +39,7 @@ describe('buildResumenAlerts — localized engine alerts', () => {
     expect(alert.title).toBe('Caja proyectada bajo el colchón');
     expect(alert.detail).toContain('3.500,00');
     expect(alert.detail).toContain('13.07'); // week of DD.MM
-    expect(alert.href).toBe('/gastos');
+    expect(alert.href).toBe('/movimientos');
   });
 
   it('escalates to critical when the projection goes negative', () => {
@@ -64,7 +64,7 @@ describe('buildResumenAlerts — localized engine alerts', () => {
     const critical = alerts.find((a) => a.id === 'payables-overdue-critical-creditors');
     expect(critical.severity).toBe('critical');
     expect(critical.detail).toContain('4.000,00');
-    expect(critical.href).toBe('/gastos');
+    expect(critical.href).toBe('/movimientos');
 
     const general = alerts.find((a) => a.id === 'payables-overdue');
     expect(general.severity).toBe('serious');
@@ -74,7 +74,7 @@ describe('buildResumenAlerts — localized engine alerts', () => {
     expect(alerts.indexOf(critical)).toBeLessThan(alerts.indexOf(general));
   });
 
-  it('flags stale receivables toward /ingresos', () => {
+  it('flags stale receivables toward /movimientos', () => {
     const receivablesAging = agingBuckets({
       docs: [{ dueDate: '2026-06-01', openAmount: 1500, counterpartyName: 'Cliente' }],
       today: TODAY,
@@ -82,7 +82,7 @@ describe('buildResumenAlerts — localized engine alerts', () => {
     const alerts = buildResumenAlerts({ ...healthyBase, receivablesAging });
     const alert = alerts.find((a) => a.id === 'receivables-overdue');
     expect(alert.severity).toBe('warning');
-    expect(alert.href).toBe('/ingresos');
+    expect(alert.href).toBe('/movimientos');
     expect(alert.detail).toContain('1.500,00');
   });
 
