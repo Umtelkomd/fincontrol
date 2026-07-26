@@ -13,8 +13,16 @@ const isFromInteractiveDescendant = (event) => {
   );
 };
 
+/**
+ * Makes a table row clickable without destroying it.
+ *
+ * These props land on a <tr>, so no role is set: role="button" would replace
+ * the row semantics and assistive tech would announce a bare button instead of
+ * "row 3, Proyecto: QFF", dropping the column headers and the position in the
+ * table. The row stays a row, and tabIndex plus the key handler keep it
+ * operable without a mouse.
+ */
 export const rowButtonProps = (onActivate, className = '') => ({
-  role: 'button',
   tabIndex: 0,
   onClick: (event) => {
     if (isFromInteractiveDescendant(event)) return;

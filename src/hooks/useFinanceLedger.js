@@ -19,7 +19,18 @@ const sortByDueDate = (left, right) => {
   return (left.counterpartyName || '').localeCompare(right.counterpartyName || '');
 };
 
-export const useFinanceLedger = (user) => {
+export const useFinanceLedger = (rawUser) => {
+  // Eight subscribing hooks key their Firestore refs off this value, so an
+  // unstable identity tears down and reopens eight listeners on every render —
+  // a loop that ends in an out-of-memory tab. Auth hands down a stable object,
+  // but a caller passing an inline literal must not be able to melt the app.
+  // Pin the reference to the fields the hooks actually read.
+  const user = useMemo(
+    () => rawUser,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawUser?.uid, rawUser?.email],
+  );
+
   const { allTransactions, loading: txLoading, error: txError } = useAllTransactions(user);
   const { bankAccount, loading: accountLoading, error: accountError } = useBankAccount(user);
   const { bankMovements, loading: movementLoading, error: movementError } = useBankMovements(user);
