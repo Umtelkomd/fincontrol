@@ -3,6 +3,7 @@ import { Printer } from 'lucide-react';
 import { Badge, Button, Panel, Table } from '@/components/ui/nexus';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useCashForecast } from '../../hooks/useCashForecast';
 import { usePartners } from '../../hooks/usePartners';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmployees } from '../../hooks/useEmployees';
@@ -144,6 +145,7 @@ const SummaryTile = ({ kpis }) => {
 const ReporteGerencial = ({ user }) => {
   const ledger = useFinanceLedgerContext();
   const metrics = useTreasuryMetrics({ user, ledger });
+  const forecast = useCashForecast(user, { ledger });
   const { partners, loading: partnersLoading, error: partnersError } = usePartners(user);
 
   // Payroll → project allocation (mirrors Resumen.jsx) so 'Margen por obra'
@@ -175,11 +177,11 @@ const ReporteGerencial = ({ user }) => {
         movements: metrics.postedMovements,
         currentCash: metrics.currentCash,
         avgMonthlyOutflows: metrics.avgMonthlyOutflows,
-        weeklyProjection: metrics.weeklyProjection,
+        weeklyProjection: forecast.weeks,
         payrollByProject,
         referenceDate,
       }),
-    [metrics, payrollByProject, referenceDate],
+    [forecast.weeks, metrics, payrollByProject, referenceDate],
   );
 
   const risks = useMemo(
@@ -190,10 +192,10 @@ const ReporteGerencial = ({ user }) => {
         partners,
         currentCash: metrics.currentCash,
         avgMonthlyOutflows: metrics.avgMonthlyOutflows,
-        weeklyProjection: metrics.weeklyProjection,
+        weeklyProjection: forecast.weeks,
         referenceDate,
       }).slice(0, 3),
-    [metrics, partners, referenceDate],
+    [forecast.weeks, metrics, partners, referenceDate],
   );
 
   const marginRows = useMemo(
@@ -209,9 +211,9 @@ const ReporteGerencial = ({ user }) => {
     () =>
       Math.max(
         1,
-        ...(metrics.weeklyProjection || []).map((week) => Math.abs(Number(week.projectedBalance) || 0)),
+        ...(forecast.weeks || []).map((week) => Math.abs(Number(week.projectedBalance) || 0)),
       ),
-    [metrics.weeklyProjection],
+    [forecast.weeks],
   );
 
   if (metrics.loading || partnersLoading) {
@@ -229,9 +231,7 @@ const ReporteGerencial = ({ user }) => {
     month: '2-digit',
     year: 'numeric',
   });
-  const firstNegativeWeek = (metrics.weeklyProjection || []).find(
-    (week) => Number(week.projectedBalance) < 0,
-  );
+  const firstNegativeWeek = forecast.firstNegativeWeek;
 
   return (
     <div id="reporte-gerencial" className="space-y-5 pb-10">
@@ -298,7 +298,7 @@ const ReporteGerencial = ({ user }) => {
           <div className="mt-4">
             <p className="label-mono text-[var(--color-fg-3)]">Saldo comprometido por semana</p>
             <div className="mt-2 grid gap-1" style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}>
-              {(metrics.weeklyProjection || []).map((week) => {
+              {(forecast.weeks || []).map((week) => {
                 const balance = Number(week.projectedBalance) || 0;
                 const negative = balance < 0;
                 const height = Math.max(3, Math.round((Math.abs(balance) / maxProjectedAbs) * 34));

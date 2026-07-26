@@ -55,6 +55,13 @@ const overdueTotal = (aging) => aging?.totals?.overdue ?? 0;
 const ANCHOR_STALE_DAYS = 45;
 
 /**
+ * Every route an alert can link to. Kept as an explicit list so a retired route
+ * fails a test instead of dead-ending the user at the catch-all redirect.
+ * Keep in sync with the `href` values assigned below.
+ */
+export const ALERT_HREFS = ['/gastos', '/ingresos', '/configuracion', '/datev', '/nominas'];
+
+/**
  * @param {{
  *   position: { balance: number, anchor: { date: string }|null },
  *   forecast: Array<{ weekStart: string, projectedBalance: number }>,

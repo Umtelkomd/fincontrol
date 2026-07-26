@@ -22,6 +22,7 @@ import {
  YAxis,
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -57,9 +58,23 @@ const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 const CashFlow = ({ user }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
+ const forecast = useCashForecast(user, { ledger });
  const navigate = useNavigate();
  const movementsRef = useRef(null);
  const reconciliationRef = useRef(null);
+
+ // The weekly commitment bars read the single forecast. Outflows come out of
+ // the engine signed negative; the chart wants magnitudes.
+ const weeklyCommitments = useMemo(
+ () =>
+ forecast.weeks.map((week) => ({
+ week: week.week,
+ label: week.label,
+ committedIn: week.inflow,
+ committedOut: Math.abs(week.outflow),
+ })),
+ [forecast.weeks],
+ );
 
  const monthlyPL = useMemo(() => {
  const now = new Date();
@@ -233,15 +248,16 @@ const CashFlow = ({ user }) => {
  </div>
  </Section>
 
- <Section title="Compromisos por semana" subtitle="Entradas y salidas comprometidas en la siguiente ventana de 13 semanas." help={
+ <Section title="Compromisos por semana" subtitle={`Entradas y salidas comprometidas en la siguiente ventana de ${forecast.horizonWeeks} semanas.`} help={
  <HelpButton title="Compromisos por semana" size={14}>
- <p>Cobros y pagos pendientes agrupados por semana de vencimiento.</p>
- <p>Ayuda a anticipar semanas con alta presion de salida o entrada de caja.</p>
+ <p>Cobros, pagos, nomina, costos recurrentes e IVA agrupados por semana.</p>
+ <p>Sale de la misma proyeccion que usan el Resumen y la vista de Proyeccion.</p>
+ <p>Los cobros se esperan {forecast.collectionSlipDays} dias despues del vencimiento.</p>
  </HelpButton>
  }>
  <div className="h-[300px]">
  <ResponsiveContainer width="100%" height="100%">
- <BarChart data={metrics.weeklyProjection}>
+ <BarChart data={weeklyCommitments}>
  <CartesianGrid stroke="var(--color-line)" vertical={false} />
  <XAxis dataKey="week" stroke="var(--color-fg-4)" tickLine={false} axisLine={false} />
  <YAxis stroke="var(--color-fg-4)" tickLine={false} axisLine={false} tickFormatter={(value) => `€${Math.round(value / 1000)}k`} />

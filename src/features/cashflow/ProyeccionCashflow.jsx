@@ -11,13 +11,13 @@ import {
  Area,
  AreaChart,
  CartesianGrid,
- Legend,
  ResponsiveContainer,
  Tooltip,
  XAxis,
  YAxis,
 } from 'recharts';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -43,13 +43,15 @@ const StatCard = ({ title, value, subtitle, accent, icon }) => {
  );
 };
 
-const ScenarioCard = ({ title, balance, delta, accent, subtitle }) => (
+const OutlookCard = ({ title, balance, delta, accent, subtitle }) => (
  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5">
  <p className="label-mono text-[var(--color-fg-4)]">{title}</p>
  <p className="mt-2 font-display text-[28px] font-medium tracking-tight" style={{ color: accent }}>{formatCurrency(balance)}</p>
+ {delta != null && (
  <p className={`mt-2 text-sm font-medium ${delta >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
  </p>
+ )}
  <p className="mt-1 text-sm text-[var(--color-fg-3)]">{subtitle}</p>
  </div>
 );
@@ -57,46 +59,33 @@ const ScenarioCard = ({ title, balance, delta, accent, subtitle }) => (
 const ProyeccionCashflow = ({ user }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
+ const forecast = useCashForecast(user, { ledger });
 
- const projectionData = useMemo(() => {
- const state = metrics.weeklyProjection.reduce((accumulator, row) => {
- const optimisticDelta = row.committedIn * 1.1 - row.committedOut * 0.95;
- const pessimisticDelta = row.committedIn * 0.8 - row.committedOut * 1.1;
-
- const optimisticBalance = accumulator.optimistic + optimisticDelta;
- const pessimisticBalance = accumulator.pessimistic + pessimisticDelta;
-
- accumulator.rows.push({
- label: row.week,
- range: row.label,
- committedIn: row.committedIn,
- committedOut: row.committedOut,
- base: row.projectedBalance,
- optimistic: Math.round(optimisticBalance * 100) / 100,
- pessimistic: Math.round(pessimisticBalance * 100) / 100,
- });
- accumulator.optimistic = optimisticBalance;
- accumulator.pessimistic = pessimisticBalance;
-
- return accumulator;
- }, {
- optimistic: metrics.currentCash,
- pessimistic: metrics.currentCash,
- rows: [],
- });
-
- return state.rows;
- }, [metrics.currentCash, metrics.weeklyProjection]);
+ // One committed projection. There is deliberately no optimistic/pessimistic
+ // band: the previous version multiplied the committed flows by invented
+ // constants (in × 1.1, out × 0.95 …) and presented the result as a forecast.
+ // Nothing backed those numbers, so they were removed rather than re-tuned.
+ const projectionData = useMemo(
+ () =>
+ forecast.weeks.map((week) => ({
+ label: week.week,
+ range: week.label,
+ committedIn: week.inflow,
+ committedOut: Math.abs(week.outflow),
+ net: week.net,
+ base: week.projectedBalance,
+ })),
+ [forecast.weeks],
+ );
 
  const alerts = useMemo(() => {
  const items = [];
- const negativeBase = projectionData.find((entry) => entry.base < 0);
- const negativePessimistic = projectionData.find((entry) => entry.pessimistic < 0);
 
- if (negativeBase) {
- items.push({ type: 'critical', text: `Saldo negativo proyectado en escenario base durante ${negativeBase.range}.` });
- } else if (negativePessimistic) {
- items.push({ type: 'warning', text: `En un escenario pesimista podrías entrar en saldo negativo durante ${negativePessimistic.range}.` });
+ if (forecast.firstNegativeWeek) {
+ items.push({
+ type: 'critical',
+ text: `Saldo proyectado negativo durante ${forecast.firstNegativeWeek.label} (${formatCurrency(forecast.firstNegativeWeek.projectedBalance)}).`,
+ });
  }
 
  if (metrics.next14Net < 0) {
@@ -108,11 +97,9 @@ const ProyeccionCashflow = ({ user }) => {
  }
 
  return items;
- }, [metrics.next14Net, metrics.runwayMonths, projectionData]);
+ }, [forecast.firstNegativeWeek, metrics.next14Net, metrics.runwayMonths]);
 
- const finalScenario = projectionData[projectionData.length - 1];
-
- if (metrics.loading) {
+ if (metrics.loading || forecast.loading) {
  return (
  <div className="flex items-center justify-center py-28">
  <p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">Cargando…</p>
@@ -126,14 +113,16 @@ const ProyeccionCashflow = ({ user }) => {
  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
  <div>
  <p className="label-mono text-[var(--color-fg-3)] mb-3">Proyección de tesorería</p>
- <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Horizonte de 13 semanas usando CXC, CXP y caja real.</h2>
+ <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Horizonte de {forecast.horizonWeeks} semanas usando CXC, CXP, nómina, recurrentes e IVA.</h2>
  <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--color-fg-3)]">
- La proyección parte del saldo bancario actual y suma o resta solo compromisos abiertos con vencimiento conocido.
+ Parte de la caja conciliada de hoy y solo mueve compromisos reales: facturas abiertas,
+ obligaciones de nómina, costos recurrentes activos y estimados de IVA. Único supuesto:
+ los cobros entran {forecast.collectionSlipDays} días después del vencimiento.
  </p>
  </div>
  <div className="rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-3">
  <p className="label-mono text-[var(--color-fg-3)]">Horizonte</p>
- <p className="mt-1 text-sm font-medium text-[var(--color-fg-1)]">Próximas 13 semanas</p>
+ <p className="mt-1 text-sm font-medium text-[var(--color-fg-1)]">Próximas {forecast.horizonWeeks} semanas</p>
  </div>
  </div>
  </section>
@@ -164,26 +153,30 @@ const ProyeccionCashflow = ({ user }) => {
  </div>
 
  <div className="grid gap-4 md:grid-cols-3">
- <ScenarioCard
- title="Escenario optimista"
- balance={finalScenario?.optimistic ?? metrics.currentCash}
- delta={(finalScenario?.optimistic ?? metrics.currentCash) - metrics.currentCash}
- accent="var(--color-ok)"
- subtitle="+10% cobros comprometidos y -5% pagos comprometidos"
+ <OutlookCard
+ title={`Saldo a ${forecast.horizonWeeks} semanas`}
+ balance={forecast.endBalance}
+ delta={forecast.endBalance - forecast.startBalance}
+ accent={forecast.endBalance >= 0 ? 'var(--color-fg-4)' : 'var(--color-accent)'}
+ subtitle="Cierre del horizonte con todo lo comprometido"
  />
- <ScenarioCard
- title="Escenario base"
- balance={finalScenario?.base ?? metrics.currentCash}
- delta={(finalScenario?.base ?? metrics.currentCash) - metrics.currentCash}
- accent="var(--color-fg-4)"
- subtitle="Solo compromisos actualmente abiertos"
+ <OutlookCard
+ title="Semana más baja"
+ balance={forecast.lowestWeek?.projectedBalance ?? forecast.startBalance}
+ delta={null}
+ accent={(forecast.lowestWeek?.projectedBalance ?? 0) >= 0 ? 'var(--color-fg-4)' : 'var(--color-accent)'}
+ subtitle={forecast.lowestWeek ? `${forecast.lowestWeek.week} · ${forecast.lowestWeek.label}` : 'Sin datos'}
  />
- <ScenarioCard
- title="Escenario pesimista"
- balance={finalScenario?.pessimistic ?? metrics.currentCash}
- delta={(finalScenario?.pessimistic ?? metrics.currentCash) - metrics.currentCash}
- accent="var(--color-accent)"
- subtitle="-20% cobros comprometidos y +10% pagos comprometidos"
+ <OutlookCard
+ title="Primera semana en negativo"
+ balance={forecast.firstNegativeWeek?.projectedBalance ?? 0}
+ delta={null}
+ accent={forecast.firstNegativeWeek ? 'var(--color-accent)' : 'var(--color-ok)'}
+ subtitle={
+ forecast.firstNegativeWeek
+ ? `${forecast.firstNegativeWeek.week} · en ${forecast.weeksToNegative} sem.`
+ : 'La caja no cruza a negativo en el horizonte'
+ }
  />
  </div>
 
@@ -195,7 +188,7 @@ const ProyeccionCashflow = ({ user }) => {
  <ResponsiveContainer width="100%" height={360}>
  <AreaChart
  data={[
- { label: 'Hoy', range: 'Hoy', base: metrics.currentCash, optimistic: metrics.currentCash, pessimistic: metrics.currentCash },
+ { label: 'Hoy', range: 'Hoy', base: forecast.startBalance },
  ...projectionData,
  ]}
  >
@@ -203,14 +196,6 @@ const ProyeccionCashflow = ({ user }) => {
  <linearGradient id="projection-base" x1="0" y1="0" x2="0" y2="1">
  <stop offset="0%" stopColor="var(--color-fg-4)" stopOpacity={0.35} />
  <stop offset="100%" stopColor="var(--color-fg-4)" stopOpacity={0.04} />
- </linearGradient>
- <linearGradient id="projection-optimistic" x1="0" y1="0" x2="0" y2="1">
- <stop offset="0%" stopColor="var(--color-ok)" stopOpacity={0.22} />
- <stop offset="100%" stopColor="var(--color-ok)" stopOpacity={0.04} />
- </linearGradient>
- <linearGradient id="projection-pessimistic" x1="0" y1="0" x2="0" y2="1">
- <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.18} />
- <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0.03} />
  </linearGradient>
  </defs>
  <CartesianGrid stroke="rgba(255,255,255,0.03)" vertical={false} />
@@ -221,10 +206,7 @@ const ProyeccionCashflow = ({ user }) => {
  labelFormatter={(_, payload) => payload?.[0]?.payload?.range || ''}
  contentStyle={{ backgroundColor: 'var(--color-bg-0)', border: '1px solid var(--color-line)', borderRadius: 18 }}
  />
- <Legend />
- <Area type="monotone" dataKey="optimistic" name="Optimista" stroke="var(--color-ok)" fill="url(#projection-optimistic)" strokeWidth={2} />
- <Area type="monotone" dataKey="base" name="Base" stroke="var(--color-fg-3)" fill="url(#projection-base)" strokeWidth={2.5} />
- <Area type="monotone" dataKey="pessimistic" name="Pesimista" stroke="var(--color-accent)" fill="url(#projection-pessimistic)" strokeWidth={2} strokeDasharray="4 4" />
+ <Area type="monotone" dataKey="base" name="Saldo proyectado" stroke="var(--color-fg-3)" fill="url(#projection-base)" strokeWidth={2.5} />
  </AreaChart>
  </ResponsiveContainer>
  </section>
@@ -244,9 +226,8 @@ const ProyeccionCashflow = ({ user }) => {
  <th className="px-4 py-3 text-left">Rango</th>
  <th className="px-4 py-3 text-right">Cobros comprometidos</th>
  <th className="px-4 py-3 text-right">Pagos comprometidos</th>
- <th className="px-4 py-3 text-right">Saldo base</th>
- <th className="px-4 py-3 text-right">Saldo optimista</th>
- <th className="px-4 py-3 text-right">Saldo pesimista</th>
+ <th className="px-4 py-3 text-right">Neto</th>
+ <th className="px-4 py-3 text-right">Saldo proyectado</th>
  </tr>
  </thead>
  <tbody className="divide-y divide-[var(--color-line)]">
@@ -256,9 +237,8 @@ const ProyeccionCashflow = ({ user }) => {
  <td className="px-4 py-3 text-[var(--color-fg-3)]">{row.range}</td>
  <td className="px-4 py-3 text-right text-[var(--color-ok)]">{formatCurrency(row.committedIn)}</td>
  <td className="px-4 py-3 text-right text-[var(--color-accent)]">{formatCurrency(row.committedOut)}</td>
+ <td className={`px-4 py-3 text-right ${row.net >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>{formatCurrency(row.net)}</td>
  <td className={`px-4 py-3 text-right font-medium ${row.base >= 0 ? 'text-[var(--color-fg-3)]' : 'text-[var(--color-accent)]'}`}>{formatCurrency(row.base)}</td>
- <td className={`px-4 py-3 text-right ${row.optimistic >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>{formatCurrency(row.optimistic)}</td>
- <td className="px-4 py-3 text-right text-[var(--color-accent)]">{formatCurrency(row.pessimistic)}</td>
  </tr>
  ))}
  </tbody>
@@ -271,16 +251,16 @@ const ProyeccionCashflow = ({ user }) => {
  <Target className="mt-0.5 text-[var(--color-fg-3)]" size={18} />
  <div className="grid gap-3 md:grid-cols-3">
  <div>
- <p className="text-sm font-medium text-[var(--color-fg-3)]">Base</p>
- <p className="mt-1 text-sm text-[var(--color-fg-3)]">Usa únicamente CXC y CXP abiertas por vencimiento, sin asumir ventas o compras futuras todavía no registradas.</p>
+ <p className="text-sm font-medium text-[var(--color-fg-3)]">Punto de partida</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">La caja conciliada de hoy ({formatCurrency(forecast.startBalance)}), la misma que usan el Resumen y las alertas operativas.</p>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--color-fg-3)]">Optimista</p>
- <p className="mt-1 text-sm text-[var(--color-fg-3)]">Asume mejor conversión de cobro y algo menos de salida sobre los pagos comprometidos.</p>
+ <p className="text-sm font-medium text-[var(--color-fg-3)]">Qué mueve el saldo</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Solo compromisos reales: CXC y CXP abiertas, obligaciones de nómina, costos recurrentes activos y estimados de IVA. No se asumen ventas ni compras futuras.</p>
  </div>
  <div>
- <p className="text-sm font-medium text-[var(--color-fg-3)]">Pesimista</p>
- <p className="mt-1 text-sm text-[var(--color-fg-3)]">Asume retrasos de cobro y mayor presión de pagos. Útil para anticipar necesidades de liquidez.</p>
+ <p className="text-sm font-medium text-[var(--color-fg-3)]">Único supuesto</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">Los cobros llegan {forecast.collectionSlipDays} días después del vencimiento; lo ya vencido se espera de inmediato. No se aplican escenarios ni porcentajes inventados.</p>
  </div>
  </div>
  </div>

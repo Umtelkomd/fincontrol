@@ -4,15 +4,14 @@ import {
   MAIN_ACCOUNT_ID,
   OPERATIONAL_DATA_START,
   TREASURY_LOOKAHEAD_DAYS,
-  TREASURY_PROJECTION_WEEKS,
   WEEK_MS,
 } from '../finance/constants';
+import { buildAgingView } from '../finance/agingView';
 import {
   addDays,
   clampMoney,
   compareIsoDate,
   daysUntil,
-  endOfDay,
   getSignedMovementAmount,
   isOpenDocument,
   isWithinRange,
@@ -22,69 +21,24 @@ import {
 } from '../finance/utils';
 import { useFinanceLedger } from './useFinanceLedger';
 
-const buildAgingBuckets = (rows, referenceDate) => {
-  const buckets = [
-    { label: '0-30d', total: 0 },
-    { label: '31-60d', total: 0 },
-    { label: '61-90d', total: 0 },
-    { label: '>90d', total: 0 },
-  ];
+/**
+ * Overdue tranches for the CXC/CXP aging bars. Thin wrapper over the single
+ * aging engine (`lib/finance/aging.js`) — this hook used to bucket documents
+ * itself and disagreed with Resumen and the CXC/CXP report on the same
+ * invoices. Exported so the conversion stays unit-testable without React.
+ *
+ * @param {object[]} rows - open receivable/payable rows
+ * @param {string|Date} referenceDate
+ * @returns {Array<{ key: string, label: string, amount: number, count: number, items: object[] }>}
+ */
+export const buildAgingBuckets = (rows, referenceDate) =>
+  buildAgingView({ docs: rows, today: referenceDate }).buckets;
 
-  rows.forEach((entry) => {
-    if (!entry.dueDate || !isOpenDocument(entry)) return;
-    const overdueDays = Math.max(0, -daysUntil(entry.dueDate, referenceDate));
-    const amount = entry.openAmount;
-    if (overdueDays === 0) return;
-    if (overdueDays <= 30) buckets[0].total += amount;
-    else if (overdueDays <= 60) buckets[1].total += amount;
-    else if (overdueDays <= 90) buckets[2].total += amount;
-    else buckets[3].total += amount;
-  });
-
-  return buckets.map((bucket) => ({ ...bucket, total: clampMoney(bucket.total) }));
-};
-
-const buildWeeklyProjection = (currentCash, receivables, payables, referenceDate) => {
-  const projection = [];
-  let runningBalance = currentCash;
-  const today = startOfDay(referenceDate);
-
-  for (let index = 0; index < TREASURY_PROJECTION_WEEKS; index += 1) {
-    const weekStart = addDays(today, index * 7);
-    const weekEnd = endOfDay(addDays(weekStart, 6));
-    const from = toISODate(weekStart);
-    const to = toISODate(weekEnd);
-
-    const inflows = receivables.filter(
-      (entry) =>
-        isOpenDocument(entry) &&
-        entry.dueDate &&
-        compareIsoDate(entry.dueDate, from) >= 0 &&
-        compareIsoDate(entry.dueDate, to) <= 0,
-    );
-    const outflows = payables.filter(
-      (entry) =>
-        isOpenDocument(entry) &&
-        entry.dueDate &&
-        compareIsoDate(entry.dueDate, from) >= 0 &&
-        compareIsoDate(entry.dueDate, to) <= 0,
-    );
-
-    const committedIn = sumMoney(inflows, (entry) => entry.openAmount);
-    const committedOut = sumMoney(outflows, (entry) => entry.openAmount);
-    runningBalance = clampMoney(runningBalance + committedIn - committedOut);
-
-    projection.push({
-      week: `W${index + 1}`,
-      label: `${weekStart.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} - ${weekEnd.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`,
-      committedIn,
-      committedOut,
-      projectedBalance: runningBalance,
-    });
-  }
-
-  return projection;
-};
+// NOTE: this hook used to build its own 13-week projection here (receivables
+// and payables only — no recurring costs, no payroll, no VAT), which made it
+// structurally more optimistic than the other two engines that existed at the
+// time. It was deleted: the single projection now lives in
+// `useCashForecast` / `src/finance/cashForecast.js`. Do not reintroduce one.
 
 const buildCashSeries = (ledger, referenceDate) => {
   const today = startOfDay(referenceDate);
@@ -259,6 +213,12 @@ export const useTreasuryMetrics = (options = {}) => {
     const openReceivables = filteredReceivables.filter(isOpenDocument);
     const openPayables = filteredPayables.filter(isOpenDocument);
 
+    // One aging pass per side. Both the tranche bars and the full report (with
+    // the `current` bucket, per-item daysOverdue and totals) come from the same
+    // computation so no screen can drift from another.
+    const receivablesAgingView = buildAgingView({ docs: openReceivables, today: referenceDate });
+    const payablesAgingView = buildAgingView({ docs: openPayables, today: referenceDate });
+
     const currentCash = ledger.summary.currentCash;
     const pendingReceivables = sumMoney(openReceivables, (entry) => entry.openAmount);
     const pendingPayables = sumMoney(openPayables, (entry) => entry.openAmount);
@@ -327,10 +287,11 @@ export const useTreasuryMetrics = (options = {}) => {
       runwayMonths,
       avgMonthlyInflows,
       avgMonthlyOutflows,
-      weeklyProjection: buildWeeklyProjection(currentCash, openReceivables, openPayables, referenceDate),
       cashSeries: buildCashSeries(ledger, referenceDate),
-      receivablesAging: buildAgingBuckets(openReceivables, referenceDate),
-      payablesAging: buildAgingBuckets(openPayables, referenceDate),
+      receivablesAging: receivablesAgingView.buckets,
+      payablesAging: payablesAgingView.buckets,
+      receivablesAgingReport: receivablesAgingView.report,
+      payablesAgingReport: payablesAgingView.report,
       projectMargins: buildProjectMargins(filteredMovements, options.payrollByProject || {}),
       unassignedMargin: buildUnassignedMargin(filteredMovements, options.payrollByProject || {}),
       unreconciledMovements: ledger.bankMovements

@@ -1,6 +1,12 @@
 /**
  * 13-week (configurable) cash-flow forecast bucketed into Monday-start weeks.
  *
+ * THIS IS THE ONLY CASH-FLOW PROJECTION ENGINE IN THE APP. Every screen that
+ * shows a forward cash figure goes through it (via `buildCashForecast` in
+ * src/finance/cashForecast.js). Do not add a second one: three parallel
+ * engines used to disagree about the same invoice, which is what made the
+ * app's forecasts untrustworthy.
+ *
  * Placement rules:
  *   - Week 1 is the Monday-week containing `today`.
  *   - Receivables: expected collection = dueDate + collectionSlipDays.
@@ -13,13 +19,10 @@
  *   - Anything landing after the last week is dropped (including receivables
  *     whose slip pushes them past the horizon).
  *
- * Scenarios:
- *   - 'committed' (default): only the open documents and provided obligations.
- *   - 'expected': committed + monthly recurrence of the estimated obligation
- *     kinds (payroll-net, social, wage-tax, vat). For each kind present in
- *     `obligations` (with a valid `month`), the latest month's amount repeats
- *     for every following month whose due date still falls inside the
- *     horizon. Kinds absent from `obligations` are not invented.
+ * Only committed money is projected: the open documents and the obligations
+ * the caller supplies. The engine never invents revenue, costs or scenario
+ * multipliers — the sole modelled assumption is `collectionSlipDays`, and it
+ * re-times money that is already on the books, it never changes the amount.
  *
  * Sign convention: inflows positive, outflows negative;
  * `net = inflow + outflow`; `projectedBalance` runs from `startBalance`.
@@ -41,71 +44,51 @@
  * @property {ForecastItem[]} items
  */
 
-import { addDays, addMonthKey, diffDays, isIsoDate, mondayOfWeek, splitMonthKey } from './dates.js';
-import {
-  netWagesDate,
-  socialSecurityDueDate,
-  vatDueDate,
-  wageTaxDueDate,
-} from './fiscalCalendar.js';
+import { addDays, diffDays, isIsoDate, mondayOfWeek } from './dates.js';
 import { isOpenAmount, openAmountOf as defaultOpenAmountOf } from './money.js';
 
-/** Due-date resolver and label prefix per recurring obligation kind. */
-const RECURRING_KINDS = {
-  'payroll-net': { dueDateOf: netWagesDate, labelPrefix: 'Net wages' },
-  social: { dueDateOf: socialSecurityDueDate, labelPrefix: 'Social security' },
-  'wage-tax': { dueDateOf: wageTaxDueDate, labelPrefix: 'Wage tax' },
-  vat: { dueDateOf: vatDueDate, labelPrefix: 'VAT' },
-};
-
-const toFiniteNumber = (value) =>
-  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+/**
+ * Days added to a receivable's due date to get its expected collection date.
+ *
+ * BASIS: German B2B construction/telecom clients settle on their own payment
+ * runs rather than on the invoice due date, and the company's own aging
+ * report has consistently shown collection landing inside the week AFTER the
+ * due date. One week is the conservative, round approximation of that lag.
+ *
+ * This is the ONE place the assumption is stated. It is deliberately a single
+ * documented number rather than a per-screen default: when two screens each
+ * picked their own slip, the same invoice appeared in two different weeks.
+ * Callers may override it via `collectionSlipDays` for sensitivity analysis,
+ * but no caller should hardcode a different default.
+ *
+ * Applies only to receivables that are NOT yet overdue — money already past
+ * due is expected immediately (week 1), since a slip on top of a slip is not
+ * evidence, it is guessing.
+ *
+ * @type {number}
+ */
+export const COLLECTION_SLIP_DAYS = 7;
 
 /** Positive magnitude → signed outflow, guarding against -0. */
 const asOutflow = (magnitude) => (magnitude > 0 ? -magnitude : 0);
 
+const toFiniteNumber = (value) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
 /**
- * Synthesize the 'expected' recurrence: repeat each recurring kind monthly
- * after its latest provided month, while the due date stays inside the
- * horizon. The repeated amount is the SUM of that kind's items in its latest
- * month (callers may split e.g. social security across payees).
- * @returns {Array<{ date: string, kind: string, label: string, amount: number, source: string }>}
+ * The exact calendar window `forecastWeeks` will cover, so callers can size
+ * the obligations calendar they feed it to the same horizon (no gap, no
+ * overshoot).
+ *
+ * @param {{ today: string, weeks?: number }} params
+ * @returns {{ firstWeekStart: string, horizonEnd: string, horizonDays: number }}
+ *   `horizonDays` is measured from `today` (not from the Monday), matching
+ *   `buildObligationsCalendar`'s `horizonDays` semantics.
  */
-const synthesizeRecurring = ({ obligations, today, horizonEnd }) => {
-  const synthesized = [];
-  for (const [kind, { dueDateOf, labelPrefix }] of Object.entries(RECURRING_KINDS)) {
-    const provided = (obligations || []).filter(
-      (item) => item?.kind === kind && splitMonthKey(item.month),
-    );
-    if (provided.length === 0) continue;
-
-    const lastMonth = provided.reduce(
-      (max, item) => (item.month > max ? item.month : max),
-      provided[0].month,
-    );
-    const amount = provided
-      .filter((item) => item.month === lastMonth)
-      .reduce((sum, item) => sum + toFiniteNumber(item.amount), 0);
-
-    let month = addMonthKey(lastMonth, 1);
-    let guard = 0;
-    while (guard < 30) {
-      const date = dueDateOf(month);
-      if (!date || date > horizonEnd) break;
-      if (date >= today) {
-        synthesized.push({
-          date,
-          kind,
-          label: `${labelPrefix} ${month}`,
-          amount,
-          source: 'recurring-estimate',
-        });
-      }
-      month = addMonthKey(month, 1);
-      guard += 1;
-    }
-  }
-  return synthesized;
+export const forecastHorizon = ({ today, weeks = 13 }) => {
+  const firstWeekStart = mondayOfWeek(today);
+  const horizonEnd = addDays(firstWeekStart, weeks * 7 - 1);
+  return { firstWeekStart, horizonEnd, horizonDays: diffDays(today, horizonEnd) };
 };
 
 /**
@@ -119,7 +102,6 @@ const synthesizeRecurring = ({ obligations, today, horizonEnd }) => {
  *   payables: Object[],
  *   obligations: import('./obligations.js').Obligation[],
  *   collectionSlipDays?: number,
- *   scenario?: 'committed'|'expected',
  *   openAmountOf?: (doc: Object) => number,
  * }} params
  * @returns {ForecastWeek[]}
@@ -131,16 +113,10 @@ export const forecastWeeks = ({
   receivables,
   payables,
   obligations,
-  collectionSlipDays = 7,
-  scenario = 'committed',
+  collectionSlipDays = COLLECTION_SLIP_DAYS,
   openAmountOf = defaultOpenAmountOf,
 }) => {
-  if (scenario !== 'committed' && scenario !== 'expected') {
-    throw new TypeError(`Unknown forecast scenario: ${scenario}`);
-  }
-
-  const firstWeekStart = mondayOfWeek(today);
-  const horizonEnd = addDays(firstWeekStart, weeks * 7 - 1);
+  const { firstWeekStart, horizonEnd } = forecastHorizon({ today, weeks });
   const weekList = Array.from({ length: weeks }, (_, index) => ({
     weekStart: addDays(firstWeekStart, index * 7),
     weekEnd: addDays(firstWeekStart, index * 7 + 6),
@@ -196,17 +172,6 @@ export const forecastWeeks = ({
       amount: asOutflow(toFiniteNumber(item.amount)),
       source: item.source,
     });
-  }
-
-  if (scenario === 'expected') {
-    for (const item of synthesizeRecurring({ obligations: usableObligations, today, horizonEnd })) {
-      placeItem(item.date, {
-        kind: item.kind,
-        label: item.label,
-        amount: asOutflow(item.amount),
-        source: item.source,
-      });
-    }
   }
 
   let runningBalance = toFiniteNumber(startBalance);

@@ -51,7 +51,7 @@ const filters = [
 const bucketColor = ['var(--color-warn)', 'var(--color-accent)', 'var(--color-accent)', 'var(--color-accent)'];
 
 const AgingBar = ({ buckets }) => {
- const total = buckets.reduce((sum, bucket) => sum + bucket.total, 0);
+ const total = buckets.reduce((sum, bucket) => sum + bucket.amount, 0);
  if (total <= 0) return null;
 
  return (
@@ -65,8 +65,8 @@ const AgingBar = ({ buckets }) => {
  </div>
   <div className="mb-4 flex h-3 overflow-hidden rounded-md bg-[var(--color-line)]">
  {buckets.map((bucket, index) =>
- bucket.total > 0 ? (
- <div key={bucket.label} style={{ width: `${(bucket.total / total) * 100}%`, backgroundColor: bucketColor[index] }} />
+ bucket.amount > 0 ? (
+ <div key={bucket.label} style={{ width: `${(bucket.amount / total) * 100}%`, backgroundColor: bucketColor[index] }} />
  ) : null,
  )}
  </div>
@@ -77,7 +77,7 @@ const AgingBar = ({ buckets }) => {
  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: bucketColor[index] }} />
   <span className="label-mono text-[var(--color-fg-4)]">{bucket.label}</span>
  </div>
-  <p className="font-mono text-sm tabular-nums text-[var(--color-fg-1)]">{formatCurrency(bucket.total)}</p>
+  <p className="font-mono text-sm tabular-nums text-[var(--color-fg-1)]">{formatCurrency(bucket.amount)}</p>
  </div>
  ))}
  </div>

@@ -261,3 +261,210 @@ describe('internal helpers', () => {
     expect(result).toBe(70); // 100 in - 30 out (void skipped)
   });
 });
+
+// ── reconciliation anchors — the canonical cash model ──────────────────────
+// `/cfo` must derive cash exactly like Resumen: newest anchor <= today plus the
+// signed movements posted after it. The bankAccount.balanceDate walk is only a
+// fallback for the days before any anchor exists.
+
+const anchor = (date, balance, extra = {}) => ({
+  date,
+  balance,
+  source: 'datev',
+  note: '',
+  ...extra,
+});
+
+describe('computeCashToday with reconciliation anchors', () => {
+  it('derives cash from the newest anchor on or before asOfDate', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(99999, '2026-01-01'), // stale, must be ignored
+        bankMovements: [
+          mv('2026-05-31', 'in', 5000), // on the anchor date → already inside it
+          mv('2026-06-10', 'in', 2000),
+          mv('2026-07-01', 'out', 500),
+        ],
+        anchors: [anchor('2026-05-31', 1214.2)],
+      },
+      '2026-07-26',
+    );
+    expect(result.cashToday).toBe(1214.2 + 2000 - 500);
+    expect(result.source).toBe('anchors');
+    expect(result.anchor.date).toBe('2026-05-31');
+    expect(result.startingBalance).toBe(1214.2);
+    expect(result.balanceDate).toBe('2026-05-31');
+    expect(result.netSinceBalanceDate).toBe(1500);
+  });
+
+  it('picks the newest anchor and ignores anchors dated after asOfDate', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(0, '2026-01-01'),
+        bankMovements: [],
+        anchors: [
+          anchor('2026-01-31', 100),
+          anchor('2026-05-31', 1214.2),
+          anchor('2026-12-31', 999999), // future → not usable today
+        ],
+      },
+      '2026-07-26',
+    );
+    expect(result.cashToday).toBe(1214.2);
+    expect(result.anchor.date).toBe('2026-05-31');
+  });
+
+  it('ignores void movements and movements after asOfDate on the anchor path', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(0, '2026-01-01'),
+        bankMovements: [
+          mv('2026-06-10', 'in', 3000, { status: 'void' }),
+          mv('2026-06-11', 'in', 100),
+          mv('2026-07-27', 'in', 7777), // after asOfDate
+        ],
+        anchors: [anchor('2026-05-31', 1214.2)],
+      },
+      '2026-07-26',
+    );
+    expect(result.cashToday).toBe(1314.2);
+  });
+
+  it('honours signedAmount when the import provides one', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(0, '2026-01-01'),
+        bankMovements: [
+          mv('2026-06-10', 'out', 400, { signedAmount: -400 }),
+          mv('2026-06-11', 'in', 250, { signedAmount: 250 }),
+        ],
+        anchors: [anchor('2026-05-31', 1000)],
+      },
+      '2026-07-26',
+    );
+    expect(result.cashToday).toBe(850);
+  });
+
+  it('falls back to the legacy balanceDate walk when no anchor covers asOfDate', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(10000, '2026-01-01'),
+        bankMovements: [mv('2026-02-01', 'in', 500)],
+        anchors: [anchor('2026-12-31', 999999)],
+      },
+      '2026-04-28',
+    );
+    expect(result.cashToday).toBe(10500);
+    expect(result.source).toBe('legacy');
+    expect(result.anchor).toBeNull();
+    expect(result.balanceDate).toBe('2026-01-01');
+  });
+
+  it('reports the legacy source when no anchors are supplied at all', () => {
+    const result = computeCashToday(
+      { bankAccount: bankAccount(10000, '2026-01-01'), bankMovements: [] },
+      '2026-04-28',
+    );
+    expect(result.source).toBe('legacy');
+    expect(result.anchor).toBeNull();
+  });
+
+  it('skips malformed anchors instead of trusting them', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(10000, '2026-01-01'),
+        bankMovements: [],
+        anchors: [{ date: 'not-a-date', balance: 5 }, { date: '2026-05-31', balance: null }],
+      },
+      '2026-07-26',
+    );
+    expect(result.source).toBe('legacy');
+    expect(result.cashToday).toBe(10000);
+  });
+
+  it('exposes bank-import freshness so a stale feed is visible', () => {
+    const result = computeCashToday(
+      {
+        bankAccount: bankAccount(0, '2026-01-01'),
+        bankMovements: [mv('2026-07-20', 'in', 10)],
+        anchors: [anchor('2026-05-31', 1000)],
+      },
+      '2026-07-26',
+    );
+    expect(result.lastMovementDate).toBe('2026-07-20');
+    expect(result.staleDays).toBe(6);
+  });
+});
+
+describe('computeBalanceTimeseries with reconciliation anchors', () => {
+  it('rebuilds the series from the anchor so it ends on the anchor-derived cash', () => {
+    const input = {
+      bankAccount: bankAccount(99999, '2026-01-01'),
+      bankMovements: [mv('2026-07-02', 'in', 800), mv('2026-07-04', 'out', 300)],
+      anchors: [anchor('2026-06-30', 1000)],
+    };
+    const series = computeBalanceTimeseries(input, 7, '2026-07-05');
+    const map = Object.fromEntries(series.map((p) => [p.date, p.balance]));
+    expect(map['2026-07-01']).toBe(1000);
+    expect(map['2026-07-02']).toBe(1800);
+    expect(map['2026-07-04']).toBe(1500);
+    expect(map['2026-07-05']).toBe(1500);
+    expect(series.at(-1).balance).toBe(
+      computeCashToday(input, '2026-07-05').cashToday,
+    );
+  });
+
+  it('re-anchors mid-window and leaves pre-anchor days empty', () => {
+    const series = computeBalanceTimeseries(
+      {
+        bankAccount: bankAccount(0, '2026-06-01'),
+        bankMovements: [mv('2026-07-03', 'in', 200)],
+        anchors: [anchor('2026-07-02', 500)],
+      },
+      4,
+      '2026-07-04',
+    );
+    const map = Object.fromEntries(series.map((p) => [p.date, p.balance]));
+    expect(map['2026-06-30']).toBeNull();
+    expect(map['2026-07-02']).toBe(500);
+    expect(map['2026-07-03']).toBe(700);
+  });
+
+  it('keeps the legacy walk when no anchor covers the window', () => {
+    const series = computeBalanceTimeseries(
+      {
+        bankAccount: bankAccount(10000, '2026-04-20'),
+        bankMovements: [mv('2026-04-22', 'in', 1000)],
+        anchors: [],
+      },
+      8,
+      '2026-04-28',
+    );
+    expect(series).toHaveLength(9);
+    expect(series.at(-1).balance).toBe(11000);
+  });
+});
+
+describe('summarizeCashPosition with reconciliation anchors', () => {
+  const snapshot = {
+    bankAccount: bankAccount(99999, '2026-01-01'),
+    bankMovements: [mv('2026-06-10', 'in', 2000), mv('2026-07-01', 'out', 500)],
+    anchors: [anchor('2026-05-31', 1214.2)],
+  };
+
+  it('reports the anchored cash, not the stale bankAccount balance', () => {
+    const out = summarizeCashPosition(snapshot, { asOfDate: '2026-07-26' });
+    expect(out.cash.cashToday).toBe(2714.2);
+    expect(out.cash.source).toBe('anchors');
+    expect(out.sparkline.at(-1).balance).toBe(2714.2);
+  });
+
+  it('flags the degraded state when nothing is reconciled', () => {
+    const out = summarizeCashPosition(
+      { ...snapshot, anchors: [] },
+      { asOfDate: '2026-07-26' },
+    );
+    expect(out.cash.source).toBe('legacy');
+    expect(out.cash.cashToday).toBe(99999 + 2000 - 500);
+  });
+});

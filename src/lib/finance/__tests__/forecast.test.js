@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { forecastWeeks } from '../forecast.js';
+import { COLLECTION_SLIP_DAYS, forecastHorizon, forecastWeeks } from '../forecast.js';
 
 const TODAY = '2026-07-09'; // Thursday → week 1 = 2026-07-06 … 2026-07-12
 
@@ -59,8 +59,72 @@ describe('forecastWeeks skeleton', () => {
     }
   });
 
-  it('rejects unknown scenarios', () => {
-    expect(() => run({ scenario: 'optimistic' })).toThrow(TypeError);
+});
+
+// ─── horizon geometry — the single source of the week window ──────────────────
+
+describe('forecastHorizon', () => {
+  it('spans from the Monday of today\'s week to the last Sunday of the horizon', () => {
+    expect(forecastHorizon({ today: TODAY, weeks: 13 })).toEqual({
+      firstWeekStart: '2026-07-06',
+      horizonEnd: '2026-10-04',
+      horizonDays: 87, // 2026-07-09 → 2026-10-04
+    });
+  });
+
+  it('matches the window forecastWeeks actually builds', () => {
+    const horizon = forecastHorizon({ today: TODAY, weeks: 4 });
+    const built = forecastWeeks({
+      startBalance: 0,
+      today: TODAY,
+      weeks: 4,
+      receivables: [],
+      payables: [],
+      obligations: [],
+    });
+    expect(built[0].weekStart).toBe(horizon.firstWeekStart);
+    expect(built[built.length - 1].weekEnd).toBe(horizon.horizonEnd);
+  });
+
+  it('reports a zero-length horizon on a Monday start with one week', () => {
+    expect(forecastHorizon({ today: '2026-07-06', weeks: 1 })).toEqual({
+      firstWeekStart: '2026-07-06',
+      horizonEnd: '2026-07-12',
+      horizonDays: 6,
+    });
+  });
+});
+
+// ─── the collection-slip assumption — ONE named, overridable value ────────────
+
+describe('collection slip assumption', () => {
+  it('exposes the slip as a single named constant', () => {
+    expect(COLLECTION_SLIP_DAYS).toBe(7);
+  });
+
+  it('defaults to COLLECTION_SLIP_DAYS when the caller says nothing', () => {
+    const implicit = run({ receivables: [receivable('2026-07-10', 1000)] });
+    const explicit = run({
+      receivables: [receivable('2026-07-10', 1000)],
+      collectionSlipDays: COLLECTION_SLIP_DAYS,
+    });
+    expect(implicit.map((w) => w.inflow)).toEqual(explicit.map((w) => w.inflow));
+    expect(implicit[1].items[0].date).toBe('2026-07-17');
+  });
+
+  it('honours an explicit override', () => {
+    const onTime = run({
+      receivables: [receivable('2026-07-10', 1000)],
+      collectionSlipDays: 0,
+    });
+    expect(onTime[0].inflow).toBe(1000); // no slip → stays in week 1
+    expect(onTime[1].inflow).toBe(0);
+
+    const slow = run({
+      receivables: [receivable('2026-07-10', 1000)],
+      collectionSlipDays: 21,
+    });
+    expect(slow[3].inflow).toBe(1000); // 2026-07-31 → week 4 (starts 2026-07-27)
   });
 });
 
@@ -158,41 +222,22 @@ describe('forecastWeeks committed placement', () => {
   });
 });
 
-// ─── expected scenario — recurring monthly obligations extrapolated ───────────
+// ─── every obligation kind the caller supplies reaches the outflows ───────────
 
-describe('forecastWeeks expected scenario', () => {
-  const baseObligations = [
-    obligation('2026-07-10', 'wage-tax', 3500, '2026-06'),
-    obligation('2026-07-10', 'vat', 13269.06, '2026-05'),
-    obligation('2026-07-29', 'social', 14000, '2026-07'),
-    obligation('2026-07-31', 'payroll-net', 22000, '2026-07'),
-  ];
-
-  const itemsOf = (weeksArr) => weeksArr.flatMap((w) => w.items);
-
-  it('matches committed when no recurrence is requested (default scenario)', () => {
-    const committed = run({ obligations: baseObligations });
-    expect(itemsOf(committed)).toHaveLength(4);
-  });
-
-  it('repeats each recurring kind monthly until the horizon end', () => {
-    const expected = run({ obligations: baseObligations, scenario: 'expected' });
-    const items = itemsOf(expected);
-    // Synthesized within 13 weeks (ends 2026-10-04):
-    //   social: 2026-08-27, 2026-09-28  · payroll-net: 2026-08-31, 2026-09-30
-    //   wage-tax: 2026-08-10, 2026-09-10 · vat: 2026-08-10, 2026-09-10
-    expect(items).toHaveLength(12);
-
-    const socials = items.filter((i) => i.kind === 'social').map((i) => i.date);
-    expect(socials).toEqual(['2026-07-29', '2026-08-27', '2026-09-28']);
-
-    const synthesized = items.find((i) => i.kind === 'social' && i.date === '2026-08-27');
-    expect(synthesized.amount).toBe(-14000); // repeats the latest instance's amount
-    expect(synthesized.source).toBe('recurring-estimate');
-  });
-
-  it('extrapolates nothing when the obligations input is empty', () => {
-    const expected = run({ scenario: 'expected' });
-    expect(itemsOf(expected)).toHaveLength(0);
+describe('forecastWeeks obligation coverage', () => {
+  it('places payroll, tax, VAT and recurring-cost obligations as outflows', () => {
+    const result = run({
+      obligations: [
+        obligation('2026-07-10', 'wage-tax', 3500, '2026-06'),
+        obligation('2026-07-10', 'vat', 13269.06, '2026-05'),
+        obligation('2026-07-29', 'social', 14000, '2026-07'),
+        obligation('2026-07-31', 'payroll-net', 22000, '2026-07'),
+        obligation('2026-07-15', 'recurring', 900, '2026-07'),
+      ],
+    });
+    const kinds = result.flatMap((week) => week.items).map((item) => item.kind).sort();
+    expect(kinds).toEqual(['payroll-net', 'recurring', 'social', 'vat', 'wage-tax']);
+    const totalOut = result.reduce((sum, week) => sum + week.outflow, 0);
+    expect(totalOut).toBeCloseTo(-53669.06, 2);
   });
 });

@@ -34,7 +34,20 @@
 import { diffDays, isIsoDate } from './dates.js';
 import { isOpenAmount, openAmountOf as defaultOpenAmountOf } from './money.js';
 
-const BUCKET_KEYS = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus'];
+/**
+ * Overdue buckets, oldest-debt last. Screens that only chart late money
+ * (CXC/CXP, treasury) iterate exactly these.
+ * @type {ReadonlyArray<string>}
+ */
+export const OVERDUE_BUCKET_KEYS = ['d1_30', 'd31_60', 'd61_90', 'd90plus'];
+
+/**
+ * Every bucket of an aging report, `current` first.
+ * @type {ReadonlyArray<string>}
+ */
+export const AGING_BUCKET_KEYS = ['current', ...OVERDUE_BUCKET_KEYS];
+
+const BUCKET_KEYS = AGING_BUCKET_KEYS;
 
 const bucketKeyFor = (daysOverdue) => {
   if (daysOverdue <= 0) return 'current';
@@ -86,3 +99,24 @@ export const agingBuckets = ({ docs, today, openAmountOf = defaultOpenAmountOf }
 
   return { ...report, totals };
 };
+
+/**
+ * Flatten an aging report into the ordered bucket list charts and tables read.
+ *
+ * This is the ONLY place a screen may narrow the report: pass
+ * `includeCurrent: true` when not-yet-due money belongs in the view, leave it
+ * off for the overdue-only tranches. Screens must never re-bucket documents
+ * themselves — that is how the same invoice ended up in different tranches on
+ * different pages.
+ *
+ * @param {AgingReport|null|undefined} report
+ * @param {{ includeCurrent?: boolean }} [options]
+ * @returns {Array<{ key: string, amount: number, count: number, items: AgingItem[] }>}
+ */
+export const agingBucketList = (report, { includeCurrent = false } = {}) =>
+  (includeCurrent ? AGING_BUCKET_KEYS : OVERDUE_BUCKET_KEYS).map((key) => ({
+    key,
+    amount: report?.[key]?.amount ?? 0,
+    count: report?.[key]?.count ?? 0,
+    items: report?.[key]?.items ?? [],
+  }));

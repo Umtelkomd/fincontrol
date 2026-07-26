@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { agingBuckets } from '../aging.js';
+import {
+  AGING_BUCKET_KEYS,
+  OVERDUE_BUCKET_KEYS,
+  agingBucketList,
+  agingBuckets,
+} from '../aging.js';
 
 const doc = (dueDate, openAmount, extra = {}) => ({
   dueDate,
@@ -103,5 +108,43 @@ describe('agingBuckets filtering', () => {
       expect(report[key]).toEqual({ amount: 0, count: 0, items: [] });
     }
     expect(report.totals).toEqual({ open: 0, overdue: 0, overdueCount: 0 });
+  });
+});
+
+// ─── agingBucketList — the single flattening used by every aging screen ───────
+
+describe('agingBucketList', () => {
+  const report = agingBuckets({
+    docs: [
+      doc('2026-07-20', 110), // current
+      doc('2026-07-08', 120), // d1_30
+      doc('2026-06-08', 140), // d31_60
+      doc('2026-05-09', 160), // d61_90
+      doc('2026-04-09', 180), // d90plus
+    ],
+    today: TODAY,
+  });
+
+  it('returns the four overdue buckets in order by default', () => {
+    expect(agingBucketList(report).map((b) => b.key)).toEqual(OVERDUE_BUCKET_KEYS);
+    expect(agingBucketList(report).map((b) => b.amount)).toEqual([120, 140, 160, 180]);
+  });
+
+  it('prepends the current bucket when includeCurrent is set', () => {
+    const list = agingBucketList(report, { includeCurrent: true });
+    expect(list.map((b) => b.key)).toEqual(AGING_BUCKET_KEYS);
+    expect(list[0]).toMatchObject({ key: 'current', amount: 110, count: 1 });
+  });
+
+  it('carries count and items through unchanged', () => {
+    const [first] = agingBucketList(report);
+    expect(first.count).toBe(1);
+    expect(first.items).toBe(report.d1_30.items);
+  });
+
+  it('degrades to zeroed buckets for a missing report', () => {
+    expect(agingBucketList(null)).toEqual(
+      OVERDUE_BUCKET_KEYS.map((key) => ({ key, amount: 0, count: 0, items: [] })),
+    );
   });
 });

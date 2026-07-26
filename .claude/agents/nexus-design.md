@@ -140,9 +140,9 @@ Mono uppercase at `tracking-[0.1em]`, accent border-bottom on active.
 - **Mobile**: slide-in drawer (`animate-slideIn`), same wordmark, 2px accent left-border on active item.
 - **Content header** (per view): follows the Page header pattern above.
 
-## Charts (Recharts via constants/chartTheme.js)
+## Charts (Recharts)
 
-`CHART_THEME` reads Nexus tokens directly. Bar/line series lead with `--color-accent` then fall back to monochrome `fg-1 → fg-4` with `--color-info` as an optional mid-chroma accent. Semantic overrides only for explicit signal (`success`, `negative`, etc.).
+Chart series read Nexus tokens directly: lead with `--color-accent`, then fall back to monochrome `fg-1 → fg-4` with `--color-info` as an optional mid-chroma accent. Semantic overrides only for explicit signal (`success`, `negative`, etc.). The former shared `constants/chartTheme.js` was removed once it had no consumers — colour charts from the CSS variables at the call site.
 
 ## Forbidden patterns
 

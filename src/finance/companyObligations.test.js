@@ -157,6 +157,92 @@ describe('buildCompanyObligations — UI-ready labels', () => {
   });
 });
 
+describe('buildCompanyObligations — recurring costs', () => {
+  const rule = (extra = {}) => ({
+    id: 'rule-rent',
+    active: true,
+    frequency: 'monthly',
+    dayOfMonth: 15,
+    amount: 900,
+    concept: 'Oficina',
+    ownerName: 'Arrendador',
+    ...extra,
+  });
+
+  it('emits one recurring obligation per applicable month inside the horizon', () => {
+    const items = buildCompanyObligations({
+      recurringCosts: [rule()],
+      today: TODAY,
+      horizonDays: 60, // → 2026-09-08
+    });
+
+    const recurring = items.filter((i) => i.kind === 'recurring');
+    expect(recurring.map((i) => i.date)).toEqual(['2026-07-15', '2026-08-15']);
+    expect(recurring[0]).toMatchObject({
+      amount: 900,
+      source: 'recurring-costs',
+      estimated: true,
+      month: '2026-07',
+      label: 'Oficina — Arrendador',
+    });
+  });
+
+  it('skips inactive rules and rules that do not apply to the period', () => {
+    const items = buildCompanyObligations({
+      recurringCosts: [
+        rule({ id: 'off', active: false }),
+        rule({ id: 'ended', endDate: '2026-06-30' }),
+      ],
+      today: TODAY,
+      horizonDays: 60,
+    });
+    expect(items.filter((i) => i.kind === 'recurring')).toEqual([]);
+  });
+
+  it('skips a month whose payable was already generated from the rule', () => {
+    const items = buildCompanyObligations({
+      recurringCosts: [rule()],
+      payables: [
+        payable('2026-07-15', 900, { recurringCostId: 'rule-rent', recurringPeriod: '2026-07' }),
+      ],
+      today: TODAY,
+      horizonDays: 60,
+    });
+    expect(items.filter((i) => i.kind === 'recurring').map((i) => i.date)).toEqual(['2026-08-15']);
+  });
+
+  it('ignores a cancelled materialization so the cost still shows up', () => {
+    const items = buildCompanyObligations({
+      recurringCosts: [rule()],
+      payables: [
+        payable('2026-07-15', 0, {
+          recurringCostId: 'rule-rent',
+          recurringPeriod: '2026-07',
+          status: 'cancelled',
+        }),
+      ],
+      today: TODAY,
+      horizonDays: 60,
+    });
+    expect(items.filter((i) => i.kind === 'recurring').map((i) => i.date)).toEqual([
+      '2026-07-15',
+      '2026-08-15',
+    ]);
+  });
+
+  it('never emits a recurring obligation before today', () => {
+    const items = buildCompanyObligations({
+      recurringCosts: [rule({ dayOfMonth: 1 })],
+      today: TODAY, // 2026-07-10 → the 2026-07-01 charge already happened
+      horizonDays: 60, // → 2026-09-08
+    });
+    expect(items.filter((i) => i.kind === 'recurring').map((i) => i.date)).toEqual([
+      '2026-08-01',
+      '2026-09-01',
+    ]);
+  });
+});
+
 describe('buildCompanyObligations — calendar behavior preserved', () => {
   it('keeps overdue open payables and sorts by date', () => {
     const items = buildCompanyObligations({

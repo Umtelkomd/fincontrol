@@ -28,7 +28,7 @@ import { usePayables } from '../../hooks/usePayables';
 import { useProjects } from '../../hooks/useProjects';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
-import { daysUntil } from '../../finance/utils';
+import { buildAgingView } from '../../finance/agingView';
 import { isoWeekLabel, payableIsOpsCleared, payableRequiresOpsClear } from '../../finance/opsControl';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -55,7 +55,7 @@ const filters = [
 const bucketColor = ['var(--color-warn)', 'var(--color-accent)', 'var(--color-accent)', 'var(--color-accent)'];
 
 const AgingBar = ({ buckets }) => {
- const total = buckets.reduce((sum, bucket) => sum + bucket.total, 0);
+ const total = buckets.reduce((sum, bucket) => sum + bucket.amount, 0);
  if (total <= 0) return null;
 
  return (
@@ -69,8 +69,8 @@ const AgingBar = ({ buckets }) => {
  </div>
   <div className="mb-4 flex h-3 overflow-hidden rounded-md bg-[var(--color-line)]">
  {buckets.map((bucket, index) =>
- bucket.total > 0 ? (
- <div key={bucket.label} style={{ width: `${(bucket.total / total) * 100}%`, backgroundColor: bucketColor[index] }} />
+ bucket.amount > 0 ? (
+ <div key={bucket.label} style={{ width: `${(bucket.amount / total) * 100}%`, backgroundColor: bucketColor[index] }} />
  ) : null,
  )}
  </div>
@@ -81,7 +81,7 @@ const AgingBar = ({ buckets }) => {
  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: bucketColor[index] }} />
   <span className="label-mono text-[var(--color-fg-4)]">{bucket.label}</span>
  </div>
-  <p className="font-mono text-sm tabular-nums text-[var(--color-fg-1)]">{formatCurrency(bucket.total)}</p>
+  <p className="font-mono text-sm tabular-nums text-[var(--color-fg-1)]">{formatCurrency(bucket.amount)}</p>
  </div>
  ))}
  </div>
@@ -155,26 +155,13 @@ const CXPIndependiente = ({ user, userRole }) => {
  const openRows = visiblePayables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status));
  const overdueRows = metrics.overduePayables.filter((entry) => entry.source === 'payable');
  const upcomingRows = metrics.upcomingPayables.filter((entry) => entry.source === 'payable');
- const visiblePayablesAging = useMemo(() => {
- const buckets = [
- { label: '0-30d', total: 0 },
- { label: '31-60d', total: 0 },
- { label: '61-90d', total: 0 },
- { label: '>90d', total: 0 },
- ];
-
- openRows.forEach((entry) => {
- if (!entry.dueDate) return;
- const overdueDays = Math.max(0, -daysUntil(entry.dueDate));
- if (overdueDays === 0) return;
- if (overdueDays <= 30) buckets[0].total += entry.openAmount || 0;
- else if (overdueDays <= 60) buckets[1].total += entry.openAmount || 0;
- else if (overdueDays <= 90) buckets[2].total += entry.openAmount || 0;
- else buckets[3].total += entry.openAmount || 0;
- });
-
- return buckets;
- }, [openRows]);
+ // Aging comes from the single engine (finance/agingView → lib/finance/aging),
+ // never from a local bucket loop: this screen and Resumen/CXC must place the
+ // same invoice in the same tranche.
+ const visiblePayablesAging = useMemo(
+ () => buildAgingView({ docs: openRows, today: new Date() }).buckets,
+ [openRows],
+ );
  const totalOpen = openRows.reduce((sum, entry) => sum + entry.openAmount, 0);
  const totalOverdue = overdueRows.reduce((sum, entry) => sum + entry.openAmount, 0);
  const totalPartial = visiblePayables

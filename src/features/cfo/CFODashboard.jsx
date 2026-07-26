@@ -9,6 +9,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { Badge, Button, Panel } from '@/components/ui/nexus';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
+import { MAIN_ACCOUNT_ID } from '../../finance/constants';
 import { useCFOSnapshot } from './hooks/useCFOSnapshot';
 import CashPositionPanel from './panels/CashPositionPanel';
 import FinancialOrderPanel from './panels/FinancialOrderPanel';
@@ -83,6 +85,38 @@ const formatTimestamp = (iso) => {
 
 const CFODashboard = ({ user }) => {
   const { snapshot, loading, error, fetchedAt, fromCache, refetch } = useCFOSnapshot(user);
+  // Cash is the one figure this page must NOT take from its own snapshot: the
+  // snapshot has no reconciliation anchors and only a 190-day movement window,
+  // so it can only produce the legacy `bankAccount.balanceDate` estimate. The
+  // shared ledger already holds the canonical posted movements plus the live
+  // anchors, and costs no extra Firestore reads — reusing it is what makes
+  // /cfo and /resumen show the same euro.
+  const ledger = useFinanceLedgerContext();
+  const ledgerReady = !ledger.loading && !ledger.error;
+  // Only a load in flight is "pending". A ledger error is NOT pending — cash
+  // then really is unreconciled and the panel must say so instead of showing a
+  // reassuring spinner forever.
+  const reconciliationPending = ledger.loading;
+
+  const cashSnapshot = useMemo(() => {
+    if (!snapshot) return null;
+    if (!ledgerReady) {
+      // No anchors available yet → runway falls back to legacy and the panel
+      // labels the figure as unreconciled rather than pretending it is exact.
+      return {
+        bankAccount: snapshot.bankAccount,
+        bankMovements: snapshot.bankMovements,
+        anchors: [],
+      };
+    }
+    return {
+      bankAccount: snapshot.bankAccount,
+      bankMovements: ledger.postedMovements.filter(
+        (entry) => entry.accountId === MAIN_ACCOUNT_ID,
+      ),
+      anchors: ledger.anchors || [],
+    };
+  }, [snapshot, ledgerReady, ledger.postedMovements, ledger.anchors]);
 
   const counts = useMemo(() => {
     if (!snapshot) return null;
@@ -151,11 +185,16 @@ const CFODashboard = ({ user }) => {
         </Panel>
       )}
 
-      {snapshot && <FinancialOrderPanel snapshot={snapshot} />}
+      {snapshot && <FinancialOrderPanel snapshot={snapshot} cashSnapshot={cashSnapshot} />}
 
       {snapshot && <OverheadBurdenPanel snapshot={snapshot} />}
 
-      {snapshot && <CashPositionPanel snapshot={snapshot} />}
+      {snapshot && (
+        <CashPositionPanel
+          snapshot={cashSnapshot}
+          reconciliationPending={reconciliationPending}
+        />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {PANELS.map((p) => {

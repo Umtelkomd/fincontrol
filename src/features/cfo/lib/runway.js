@@ -5,9 +5,19 @@
  * defaults to today and is exposed only to make the functions easy to
  * test with frozen clocks.
  *
+ * CASH MODEL — reconciliation anchors are canonical (see CLAUDE.md, "Cash
+ * position"). Cash today = newest anchor with date <= today, plus the signed
+ * bank movements posted after it. The anchor maths live in
+ * `lib/finance/cashPosition.js` and are shared with `useFinanceLedger` through
+ * `finance/cashSource.js`, so `/cfo` and `/resumen` cannot disagree. The old
+ * `bankAccount.balanceDate` walk survives only as the pre-anchor fallback and
+ * is reported as `source: 'legacy'` — callers must surface that as degraded,
+ * never as a reconciled figure.
+ *
  * Public API:
- *   computeCashToday({ bankAccount, bankMovements }, asOfDate?)
- *     → { cashToday, startingBalance, balanceDate, netSinceBalanceDate }
+ *   computeCashToday({ bankAccount, bankMovements, anchors }, asOfDate?)
+ *     → { cashToday, source, anchor, startingBalance, balanceDate,
+ *         netSinceBalanceDate, lastMovementDate, staleDays }
  *
  *   computeBurnRate({ bankMovements }, days, asOfDate?)
  *     → { totalOut, totalIn, net, perDay, perMonth, days }
@@ -15,12 +25,16 @@
  *   computeRunway({ cashToday, burnPerMonth, criticalThreshold? }, asOfDate?)
  *     → { months, projectedZeroDate, projectedCriticalDate, isCritical, isInfinite }
  *
- *   computeBalanceTimeseries({ bankAccount, bankMovements }, lookbackDays, asOfDate?)
- *     → [{ date, balance }, ...]   // one point per day, oldest → newest
+ *   computeBalanceTimeseries({ bankAccount, bankMovements, anchors }, lookbackDays, asOfDate?)
+ *     → [{ date, balance }, ...]   // one point per day, oldest → newest;
+ *                                   balance is null before the first anchor
  *
  *   summarizeCashPosition(snapshot, options?)
  *     → composes the above into a single object for the panel
  */
+
+import { resolveCashSource } from '../../../finance/cashSource';
+import { dailyBalanceSeries, deriveBalance } from '../../../lib/finance';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const CRITICAL_THRESHOLD_DEFAULT = 10000;
@@ -75,28 +89,60 @@ const sumNet = (bankMovements, fromIsoExclusive, toIsoInclusive) => {
   return net;
 };
 
-export const computeCashToday = ({ bankAccount, bankMovements }, asOfDate) => {
+/**
+ * Cash as of `asOfDate`, anchor-first.
+ *
+ * `source` tells the caller which model produced the number:
+ *   'anchors' → reconciled: newest anchor <= asOfDate + signed movements after it
+ *   'legacy'  → estimated from `bankAccount.balanceDate`; NOT reconciled
+ *
+ * @param {{ bankAccount?: object, bankMovements?: object[], anchors?: object[] }} input
+ * @param {string|Date} [asOfDate]
+ */
+export const computeCashToday = ({ bankAccount, bankMovements, anchors }, asOfDate) => {
   const today = toIso(asOfDate) || todayIso();
   const startingBalance = Number(bankAccount?.balance) || 0;
   const balanceDate = bankAccount?.balanceDate ? toIso(bankAccount.balanceDate) : null;
 
-  if (!bankAccount || !balanceDate) {
+  // Void movements never touch cash under either model.
+  const movements = (bankMovements || []).filter(isSettledMovement);
+
+  const netSinceBalanceDate =
+    bankAccount && balanceDate ? sumNet(movements, balanceDate, today) : 0;
+  const legacyBalance = startingBalance + netSinceBalanceDate;
+
+  // Same resolver useFinanceLedger uses, so /cfo and /resumen agree by
+  // construction rather than by two similar-looking formulas.
+  const { currentCash, source, cashMeta } = resolveCashSource({
+    anchors: anchors || [],
+    movements,
+    today,
+    legacyBalance,
+  });
+
+  if (source === 'anchors') {
+    const usedAnchor = cashMeta.anchor;
     return {
-      cashToday: startingBalance,
-      startingBalance,
-      balanceDate,
-      netSinceBalanceDate: 0,
+      cashToday: round2(currentCash),
+      source,
+      anchor: usedAnchor,
+      startingBalance: round2(usedAnchor.balance),
+      balanceDate: usedAnchor.date,
+      netSinceBalanceDate: round2(currentCash - usedAnchor.balance),
+      lastMovementDate: cashMeta.lastMovementDate,
+      staleDays: cashMeta.staleDays,
     };
   }
 
-  const netSinceBalanceDate = sumNet(bankMovements, balanceDate, today);
-  const cashToday = round2(startingBalance + netSinceBalanceDate);
-
   return {
-    cashToday,
+    cashToday: round2(legacyBalance),
+    source: 'legacy',
+    anchor: null,
     startingBalance: round2(startingBalance),
     balanceDate,
     netSinceBalanceDate: round2(netSinceBalanceDate),
+    lastMovementDate: cashMeta.lastMovementDate,
+    staleDays: cashMeta.staleDays,
   };
 };
 
@@ -174,15 +220,20 @@ export const computeRunway = (
 
 /**
  * Build a daily balance series for the last `lookbackDays` days, ending at
- * asOfDate inclusive. Reconstructs by walking forward from balanceDate
- * (or, if that is older than the window, from the window start using the
- * cumulative net through that date).
+ * asOfDate inclusive.
  *
- * Each point: { date: 'YYYY-MM-DD', balance: number }
+ * With reconciliation anchors the series is rebuilt by `dailyBalanceSeries`
+ * (anchors re-anchor the running balance on their own date), so its last point
+ * always equals `computeCashToday().cashToday`. Days before the first anchor
+ * carry `balance: null` — the chart shows a gap instead of inventing history.
+ *
+ * Without anchors it falls back to the legacy walk from `balanceDate`.
+ *
+ * Each point: { date: 'YYYY-MM-DD', balance: number|null }
  * Length: lookbackDays + 1 (inclusive of the start day)
  */
 export const computeBalanceTimeseries = (
-  { bankAccount, bankMovements },
+  { bankAccount, bankMovements, anchors },
   lookbackDays,
   asOfDate,
 ) => {
@@ -192,11 +243,27 @@ export const computeBalanceTimeseries = (
 
   const startingBalance = Number(bankAccount?.balance) || 0;
   const balanceDate = bankAccount?.balanceDate ? toIso(bankAccount.balanceDate) : null;
+  const settledMovements = (bankMovements || []).filter(isSettledMovement);
+
+  const anchorList = anchors || [];
+  const isAnchored =
+    deriveBalance({ anchors: anchorList, movements: settledMovements, today }).balance !== null;
+
+  if (isAnchored) {
+    return dailyBalanceSeries({
+      anchors: anchorList,
+      movements: settledMovements,
+      from: startIso,
+      to: today,
+    }).map(({ date, balance }) => ({
+      date,
+      balance: balance === null ? null : round2(balance),
+    }));
+  }
 
   // Bucket movements by date
   const byDate = new Map();
-  for (const m of bankMovements || []) {
-    if (!isSettledMovement(m)) continue;
+  for (const m of settledMovements) {
     if (!m.postedDate) continue;
     const amt = Number(m.amount) || 0;
     const signed = m.direction === 'in' ? amt : m.direction === 'out' ? -amt : 0;
@@ -250,6 +317,7 @@ export const summarizeCashPosition = (snapshot, options = {}) => {
     {
       bankAccount: snapshot?.bankAccount,
       bankMovements: snapshot?.bankMovements,
+      anchors: snapshot?.anchors,
     },
     asOfDate,
   );
@@ -294,6 +362,7 @@ export const summarizeCashPosition = (snapshot, options = {}) => {
     {
       bankAccount: snapshot?.bankAccount,
       bankMovements: snapshot?.bankMovements,
+      anchors: snapshot?.anchors,
     },
     sparklineDays,
     asOfDate,

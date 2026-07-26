@@ -87,17 +87,27 @@ const qualityVariant = (variant) => {
   return 'info';
 };
 
-const FinancialOrderPanel = ({ snapshot }) => {
+/**
+ * @param {{ snapshot: object, cashSnapshot?: object }} props
+ *   `cashSnapshot` carries the anchor-based cash inputs from the shared finance
+ *   ledger. Without it the cash figure degrades to the legacy static-balance
+ *   estimate and is labelled "sin conciliar".
+ */
+const FinancialOrderPanel = ({ snapshot, cashSnapshot }) => {
   const summary = useMemo(() => {
     if (!snapshot) return null;
-    return summarizeCFOOrder(snapshot);
-  }, [snapshot]);
+    return summarizeCFOOrder(snapshot, { cashSnapshot });
+  }, [snapshot, cashSnapshot]);
 
   if (!summary) return null;
 
   const { cash, receivables, payables, bankMovements, dataQuality } = summary;
   const payablesCoveredByCash =
     payables.openTotal > 0 ? Math.round((cash.cashToday / payables.openTotal) * 100) : null;
+  const cashOrigin =
+    cash.source === 'anchors'
+      ? `Ancla ${formatDate(cash.balanceDate)}`
+      : `${cash.bankName || 'Banco'} · sin conciliar`;
 
   return (
     <div className="space-y-4">
@@ -111,7 +121,7 @@ const FinancialOrderPanel = ({ snapshot }) => {
             <KPI
               label="Cash hoy"
               value={money(cash.cashToday)}
-              meta={`${cash.bankName || 'Banco'} · ${payablesCoveredByCash ?? '—'}% CXP`}
+              meta={`${cashOrigin} · ${payablesCoveredByCash ?? '—'}% CXP`}
               tone={cash.cashToday >= payables.overdueTotal ? 'ok' : 'warn'}
               icon={Wallet}
             />

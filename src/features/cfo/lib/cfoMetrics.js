@@ -373,12 +373,22 @@ export const summarizeDataQuality = (snapshot = {}) => {
   };
 };
 
+/**
+ * @param {object} snapshot - the CFO snapshot (documents, movement stats, quality)
+ * @param {{ asOfDate?: string|Date, cashSnapshot?: object }} [options]
+ *   `cashSnapshot` overrides the source of the CASH figure only — the dashboard
+ *   feeds it the shared finance ledger (canonical posted movements + the live
+ *   reconciliation anchors) so "Cash hoy" equals the number Resumen shows. The
+ *   movement/document statistics keep using the CFO snapshot's own window.
+ */
 export const summarizeCFOOrder = (snapshot = {}, options = {}) => {
   const asOfDate = formatIsoDate(options.asOfDate || new Date());
+  const cashSource = options.cashSnapshot || snapshot;
   const cash = computeCashToday(
     {
-      bankAccount: snapshot.bankAccount,
-      bankMovements: snapshot.bankMovements,
+      bankAccount: cashSource.bankAccount,
+      bankMovements: cashSource.bankMovements,
+      anchors: cashSource.anchors,
     },
     asOfDate,
   );
@@ -391,6 +401,8 @@ export const summarizeCFOOrder = (snapshot = {}, options = {}) => {
       balanceDate: cash.balanceDate,
       netSinceBalanceDate: cash.netSinceBalanceDate,
       cashToday: cash.cashToday,
+      source: cash.source,
+      anchor: cash.anchor,
       creditLineLimit: roundMoney(toNumber(snapshot.bankAccount?.creditLineLimit)),
     },
     receivables: summarizeReceivables(snapshot.receivables || [], asOfDate),

@@ -15,15 +15,21 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import { Badge, KPI, KPIGrid, Panel } from '@/components/ui/nexus';
+import { Alert, Badge, KPI, KPIGrid, Panel } from '@/components/ui/nexus';
 import { formatCurrency } from '../../../utils/formatters';
 import { summarizeCashPosition } from '../lib/runway.js';
 
 /**
  * CashPositionPanel — Phase B of the CFO views.
  *
- * Reads from the CFO snapshot only. All math is delegated to
- * `lib/runway.js` (pure, tested). The panel itself is presentational.
+ * All math is delegated to `lib/runway.js` (pure, tested); the panel is
+ * presentational. `snapshot` carries the CASH inputs only — bank account,
+ * canonical posted movements and the reconciliation anchors, handed down by
+ * CFODashboard from the shared finance ledger.
+ *
+ * Provenance is part of the reading: when no anchor covers today the figure is
+ * a legacy estimate from the static bank balance and is labelled as such. A
+ * degraded number is never presented as a reconciled one.
  *
  * Visual highlights:
  *   - Cash today turns red below €10k (NEXUS accent)
@@ -38,7 +44,7 @@ const TooltipContent = ({ active, payload }) => {
     <div className="border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-3 py-2 rounded-md">
       <p className="font-mono text-[11px] text-[var(--color-fg-3)]">{d.date}</p>
       <p className="font-mono text-[12px] tabular-nums text-[var(--color-fg-1)]">
-        {formatCurrency(d.balance)}
+        {d.balance == null ? 'Sin ancla' : formatCurrency(d.balance)}
       </p>
     </div>
   );
@@ -63,7 +69,7 @@ const formatDate = (iso) => {
   }
 };
 
-const CashPositionPanel = ({ snapshot }) => {
+const CashPositionPanel = ({ snapshot, reconciliationPending = false }) => {
   const summary = useMemo(() => {
     if (!snapshot) return null;
     return summarizeCashPosition(snapshot);
@@ -71,7 +77,11 @@ const CashPositionPanel = ({ snapshot }) => {
 
   if (!snapshot) return null;
 
-  if (!snapshot.bankAccount) {
+  const isReconciled = summary.cash.source === 'anchors';
+
+  // With a usable anchor the bank-account document is no longer needed to
+  // compute cash, so only ask for it when nothing is reconciled.
+  if (!snapshot.bankAccount && !isReconciled) {
     return (
       <Panel title="Posición de caja" meta="Fase B" padding>
         <div className="flex items-start gap-3">
@@ -105,18 +115,35 @@ const CashPositionPanel = ({ snapshot }) => {
   const cashCritical = cash.cashToday < runway.criticalThreshold;
   const netPositive = net30PerMonth >= 0;
 
+  const originLabel = isReconciled ? 'Ancla conciliada' : 'Saldo estático banco';
+
   return (
     <Panel
       title="Posición de caja"
-      meta={`Bal. ${formatDate(cash.balanceDate)}`}
+      meta={
+        isReconciled
+          ? `Ancla ${formatDate(cash.balanceDate)}`
+          : reconciliationPending
+            ? 'Conciliación cargando…'
+            : 'Sin conciliar'
+      }
       padding
     >
       <div className="space-y-4">
+        {!isReconciled && !reconciliationPending && (
+          <Alert variant="warn" title="Caja sin conciliar">
+            No hay ancla de conciliación con fecha igual o anterior a hoy, así que esta caja
+            es una estimación a partir del saldo estático del banco
+            ({formatDate(cash.balanceDate)}), no una cifra conciliada. Registrá el saldo
+            verificado en Configuración → Tesorería para que coincida con el Resumen.
+          </Alert>
+        )}
+
         <KPIGrid cols={4}>
           <KPI
             label="Caja actual"
             value={formatCurrency(cash.cashToday)}
-            meta={`Saldo inicial ${formatCurrency(cash.startingBalance)} ${cash.netSinceBalanceDate >= 0 ? '+' : ''}${formatCurrency(cash.netSinceBalanceDate)}`}
+            meta={`${originLabel} ${formatCurrency(cash.startingBalance)} ${cash.netSinceBalanceDate >= 0 ? '+' : ''}${formatCurrency(cash.netSinceBalanceDate)}`}
             tone={cashCritical ? 'err' : cash.cashToday > runway.criticalThreshold * 3 ? 'ok' : 'warn'}
             icon={Wallet}
           />
@@ -218,6 +245,11 @@ const CashPositionPanel = ({ snapshot }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-fg-4)]">
+          {isReconciled && sparkline.some((point) => point.balance == null) && (
+            <Badge variant="neutral">
+              Serie conciliada desde {formatDate(cash.balanceDate)}
+            </Badge>
+          )}
           <Badge variant="neutral">Egreso prom. 90d: {formatCurrency(burn90.perMonth)}/mes</Badge>
           <Badge variant={net90PerMonth >= 0 ? 'ok' : 'warn'}>
             Neto 90d: {formatCurrency(net90PerMonth)}/mes

@@ -14,6 +14,8 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { toPdfTransaction } from '../../finance/reporting';
+import { toAgingChartBuckets } from '../../finance/agingView';
+import { roundEur } from '../../lib/finance';
 
 const CONFIG = {
  cxc: {
@@ -38,61 +40,41 @@ const CONFIG = {
  },
 };
 
-const buildAging = (rows) => {
- const buckets = [
- { name: '0-30d', amount: 0, count: 0 },
- { name: '31-60d', amount: 0, count: 0 },
- { name: '61-90d', amount: 0, count: 0 },
- { name: '>90d', amount: 0, count: 0 },
- ];
-
- rows.forEach((entry) => {
- const bucketIndex = entry.daysOverdue <= 30 ? 0 : entry.daysOverdue <= 60 ? 1 : entry.daysOverdue <= 90 ? 2 : 3;
- buckets[bucketIndex].amount += entry.openAmount;
- buckets[bucketIndex].count += 1;
- });
-
- return buckets;
-};
-
 const ReportCXCXP = ({ user, type = 'cxc' }) => {
  const cfg = CONFIG[type];
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
- const referenceTime = useMemo(() => {
- const today = new Date();
- return new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
- }, []);
 
- const rows = useMemo(() => {
- const source = type === 'cxc' ? metrics.receivables : metrics.payables;
- return source
- .filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status))
- .map((entry) => {
- const dueDate = entry.dueDate ? new Date(`${entry.dueDate}T00:00:00`) : null;
- const daysOverdue = dueDate ? Math.max(0, Math.floor((referenceTime - dueDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
- return { ...entry, daysOverdue };
- })
- .sort((left, right) => right.daysOverdue - left.daysOverdue);
- }, [metrics.payables, metrics.receivables, referenceTime, type]);
+ // The aging report is computed once in useTreasuryMetrics by the single engine
+ // (lib/finance/aging.js). This screen used to re-bucket the documents itself
+ // and put not-yet-due invoices in the "0-30d" tranche, so its chart disagreed
+ // with CXC/CXP and Resumen for the same portfolio.
+ const report = type === 'cxc' ? metrics.receivablesAgingReport : metrics.payablesAgingReport;
 
- const totals = useMemo(() => {
- const totalAmount = rows.reduce((sum, entry) => sum + entry.openAmount, 0);
- const critical = rows.filter((entry) => entry.daysOverdue > 90);
- const overdue = rows.filter((entry) => entry.daysOverdue > 0);
- const current = rows.filter((entry) => entry.daysOverdue === 0);
- return {
- totalAmount,
- criticalAmount: critical.reduce((sum, entry) => sum + entry.openAmount, 0),
- overdueAmount: overdue.reduce((sum, entry) => sum + entry.openAmount, 0),
- currentAmount: current.reduce((sum, entry) => sum + entry.openAmount, 0),
- currentCount: current.length,
- criticalCount: critical.length,
- overdueCount: overdue.length,
- };
- }, [rows]);
+ const rows = useMemo(
+ () =>
+ toAgingChartBuckets(report, { includeCurrent: true })
+ .flatMap((bucket) => bucket.items)
+ .map((item) => ({ ...item.doc, openAmount: item.openAmount, daysOverdue: item.daysOverdue }))
+ .sort((left, right) => right.daysOverdue - left.daysOverdue),
+ [report],
+ );
 
- const agingData = useMemo(() => buildAging(rows), [rows]);
+ const totals = useMemo(
+ () => ({
+ totalAmount: roundEur(report?.totals?.open ?? 0),
+ overdueAmount: roundEur(report?.totals?.overdue ?? 0),
+ overdueCount: report?.totals?.overdueCount ?? 0,
+ criticalAmount: roundEur(report?.d90plus?.amount ?? 0),
+ criticalCount: report?.d90plus?.count ?? 0,
+ currentAmount: roundEur(report?.current?.amount ?? 0),
+ currentCount: report?.current?.count ?? 0,
+ }),
+ [report],
+ );
+
+ // Overdue tranches only — "Al corriente" has its own KPI above the chart.
+ const agingData = useMemo(() => toAgingChartBuckets(report), [report]);
 
  const exportRows = rows.map((entry) =>
  toPdfTransaction({
@@ -173,7 +155,7 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  <ResponsiveContainer width="100%" height={260}>
  <BarChart data={agingData}>
  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
- <XAxis dataKey="name" tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickLine={false} axisLine={false} />
+ <XAxis dataKey="label" tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickLine={false} axisLine={false} />
  <YAxis tick={{ fill: 'var(--color-fg-4)', fontSize: 11 }} tickFormatter={(value) => `${Math.round(value / 1000)}k`} tickLine={false} axisLine={false} />
  <Tooltip
  formatter={(value) => formatCurrency(value)}
@@ -188,9 +170,9 @@ const ReportCXCXP = ({ user, type = 'cxc' }) => {
  <h3 className="mb-4 text-lg font-medium text-[var(--color-fg-1)]">Resumen por antigüedad</h3>
  <div className="space-y-3">
  {agingData.map((bucket) => (
- <div key={bucket.name} className="flex items-center justify-between rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+ <div key={bucket.key} className="flex items-center justify-between rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
  <div>
- <p className="text-sm font-medium text-[var(--color-fg-1)]">{bucket.name}</p>
+ <p className="text-sm font-medium text-[var(--color-fg-1)]">{bucket.label}</p>
  <p className="text-xs text-[var(--color-fg-3)]">{bucket.count} documentos</p>
  </div>
  <span className={`text-sm font-medium ${cfg.accentClass}`}>{formatCurrency(bucket.amount)}</span>

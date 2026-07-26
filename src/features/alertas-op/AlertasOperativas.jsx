@@ -17,7 +17,8 @@ import { usePayables } from '../../hooks/usePayables';
 import { useAuth } from '../../hooks/useAuth';
 import { useClassifier } from '../../hooks/useClassifier';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
-import { useForwardProjection } from '../../hooks/useForwardProjection';
+import { useCashForecast } from '../../hooks/useCashForecast';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useRecurringCosts } from '../../hooks/useRecurringCosts';
 import { usePartners } from '../../hooks/usePartners';
 import { useVehicles } from '../../hooks/useVehicles';
@@ -70,7 +71,11 @@ const AlertasOperativas = ({ user }) => {
   const { properties } = useProperties(user);
   const { inboxMovements } = useClassifier(user);
   const { rules, createRule } = useClassificationRules(user);
-  const projection = useForwardProjection(user, 90);
+  // Same forecast, same day zero (anchor-derived cash) as Resumen and
+  // /proyeccion. This view used to fall back to the stale static
+  // bankAccount.balance, so it warned about a different future than Resumen.
+  const ledger = useFinanceLedgerContext();
+  const forecast = useCashForecast(user, { ledger });
 
   const { incomeCategories, expenseCategories } = useCategories(user);
   const { costCenters } = useCostCenters(user);
@@ -215,21 +220,15 @@ const AlertasOperativas = ({ user }) => {
 
   // ─── Cash projection alert ───
   const negativeAlert = useMemo(() => {
-    const firstNegativeDay = projection.firstNegativeDay;
-    if (!firstNegativeDay) return null;
-    const negativeDate =
-      typeof firstNegativeDay === 'string' ? firstNegativeDay : firstNegativeDay.date;
-    const days = daysBetween(today, negativeDate);
+    const negativeWeek = forecast.firstNegativeWeek;
+    if (!negativeWeek) return null;
     return {
-      date: negativeDate,
-      daysFromNow: days,
-      projectedBalance:
-        typeof firstNegativeDay === 'object'
-          ? firstNegativeDay.balance
-          : projection.next30Balance,
-      endBalance: projection.projectedEndBalance,
+      date: negativeWeek.weekStart,
+      weeksFromNow: forecast.weeksToNegative,
+      projectedBalance: negativeWeek.projectedBalance,
+      endBalance: forecast.endBalance,
     };
-  }, [projection, today]);
+  }, [forecast.endBalance, forecast.firstNegativeWeek, forecast.weeksToNegative]);
 
   const allCategories = useMemo(
     () => [
@@ -517,17 +516,18 @@ const AlertasOperativas = ({ user }) => {
       {negativeAlert && (
         <Panel
           title="Saldo proyectado a negativo"
-          meta={`En ${negativeAlert.daysFromNow}d (${negativeAlert.date})`}
+          meta={`En ${negativeAlert.weeksFromNow} sem. (${negativeAlert.date})`}
         >
           <div className="flex items-start gap-4 p-4 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-1)]">
             <TrendingDown className="text-[var(--color-err)] flex-shrink-0 mt-1" size={20} />
             <div className="flex-1">
               <p className="text-[14px] text-[var(--color-fg-1)]">
-                Si los CXP/recurrentes salen como están programados, la caja queda en negativo
-                a partir del <strong>{negativeAlert.date}</strong>.
+                Si los CXP, recurrentes, nómina e IVA salen como están programados, la caja
+                queda en negativo en la semana del <strong>{negativeAlert.date}</strong>.
               </p>
               <p className="mt-2 font-mono text-[12px] text-[var(--color-fg-4)]">
-                Saldo proyectado fin de horizonte (90d): {formatCurrency(negativeAlert.endBalance)}
+                Saldo proyectado fin de horizonte ({forecast.horizonWeeks} sem.):{' '}
+                {formatCurrency(negativeAlert.endBalance)}
               </p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => navigate('/cashflow')}>

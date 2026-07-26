@@ -17,17 +17,14 @@ describe('finance engine public surface', () => {
       'deriveBalance',
       'dailyBalanceSeries',
       'detectImportGap',
-      // burn & runway
-      'computeBurn',
-      'computeRunway',
       // aging
       'agingBuckets',
+      'agingBucketList',
       // obligations
       'buildObligationsCalendar',
       // forecast
       'forecastWeeks',
-      // alerts
-      'buildAlerts',
+      'forecastHorizon',
       // calendars
       'computeEasterSunday',
       'germanBankHolidays',
@@ -47,6 +44,8 @@ describe('finance engine public surface', () => {
 
   it('re-exports the shared constants', () => {
     expect(finance.OPEN_AMOUNT_EPSILON).toBe(0.005);
-    expect(finance.CRITICAL_CREDITOR_PATTERN).toBeInstanceOf(RegExp);
+    expect(finance.AGING_BUCKET_KEYS).toEqual(['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus']);
+    expect(finance.OVERDUE_BUCKET_KEYS).toEqual(['d1_30', 'd31_60', 'd61_90', 'd90plus']);
+    expect(finance.COLLECTION_SLIP_DAYS).toBe(7);
   });
 });

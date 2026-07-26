@@ -107,10 +107,12 @@ const writeCache = (snapshot, fetchedAt) => {
 
 export const fetchCFOSnapshot = async () => {
   // The movements window must ALWAYS reach back to the bank account's
-  // balanceDate: computeCashToday() sums every movement after that date, so a
-  // cutoff later than balanceDate silently drops early movements and corrupts
-  // cash/runway/burn (this happened once the 190-day window passed Dec 2025).
-  // The 190-day lookback is only a floor for burn/forecast windows.
+  // balanceDate. Cash itself no longer comes from here — CFODashboard feeds the
+  // cash panels the shared finance ledger (canonical movements + reconciliation
+  // anchors) so /cfo matches /resumen — but the legacy balanceDate walk is still
+  // the fallback while the ledger loads, and a cutoff later than balanceDate
+  // silently drops early movements (this happened once the 190-day window passed
+  // Dec 2025). The 190-day lookback is only a floor for burn/forecast windows.
   const bankAccountPreSnap = await getDoc(settingsDoc('bankAccount'));
   const openingDate =
     (bankAccountPreSnap.exists() && bankAccountPreSnap.data().balanceDate) ||

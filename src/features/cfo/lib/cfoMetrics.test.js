@@ -308,3 +308,53 @@ describe('summarizeCFOOrder', () => {
     expect(out.dataQuality.warnings.length).toBeGreaterThan(0);
   });
 });
+
+// ── anchor-based cash: the "Cash hoy" KPI must match Resumen ────────────────
+
+describe('summarizeCFOOrder cash provenance', () => {
+  const baseSnapshot = {
+    bankAccount: {
+      bankName: 'Volksbank',
+      balance: 99999, // stale static balance — must never win over an anchor
+      balanceDate: '2026-01-01',
+      creditLineLimit: -40000,
+    },
+    bankMovements: [movement('2026-06-10', 'in', 2000), movement('2026-07-01', 'out', 500)],
+    receivables: [],
+    payables: [],
+    transactions: [],
+    recurringCosts: [],
+    projects: [],
+    budgets: [],
+  };
+
+  it('derives cash from the reconciliation anchors on the snapshot', () => {
+    const out = summarizeCFOOrder(
+      { ...baseSnapshot, anchors: [{ date: '2026-05-31', balance: 1214.2, source: 'datev' }] },
+      { asOfDate: '2026-07-26' },
+    );
+    expect(out.cash.cashToday).toBe(2714.2);
+    expect(out.cash.source).toBe('anchors');
+    expect(out.cash.balanceDate).toBe('2026-05-31');
+  });
+
+  it('reads cash from an explicit cashSnapshot when the caller supplies one', () => {
+    const out = summarizeCFOOrder(baseSnapshot, {
+      asOfDate: '2026-07-26',
+      cashSnapshot: {
+        bankAccount: baseSnapshot.bankAccount,
+        bankMovements: [movement('2026-06-10', 'in', 10)],
+        anchors: [{ date: '2026-05-31', balance: 1000, source: 'datev' }],
+      },
+    });
+    expect(out.cash.cashToday).toBe(1010);
+    // Movement stats still come from the snapshot, not the cash source.
+    expect(out.bankMovements.count).toBe(2);
+  });
+
+  it('marks cash as legacy when nothing is reconciled', () => {
+    const out = summarizeCFOOrder(baseSnapshot, { asOfDate: '2026-07-26' });
+    expect(out.cash.source).toBe('legacy');
+    expect(out.cash.cashToday).toBe(101499);
+  });
+});

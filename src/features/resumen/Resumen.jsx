@@ -3,7 +3,7 @@
  *
  * ONE focused, scannable view that answers a single question: how is the
  * company doing? It is a presentational composition over existing engines
- * (useTreasuryMetrics, useForwardProjection, runway.js, payrollAllocation) plus
+ * (useTreasuryMetrics, useCashForecast, runway.js, payrollAllocation) plus
  * two tiny pure helpers (computeMonthlyResult, selectDueWithinDays).
  *
  * Four blocks, top to bottom:
@@ -18,6 +18,7 @@
  * comments are English. NEXUS.OS tokens only; accent reserved for highlights.
  */
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -27,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
-import { useForwardProjection } from '../../hooks/useForwardProjection';
+import { useCashForecast } from '../../hooks/useCashForecast';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
@@ -35,7 +36,7 @@ import { useTreasurySettings } from '../../hooks/useTreasurySettings';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
-import { agingBuckets, forecastWeeks } from '../../lib/finance';
+import { agingBuckets } from '../../lib/finance';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
 import {
@@ -102,11 +103,10 @@ const Resumen = ({ user }) => {
   // inline — cheaper and simpler than a second hook instance.
   const ledger = useFinanceLedgerContext();
   const metrics = useTreasuryMetrics({ user, payrollByProject, ledger });
-  // Anchor-derived cash feeds the projection so "day zero" starts from the
-  // reconciled balance, not the stale static one.
-  const projection = useForwardProjection(user, 90, {
-    startingBalance: metrics.loading ? undefined : metrics.currentCash,
-  });
+  // The single cash forecast. It starts from the anchor-derived cash on its
+  // own, so this view no longer injects a balance — every screen that reads
+  // this hook projects from the same day zero by construction.
+  const forecast = useCashForecast(user, { ledger });
   const { alertBufferEur } = useTreasurySettings(user);
 
   const now = useMemo(() => new Date(), []);
@@ -123,16 +123,9 @@ const Resumen = ({ user }) => {
     const openPayables = (metrics.payables || []).filter(
       (p) => (p.openAmount || 0) > 0.005 && p.status !== 'cancelled',
     );
-    const forecast = forecastWeeks({
-      startBalance: metrics.currentCash ?? 0,
-      today: todayIso,
-      receivables: openReceivables,
-      payables: openPayables,
-      obligations: projection.obligations || [],
-    });
     return buildResumenAlerts({
       position: { balance: metrics.currentCash ?? 0, anchor: metrics.cashMeta?.anchor ?? null },
-      forecast,
+      forecast: forecast.weeks,
       receivablesAging: agingBuckets({ docs: openReceivables, today: todayIso }),
       payablesAging: agingBuckets({ docs: openPayables, today: todayIso }),
       importGap: metrics.cashMeta?.importGap ?? { hasGap: false },
@@ -145,43 +138,35 @@ const Resumen = ({ user }) => {
         creditFloorEur: metrics.bankAccount?.creditLineLimit ?? 0,
       },
     });
-  }, [alertBufferEur, canSeePayroll, metrics, now, payrollPeriods, projection.obligations]);
+  }, [alertBufferEur, canSeePayroll, forecast.weeks, metrics, now, payrollPeriods]);
 
   // ── Block 1: cash + runway ─────────────────────────────────────────────────
   const currentCash = metrics.currentCash ?? 0;
   const runwayMonths = metrics.runwayMonths; // avg cash-burn estimate; null when no burn
-  const firstNegativeDay = projection.firstNegativeDay; // { date, balance } | undefined
 
-  // Prefer the COMMITTED-outflow wall: the forward projection buckets open
-  // payables (incl. unpaid payroll) by dueDate, so the day cash hits 0 is the
-  // real, payroll-aware runway. Fall back to the average-burn estimate only when
-  // cash never goes negative within the projection horizon.
-  const daysToNegative = firstNegativeDay
-    ? Math.max(
-        0,
-        Math.round(
-          (new Date(`${firstNegativeDay.date}T00:00:00Z`) -
-            new Date(`${now.toISOString().slice(0, 10)}T00:00:00Z`)) /
-            86400000,
-        ),
-      )
-    : null;
+  // Prefer the COMMITTED-outflow wall: the forecast buckets open payables
+  // (incl. unpaid payroll), recurring costs and VAT by due week, so the week
+  // cash hits 0 is the real, payroll-aware runway. Fall back to the
+  // average-burn estimate only when cash never goes negative in the horizon.
+  const weeksToNegative = forecast.weeksToNegative; // 0-based week index | null
 
   const runwayValue =
-    daysToNegative != null
-      ? `${Math.round(daysToNegative / 7)} sem.`
+    weeksToNegative != null
+      ? `${weeksToNegative} sem.`
       : runwayMonths == null
         ? 'Sin gasto'
         : `${runwayMonths.toLocaleString('es-ES', { maximumFractionDigits: 1 })} meses`;
   const runwayMeta =
-    daysToNegative != null
-      ? 'Hasta caja en 0 (nómina y vencimientos incluidos)'
+    weeksToNegative != null
+      ? 'Hasta caja en 0 (nómina, recurrentes, IVA y vencimientos incluidos)'
       : runwayMonths == null
         ? 'No hay salidas para proyectar'
         : 'Al ritmo de gasto promedio';
+  // 9 weeks ≈ the 60-day alarm this KPI used before the forecast moved to
+  // weekly buckets, so the threshold for "critical" is unchanged in practice.
   const runwayCritical =
-    daysToNegative != null
-      ? daysToNegative < 60
+    weeksToNegative != null
+      ? weeksToNegative < 9
       : runwayMonths != null && runwayMonths < CRITICAL_RUNWAY_MONTHS;
 
   // ── Block 2: monthly result WITH payroll ───────────────────────────────────
@@ -249,14 +234,14 @@ const Resumen = ({ user }) => {
     // Estimated fiscal obligations (IVA / SV / Lohnsteuer / nómina) that are
     // not yet materialized as payables join the same list, flagged "estimado".
     const estimated = selectUpcomingObligations(
-      projection.obligations || [],
+      forecast.obligations || [],
       DUE_WINDOW_DAYS,
       now,
     );
     return [...documents, ...estimated]
       .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
       .slice(0, UPCOMING_LIMIT);
-  }, [metrics.payables, now, projection.obligations]);
+  }, [forecast.obligations, metrics.payables, now]);
   const upcomingReceivables = useMemo(
     () =>
       selectDueWithinDays(
@@ -381,15 +366,16 @@ const Resumen = ({ user }) => {
           />
         </KPIGrid>
 
-        {firstNegativeDay && (
+        {forecast.firstNegativeWeek && (
           <div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-err)]/40 bg-[var(--color-bg-2)] px-4 py-3">
             <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[var(--color-err)]" />
             <div>
               <p className="font-mono text-[12px] text-[var(--color-err)]">
-                Caja en negativo el {formatDate(firstNegativeDay.date)}
+                Caja en negativo la semana del {formatDate(forecast.firstNegativeWeek.weekStart)}
               </p>
               <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-                Saldo proyectado {formatCurrency(firstNegativeDay.balance)} según vencimientos comprometidos.
+                Saldo proyectado {formatCurrency(forecast.firstNegativeWeek.projectedBalance)} con
+                cobros estimados a {forecast.collectionSlipDays} días del vencimiento.
               </p>
             </div>
           </div>
