@@ -225,6 +225,41 @@ describe('finance adapters bank movement mapping', () => {
     });
     expect(movement.postedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(movement.valueDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(movement.costScope).toBe('');
+  });
+
+  // Every movement reaching the UI is adapted first (useBankMovements), so a
+  // cost destination that does not survive this mapping is invisible to the
+  // classification inbox and undercounts the coverage widget.
+  it('carries the stored cost destination through to the UI', () => {
+    const overhead = adaptBankMovementDoc({
+      id: 'bank-overhead',
+      direction: 'out',
+      amount: 1200,
+      costScope: 'overhead',
+      categoryName: 'Impuestos',
+    });
+    expect(overhead.costScope).toBe('overhead');
+
+    const site = adaptBankMovementDoc({
+      id: 'bank-site',
+      direction: 'out',
+      amount: 800,
+      costScope: 'project',
+      projectId: 'proj-1',
+      projectName: 'QFF',
+    });
+    expect(site.costScope).toBe('project');
+  });
+
+  it('drops an unrecognized cost destination instead of propagating it', () => {
+    const movement = adaptBankMovementDoc({
+      id: 'bank-garbage',
+      direction: 'out',
+      amount: 10,
+      costScope: 'nonsense',
+    });
+    expect(movement.costScope).toBe('');
   });
 });
 

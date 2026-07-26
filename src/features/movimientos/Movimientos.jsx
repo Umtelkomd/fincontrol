@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
  Search,
  ArrowUpRight,
@@ -23,7 +23,24 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
+import { classificationCoverage, isClassified } from '../../finance/costScope';
 import CanonicalRecordModal from '../../components/finance/CanonicalRecordModal';
+import { buildMovementEditRecord } from './movementRecordUtils';
+import { filterMovements } from './movementFilters';
+import {
+ formatBulkResult,
+ movementDestinationLabel,
+ resolveProjectName,
+} from './bulkClassification';
+import {
+ pageSelectionState,
+ pruneSelection,
+ selectableMovementIds,
+ setPageSelection,
+ toggleMovementSelection,
+} from './movementSelection';
+import BulkClassifyBar from './BulkClassifyBar';
+import ClassificationCoverage from '../classifier/ClassificationCoverage';
 import MovementDetailModal from '../../components/ui/MovementDetailModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
@@ -33,24 +50,8 @@ const PAGE_SIZE = 50;
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-const buildMovementEditRecord = (movement) => {
- if (!movement) return null;
- return {
- ...movement,
- id: `movement:${movement.id}`,
- entityId: movement.id,
- rawRecord: movement,
- recordFamily: 'movement',
- recordFamilyLabel: 'Banco',
- date: movement.postedDate || movement.valueDate,
- amount: Number(movement.amount) || 0,
- categoryLabel: movement.categoryName || movement.kind || 'Movimiento bancario',
- canEdit: movement.status !== 'void',
- };
-};
-
 const Movimientos = ({ user }) => {
- const { bankMovements, loading, updateBankMovement } = useBankMovements(user);
+ const { bankMovements, loading, updateBankMovement, bulkClassify } = useBankMovements(user);
  const { receivables } = useReceivables(user);
  const { payables } = usePayables(user);
  const { expenseCategories, incomeCategories } = useCategories(user);
@@ -89,42 +90,13 @@ const Movimientos = ({ user }) => {
  const [pendingEditConfirmation, setPendingEditConfirmation] = useState(null);
  const [submittingMovementEdit, setSubmittingMovementEdit] = useState(false);
  const [ruleSeedMovement, setRuleSeedMovement] = useState(null);
+ const [selectedIds, setSelectedIds] = useState([]);
+ const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
- const filtered = useMemo(() => {
- const q = searchQuery.trim().toLowerCase();
- return (bankMovements || []).filter((m) => {
- if (year !== 'all') {
- if (!(m.postedDate || '').startsWith(year)) return false;
- }
- if (month !== 'all') {
- const mm = (m.postedDate || '').slice(5, 7);
- if (mm !== String(month).padStart(2, '0')) return false;
- }
- if (direction !== 'all' && m.direction !== direction) return false;
-
- const isClassified = !!(m.categoryName || m.costCenterId || m.projectId);
- const isReconciled = !!(m.receivableId || m.payableId);
- const isVoid = m.status === 'void';
-
- if (statusFilter === 'classified' && !isClassified) return false;
- if (statusFilter === 'unclassified' && isClassified) return false;
- if (statusFilter === 'reconciled' && !isReconciled) return false;
- if (statusFilter === 'void' && !isVoid) return false;
- if (statusFilter !== 'void' && isVoid) return false;
-
- if (q) {
- const haystack = [
- m.description,
- m.counterpartyName,
- m.categoryName,
- m.projectName,
- String(m.amount || ''),
- ].join(' ').toLowerCase();
- if (!haystack.includes(q)) return false;
- }
- return true;
- }).sort((a, b) => (b.postedDate || '').localeCompare(a.postedDate || ''));
- }, [bankMovements, year, month, direction, statusFilter, searchQuery]);
+ const filtered = useMemo(
+ () => filterMovements(bankMovements, { year, month, direction, statusFilter, searchQuery }),
+ [bankMovements, year, month, direction, statusFilter, searchQuery],
+ );
 
  const stats = useMemo(() => {
  const total = filtered.length;
@@ -132,7 +104,7 @@ const Movimientos = ({ user }) => {
  const outflows = filtered.filter((m) => m.direction === 'out');
  const inSum = inflows.reduce((s, m) => s + (Number(m.amount) || 0), 0);
  const outSum = outflows.reduce((s, m) => s + (Number(m.amount) || 0), 0);
- const classified = filtered.filter((m) => !!(m.categoryName || m.costCenterId || m.projectId)).length;
+ const classified = filtered.filter(isClassified).length;
  const reconciled = filtered.filter((m) => !!(m.receivableId || m.payableId)).length;
  return {
  total,
@@ -146,14 +118,44 @@ const Movimientos = ({ user }) => {
  };
  }, [filtered]);
 
+ // Coverage is measured over the WHOLE ledger, so the number matches the
+ // classifier inbox no matter which filters are active here.
+ const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
+
  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
  const safePage = Math.min(page, totalPages);
  const pageStart = (safePage - 1) * PAGE_SIZE;
  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
- const resolveProjectName = (projectId) => {
- const project = projects.find((entry) => entry.id === projectId);
- return project?.name || project?.displayName || project?.code || projectId || '';
+ // A filter change can hide selected rows; never bulk-write what the user
+ // can no longer see. Void movements are cancelled and never selectable, so
+ // filtering to "Anulados" and selecting the page writes nothing.
+ const selectableIds = useMemo(() => selectableMovementIds(filtered), [filtered]);
+ const activeSelection = useMemo(
+ () => pruneSelection(selectedIds, selectableIds),
+ [selectedIds, selectableIds],
+ );
+ const selectionSet = useMemo(() => new Set(activeSelection), [activeSelection]);
+ const selectedMovements = useMemo(
+ () => filtered.filter((m) => selectionSet.has(m.id)),
+ [filtered, selectionSet],
+ );
+ const pageIds = useMemo(() => selectableMovementIds(pageRows), [pageRows]);
+ const headerSelection = pageSelectionState(activeSelection, pageIds);
+
+ const toggleRow = (id) => setSelectedIds((current) => toggleMovementSelection(current, id));
+ const togglePage = (selected) =>
+ setSelectedIds((current) => setPageSelection(current, pageIds, selected));
+
+ const handleBulkApply = async (payload) => {
+ if (activeSelection.length === 0) return { success: false };
+ setBulkSubmitting(true);
+ const result = await bulkClassify(activeSelection, payload);
+ setBulkSubmitting(false);
+ const { message, tone } = formatBulkResult(result);
+ showToast(message, tone);
+ if (result?.success) setSelectedIds([]);
+ return result;
  };
 
  const executeMovementEdit = async (formData) => {
@@ -164,7 +166,7 @@ const Movimientos = ({ user }) => {
  const result = await updateBankMovement(editingMovement.id, {
  ...formData,
  amount: Number(formData.amount) || 0,
- projectName: resolveProjectName(formData.projectId),
+ projectName: resolveProjectName(projects, formData.projectId),
  });
  if (!result?.success) {
  throw result?.error || new Error('No se pudo actualizar el movimiento');
@@ -239,6 +241,20 @@ const Movimientos = ({ user }) => {
  </p>
  </div>
  </header>
+
+ <ClassificationCoverage
+ coverage={coverage}
+ action={
+ <Button
+ variant="secondary"
+ size="sm"
+ icon={Filter}
+ onClick={() => resetFilter(() => setStatusFilter('unclassified'))}
+ >
+ Ver sin clasificar
+ </Button>
+ }
+ />
 
  <KPIGrid cols={4}>
  <KPI label="Total filtrado" value={stats.total} meta={`${stats.classified} clasificados`} icon={Database} />
@@ -315,6 +331,18 @@ const Movimientos = ({ user }) => {
  </div>
  </div>
 
+ {activeSelection.length > 0 && (
+ <BulkClassifyBar
+ selectedMovements={selectedMovements}
+ categories={allCategories}
+ costCenters={costCenters || []}
+ projects={projects || []}
+ onApply={handleBulkApply}
+ onClear={() => setSelectedIds([])}
+ submitting={bulkSubmitting}
+ />
+ )}
+
  {/* ─── Table ─── */}
  <Panel
  title="Movimientos"
@@ -339,12 +367,20 @@ const Movimientos = ({ user }) => {
  <table className="nx-table w-full">
  <thead>
  <tr>
+ <th className="w-8 text-center">
+ <SelectAllCheckbox
+ state={headerSelection}
+ onChange={togglePage}
+ disabled={bulkSubmitting}
+ />
+ </th>
  <th>Fecha</th>
  <th>Concepto</th>
  <th>Contraparte</th>
  <th>Categoría</th>
  <th>CC</th>
  <th>Proyecto</th>
+ <th>Destino</th>
  <th className="text-right">Monto</th>
  <th className="text-center">Estado</th>
  <th className="text-right">Acciones</th>
@@ -354,11 +390,26 @@ const Movimientos = ({ user }) => {
  {pageRows.map((m) => {
  const isIn = m.direction === 'in';
  const isReconciled = !!(m.receivableId || m.payableId);
- const isClassified = !!(m.categoryName || m.costCenterId || m.projectId);
+ const classified = isClassified(m);
  const isVoid = m.status === 'void';
  const isRecurring = !!m.recurringCostId;
+ const destination = movementDestinationLabel(m);
  return (
   <tr key={m.id} {...rowButtonProps(() => setDetailMovement(m))}>
+ <td className="text-center" onClick={(e) => e.stopPropagation()}>
+ <input
+ type="checkbox"
+ className="h-3.5 w-3.5 cursor-pointer accent-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-40"
+ checked={selectionSet.has(m.id)}
+ disabled={bulkSubmitting || isVoid}
+ onChange={() => toggleRow(m.id)}
+ aria-label={
+ isVoid
+ ? `Movimiento anulado, no seleccionable: ${m.description || m.id}`
+ : `Seleccionar movimiento ${m.description || m.id}`
+ }
+ />
+ </td>
  <td className="font-mono text-[var(--color-fg-3)] whitespace-nowrap">{m.postedDate}</td>
  <td>
  <div className="flex items-start gap-2">
@@ -381,6 +432,7 @@ const Movimientos = ({ user }) => {
  <td className="text-[var(--color-fg-3)]">{m.categoryName || <span className="text-[var(--color-fg-4)]">—</span>}</td>
  <td className="text-[var(--color-fg-3)] font-mono text-[12px]">{m.costCenterId || <span className="text-[var(--color-fg-4)]">—</span>}</td>
  <td className="text-[var(--color-fg-3)] truncate max-w-[140px]">{m.projectName || m.projectId || <span className="text-[var(--color-fg-4)]">—</span>}</td>
+ <td className={destination === '—' ? 'text-[var(--color-fg-4)]' : 'text-[var(--color-fg-3)]'}>{destination}</td>
  <td className={`text-right font-mono tabular-nums ${isIn ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}`}>
  {isIn ? '+' : '-'}{formatCurrency(m.amount)}
  </td>
@@ -389,7 +441,7 @@ const Movimientos = ({ user }) => {
  <Badge variant="err" dot>Anulado</Badge>
  ) : isReconciled ? (
  <Badge variant="ok" dot>Conciliado</Badge>
- ) : isClassified ? (
+ ) : classified ? (
  <Badge variant="info" dot>Clasificado</Badge>
  ) : (
  <Badge variant="warn" dot>Sin clasificar</Badge>
@@ -526,6 +578,30 @@ const Movimientos = ({ user }) => {
  pendingMovements={inboxMovements}
  />
  </div>
+ );
+};
+
+/**
+ * Header checkbox for the current page. `indeterminate` is a DOM property,
+ * not an attribute, so it has to be set imperatively.
+ */
+const SelectAllCheckbox = ({ state, onChange, disabled }) => {
+ const ref = useRef(null);
+
+ useEffect(() => {
+ if (ref.current) ref.current.indeterminate = state === 'partial';
+ }, [state]);
+
+ return (
+ <input
+ ref={ref}
+ type="checkbox"
+ className="h-3.5 w-3.5 cursor-pointer accent-[var(--color-accent)]"
+ checked={state === 'all'}
+ disabled={disabled}
+ onChange={(e) => onChange(e.target.checked)}
+ aria-label="Seleccionar todos los movimientos de la página"
+ />
  );
 };
 

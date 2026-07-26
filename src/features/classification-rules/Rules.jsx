@@ -9,6 +9,7 @@ import {
   ToggleRight,
   PlayCircle,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useClassifier } from '../../hooks/useClassifier';
@@ -16,7 +17,10 @@ import { useCategories } from '../../hooks/useCategories';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { useProjects } from '../../hooks/useProjects';
 import { useToast } from '../../contexts/ToastContext';
+import { COST_SCOPE } from '../../finance/costScope';
 import { matchRule } from '../../finance/ruleEngine';
+import { selectMissingSeedRules } from '../../finance/ruleAuthoring';
+import { seedRuleToDoc } from '../../finance/seedRules';
 import { rowButtonProps } from '../../utils/a11y';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
@@ -36,6 +40,10 @@ const DIRECTION_LABELS = {
   both: 'Ambas',
   in: 'Ingreso',
   out: 'Gasto',
+};
+const COST_SCOPE_LABELS = {
+  [COST_SCOPE.PROJECT]: 'Obra',
+  [COST_SCOPE.OVERHEAD]: 'Estructura',
 };
 
 const Rules = ({ user }) => {
@@ -62,6 +70,8 @@ const Rules = ({ user }) => {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmApplyAll, setConfirmApplyAll] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [confirmImportSeeds, setConfirmImportSeeds] = useState(false);
+  const [importingSeeds, setImportingSeeds] = useState(false);
 
   const allCategories = useMemo(
     () => [
@@ -106,8 +116,33 @@ const Rules = ({ user }) => {
     };
   }, [rules, rulesWithStats]);
 
+  // Idempotent bootstrap of the starter catalog. A seed is considered "already
+  // there" when an existing rule matches on field + pattern (see ruleSeedKey),
+  // so a renamed seed is never re-created.
+  const missingSeeds = useMemo(() => selectMissingSeedRules(rules), [rules]);
+
   const handleCreate = async (data) => createRule(data);
   const handleUpdate = async (data) => updateRule(editingRule.id, data);
+
+  const handleImportSeeds = async () => {
+    if (importingSeeds) return;
+    setImportingSeeds(true);
+    const { toCreate, skipped } = selectMissingSeedRules(rules);
+    let created = 0;
+    for (const seed of toCreate) {
+      const result = await createRule(seedRuleToDoc(seed, user?.email));
+      if (result.success) created += 1;
+    }
+    const failed = toCreate.length - created;
+    setImportingSeeds(false);
+    setConfirmImportSeeds(false);
+    showToast(
+      failed > 0
+        ? `Reglas predefinidas: ${created} creadas, ${skipped} ya existían, ${failed} con error`
+        : `Reglas predefinidas: ${created} creadas, ${skipped} ya existían`,
+      failed > 0 ? 'warning' : created > 0 ? 'success' : 'info',
+    );
+  };
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
@@ -153,7 +188,19 @@ const Rules = ({ user }) => {
             automáticamente según contraparte o descripción. Tu bandeja queda más chica cada semana.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="secondary"
+            icon={Download}
+            onClick={() => setConfirmImportSeeds(true)}
+            disabled={importingSeeds || missingSeeds.toCreate.length === 0}
+            loading={importingSeeds}
+            title="Crear las reglas de arranque para las contrapartes más frecuentes — idempotente"
+          >
+            {importingSeeds
+              ? 'Importando…'
+              : `Importar reglas predefinidas (${missingSeeds.toCreate.length})`}
+          </Button>
           <Button
             variant="secondary"
             icon={PlayCircle}
@@ -280,6 +327,11 @@ const Rules = ({ user }) => {
                         {r.applyTo?.projectName && (
                           <Badge variant="neutral">{r.applyTo.projectName}</Badge>
                         )}
+                        {r.applyTo?.costScope && (
+                          <Badge variant={r.applyTo.costScope === COST_SCOPE.OVERHEAD ? 'warn' : 'ok'}>
+                            {COST_SCOPE_LABELS[r.applyTo.costScope]}
+                          </Badge>
+                        )}
                       </div>
                     </td>
                     <td>
@@ -353,6 +405,16 @@ const Rules = ({ user }) => {
         message={`¿Seguro que querés eliminar "${confirmDelete?.name || confirmDelete?.pattern}"? Los movimientos ya clasificados por esta regla NO se modifican.`}
         confirmText="Eliminar"
         variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={confirmImportSeeds}
+        onClose={() => setConfirmImportSeeds(false)}
+        onConfirm={handleImportSeeds}
+        title="Importar reglas predefinidas"
+        message={`Se van a crear ${missingSeeds.toCreate.length} regla(s) de arranque para las contrapartes más frecuentes (Finanzkasse, AOK, UTA, RCI, Telefónica, Amazon, Adyen, Volksbank, Kinder und Partner). Todas marcan el gasto como estructura, sin proyecto. Las que ya existen se saltan: ${missingSeeds.skipped} ya están.`}
+        confirmText={importingSeeds ? 'Importando…' : 'Importar'}
+        variant="primary"
       />
 
       <ConfirmModal

@@ -1,4 +1,5 @@
 import { MOVEMENT_KIND, MOVEMENT_STATUS } from './constants';
+import { isCostScope } from './costScope';
 import {
   clampMoney,
   deriveDocumentStage,
@@ -173,6 +174,9 @@ export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
     netAmount,
     taxAmount,
     categoryName: raw.categoryName || raw.category || '',
+    // Cost destination: 'project' (obra) or 'overhead' (estructura). Anything
+    // else is dropped so a malformed doc cannot be read back as a real scope.
+    costScope: isCostScope(raw.costScope) ? raw.costScope : '',
     raw,
   };
 };

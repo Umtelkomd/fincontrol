@@ -52,3 +52,6 @@ _design/
 *.zip
 # Local Pi runtime state
 .atl/
+
+# CodeGraph local index (per-checkout, never shared)
+.codegraph/

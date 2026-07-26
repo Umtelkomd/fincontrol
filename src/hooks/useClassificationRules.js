@@ -16,6 +16,7 @@ import {
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 import {
+  normalizeRuleApplyTo,
   RULE_DIRECTIONS,
   RULE_FIELDS,
   RULE_MATCH_TYPES,
@@ -65,12 +66,7 @@ export const useClassificationRules = (user) => {
             direction: RULE_DIRECTIONS.includes(raw.direction) ? raw.direction : 'both',
             amountMin: raw.amountMin == null ? null : num(raw.amountMin, null),
             amountMax: raw.amountMax == null ? null : num(raw.amountMax, null),
-            applyTo: {
-              categoryName: raw.applyTo?.categoryName || '',
-              costCenterId: raw.applyTo?.costCenterId || '',
-              projectId: raw.applyTo?.projectId || '',
-              projectName: raw.applyTo?.projectName || '',
-            },
+            applyTo: normalizeRuleApplyTo(raw.applyTo),
             active: raw.active !== false,
             priority: num(raw.priority, 100),
             hits: num(raw.hits, 0),
@@ -107,12 +103,9 @@ export const useClassificationRules = (user) => {
       direction: RULE_DIRECTIONS.includes(data.direction) ? data.direction : 'both',
       amountMin: num(data.amountMin, null),
       amountMax: num(data.amountMax, null),
-      applyTo: {
-        categoryName: (data.applyTo?.categoryName || '').trim(),
-        costCenterId: (data.applyTo?.costCenterId || '').trim(),
-        projectId: (data.applyTo?.projectId || '').trim(),
-        projectName: (data.applyTo?.projectName || '').trim(),
-      },
+      // Read and write go through the same normalizer, so a field can never be
+      // persisted on one side of the round-trip and dropped on the other.
+      applyTo: normalizeRuleApplyTo(data.applyTo),
       active: data.active !== false,
       priority: Math.max(0, Math.floor(num(data.priority, 100) || 100)),
       notes: (data.notes || '').trim(),

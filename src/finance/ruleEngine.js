@@ -21,6 +21,8 @@
  * The engine is fully stateless — Firestore writes happen in the calling hook.
  */
 
+import { isCostScope, normalizeCostScope } from './costScope.js';
+
 const norm = (s) => String(s || '').toLowerCase().trim();
 
 const fieldValue = (movement, field) => {
@@ -109,6 +111,11 @@ export const findBestRule = (movement, rules) => {
 /**
  * buildClassificationPayload — produce the partial update to apply on a movement.
  * Only includes non-empty fields — never overrides existing data with blanks.
+ *
+ * `costScope` follows the same never-overwrite semantics: it is only applied
+ * when the rule carries a valid COST_SCOPE value and the movement has no
+ * destination yet — including the legacy ones derived from an "Overhead"
+ * project name or a bare projectId.
  */
 export const buildClassificationPayload = (rule, movement) => {
   if (!rule || !rule.applyTo) return {};
@@ -118,6 +125,7 @@ export const buildClassificationPayload = (rule, movement) => {
   if (apply.costCenterId && !movement?.costCenterId) out.costCenterId = apply.costCenterId;
   if (apply.projectId && !movement?.projectId) out.projectId = apply.projectId;
   if (apply.projectName && !movement?.projectName) out.projectName = apply.projectName;
+  if (isCostScope(apply.costScope) && !normalizeCostScope(movement)) out.costScope = apply.costScope;
   return out;
 };
 

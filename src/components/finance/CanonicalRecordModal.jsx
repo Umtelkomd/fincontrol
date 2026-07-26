@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
+import { buildInitialFormData } from './canonicalRecordForm';
 
 const fieldClassName =
  'w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-[13px] text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:';
@@ -17,22 +18,6 @@ const STATUS_WARNINGS = {
   cancelled: 'Cancelar la orden cierra el importe abierto a cero.',
   partial: '',
 };
-
-const buildInitialFormData = (record) => ({
- direction: record?.rawRecord?.direction || 'in',
- amount: String(record?.amount ?? ''),
- postedDate: record?.rawRecord?.postedDate || record?.date || '',
- issueDate: record?.rawRecord?.issueDate || record?.date || '',
- dueDate: record?.rawRecord?.dueDate || '',
- description: record?.rawRecord?.description || record?.description || '',
- counterpartyName: record?.rawRecord?.counterpartyName || record?.counterpartyName || '',
- documentNumber: record?.rawRecord?.documentNumber || record?.documentNumber || '',
- projectId: record?.rawRecord?.projectId || '',
- costCenterId: record?.rawRecord?.costCenterId || '',
- categoryName: record?.rawRecord?.categoryName || record?.categoryLabel || '',
- forceStatus: '',
- correctionReason: '',
-});
 
 const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = [], costCenters = [], categories = [], submitting = false, userRole = '' }) => {
  const [formData, setFormData] = useState(() => buildInitialFormData(record));

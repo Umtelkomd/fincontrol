@@ -2,10 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, Save, Wand2, Sparkles } from 'lucide-react';
 import {
   classificationRuleDefaults,
+  normalizeRuleApplyTo,
   RULE_DIRECTIONS,
   RULE_FIELDS,
   RULE_MATCH_TYPES,
 } from '../../finance/assetSchemas';
+import { COST_SCOPE, normalizeCostScope } from '../../finance/costScope';
+import { applyCostScopeToRuleForm, validateRuleForm } from '../../finance/ruleAuthoring';
 import { matchRule } from '../../finance/ruleEngine';
 import { Button, Badge } from '@/components/ui/nexus';
 import { formatCurrency } from '../../utils/formatters';
@@ -27,6 +30,12 @@ const DIRECTION_LABELS = {
   in: 'Solo ingresos',
   out: 'Solo gastos',
 };
+
+const COST_SCOPE_OPTIONS = [
+  { value: '', label: '— Sin definir —' },
+  { value: COST_SCOPE.PROJECT, label: 'Obra (proyecto)' },
+  { value: COST_SCOPE.OVERHEAD, label: 'Estructura (overhead)' },
+];
 
 /**
  * RuleFormModal — create/edit a classificationRule.
@@ -55,7 +64,13 @@ const RuleFormModal = ({
   useEffect(() => {
     if (!isOpen) return;
     if (editingRule) {
-      setForm({ ...classificationRuleDefaults(), ...editingRule });
+      setForm({
+        ...classificationRuleDefaults(),
+        ...editingRule,
+        // Rules written before costScope existed have no such key — normalizing
+        // keeps the select controlled instead of flipping it to uncontrolled.
+        applyTo: normalizeRuleApplyTo(editingRule.applyTo),
+      });
     } else if (seedMovement) {
       const cp = (seedMovement.counterpartyName || '').trim();
       setForm({
@@ -65,12 +80,13 @@ const RuleFormModal = ({
         matchType: cp ? 'contains' : 'contains',
         pattern: cp,
         direction: seedMovement.direction === 'in' ? 'in' : 'out',
-        applyTo: {
+        applyTo: normalizeRuleApplyTo({
           categoryName: seedMovement.categoryName || '',
           costCenterId: seedMovement.costCenterId || '',
           projectId: seedMovement.projectId || '',
           projectName: seedMovement.projectName || '',
-        },
+          costScope: normalizeCostScope(seedMovement),
+        }),
       });
     } else {
       setForm(classificationRuleDefaults());
@@ -95,23 +111,21 @@ const RuleFormModal = ({
     setForm((f) => ({ ...f, applyTo: { ...f.applyTo, projectId: id, projectName: name } }));
   };
 
+  // Choosing "estructura" drops the project — an overhead rule must never
+  // assign one. The pairing lives in applyCostScopeToRuleForm (unit-tested).
+  const setCostScope = (scope) => setForm((f) => applyCostScopeToRuleForm(f, scope));
+
+  const isOverhead = form.applyTo.costScope === COST_SCOPE.OVERHEAD;
+  // Site work always carries a project — validateRuleForm rejects the pair
+  // (destino = Obra, proyecto vacío), so the field is marked required here too.
+  const isProjectScope = form.applyTo.costScope === COST_SCOPE.PROJECT;
+
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    if (!form.pattern.trim()) {
-      setError('Ingresá un patrón a buscar');
+    const { valid, error: validationError } = validateRuleForm(form);
+    if (!valid) {
+      setError(validationError);
       return;
-    }
-    if (!form.applyTo.categoryName && !form.applyTo.costCenterId && !form.applyTo.projectId) {
-      setError('Definí al menos un campo a aplicar (categoría / centro / proyecto)');
-      return;
-    }
-    if (form.matchType === 'regex') {
-      try {
-        new RegExp(form.pattern);
-      } catch {
-        setError('La expresión regular no es válida');
-        return;
-      }
     }
     setSubmitting(true);
     const result = await onSubmit(form);
@@ -142,7 +156,7 @@ const RuleFormModal = ({
                 {editingRule ? 'Editar regla' : 'Nueva regla de clasificación'}
               </h2>
               <p className="text-[12px] text-[var(--color-fg-3)]">
-                Asigná categoría/CC/proyecto automáticamente cuando un movimiento coincida.
+                Asigná categoría/CC/destino automáticamente cuando un movimiento coincida.
               </p>
             </div>
           </div>
@@ -292,12 +306,37 @@ const RuleFormModal = ({
                   })}
                 </select>
               </label>
-              <label className="block md:col-span-2">
-                <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Proyecto</span>
+              <label className="block">
+                <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
+                  Destino del coste
+                </span>
                 <select
                   className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+                  value={form.applyTo.costScope}
+                  onChange={(e) => setCostScope(e.target.value)}
+                >
+                  {COST_SCOPE_OPTIONS.map((option) => (
+                    <option key={option.value || 'none'} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[11px] text-[var(--color-fg-4)]">
+                  Estructura = impuestos, seguros, combustible, leasing, telefonía… no pertenece
+                  a ninguna obra.
+                </span>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
+                  Proyecto {isProjectScope ? '*' : ''}
+                </span>
+                <select
+                  className={`w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none ${
+                    isOverhead ? 'cursor-not-allowed opacity-50' : ''
+                  }`}
                   value={form.applyTo.projectId}
                   onChange={(e) => setProject(e.target.value)}
+                  disabled={isOverhead}
                 >
                   <option value="">— Ninguno —</option>
                   {projects.map((p) => {
@@ -308,6 +347,11 @@ const RuleFormModal = ({
                     );
                   })}
                 </select>
+                {isOverhead && (
+                  <span className="mt-1 block text-[11px] text-[var(--color-fg-4)]">
+                    Un gasto de estructura no lleva proyecto.
+                  </span>
+                )}
               </label>
             </div>
           </section>

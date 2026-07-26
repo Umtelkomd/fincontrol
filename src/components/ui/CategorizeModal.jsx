@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Tag } from 'lucide-react';
+import { X, Save, Tag, HardHat, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/nexus';
+import { COST_SCOPE, normalizeCostScope, validateClassification } from '../../finance/costScope';
 
 /**
  * CategorizeModal — for "spontaneous" bank movements that are NOT tied to
- * a CXC/CXP. User picks category + cost center + project.
+ * a CXC/CXP. User picks category + cost destination + cost center + project.
+ *
+ * The destination (Obra / Estructura) is the decision that drives the rest of
+ * the form: most real spend — taxes, health insurance, fuel, leasing, telecom
+ * — belongs to no project at all. Requiring a project on every expense left
+ * ~93% of the ledger unclassified.
+ *
+ * The rule itself lives in `validateClassification`; this component never
+ * re-implements it.
  */
 const CategorizeModal = ({
  isOpen,
@@ -20,6 +29,7 @@ const CategorizeModal = ({
  costCenterId: '',
  projectId: '',
  projectName: '',
+ costScope: '',
  });
  const [submitting, setSubmitting] = useState(false);
  const [error, setError] = useState('');
@@ -31,6 +41,9 @@ const CategorizeModal = ({
  costCenterId: movement.costCenterId || '',
  projectId: movement.projectId || '',
  projectName: movement.projectName || '',
+ // Legacy documents have no `costScope`; derive it so reopening a
+ // classified movement shows its current destination.
+ costScope: normalizeCostScope(movement),
  });
  setError('');
  }
@@ -38,17 +51,27 @@ const CategorizeModal = ({
 
  if (!isOpen || !movement) return null;
 
+ const isOutbound = movement.direction === 'out';
+ const isOverhead = isOutbound && form.costScope === COST_SCOPE.OVERHEAD;
+ const projectDisabled = isOutbound && form.costScope !== COST_SCOPE.PROJECT;
+
  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+ const selectScope = (scope) => {
+ setForm((f) => ({
+ ...f,
+ costScope: scope,
+ // Structure costs must not keep a stale project.
+ ...(scope === COST_SCOPE.OVERHEAD ? { projectId: '', projectName: '' } : {}),
+ }));
+ setError('');
+ };
 
  const handleSubmit = async (e) => {
  e.preventDefault();
- if (!form.categoryName.trim()) {
- setError('La categoría es obligatoria');
- return;
- }
- // Outbound movements need project for obra costeo (F0).
- if (movement.direction === 'out' && !form.projectId) {
- setError('El proyecto es obligatorio en gastos (control por obra)');
+ const check = validateClassification(movement, form);
+ if (!check.valid) {
+ setError(check.error);
  return;
  }
  setSubmitting(true);
@@ -108,6 +131,10 @@ const CategorizeModal = ({
  </select>
  </label>
 
+ {isOutbound && (
+ <CostScopeSelector value={form.costScope} onChange={selectScope} disabled={submitting} />
+ )}
+
  <label className="block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Centro de costo</span>
  <select
@@ -124,13 +151,19 @@ const CategorizeModal = ({
  </select>
  </label>
 
+ {isOverhead ? (
+ <p className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-2.5 text-[12px] text-[var(--color-fg-3)]">
+ Gasto de estructura — no se imputa a ninguna obra.
+ </p>
+ ) : (
  <label className="block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
- Proyecto {movement.direction === 'out' ? '*' : ''}
+ Proyecto {isOutbound ? '*' : ''}
  </span>
  <select
- className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none disabled:opacity-50"
  value={form.projectId}
+ disabled={projectDisabled}
  onChange={(e) => {
  const id = e.target.value;
  const found = projects.find((p) => p.id === id);
@@ -138,7 +171,13 @@ const CategorizeModal = ({
  setForm((f) => ({ ...f, projectId: id, projectName: name }));
  }}
  >
- <option value="">{movement.direction === 'out' ? '— Seleccionar proyecto —' : '— Sin asignar —'}</option>
+ <option value="">
+ {projectDisabled
+ ? '— Elegí primero el destino —'
+ : isOutbound
+ ? '— Seleccionar proyecto —'
+ : '— Sin asignar —'}
+ </option>
  {projects.map((p) => {
  const id = String(p.id || '');
  const label = String(p.nombre || p.name || p.codigo || p.code || id);
@@ -146,6 +185,7 @@ const CategorizeModal = ({
  })}
  </select>
  </label>
+ )}
 
  {error && <p className="text-sm text-[var(--color-err)]">{error}</p>}
 
@@ -160,5 +200,41 @@ const CategorizeModal = ({
  </div>
  );
 };
+
+/**
+ * The first and most prominent decision of the form: where the money lands.
+ * Rendered as a two-option segmented control so it cannot be skipped the way
+ * a select with a blank default can.
+ */
+const CostScopeSelector = ({ value, onChange, disabled }) => (
+ <div>
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Destino del gasto *</span>
+ <div className="grid grid-cols-2 gap-2">
+ <Button
+ variant={value === COST_SCOPE.PROJECT ? 'primary' : 'secondary'}
+ icon={HardHat}
+ disabled={disabled}
+ aria-pressed={value === COST_SCOPE.PROJECT}
+ className="w-full"
+ onClick={() => onChange(COST_SCOPE.PROJECT)}
+ >
+ Obra
+ </Button>
+ <Button
+ variant={value === COST_SCOPE.OVERHEAD ? 'primary' : 'secondary'}
+ icon={Building2}
+ disabled={disabled}
+ aria-pressed={value === COST_SCOPE.OVERHEAD}
+ className="w-full"
+ onClick={() => onChange(COST_SCOPE.OVERHEAD)}
+ >
+ Estructura
+ </Button>
+ </div>
+ <p className="mt-1.5 text-[12px] text-[var(--color-fg-4)]">
+ Estructura = impuestos, seguros, combustible, leasing, telefonía, banco. No lleva proyecto.
+ </p>
+ </div>
+);
 
 export default CategorizeModal;

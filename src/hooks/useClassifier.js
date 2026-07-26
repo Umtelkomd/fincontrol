@@ -17,6 +17,7 @@ import {
  getDocumentOpenAmount,
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
+import { isClassified, isCostScope } from '../finance/costScope';
 import { clampMoney, toISODate } from '../finance/utils';
 import { scorePayrollMatch } from '../features/nominas/lib/payrollMatch';
 import { db, appId } from '../services/firebase';
@@ -78,9 +79,10 @@ const normalizeDocuments = (documents) =>
  *   linkToPayable(movement, payable)
  *     Analogous for payables.
  *
- *   categorize(movement, { categoryName, projectId, projectName, costCenterId, employeeIds })
+ *   categorize(movement, { categoryName, costScope, projectId, projectName, costCenterId, employeeIds })
  *     For "spontaneous" movements that are NOT tied to a CXC/CXP. Just
- *     writes classification fields onto the bankMovement.
+ *     writes classification fields onto the bankMovement, including the
+ *     cost destination (`costScope`: obra vs estructura).
  *
  *   suggestMatches(movement)
  *     Pure helper: returns CXC (if direction=in) or CXP (if direction=out)
@@ -90,7 +92,8 @@ const normalizeDocuments = (documents) =>
  *   inboxMovements
  *     Memoized list of bankMovements that need action:
  *       - direction=in and !receivableId
- *       - direction=out and !payableId and !categoryName
+ *       - direction=out and !payableId and not fully classified
+ *         (see `isClassified`: category + resolved cost destination)
  */
 export const useClassifier = (user) => {
  const { bankMovements } = useBankMovements(user);
@@ -402,6 +405,9 @@ export const useClassifier = (user) => {
  const categoryName = (classification.categoryName || '').trim();
  const payload = {
  categoryName,
+ // Where the cost lands (obra / estructura). Written explicitly so the
+ // destination stops being inferred from the presence of a projectId.
+ costScope: isCostScope(classification.costScope) ? classification.costScope : '',
  projectId: classification.projectId || '',
  projectName: classification.projectName || '',
  costCenterId: classification.costCenterId || '',
@@ -475,10 +481,10 @@ export const useClassifier = (user) => {
  // Income needs link to a CXC
  return !m.receivableId;
  }
- // Outflow: needs CXP link OR explicit categorization
- const hasLink = !!m.payableId;
- const hasCategory = !!(m.categoryName || m.costCenterId);
- return !hasLink && !hasCategory;
+ // Outflow: needs a CXP link OR a complete classification. `isClassified`
+ // replaces the old `categoryName || costCenterId` check, which let a
+ // movement carrying only a cost center leave the inbox unclassified.
+ return !m.payableId && !isClassified(m);
  });
  }, [bankMovements]);
 

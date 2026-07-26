@@ -14,6 +14,8 @@
  * NOT in these schemas.
  */
 
+import { isCostScope } from './costScope.js';
+
 // ═══════════════════════════════════════════════════════════
 // Employees
 // ═══════════════════════════════════════════════════════════
@@ -345,6 +347,11 @@ export const classificationRuleDefaults = () => ({
     costCenterId: '',
     projectId: '',
     projectName: '',
+    // Where the cost lands: '' | 'project' (obra) | 'overhead' (estructura).
+    // Declared here on purpose — a key missing from the defaults was silently
+    // dropped by the form, by normalizeRuleApplyTo and by the snapshot mapper,
+    // so a seeded scope never made it back out of Firestore.
+    costScope: '',
   },
   active: true,
   priority: 100,             // Higher number = higher priority
@@ -352,3 +359,37 @@ export const classificationRuleDefaults = () => ({
   lastHitAt: '',             // ISO date of last application
   notes: '',
 });
+
+const ruleText = (value) => (typeof value === 'string' ? value.trim() : '');
+
+/**
+ * normalizeRuleApplyTo — the single shape of a rule's `applyTo` block.
+ *
+ * Used on BOTH sides of the Firestore round-trip (the onSnapshot mapper and the
+ * create/update payload) so a field can never be persisted on one side and
+ * dropped on the other. `costScope` is validated against COST_SCOPE — an
+ * unknown string collapses to '' instead of being stored verbatim.
+ */
+export const normalizeRuleApplyTo = (source) => {
+  const applyTo = source || {};
+  return {
+    categoryName: ruleText(applyTo.categoryName),
+    costCenterId: ruleText(applyTo.costCenterId),
+    projectId: ruleText(applyTo.projectId),
+    projectName: ruleText(applyTo.projectName),
+    costScope: isCostScope(applyTo.costScope) ? applyTo.costScope : '',
+  };
+};
+
+/**
+ * ruleHasClassificationTarget — does this rule actually classify anything?
+ *
+ * A cost destination counts on its own: "everything from Finanzkasse is
+ * overhead" is a useful rule even without a category.
+ */
+export const ruleHasClassificationTarget = (source) => {
+  const applyTo = normalizeRuleApplyTo(source);
+  return Boolean(
+    applyTo.categoryName || applyTo.costCenterId || applyTo.projectId || applyTo.costScope,
+  );
+};

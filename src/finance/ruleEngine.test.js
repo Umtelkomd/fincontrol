@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { COST_SCOPE } from './costScope.js';
 import {
   buildClassificationPayload,
   findBestRule,
@@ -114,6 +115,67 @@ describe('rule engine priority and payloads', () => {
     expect(buildClassificationPayload(rule({ applyTo: { categoryName: '', costCenterId: 'cc-network' } }), movement()))
       .toEqual({ costCenterId: 'cc-network' });
     expect(buildClassificationPayload(null, movement())).toEqual({});
+  });
+});
+
+describe('rule engine cost scope', () => {
+  const overheadRule = (overrides = {}) =>
+    rule({
+      applyTo: {
+        categoryName: 'Impuestos',
+        costCenterId: '',
+        projectId: '',
+        projectName: '',
+        costScope: COST_SCOPE.OVERHEAD,
+      },
+      ...overrides,
+    });
+
+  it('applies the rule cost scope when the movement has no resolved destination', () => {
+    expect(buildClassificationPayload(overheadRule(), movement())).toEqual({
+      categoryName: 'Impuestos',
+      costScope: COST_SCOPE.OVERHEAD,
+    });
+
+    expect(buildClassificationPayload(
+      rule({
+        applyTo: {
+          categoryName: 'Materiales',
+          projectId: 'project-fiber',
+          projectName: 'Fiber rollout',
+          costScope: COST_SCOPE.PROJECT,
+        },
+      }),
+      movement(),
+    )).toEqual({
+      categoryName: 'Materiales',
+      projectId: 'project-fiber',
+      projectName: 'Fiber rollout',
+      costScope: COST_SCOPE.PROJECT,
+    });
+  });
+
+  it('never overwrites a destination the movement already resolves', () => {
+    expect(buildClassificationPayload(overheadRule(), movement({ costScope: COST_SCOPE.PROJECT })))
+      .toEqual({ categoryName: 'Impuestos' });
+    expect(buildClassificationPayload(overheadRule(), movement({ projectId: 'project-existing' })))
+      .toEqual({ categoryName: 'Impuestos' });
+    expect(buildClassificationPayload(overheadRule(), movement({ projectName: 'Overhead' })))
+      .toEqual({ categoryName: 'Impuestos' });
+    expect(buildClassificationPayload(overheadRule(), movement({ costScope: COST_SCOPE.OVERHEAD })))
+      .toEqual({ categoryName: 'Impuestos' });
+  });
+
+  it('ignores a missing or invalid cost scope in applyTo', () => {
+    expect(buildClassificationPayload(overheadRule({
+      applyTo: { categoryName: 'Impuestos', costScope: 'structural' },
+    }), movement())).toEqual({ categoryName: 'Impuestos' });
+
+    expect(buildClassificationPayload(overheadRule({
+      applyTo: { categoryName: 'Impuestos', costScope: '' },
+    }), movement())).toEqual({ categoryName: 'Impuestos' });
+
+    expect(buildClassificationPayload(rule(), movement())).not.toHaveProperty('costScope');
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildProjectMargins } from './useTreasuryMetrics.js';
+import { buildProjectMargins, buildUnassignedMargin } from './useTreasuryMetrics.js';
 
 const movements = [
   { projectName: 'Alpha', direction: 'in', amount: 10000 },
@@ -33,5 +33,89 @@ describe('buildProjectMargins — payroll allocation (Phase 3, item 3)', () => {
     expect(beta.outflows).toBe(1500);
     expect(beta.net).toBe(-1500);
     expect(beta.margin).toBe(0); // no inflows → margin guarded to 0
+  });
+});
+
+/**
+ * The Resumen margin table and the management report must agree on what a
+ * project is. `computeProjectMargins` (src/finance/managementReport.js) has
+ * always dropped the unassigned bucket; buildProjectMargins used to rank it as
+ * a real project, where it topped the table with the whole unclassified cash
+ * flow behind it.
+ */
+describe('buildProjectMargins — unassigned bucket', () => {
+  it('excludes movements with no project from the project list', () => {
+    const out = buildProjectMargins([
+      ...movements,
+      { projectName: 'Sin proyecto', direction: 'in', amount: 90000 },
+      { projectName: 'Sin proyecto', direction: 'out', amount: 1000 },
+    ]);
+
+    expect(out.map((p) => p.name)).toEqual(['Alpha']);
+  });
+
+  it('excludes every unassigned alias, case-insensitively', () => {
+    const out = buildProjectMargins([
+      { projectName: '', direction: 'in', amount: 100 },
+      { projectName: '   ', direction: 'in', amount: 100 },
+      { projectName: 'SIN PROYECTO', direction: 'in', amount: 100 },
+      { projectName: 'Sin asignar', direction: 'in', amount: 100 },
+      { projectName: 'N/A', direction: 'in', amount: 100 },
+      { projectName: 'unknown', direction: 'in', amount: 100 },
+      { direction: 'in', amount: 100 },
+    ]);
+
+    expect(out).toEqual([]);
+  });
+
+  it('does not let the unassigned bucket take a slot in the top 6', () => {
+    const projects = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'].map((name, index) => ({
+      projectName: name,
+      direction: 'in',
+      amount: 1000 - index,
+    }));
+    const out = buildProjectMargins([
+      { projectName: 'Sin proyecto', direction: 'in', amount: 999999 },
+      ...projects,
+    ]);
+
+    expect(out).toHaveLength(6);
+    expect(out.map((p) => p.name)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
+  });
+
+  it('ignores payroll allocated to an unassigned bucket key', () => {
+    const out = buildProjectMargins(movements, { Alpha: 1000, 'Sin proyecto': 5000 });
+
+    expect(out.map((p) => p.name)).toEqual(['Alpha']);
+    expect(out[0].outflows).toBe(4000); // 3000 bank + 1000 labor
+  });
+});
+
+describe('buildUnassignedMargin', () => {
+  it('surfaces the unassigned money as a separate figure instead of dropping it', () => {
+    const unassigned = buildUnassignedMargin([
+      ...movements,
+      { projectName: 'Sin proyecto', direction: 'in', amount: 4000 },
+      { direction: 'out', amount: 1000 },
+      { projectName: 'N/A', direction: 'out', amount: 500 },
+    ]);
+
+    expect(unassigned).toMatchObject({ inflows: 4000, outflows: 1500, net: 2500 });
+    expect(unassigned.margin).toBeCloseTo(62.5, 5);
+  });
+
+  it('folds payroll allocated to an unassigned key into the same figure', () => {
+    const unassigned = buildUnassignedMargin(
+      [{ projectName: 'Sin proyecto', direction: 'in', amount: 1000 }],
+      { 'Sin proyecto': 400, Alpha: 9999 },
+    );
+
+    expect(unassigned.outflows).toBe(400);
+    expect(unassigned.net).toBe(600);
+  });
+
+  it('returns null when every movement belongs to a real project', () => {
+    expect(buildUnassignedMargin(movements)).toBeNull();
+    expect(buildUnassignedMargin([])).toBeNull();
   });
 });

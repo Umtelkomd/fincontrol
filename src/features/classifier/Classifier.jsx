@@ -19,8 +19,10 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency } from '../../utils/formatters';
 import { findBestRule } from '../../finance/ruleEngine';
+import { classificationCoverage } from '../../finance/costScope';
 import CategorizeModal from '../../components/ui/CategorizeModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
+import ClassificationCoverage from './ClassificationCoverage';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
 
 const TABS = [
@@ -32,6 +34,7 @@ const TABS = [
 const Classifier = ({ user }) => {
  const {
  inboxMovements,
+ bankMovements,
  linkToReceivable,
  linkToPayable,
  categorize,
@@ -63,6 +66,10 @@ const Classifier = ({ user }) => {
  () => (inboxMovements || []).reduce((sum, m) => (findBestRule(m, rules) ? sum + 1 : sum), 0),
  [inboxMovements, rules],
  );
+
+ // Coverage is measured over the WHOLE ledger, not the inbox — the inbox is
+ // unclassified by definition and would always read 0%.
+ const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
 
  // Bucketize inbox by tab
  const buckets = useMemo(() => {
@@ -201,6 +208,8 @@ const Classifier = ({ user }) => {
  </Button>
  )}
  </header>
+
+ <ClassificationCoverage coverage={coverage} />
 
  <KPIGrid cols={4}>
  <KPI

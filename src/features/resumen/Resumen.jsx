@@ -268,7 +268,10 @@ const Resumen = ({ user }) => {
   );
 
   // ── Block 4: project margins (labor already folded by buildProjectMargins) ──
+  // The unassigned bucket is no longer ranked as a project (it used to top the
+  // table); it is shown as its own muted row so the cash stays visible.
   const projectMargins = metrics.projectMargins || [];
+  const unassignedMargin = metrics.unassignedMargin || null;
 
   if (metrics.loading) {
     return (
@@ -468,7 +471,7 @@ const Resumen = ({ user }) => {
         title="Margen por proyecto"
         meta={canSeePayroll ? 'Mano de obra deducida' : 'Sin mano de obra (sin permiso)'}
       >
-        {projectMargins.length === 0 ? (
+        {projectMargins.length === 0 && !unassignedMargin ? (
           <EmptyState title="Sin proyectos" description="No hay movimientos por proyecto todavía." />
         ) : (
           <div className="divide-y divide-[var(--color-line)]">
@@ -494,6 +497,20 @@ const Resumen = ({ user }) => {
                 </div>
               </div>
             ))}
+            {unassignedMargin && (
+              <div className="flex items-center justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] text-[var(--color-fg-3)]">Sin asignar</p>
+                  <p className="label-mono text-[var(--color-fg-4)] mt-0.5">
+                    Ingresos {formatCurrency(unassignedMargin.inflows)} · Costes {formatCurrency(unassignedMargin.outflows)}
+                  </p>
+                </div>
+                <span className="flex-shrink-0 font-mono text-[15px] tabular-nums tracking-tight text-[var(--color-fg-3)]">
+                  {unassignedMargin.net >= 0 ? '+' : '−'}
+                  {formatCurrency(Math.abs(unassignedMargin.net))}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </Panel>

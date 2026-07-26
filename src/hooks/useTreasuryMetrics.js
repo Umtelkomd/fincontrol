@@ -132,17 +132,49 @@ const buildCashSeries = (ledger, referenceDate) => {
   return series;
 };
 
+// Labels that mean "no project". Kept in sync with UNKNOWN_PROJECT_LABELS in
+// src/finance/managementReport.js so the Resumen margin table and the
+// management report agree on what counts as an obra.
+const UNASSIGNED_PROJECT_LABELS = new Set(['', 'sin proyecto', 'sin asignar', 'n/a', 'unknown']);
+
+export const UNASSIGNED_PROJECT_NAME = 'Sin asignar';
+
+const isUnassignedProject = (name) =>
+  UNASSIGNED_PROJECT_LABELS.has(String(name ?? '').trim().toLowerCase());
+
+const emptyBucket = (name) => ({ name, inflows: 0, outflows: 0, net: 0, margin: 0 });
+
+const settleBucket = (bucket) => {
+  bucket.net = clampMoney(bucket.inflows - bucket.outflows);
+  bucket.margin = bucket.inflows > 0 ? (bucket.net / bucket.inflows) * 100 : 0;
+  return bucket;
+};
+
+const roundBucket = (bucket) => ({
+  ...bucket,
+  inflows: clampMoney(bucket.inflows),
+  outflows: clampMoney(bucket.outflows),
+  net: clampMoney(bucket.net),
+  margin: clampMoney(bucket.margin),
+});
+
+const addMovement = (bucket, entry) => {
+  if (entry.direction === 'in') bucket.inflows += entry.amount;
+  else bucket.outflows += entry.amount;
+  return settleBucket(bucket);
+};
+
 export const buildProjectMargins = (movements, payrollByProject = {}) => {
   const projectMap = new Map();
 
   movements.forEach((entry) => {
-    const key = entry.projectName || 'Sin proyecto';
-    const current = projectMap.get(key) || { name: key, inflows: 0, outflows: 0, net: 0, margin: 0 };
-    if (entry.direction === 'in') current.inflows += entry.amount;
-    else current.outflows += entry.amount;
-    current.net = clampMoney(current.inflows - current.outflows);
-    current.margin = current.inflows > 0 ? (current.net / current.inflows) * 100 : 0;
-    projectMap.set(key, current);
+    // Movements without a real project are excluded: the table ranks obras, and
+    // the unassigned bucket used to win it outright. buildUnassignedMargin
+    // surfaces that money separately so nothing is silently dropped.
+    const key = entry.projectName || '';
+    if (isUnassignedProject(key)) return;
+    const current = projectMap.get(key) || emptyBucket(key);
+    projectMap.set(key, addMovement(current, entry));
   });
 
   // Phase 3, item 3 — fold allocated labor cost (gesamtkosten, NOT cashTotal)
@@ -150,30 +182,41 @@ export const buildProjectMargins = (movements, payrollByProject = {}) => {
   // defaulting to {} keeps every existing caller and test untouched.
   Object.entries(payrollByProject || {}).forEach(([projectKey, laborCost]) => {
     const cost = Number(laborCost) || 0;
-    if (cost === 0) return;
-    const current = projectMap.get(projectKey) || {
-      name: projectKey,
-      inflows: 0,
-      outflows: 0,
-      net: 0,
-      margin: 0,
-    };
+    if (cost === 0 || isUnassignedProject(projectKey)) return;
+    const current = projectMap.get(projectKey) || emptyBucket(projectKey);
     current.outflows += cost;
-    current.net = clampMoney(current.inflows - current.outflows);
-    current.margin = current.inflows > 0 ? (current.net / current.inflows) * 100 : 0;
-    projectMap.set(projectKey, current);
+    projectMap.set(projectKey, settleBucket(current));
   });
 
   return Array.from(projectMap.values())
     .sort((left, right) => right.net - left.net)
     .slice(0, 6)
-    .map((entry) => ({
-      ...entry,
-      inflows: clampMoney(entry.inflows),
-      outflows: clampMoney(entry.outflows),
-      net: clampMoney(entry.net),
-      margin: clampMoney(entry.margin),
-    }));
+    .map(roundBucket);
+};
+
+/**
+ * Cash that buildProjectMargins leaves out because it carries no project.
+ * Returns null when everything is assigned, so callers can skip the row.
+ */
+export const buildUnassignedMargin = (movements = [], payrollByProject = {}) => {
+  const bucket = emptyBucket(UNASSIGNED_PROJECT_NAME);
+  let touched = false;
+
+  movements.forEach((entry) => {
+    if (!isUnassignedProject(entry.projectName)) return;
+    touched = true;
+    addMovement(bucket, entry);
+  });
+
+  Object.entries(payrollByProject || {}).forEach(([projectKey, laborCost]) => {
+    const cost = Number(laborCost) || 0;
+    if (cost === 0 || !isUnassignedProject(projectKey)) return;
+    touched = true;
+    bucket.outflows += cost;
+    settleBucket(bucket);
+  });
+
+  return touched ? roundBucket(bucket) : null;
 };
 
 export const useTreasuryMetrics = (options = {}) => {
@@ -289,6 +332,7 @@ export const useTreasuryMetrics = (options = {}) => {
       receivablesAging: buildAgingBuckets(openReceivables, referenceDate),
       payablesAging: buildAgingBuckets(openPayables, referenceDate),
       projectMargins: buildProjectMargins(filteredMovements, options.payrollByProject || {}),
+      unassignedMargin: buildUnassignedMargin(filteredMovements, options.payrollByProject || {}),
       unreconciledMovements: ledger.bankMovements
         .filter((entry) => !entry.reconciledAt && entry.status === 'posted')
         .sort((left, right) => compareIsoDate(right.postedDate, left.postedDate)),
