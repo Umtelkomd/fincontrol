@@ -39,6 +39,7 @@ const ASSIGNMENTS = [
   { name: 'Beatriz Penaranda', codes: [OVERHEAD], why: 'backoffice' },
   { name: 'Isabelle Horstmann', codes: [OVERHEAD], why: 'backoffice' },
   { name: 'Esneider Alejandro Herrera Romero', codes: [OVERHEAD], why: 'pasó al backoffice hace dos semanas (antes NE4)' },
+  { name: 'Jeisson Andres Romero Lesmes', codes: [OVERHEAD], why: 'backoffice' },
   { name: 'Simon Andres Pizarro Calfual', codes: [ROSSDORF_1, ROSSDORF_2], why: 'Roßdorf' },
   { name: 'Pedro Luis Pizarro Zapata', codes: [ROSSDORF_1, ROSSDORF_2], why: 'Roßdorf' },
   { name: 'Felipe Santamaria', codes: [WESCONNECT], why: 'Wesconnect' },
