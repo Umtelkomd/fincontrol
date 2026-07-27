@@ -114,6 +114,27 @@ Firestore docs have a `viewedBy` field that's a plain object (not a Firestore ty
 ### 4. PartialPaymentModal
 Uses wrapper pattern (inner component + outer wrapper) for hooks safety. Don't flatten it.
 
+### 6. Never run `npm audit fix --force` on react-router-dom
+`npm audit` flags react-router and offers to "fix" it by downgrading to 7.11.0.
+**Taking that fix makes the app less safe.** Two separate advisories overlap:
+
+| Version | Advisory | Applies here? |
+|---|---|---|
+| 6.0.0 – 7.17.0 | XSS via Open Redirects (CVSS **8.0**) | **Yes** — exploitable in a client-side SPA |
+| 7.12.0 – 8.2.0 | RSC Mode CSRF Bypass (CVSS **0**) | **No** — needs React Server Components |
+
+No published version escapes both. Staying on the newest (`^7.18.1`) avoids the
+exploitable XSS and leaves only the RSC advisory, which cannot apply: this is a
+static SPA on Firebase Hosting with no server, no RSC and no server actions.
+The audit line is expected — do not "resolve" it by moving backwards. Re-evaluate
+only when a release lands above 8.2.0.
+
+Remaining high-severity audit entries come from `brace-expansion` via
+`minimatch` via `eslint-plugin-react`, i.e. lint tooling that never reaches the
+bundle. The fix is `"overrides": { "brace-expansion": "^5.0.8" }` in
+package.json — verify `npm run lint` still passes afterwards, since that jumps
+brace-expansion across four major versions under an old minimatch.
+
 ## Commands
 ```bash
 npm run dev              # Start dev server (localhost:5173)
