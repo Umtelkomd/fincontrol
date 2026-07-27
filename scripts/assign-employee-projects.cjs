@@ -29,10 +29,11 @@ const line = (c = '─', w = 90) => c.repeat(w);
 const OVERHEAD = 'AMD-001';   // "backoffice" — company structure, not an obra
 const ROSSDORF_1 = 'QFF-001';
 const ROSSDORF_2 = 'QFF-002';
-const NE4 = 'UGG-001';        // Vancom NE4 — reactivated, the single NE4/Wesconnect frente
+const NE4 = 'UGG-001';        // Vancom NE4 — Sebastián's site ("UGG NE4")
+const WESCONNECT = 'WSC';     // Wesconnect — Felipe, Alexander and Juan jr work here
 
-/** Reactivate this project: staff are still being assigned to it. */
-const REACTIVATE = [NE4];
+/** Reactivate these: staff are still being assigned to them. */
+const REACTIVATE = [NE4, WESCONNECT];
 
 const ASSIGNMENTS = [
   { name: 'Beatriz Penaranda', codes: [OVERHEAD], why: 'backoffice' },
@@ -40,10 +41,10 @@ const ASSIGNMENTS = [
   { name: 'Esneider Alejandro Herrera Romero', codes: [OVERHEAD], why: 'pasó al backoffice hace dos semanas (antes NE4)' },
   { name: 'Simon Andres Pizarro Calfual', codes: [ROSSDORF_1, ROSSDORF_2], why: 'Roßdorf' },
   { name: 'Pedro Luis Pizarro Zapata', codes: [ROSSDORF_1, ROSSDORF_2], why: 'Roßdorf' },
-  { name: 'Felipe Santamaria', codes: [NE4], why: 'NE4' },
-  { name: 'Jorge Alexander Herrera Romero', codes: [NE4], why: 'NE4, igual que Felipe' },
-  { name: 'Juan De DIos Lesmes Correa', codes: [NE4], why: 'NE4 ("Juan jr"), igual que Felipe' },
-  { name: 'Sebastian Agudelo Grajales', codes: [NE4], why: 'UGG NE4' },
+  { name: 'Felipe Santamaria', codes: [WESCONNECT], why: 'Wesconnect' },
+  { name: 'Jorge Alexander Herrera Romero', codes: [WESCONNECT], why: 'Wesconnect, igual que Felipe' },
+  { name: 'Juan De DIos Lesmes Correa', codes: [WESCONNECT], why: 'Wesconnect ("Juan jr"), igual que Felipe' },
+  { name: 'Sebastian Agudelo Grajales', codes: [NE4], why: 'UGG NE4 — este sí es Vancom, no Wesconnect' },
   // "repartido en los proyectos y algo en el backoffice" — the obras with live
   // crews, plus structure. Even split across four; adjust in the UI if his time
   // really leans towards one of them.
