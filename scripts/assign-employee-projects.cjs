@@ -31,6 +31,7 @@ const ROSSDORF_1 = 'QFF-001';
 const ROSSDORF_2 = 'QFF-002';
 const NE4 = 'UGG-001';        // Vancom NE4 — Sebastián's site ("UGG NE4")
 const WESCONNECT = 'WSC';     // Wesconnect — Felipe, Alexander and Juan jr work here
+const HOXTER = 'FBX';         // Höxter Nord — where the subcontractors work
 
 /** Reactivate these: staff are still being assigned to them. */
 const REACTIVATE = [NE4, WESCONNECT];
@@ -50,6 +51,12 @@ const ASSIGNMENTS = [
   // live crew, plus structure. Even split across five, so each carries 20% of
   // his cost; drop the ones he barely visits if that proves too generous.
   { name: 'Juan De Dios Lesmes Linares', codes: [ROSSDORF_1, ROSSDORF_2, WESCONNECT, NE4, OVERHEAD], why: 'repartido en todas las obras vivas + algo de backoffice' },
+  // Subcontractors. Their cost still enters from the bank payment when it is
+  // classified — the project on the file only feeds the reports.
+  { name: 'Jhon Jairo Rivera Parra', codes: [HOXTER], why: 'subcontratista de Höxter' },
+  { name: 'Erick Angel Otiniano Flores', codes: [HOXTER], why: 'subcontratista de Höxter' },
+  { name: 'Jaime Rafael Guzman Vivanco', codes: [HOXTER], why: 'subcontratista de Höxter' },
+  { name: 'Raul Garcia Vasquez', codes: [HOXTER], why: 'subcontratista de Höxter' },
 ];
 
 const norm = (s) => String(s || '').trim().toLowerCase();
