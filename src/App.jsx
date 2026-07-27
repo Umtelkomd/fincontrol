@@ -20,6 +20,7 @@ const FlujoCajaAnual = lazy(() => import('./features/cashflow/FlujoCajaAnual'));
 const ReportesUnified = lazy(() => import('./features/reportes/ReportesUnified'));
 const ConfiguracionUnified = lazy(() => import('./features/configuracion/ConfiguracionUnified'));
 const CXCIndependiente = lazy(() => import('./features/cxc/CXCIndependiente'));
+const BatchReconciliation = lazy(() => import('./features/cxc/BatchReconciliation'));
 const CXPIndependiente = lazy(() => import('./features/cxp/CXPIndependiente'));
 const BudgetVsActual = lazy(() => import('./features/presupuesto/BudgetVsActual'));
 const AuditLog = lazy(() => import('./features/auditoria/AuditLog'));
@@ -49,6 +50,7 @@ const VIEW_TITLES = {
  '/reportes': 'Reportes',
  '/configuracion': 'Configuración',
  '/cxc': 'Cuentas por Cobrar',
+ '/cxc/remesas': 'Conciliación de remesas',
  '/cxp': 'Cuentas por Pagar',
  '/nominas': 'Nóminas',
  '/presupuesto': 'Presupuesto',
@@ -216,6 +218,7 @@ function AppContent({ user, userRole, hasPermission }) {
  <Route path="/reportes" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><ReportesUnified user={user} /></ProtectedRoute>} />
  <Route path="/configuracion" element={<ProtectedRoute hasPermission={hasPermission} permission="settings"><ConfiguracionUnified user={user} transactions={filteredTransactions} /></ProtectedRoute>} />
  <Route path="/cxc" element={<ProtectedRoute hasPermission={hasPermission} permission="cxc"><CXCIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
+ <Route path="/cxc/remesas" element={<ProtectedRoute hasPermission={hasPermission} permission="cxc"><BatchReconciliation user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/cxp" element={<ProtectedRoute hasPermission={hasPermission} permission="cxp"><CXPIndependiente user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/presupuesto" element={<ProtectedRoute hasPermission={hasPermission} permission="reports"><BudgetVsActual user={user} userRole={userRole} /></ProtectedRoute>} />
  <Route path="/auditoria" element={<ProtectedRoute hasPermission={hasPermission} permission="audit"><AuditLog user={user} userRole={userRole} /></ProtectedRoute>} />

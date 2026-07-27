@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
  AlertTriangle,
  ArrowLeftRight,
@@ -8,6 +9,7 @@ import {
  Edit3,
  Filter,
  History,
+ Layers,
  Link2,
  Search,
 } from 'lucide-react';
@@ -299,6 +301,12 @@ const CXCIndependiente = ({ user, userRole }) => {
  Controla la cartera abierta y convierte cada factura en caja solo cuando el cobro realmente ocurre.
  </p>
  </div>
+ {/* Confirming: un solo ingreso paga varias facturas y no cuadra con
+     ninguna. Ese caso vive en su propia pantalla — esta es la entrada. */}
+ <Link to="/cxc/remesas" className="nx-btn nx-btn-secondary self-start xl:self-auto">
+ <Layers size={14} />
+ Conciliar remesa
+ </Link>
  </div>
  </section>
 

@@ -15,16 +15,51 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { adaptReceivableDoc } from '../finance/adapters';
 import {
   DEFAULT_CURRENCY,
   MAIN_ACCOUNT_ID,
 } from '../finance/constants';
+import {
+  isBulkSettlePayment,
+  isReconciliationPending,
+  rawPaymentsOf,
+  resolveBatchAllocations,
+} from '../finance/batchReconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
 import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+
+/**
+ * Firestore commits at most 500 operations in one WriteBatch. A remesa writes
+ * one update per invoice plus one for the movement, so this is the hard ceiling
+ * on invoices per batch. Unlike `bulkClassify`, which chunks and reports
+ * partial success, reconcileBatch REFUSES above the cap: a remesa half applied
+ * — invoices closed, movement unlinked — is worse than one not applied at all,
+ * and no confirming settlement comes near this many documents anyway.
+ */
+const BATCH_RECONCILE_LIMIT = 399;
+
+/** Only value that is unanimous across the batch travels onto the movement. */
+const commonValue = (allocations, field) => {
+  const values = new Set(allocations.map((entry) => entry.receivable?.[field] || ''));
+  return values.size === 1 ? [...values][0] : '';
+};
+
+/**
+ * The money state of one invoice before a batch reconciliation touched it —
+ * the recovery record stored next to the document, mirroring the `before`
+ * snapshot `bulkClassify` writes into each movement's audit trail.
+ */
+export const buildReconciliationSnapshot = (receivable) => ({
+  openAmount: clampMoney(receivable?.openAmount ?? 0),
+  paidAmount: clampMoney(receivable?.paidAmount ?? 0),
+  status: receivable?.status ?? '',
+  reconciliationPending: isReconciliationPending(receivable),
+});
 
 const buildReceivableSnapshot = (receivable, override = {}) => ({
   grossAmount: override.grossAmount ?? override.amount ?? clampMoney(receivable?.grossAmount ?? receivable?.amount ?? 0),
@@ -520,11 +555,215 @@ export const useReceivables = (user) => {
     }
   };
 
+  /**
+   * reconcileBatch — settle ONE incoming transfer against SEVERAL invoices.
+   *
+   *   reconcileBatch(movement, [{ receivableId, amount }])
+   *     → { success, count, total, difference, status } | { success: false, error }
+   *
+   * Insyte pays through confirming, so a single arrival from CaixaBank, BBVA or
+   * Santander covers a handful of invoices and matches none of them. This is
+   * the write behind that screen.
+   *
+   * Takes the MOVEMENT, not just its id: every invariant worth enforcing —
+   * "never allocate more than the bank sent", "only an incoming, live movement
+   * settles a receivable" — needs its amount, direction and date, and this hook
+   * does not subscribe to bankMovements. A bare id is refused rather than
+   * silently reconciled against nothing.
+   *
+   * All rules live in `resolveBatchAllocations` (pure, unit-tested). What
+   * happens here is Firestore-specific and comes down to three decisions:
+   *
+   *   ONE COMMIT. The movement and every invoice go into a single writeBatch.
+   *     `bulkClassify` chunks because a partially classified selection is
+   *     recoverable; a partially applied remesa is not, so this refuses to
+   *     exceed what one batch holds instead of splitting.
+   *   SUPERSEDE, NOT STACK. An invoice closed by the bulk settling script
+   *     carries a `bulk-settle-*` payment line. Appending next to it would show
+   *     the invoice paid twice, so that line is REPLACED — and the replacement
+   *     array is rebuilt from `raw.payments`, because the adapter strips
+   *     `bankMovementId` from every payment it reads. Invoices without such a
+   *     line keep the append-only `arrayUnion` path, which cannot race.
+   *   CASH IS NOT TOUCHED. The movement update carries links and provenance
+   *     only. `amount`, `signedAmount`, `direction`, `postedDate`, `valueDate`
+   *     and `status` are never written, so the cash position — derived from
+   *     anchors plus signed movements — cannot move by reconciling.
+   */
+  const reconcileBatch = async (movement, allocations) => {
+    if (!user) return { success: false, error: new Error('No user') };
+    if (typeof movement === 'string') {
+      return {
+        success: false,
+        error: new Error('reconcileBatch necesita el movimiento bancario completo, no solo su id'),
+      };
+    }
+
+    const draft = Array.isArray(allocations) ? allocations : [];
+    if (draft.length > BATCH_RECONCILE_LIMIT) {
+      return {
+        success: false,
+        error: new Error(
+          `Una remesa no puede cubrir más de ${BATCH_RECONCILE_LIMIT} facturas en una escritura atómica`,
+        ),
+      };
+    }
+
+    const plan = resolveBatchAllocations({ movement, allocations: draft, receivables });
+    if (plan.error) return { success: false, error: new Error(plan.error) };
+
+    try {
+      const nowIso = new Date().toISOString();
+      const ids = plan.allocations.map((entry) => entry.receivableId);
+      const batch = writeBatch(db);
+
+      // A remesa may be finished in two sittings, so an earlier pass's links
+      // are extended, never overwritten. `resolveBatchAllocations` has already
+      // capped this pass at what that earlier one left unexplained.
+      const priorAllocations = Array.isArray(movement.receivableAllocations)
+        ? movement.receivableAllocations
+        : [];
+      const priorIds = Array.isArray(movement.receivableIds) ? movement.receivableIds : [];
+      const priorAmount = clampMoney(
+        priorAllocations.reduce((sum, entry) => sum + (Number(entry?.amount) || 0), 0),
+      );
+
+      batch.update(doc(db, 'artifacts', appId, 'public', 'data', 'bankMovements', movement.id), {
+        receivableId: movement.receivableId || ids[0],
+        receivableIds: [...new Set([...priorIds, ...ids])],
+        receivableAllocations: [
+          ...priorAllocations,
+          ...plan.allocations.map((entry) => ({
+            documentId: entry.receivableId,
+            amount: entry.amount,
+            openAmountBefore: entry.openAmountBefore,
+            openAmountAfter: entry.openAmountAfter,
+          })),
+        ],
+        reconciledAt: serverTimestamp(),
+        reconciliationId: movement.reconciliationId || `movement:${movement.id}`,
+        reconciliationMode: 'batch-confirming',
+        reconciledAmount: clampMoney(priorAmount + plan.total),
+        categoryName: commonValue(plan.allocations, 'categoryName') || movement.categoryName || '',
+        projectId: commonValue(plan.allocations, 'projectId') || movement.projectId || '',
+        projectName:
+          commonValue(plan.allocations, 'projectName') ||
+          (plan.allocations.length > 1 ? 'Múltiples proyectos' : ''),
+        costCenterId: commonValue(plan.allocations, 'costCenterId') || movement.costCenterId || '',
+        updatedBy: user.email,
+        updatedAt: serverTimestamp(),
+        auditTrail: arrayUnion({
+          action: 'batch-reconcile',
+          user: user.email,
+          timestamp: nowIso,
+          detail: `Remesa conciliada con ${ids.length} CXC por ${plan.total.toFixed(2)} ${movement.currency || DEFAULT_CURRENCY}${
+            plan.difference > 0 ? ` (quedan ${plan.difference.toFixed(2)} sin explicar)` : ''
+          }`,
+        }),
+      });
+
+      plan.allocations.forEach((entry) => {
+        const payment = {
+          date: movement.postedDate || toISODate(new Date()),
+          amount: entry.amount,
+          method: 'Confirming',
+          reference: movement.description || '',
+          note: 'Conciliado en remesa agrupada (confirming)',
+          bankMovementId: movement.id,
+          reconciliationMode: 'batch-confirming',
+          registeredBy: user.email,
+          timestamp: nowIso,
+        };
+        // Replacing the placeholder needs the whole array; everything else stays
+        // append-only so two operators cannot clobber each other's payments.
+        const payments = entry.supersededPayments.length
+          ? [...rawPaymentsOf(entry.receivable).filter((line) => !isBulkSettlePayment(line)), payment]
+          : arrayUnion(payment);
+
+        batch.update(doc(db, 'artifacts', appId, 'public', 'data', 'receivables', entry.receivableId), {
+          openAmount: entry.openAmountAfter,
+          pendingAmount: entry.openAmountAfter,
+          paidAmount: entry.paidAmountAfter,
+          status: entry.nextStatus,
+          reconciliationPending: false,
+          payments,
+          updatedBy: user.email,
+          updatedAt: serverTimestamp(),
+          auditTrail: arrayUnion({
+            action: 'batch-reconcile',
+            user: user.email,
+            timestamp: nowIso,
+            detail: `Conciliada en remesa con el movimiento ${movement.id} por ${entry.amount.toFixed(2)}${
+              entry.supersededAmount > 0
+                ? ` (reemplaza el cierre masivo de ${entry.supersededAmount.toFixed(2)})`
+                : ''
+            }`,
+            before: buildReconciliationSnapshot(entry.receivable),
+          }),
+        });
+      });
+
+      await batch.commit();
+
+      await Promise.all([
+        writeAuditLogEntry({
+          action: 'batch-reconcile',
+          entityType: 'bankMovement',
+          entityId: movement.id,
+          description: `Remesa conciliada con ${ids.length} CXC: ${movement.description || movement.id}`,
+          userEmail: user.email,
+          metadata: {
+            documentIds: ids,
+            reconciliationMode: 'batch-confirming',
+            amount: plan.total,
+            movementAmount: plan.movementAmount,
+            difference: plan.difference,
+          },
+        }),
+        ...plan.allocations.map((entry) =>
+          writeAuditLogEntry({
+            action: 'batch-reconcile',
+            entityType: 'receivable',
+            entityId: entry.receivableId,
+            description: `CXC conciliada en remesa: ${entry.receivable.documentNumber || entry.receivableId}`,
+            userEmail: user.email,
+            before: buildReceivableSnapshot(entry.receivable),
+            after: buildReceivableSnapshot(entry.receivable, {
+              openAmount: entry.openAmountAfter,
+              pendingAmount: entry.openAmountAfter,
+              paidAmount: entry.paidAmountAfter,
+              status: entry.nextStatus,
+              updatedBy: user.email,
+              updatedAt: nowIso,
+            }),
+            metadata: {
+              bankMovementId: movement.id,
+              amount: entry.amount,
+              supersededAmount: entry.supersededAmount,
+              reconciliationMode: 'batch-confirming',
+            },
+          }),
+        ),
+      ]);
+
+      return {
+        success: true,
+        count: plan.allocations.length,
+        total: plan.total,
+        difference: plan.difference,
+        status: plan.status,
+      };
+    } catch (batchError) {
+      logError('Error reconciling receivable batch:', batchError);
+      return { success: false, error: batchError };
+    }
+  };
+
   return {
     receivables,
     loading,
     error,
     createReceivable,
+    reconcileBatch,
     registerPayment,
     updateReceivable,
     cancelReceivable,

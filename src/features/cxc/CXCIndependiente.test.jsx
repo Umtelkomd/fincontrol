@@ -148,3 +148,13 @@ describe('CXC — role gating', () => {
     expect(within(screen.getByRole('table')).getByText('Insyte Deutschland')).toBeInTheDocument();
   });
 });
+
+describe('CXC — batch reconciliation entry point', () => {
+  // Confirming remesas are reconciled on their own screen. It is reachable from
+  // here and nowhere else, so this link is the only way in.
+  it('links to the remesa screen from the header', () => {
+    renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
+
+    expect(screen.getByRole('link', { name: /remesa/i })).toHaveAttribute('href', '/cxc/remesas');
+  });
+});
