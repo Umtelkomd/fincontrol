@@ -145,7 +145,7 @@ const DatevImport = ({ user }) => {
  Importar movimientos bancarios
  </h2>
  <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
- Sube uno o varios CSVs (Sparkasse Kontobewegungen). El sistema detecta duplicados
+ Sube uno o varios CSVs de movimientos de cuenta (kontobewegungen_export). El sistema detecta duplicados
  contra los movimientos ya cargados (mismo fecha + monto + dirección + contraparte) y
  solo crea los nuevos.
  </p>
@@ -208,7 +208,7 @@ const DatevImport = ({ user }) => {
  </label>
  </p>
  <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
- Sparkasse "Kontobewegungen Export" · UTF-8 · separador ;
+ Export "Kontobewegungen" de la banca online · UTF-8 · separador ;
  </p>
  </div>
 

@@ -1,5 +1,10 @@
 /**
- * DATEV / Sparkasse CSV parser (RFC 4180-ish, quoted multiline tolerant)
+ * Kontobewegungen CSV parser (RFC 4180-ish, quoted multiline tolerant)
+ *
+ * This is the generic German online-banking "kontobewegungen_export" layout,
+ * not a bank-specific one — UMTELKOMD's files come from Volksbank. The internal
+ * format id still reads "sparkasse-kontobewegungen"; see detectDatevFormat for
+ * why that string must not be renamed.
  *
  * Format observed:
  *   - Encoding: UTF-8
@@ -133,7 +138,7 @@ const normalizeHeader = (header) => normalizeDatevRawColumns(header).map((col) =
 const detectDatevFormat = (header) => {
   const normalized = normalizeHeader(header);
   const headerSet = new Set(normalized);
-  const hasSparkasseColumns = [
+  const hasKontobewegungenColumns = [
     'buchungsdatum',
     'valutadatum',
     'empfängername/auftraggeber',
@@ -142,7 +147,15 @@ const detectDatevFormat = (header) => {
     'verwendungszweck',
     'betrag in eur',
   ].every((name) => headerSet.has(name));
-  if (hasSparkasseColumns) return 'sparkasse-kontobewegungen';
+  // These columns are the standard German kontobewegungen_export layout, shared
+  // across banks — Volksbank files match it just as well as Sparkasse ones.
+  //
+  // The returned id is deliberately NOT renamed: buildDatevIdentity folds it
+  // into rowFingerprint and therefore into rowHash, the key that stops a
+  // re-imported statement from duplicating rows. Changing this string would
+  // make every already-stored movement look new. See the stability test in
+  // datevParser.test.js.
+  if (hasKontobewegungenColumns) return 'sparkasse-kontobewegungen';
 
   const hasClassicColumns = normalized.some((name) => (
     name.includes('soll/haben-kennzeichen')
@@ -159,11 +172,11 @@ const unsupportedFormatError = (format, header) => ({
   raw: header.join(';'),
   message: format === 'datev-classic'
     ? 'DATEV classic CSV is not supported for bank movement import yet.'
-    : 'Unknown DATEV/Sparkasse CSV headers; no rows were imported.',
+    : 'Unrecognized kontobewegungen CSV headers; no rows were imported.',
 });
 
 /**
- * Parse a Sparkasse "Kontobewegungen" CSV file content.
+ * Parse a "Kontobewegungen" export CSV file content.
  * Returns { rows, errors, header, period }.
  *   rows:    array of normalized movement objects
  *   errors:  rows that couldn't be parsed (with line number + raw)

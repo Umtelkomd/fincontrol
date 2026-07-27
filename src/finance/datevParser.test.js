@@ -14,7 +14,7 @@ import {
   parseDatevCSV,
 } from './datevParser.js';
 
-const sparkasseHeader = [
+const kontobewegungenHeader = [
   'Automat',
   'Sammlerauflösung',
   'Buchungsdatum',
@@ -29,7 +29,7 @@ const sparkasseHeader = [
   'Geprüft',
 ].join(';');
 
-const sparkasseRow = ({
+const kontobewegungenRow = ({
   postedDate = '08.05.2026',
   valueDate = '09.05.2026',
   counterparty = 'ACME GmbH',
@@ -116,7 +116,7 @@ describe('DATEV parser identity normalization', () => {
 
 describe('DATEV parser row identity fields', () => {
   it('parses signed inbound rows while keeping compatible absolute amount and direction', () => {
-    const parsed = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow()}`);
+    const parsed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
 
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows).toHaveLength(1);
@@ -132,13 +132,13 @@ describe('DATEV parser row identity fields', () => {
     });
     expect(parsed.rows[0].rowHash).toBe(buildDatevIdentity(parsed.rows[0]).rowHash);
     expect(parsed.rows[0].raw).toEqual({
-      columns: sparkasseRow().split(';'),
+      columns: kontobewegungenRow().split(';'),
       line: 2,
     });
   });
 
   it('parses signed outbound rows while preserving absolute amount compatibility', () => {
-    const parsed = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ amount: '-987,65', description: 'Miete Mai' })}`);
+    const parsed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ amount: '-987,65', description: 'Miete Mai' })}`);
 
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows).toHaveLength(1);
@@ -148,6 +148,22 @@ describe('DATEV parser row identity fields', () => {
       direction: 'out',
       rawDescription: 'Miete Mai',
     });
+  });
+});
+
+describe('DATEV row identity stability', () => {
+  // rowHash is what stops a re-imported statement from creating duplicates, and
+  // buildDatevIdentity folds sourceFormat into the fingerprint. The label reads
+  // "sparkasse-" for historical reasons — the format is the generic German
+  // kontobewegungen_export, and this app is fed Volksbank files — but renaming
+  // it would change every hash and make all 1576 stored movements look new on
+  // the next import. If this test fails, the dedupe key moved: either revert,
+  // or ship a migration that rewrites rowHash on the existing documents.
+  it('keeps the stored dedupe key byte-stable', () => {
+    const parsed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
+
+    expect(parsed.rows[0].sourceFormat).toBe('sparkasse-kontobewegungen');
+    expect(parsed.rows[0].rowHash).toBe('datev-155358786fd928');
   });
 });
 
@@ -189,7 +205,7 @@ describe('DATEV parser unsupported format handling', () => {
 describe('DATEV bank movement payload mapping', () => {
   it('emits full identity metadata while preserving legacy amount and direction compatibility', () => {
     const row = {
-      ...parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ amount: '-42,13' })}`).rows[0],
+      ...parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ amount: '-42,13' })}`).rows[0],
       importRunId: 'datev-run-1',
       importFile: { name: 'may.csv', size: 1234, lastModified: 1778306400000 },
       importLineNumber: 7,
@@ -215,7 +231,7 @@ describe('DATEV bank movement payload mapping', () => {
 
 describe('DATEV import dedupe classification', () => {
   it('dedupes within one file by rowHash while attaching run and file metadata to importable rows', () => {
-    const row = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow()}`).rows[0];
+    const row = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
     const result = classifyDatevImportFiles(
       [{ file: { name: 'may.csv', size: 128, lastModified: 1778306400000 }, parsed: { rows: [row, { ...row, lineNumber: 3 }], errors: [] } }],
       [],
@@ -236,9 +252,9 @@ describe('DATEV import dedupe classification', () => {
   });
 
   it('dedupes across selected files before writes using a run-level rowHash set', () => {
-    const first = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ counterparty: 'ACME GmbH' })}`).rows[0];
+    const first = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ counterparty: 'ACME GmbH' })}`).rows[0];
     const second = { ...first, lineNumber: 2 };
-    const distinct = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ description: 'Rechnung 4712' })}`).rows[0];
+    const distinct = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Rechnung 4712' })}`).rows[0];
 
     const result = classifyDatevImportFiles(
       [
@@ -258,9 +274,9 @@ describe('DATEV import dedupe classification', () => {
   });
 
   it('dedupes retries against existing rowHash and falls back to legacy movement fingerprint', () => {
-    const hashed = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ description: 'Hash hit' })}`).rows[0];
-    const legacy = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ description: 'Legacy hit', amount: '-10,00' })}`).rows[0];
-    const fresh = parseDatevCSV(`${sparkasseHeader}\n${sparkasseRow({ description: 'Fresh row', amount: '20,00' })}`).rows[0];
+    const hashed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Hash hit' })}`).rows[0];
+    const legacy = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Legacy hit', amount: '-10,00' })}`).rows[0];
+    const fresh = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Fresh row', amount: '20,00' })}`).rows[0];
 
     expect(diffAgainstExisting([hashed, legacy, fresh], [
       { rowHash: hashed.rowHash, postedDate: 'nope', amount: 0, direction: 'out', counterpartyName: 'wrong' },
