@@ -45,14 +45,17 @@ const ENTITIES = [
 ];
 
 /**
- * Inbound money. These are collections, not spend — they must stop looking like
- * unclassified noise on the income side.
+ * Inbound money. Every collection comes from the same client — Insyte — paid
+ * through confirming (reverse factoring), so the bank on the statement is just
+ * the channel Insyte instructed, never a separate customer. Classifying them
+ * apart would invent four clients where there is one, and hide that customer
+ * concentration is total.
  */
 const INCOME = [
-  ['INSYTE', 'Servicios', 'in', 'Cliente principal: cobros por servicios de obra.'],
-  ['CAIXABANK', 'Servicios', 'in', 'Cobros recibidos vía CaixaBank. Verificar si son de Insyte u otro cliente.'],
-  ['BANCO BILBAO VIZCAYA', 'Servicios', 'in', 'Cobros recibidos vía BBVA. Verificar el cliente de origen.'],
-  ['SANTANDER FACTORING', 'Financiero', 'in', 'Factoring/confirming: anticipo de cobros, no venta nueva.'],
+  ['INSYTE', 'Servicios', 'in', 'Cliente único: cobros por servicios de obra, facturados a Insyte.'],
+  ['CAIXABANK', 'Servicios', 'in', 'Cobro de INSYTE vía confirming de CaixaBank. El banco es el canal, no el cliente.'],
+  ['BANCO BILBAO VIZCAYA', 'Servicios', 'in', 'Cobro de INSYTE vía confirming de BBVA. El banco es el canal, no el cliente.'],
+  ['SANTANDER FACTORING', 'Servicios', 'in', 'Cobro de INSYTE vía confirming de Santander. Es facturación cobrada, NO financiación propia de UMTELKOMD.'],
 ];
 
 const norm = (s) => String(s || '').trim().toLowerCase();
