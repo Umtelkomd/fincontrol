@@ -1,4 +1,5 @@
 import { clampMoney, compareIsoDate, toISODate } from './utils';
+import { splitInternalTransfers } from '../lib/finance/movementAmount';
 
 export const MONTH_NAMES = [
   'Enero',
@@ -101,15 +102,25 @@ export const filterRowsByRange = (rows, getDate, range) => {
   });
 };
 
+/**
+ * Period income / expense / net.
+ *
+ * Own-account transfers are excluded: moving money between UMTELKOMD's own
+ * bank accounts is neither revenue nor spend, and counting both legs inflated
+ * income AND expense by the same money. Cash-side figures (balance, forecast,
+ * runway) keep them — see `isInternalTransfer`.
+ */
 export const summarizeMovements = (movements, { useNet = false } = {}) => {
   const getAmount = (entry) =>
     useNet && entry.netAmount != null ? entry.netAmount : entry.amount;
 
+  const { operationalMovements } = splitInternalTransfers(movements);
+
   const inflows = clampMoney(
-    movements.filter((entry) => entry.direction === 'in').reduce((sum, entry) => sum + getAmount(entry), 0),
+    operationalMovements.filter((entry) => entry.direction === 'in').reduce((sum, entry) => sum + getAmount(entry), 0),
   );
   const outflows = clampMoney(
-    movements.filter((entry) => entry.direction === 'out').reduce((sum, entry) => sum + getAmount(entry), 0),
+    operationalMovements.filter((entry) => entry.direction === 'out').reduce((sum, entry) => sum + getAmount(entry), 0),
   );
 
   return {

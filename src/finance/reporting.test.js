@@ -176,3 +176,24 @@ describe('finance reporting transaction shaping', () => {
     });
   });
 });
+
+describe('summarizeMovements — internal transfers', () => {
+  it('excludes own-account transfers from income and expense totals', () => {
+    const summary = summarizeMovements([
+      { direction: 'in', amount: 1000 },
+      { direction: 'out', amount: 400 },
+      { direction: 'out', amount: 72872.8, counterpartyName: 'UMTELKOMD GmbH' },
+      { direction: 'in', amount: 85667.6, counterpartyName: 'UMTELKOMD GmbH' },
+    ]);
+
+    expect(summary).toEqual({ inflows: 1000, outflows: 400, net: 600 });
+  });
+
+  it('keeps the UMTELKOMD ESPAÑA subcontractor inside the expense total', () => {
+    const summary = summarizeMovements([
+      { direction: 'out', amount: 2000, counterpartyName: 'UMTELKOMD ESPANA S.L.' },
+    ]);
+
+    expect(summary.outflows).toBe(2000);
+  });
+});

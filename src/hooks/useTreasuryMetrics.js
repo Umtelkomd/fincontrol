@@ -7,6 +7,7 @@ import {
   WEEK_MS,
 } from '../finance/constants';
 import { buildAgingView } from '../finance/agingView';
+import { isInternalTransfer } from '../lib/finance/movementAmount';
 import {
   addDays,
   clampMoney,
@@ -122,6 +123,10 @@ export const buildProjectMargins = (movements, payrollByProject = {}) => {
   const projectMap = new Map();
 
   movements.forEach((entry) => {
+    // Own-account transfers are neither revenue nor cost — see isInternalTransfer.
+    // The money did move (and the cash position counts it), but crediting an obra
+    // with it would invent revenue and charging it would invent cost.
+    if (isInternalTransfer(entry)) return;
     // Movements without a real project are excluded: the table ranks obras, and
     // the unassigned bucket used to win it outright. buildUnassignedMargin
     // surfaces that money separately so nothing is silently dropped.
@@ -157,6 +162,7 @@ export const buildUnassignedMargin = (movements = [], payrollByProject = {}) => 
   let touched = false;
 
   movements.forEach((entry) => {
+    if (isInternalTransfer(entry)) return;
     if (!isUnassignedProject(entry.projectName)) return;
     touched = true;
     addMovement(bucket, entry);

@@ -22,7 +22,7 @@
  * No Firebase imports here — the module stays pure and unit-testable.
  */
 
-import { signedAmountOf } from '../lib/finance/movementAmount.js';
+import { isInternalTransfer, signedAmountOf } from '../lib/finance/movementAmount.js';
 
 /** The two destinations an outbound movement can be assigned to. */
 export const COST_SCOPE = {
@@ -67,6 +67,13 @@ export const normalizeCostScope = (movement) => {
 export const validateClassification = (movement, form) => {
   const draft = form || {};
 
+  // Moving money between the company's own accounts is neither revenue nor
+  // spend, so there is no category and no destination to demand. Asking for one
+  // would force the user to invent an answer that then pollutes the P&L.
+  if (isInternalTransfer(movement)) {
+    return { valid: true, error: null };
+  }
+
   if (!text(draft.categoryName)) {
     return { valid: false, error: 'La categoría es obligatoria' };
   }
@@ -99,6 +106,11 @@ export const validateClassification = (movement, form) => {
 export const isClassified = (movement) => {
   if (!movement) return false;
   if (movement.status === 'void') return false;
+  // An own-account transfer is resolved BY NATURE: it needs no category and no
+  // destination, so it is never part of the backlog. Note this is the company
+  // itself — `UMTELKOMD ESPAÑA S.L.` is a subcontractor and still has to be
+  // classified like any other supplier.
+  if (isInternalTransfer(movement)) return true;
   if (!text(movement.categoryName)) return false;
   if (movement.direction !== 'out') return true;
 
@@ -111,7 +123,10 @@ export const isClassified = (movement) => {
  * classificationCoverage — how much of the ledger is actually classified.
  *
  * `byScope` buckets every non-void movement by resolved destination, so
- * project + overhead + unresolved always equals `total`.
+ * project + overhead + transfer + unresolved always equals `total`.
+ * `transfer` holds own-account movements: they have no destination to resolve
+ * and are counted as classified, so the coverage percentage is reachable and
+ * `unclassifiedOutflow` no longer quotes € that nobody is meant to assign.
  * `unclassifiedOutflow` is the € still waiting to be assigned; the signed
  * amount is derived with signedAmountOf because movements imported before
  * May 2026 have no usable `signedAmount`.
@@ -122,14 +137,17 @@ export const classificationCoverage = (movements) => {
   let total = 0;
   let classified = 0;
   let unclassifiedOutflow = 0;
-  const byScope = { project: 0, overhead: 0, unresolved: 0 };
+  const byScope = { project: 0, overhead: 0, transfer: 0, unresolved: 0 };
 
   for (const movement of list) {
     if (!movement || movement.status === 'void') continue;
     total += 1;
 
-    const scope = normalizeCostScope(movement);
-    if (scope === COST_SCOPE.PROJECT) byScope.project += 1;
+    // The transfer bucket wins over a stored destination: an own-account
+    // movement is not obra cost even if an old import left a projectId on it.
+    const scope = isInternalTransfer(movement) ? 'transfer' : normalizeCostScope(movement);
+    if (scope === 'transfer') byScope.transfer += 1;
+    else if (scope === COST_SCOPE.PROJECT) byScope.project += 1;
     else if (scope === COST_SCOPE.OVERHEAD) byScope.overhead += 1;
     else byScope.unresolved += 1;
 

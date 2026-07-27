@@ -18,6 +18,7 @@ import {
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
 import { isClassified, isCostScope } from '../finance/costScope';
+import { isInternalTransfer } from '../lib/finance/movementAmount';
 import { clampMoney, toISODate } from '../finance/utils';
 import { scorePayrollMatch } from '../features/nominas/lib/payrollMatch';
 import { db, appId } from '../services/firebase';
@@ -477,6 +478,11 @@ export const useClassifier = (user) => {
  const inboxMovements = useMemo(() => {
  return (bankMovements || []).filter((m) => {
  if (m.status === 'void') return false;
+ // A traspaso between the company's own accounts is resolved by nature: it
+ // is neither revenue nor spend, so there is no CXC to link, no category and
+ // no project to demand. `UMTELKOMD ESPAÑA S.L.` is a subcontractor with an
+ // almost identical name and is deliberately NOT covered by this.
+ if (isInternalTransfer(m)) return false;
  if (m.direction === 'in') {
  // Income needs link to a CXC
  return !m.receivableId;

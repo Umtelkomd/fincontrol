@@ -36,7 +36,7 @@ import { useTreasurySettings } from '../../hooks/useTreasurySettings';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
-import { agingBuckets } from '../../lib/finance';
+import { agingBuckets, isInternalTransfer } from '../../lib/finance';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
 import {
@@ -170,12 +170,17 @@ const Resumen = ({ user }) => {
       : runwayMonths != null && runwayMonths < CRITICAL_RUNWAY_MONTHS;
 
   // ── Block 2: monthly result WITH payroll ───────────────────────────────────
+  // Own-account transfers are dropped from BOTH sides: moving money between
+  // UMTELKOMD's own bank accounts is neither income nor expense, and counting
+  // both legs inflated the monthly result on each side. The cash KPIs above are
+  // untouched — that money really did leave and enter the account.
   const monthIncome = useMemo(
     () =>
       (metrics.postedMovements || [])
         .filter(
           (m) =>
             m.direction === 'in' &&
+            !isInternalTransfer(m) &&
             m.postedDate >= monthRange.from &&
             m.postedDate <= monthRange.to,
         )
@@ -188,6 +193,7 @@ const Resumen = ({ user }) => {
         .filter(
           (m) =>
             m.direction === 'out' &&
+            !isInternalTransfer(m) &&
             m.postedDate >= monthRange.from &&
             m.postedDate <= monthRange.to,
         )

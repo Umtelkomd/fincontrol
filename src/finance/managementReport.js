@@ -21,6 +21,7 @@ import {
   toISODate,
 } from './utils';
 import { partnerComplianceStatus, payableRequiresOpsClear } from './opsControl';
+import { isInternalTransfer } from '../lib/finance/movementAmount';
 
 /** KPI thresholds from the UMTELKOMD management model (objetivo | alarma). */
 export const KPI_THRESHOLDS = {
@@ -83,8 +84,6 @@ export const FINANCIAL_COST_PATTERNS = [
   'entgeltabschluss',
   'financiero',
 ];
-
-const INTERNAL_TRANSFER_PATTERNS = ['umbuchung'];
 
 const UNKNOWN_PROJECT_LABELS = new Set(['', 'sin proyecto', 'sin asignar', 'n/a', 'unknown']);
 
@@ -211,6 +210,8 @@ export function computeProjectMargins(
   const byProject = new Map();
   for (const movement of movements || []) {
     if (!movement || movement.status === 'void') continue;
+    // Own-account transfers are neither revenue nor cost for the obra.
+    if (isInternalTransfer(movement)) continue;
     const posted = toISODate(movement.postedDate || movement.valueDate || movement.date);
     if (!posted) continue;
     if (sinceIso && compareIsoDate(posted, sinceIso) < 0) continue;
@@ -357,7 +358,7 @@ export function computeCashWeeks({ currentCash = null, avgMonthlyOutflows = 0 } 
 
 /**
  * One pass over a month's posted movements with EBIT-style exclusions:
- * - internal transfers (Umbuchung) ignored entirely
+ * - internal transfers (own-account / Umbuchung) ignored entirely
  * - financial costs (bank fees, interest, confirming…) tallied separately and
  *   kept OUT of EBIT costs (they are below-EBIT financial result)
  * - VAT / profit-tax flows (Finanzamt, USt…) excluded; Lohnsteuer stays a cost
@@ -370,12 +371,14 @@ const summarizeMonthFlows = (movements = [], monthKey) => {
 
   for (const movement of movements || []) {
     if (!movement || movement.status === 'void') continue;
+    // Own-account transfers (counterparty UMTELKOMD GmbH, or a whole-word
+    // "Umbuchung") are ignored entirely — they are neither sales nor costs.
+    if (isInternalTransfer(movement)) continue;
     const iso = toISODate(movement.postedDate || movement.valueDate || movement.date);
     if (!iso || iso.slice(0, 7) !== monthKey) continue;
     const amount = Math.abs(Number(movement.amount) || 0);
     if (amount === 0) continue;
     const text = movementText(movement);
-    if (hasAny(text, INTERNAL_TRANSFER_PATTERNS)) continue;
     movementCount += 1;
     if (movement.direction === 'out' && isFinancialCost(movement, text)) {
       financialCosts += amount;

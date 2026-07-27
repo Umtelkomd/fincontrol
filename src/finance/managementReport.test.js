@@ -391,3 +391,57 @@ describe('computeTopRisks', () => {
     }
   });
 });
+
+/**
+ * Own-account transfers (counterparty `UMTELKOMD GmbH`, or a whole-word
+ * "Umbuchung") are neither sales nor costs. The Spanish subcontractor
+ * `UMTELKOMD ESPAÑA S.L.` is a different legal entity and stays a real cost.
+ */
+describe('management report — internal transfers', () => {
+  const internalIn = {
+    direction: 'in',
+    amount: 85667.6,
+    postedDate: '2026-06-11',
+    projectName: 'NE4 Rossdorf',
+    counterpartyName: 'UMTELKOMD GmbH',
+    status: 'posted',
+  };
+  const internalOut = {
+    direction: 'out',
+    amount: 72872.8,
+    postedDate: '2026-06-12',
+    projectName: 'NE4 Rossdorf',
+    counterpartyName: 'UMTELKOMD GmbH',
+    status: 'posted',
+  };
+  const subcontractor = {
+    direction: 'out',
+    amount: 6500,
+    postedDate: '2026-06-13',
+    projectName: 'NE4 Rossdorf',
+    counterpartyName: 'UMTELKOMD ESPA.A S.L.',
+    status: 'posted',
+  };
+
+  it('keeps own-account transfers out of project revenue and cost', () => {
+    const withTransfers = computeProjectMargins([...movementsJune, internalIn, internalOut]);
+    const baseline = computeProjectMargins(movementsJune);
+    expect(withTransfers).toEqual(baseline);
+  });
+
+  it('keeps the UMTELKOMD ESPAÑA subcontractor inside project cost', () => {
+    const rows = computeProjectMargins([...movementsJune, subcontractor]);
+    const baseline = computeProjectMargins(movementsJune);
+    const row = rows.find((entry) => entry.name === 'NE4 Rossdorf');
+    const before = baseline.find((entry) => entry.name === 'NE4 Rossdorf');
+    expect(row.cost).toBeCloseTo(before.cost + 6500, 2);
+  });
+
+  it('keeps own-account transfers out of the monthly EBIT approximation', () => {
+    const withTransfers = computeMonthlyEbit([...movementsJune, internalIn, internalOut], {
+      monthKey: '2026-06',
+    });
+    const baseline = computeMonthlyEbit(movementsJune, { monthKey: '2026-06' });
+    expect(withTransfers).toEqual(baseline);
+  });
+});

@@ -38,6 +38,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { useVatRates } from '../../hooks/useVatRates';
 import { createNetAmountResolver } from '../../finance/vatRates';
+import { isInternalTransfer } from '../../lib/finance/movementAmount';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
@@ -603,6 +604,9 @@ const BudgetVsActual = ({ user, userRole }) => {
  // surfaced via the uncategorizedStats banner instead).
  ledger.postedMovements.forEach((m) => {
  if (Number(m.postedDate?.slice(0, 4)) !== Number(selectedYear)) return;
+ // Own-account transfers are neither income nor expense: counting both legs
+ // inflated the actuals on BOTH sides of every budget line they touched.
+ if (isInternalTransfer(m)) return;
  if (!m.categoryName) return; // skip uncategorized bank imports
  if (selectedCostCenter && normCC(m.costCenterId || '') !== selectedCostCenter) return;
 
@@ -638,7 +642,11 @@ const BudgetVsActual = ({ user, userRole }) => {
  // Count uncategorized bank movements for the selected year
  const uncategorizedStats = useMemo(() => {
  const yearMovements = ledger.postedMovements.filter(
- (m) => Number(m.postedDate?.slice(0, 4)) === Number(selectedYear)
+ (m) =>
+ Number(m.postedDate?.slice(0, 4)) === Number(selectedYear) &&
+ // Internal transfers need no category — asking for one here would keep the
+ // banner permanently red over money that has nothing to classify.
+ !isInternalTransfer(m)
  );
  const uncategorized = yearMovements.filter((m) => !m.categoryName);
  const totalAmount = uncategorized.reduce((s, m) => s + Math.abs(netAmountOf(m)), 0);
@@ -933,7 +941,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  // Build budget lines from 2025 legacy transactions
  const byKey = new Map();
  ledger.postedMovements
- .filter((m) => Number(m.postedDate?.slice(0, 4)) === 2025)
+ .filter((m) => Number(m.postedDate?.slice(0, 4)) === 2025 && !isInternalTransfer(m))
  .forEach((m) => {
  const cat = m.categoryName || '';
  const dir = m.direction === 'in' ? 'income' : 'expense';

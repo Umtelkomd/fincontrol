@@ -25,6 +25,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
 import { classificationCoverage, isClassified } from '../../finance/costScope';
+import { isInternalTransfer, splitInternalTransfers } from '../../lib/finance/movementAmount';
 import {
  COUNTERPARTY_KIND,
  classifyCounterparty,
@@ -128,6 +129,15 @@ const Movimientos = ({ user }) => {
  // Coverage is measured over the WHOLE ledger, so the number matches the
  // classifier inbox no matter which filters are active here.
  const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
+
+ // Own-account transfers inside the current filter. The KPI totals above stay
+ // BANK truth (they must reconcile with the rows on screen), so the amount that
+ // every cost report leaves out is stated separately instead of silently
+ // disappearing from a number the user can add up by hand.
+ const internalTransfers = useMemo(
+ () => splitInternalTransfers(filtered.filter((m) => m.status !== 'void')),
+ [filtered],
+ );
 
  // Nómina vs subcontratista, resolved from the counterparty name. Only the
  // visible page is classified — this runs per row and the ledger is thousands
@@ -299,6 +309,28 @@ const Movimientos = ({ user }) => {
  />
  </KPIGrid>
 
+ {internalTransfers.internalTransfers.length > 0 && (
+ <section
+ data-testid="internal-transfer-note"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-4"
+ >
+ <p className="label-mono text-[var(--color-fg-4)]">Transferencias internas</p>
+ <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--color-fg-3)]">
+ {internalTransfers.internalTransfers.length} movimiento(s) por{' '}
+ <span className="text-[var(--color-fg-1)]">{formatCurrency(internalTransfers.excludedTotal)}</span>{' '}
+ son traspasos <span className="text-[var(--color-fg-1)]">entre cuentas propias</span> de UMTELKOMD
+ GmbH. No necesitan categoría ni proyecto: mover tu propio dinero no es ingreso ni gasto, así que
+ quedan fuera del P&amp;L, del desglose por categoría y del presupuesto. La caja sí los cuenta —
+ el dinero salió y entró del banco de verdad.
+ </p>
+ <p className="mt-2 max-w-4xl text-[12px] leading-6 text-[var(--color-fg-4)]">
+ <span className="text-[var(--color-fg-3)]">UMTELKOMD ESPAÑA S.L.</span> es un subcontratista
+ distinto con nombre casi idéntico: sus pagos son coste real de obra y siguen exigiendo categoría y
+ proyecto.
+ </p>
+ </section>
+ )}
+
  {/* ─── Filters Bar ─── */}
  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3 flex flex-wrap items-end gap-3">
  <FilterSelect
@@ -411,6 +443,7 @@ const Movimientos = ({ user }) => {
  const isReconciled = !!(m.receivableId || m.payableId);
  const classified = isClassified(m);
  const isVoid = m.status === 'void';
+ const isTransfer = !isVoid && isInternalTransfer(m);
  const isRecurring = !!m.recurringCostId;
  const destination = movementDestinationLabel(m);
  return (
@@ -461,6 +494,14 @@ const Movimientos = ({ user }) => {
  <td className="text-center">
  {isVoid ? (
  <Badge variant="err" dot>Anulado</Badge>
+ ) : isTransfer ? (
+ <Badge
+ variant="neutral"
+ dot
+ title="Traspaso entre cuentas propias de UMTELKOMD — no es ingreso ni gasto y no necesita categoría ni proyecto"
+ >
+ Transferencia interna
+ </Badge>
  ) : isReconciled ? (
  <Badge variant="ok" dot>Conciliado</Badge>
  ) : classified ? (

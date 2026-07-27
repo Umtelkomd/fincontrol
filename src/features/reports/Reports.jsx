@@ -37,6 +37,7 @@ import {
  summarizeVAT,
  toPdfTransaction,
 } from '../../finance/reporting';
+import { splitInternalTransfers } from '../../lib/finance/movementAmount';
 
 const variation = (current, previous) => {
  if (previous === 0) return current === 0 ? 0 : 100;
@@ -103,9 +104,15 @@ const Reports = () => {
  return () => document.removeEventListener('mousedown', handler);
  }, []);
 
+ // Every figure on this screen is a P&L figure — period income/expense, the
+ // category breakdowns, the project margins, the 6-month trend and the PDF
+ // export. Own-account transfers between UMTELKOMD's own bank accounts are
+ // neither revenue nor spend, so they are dropped once, at the source. Cash
+ // figures live elsewhere and keep counting them.
  const yearFilteredMovements = useMemo(() => {
- if (selectedYear === 'all') return ledger.postedMovements;
- return ledger.postedMovements.filter((entry) => {
+ const operational = splitInternalTransfers(ledger.postedMovements).operationalMovements;
+ if (selectedYear === 'all') return operational;
+ return operational.filter((entry) => {
  const date = entry.postedDate;
  if (!date) return false;
  return date.startsWith(selectedYear);

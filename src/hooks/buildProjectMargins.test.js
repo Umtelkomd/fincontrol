@@ -119,3 +119,47 @@ describe('buildUnassignedMargin', () => {
     expect(buildUnassignedMargin([])).toBeNull();
   });
 });
+
+/**
+ * Own-account transfers between UMTELKOMD's bank accounts are neither revenue
+ * nor cost, so they must not reach a project's margin. The Spanish
+ * subcontractor `UMTELKOMD ESPAÑA S.L.` shares almost the same name and IS real
+ * obra cost — this pins both halves.
+ */
+describe('buildProjectMargins — internal transfers', () => {
+  const internalTransfer = {
+    projectName: 'Alpha',
+    direction: 'out',
+    amount: 10000,
+    counterpartyName: 'UMTELKOMD GmbH',
+  };
+  const subcontractor = {
+    projectName: 'Alpha',
+    direction: 'out',
+    amount: 2000,
+    counterpartyName: 'UMTELKOMD ESPA.A SOCIEDAD LIMITADA',
+  };
+
+  it('keeps own-account transfers out of project outflows', () => {
+    const alpha = buildProjectMargins([...movements, internalTransfer]).find((p) => p.name === 'Alpha');
+    expect(alpha.outflows).toBe(3000);
+    expect(alpha.net).toBe(7000);
+  });
+
+  it('keeps own-account inflows out of project revenue', () => {
+    const alpha = buildProjectMargins([
+      ...movements,
+      { projectName: 'Alpha', direction: 'in', amount: 25000, counterpartyName: 'UMTELKOMD GmbH' },
+    ]).find((p) => p.name === 'Alpha');
+    expect(alpha.inflows).toBe(10000);
+  });
+
+  it('still charges the UMTELKOMD ESPAÑA subcontractor to the obra', () => {
+    const alpha = buildProjectMargins([...movements, subcontractor]).find((p) => p.name === 'Alpha');
+    expect(alpha.outflows).toBe(5000);
+  });
+
+  it('keeps them out of the unassigned bucket too', () => {
+    expect(buildUnassignedMargin([{ ...internalTransfer, projectName: '' }])).toBeNull();
+  });
+});

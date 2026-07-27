@@ -242,3 +242,42 @@ describe('detectImportGap', () => {
     expect(detectImportGap({ movements: [mv('2026-08-01', 'in', 1)], today: '2026-07-09' }).hasGap).toBe(true);
   });
 });
+
+// ─── Internal transfers stay INSIDE the cash figures ──────────────────────────
+// Own-account transfers are excluded from the P&L (moving your own money is
+// neither revenue nor spend), but the money really did leave and enter the main
+// account: the balance is only correct if they count. This locks that in so a
+// future P&L exclusion can never leak into the cash engine.
+
+describe('cash position includes internal transfers', () => {
+  const internalOut = mv('2026-06-05', 'out', 10000, { counterpartyName: 'UMTELKOMD GmbH' });
+  const internalIn = mv('2026-06-20', 'in', 4000, { counterpartyName: 'UMTELKOMD GmbH' });
+  const rebooking = mv('2026-06-25', 'out', 1000, { description: 'SVWZ+Umbuchung Tagesgeld' });
+
+  it('applies own-account movements on top of the anchor', () => {
+    const result = deriveBalance({
+      anchors: [anchor('2026-05-31', 1214.2)],
+      movements: [internalOut, internalIn, rebooking],
+      today: '2026-07-09',
+    });
+
+    expect(result.balance).toBeCloseTo(1214.2 - 10000 + 4000 - 1000, 2);
+    expect(result.movementsApplied).toBe(3);
+  });
+
+  it('keeps them in the daily balance series', () => {
+    const series = dailyBalanceSeries({
+      anchors: [anchor('2026-06-04', 1000)],
+      movements: [internalOut],
+      from: '2026-06-04',
+      to: '2026-06-06',
+    });
+
+    expect(series.map((point) => point.balance)).toEqual([1000, -9000, -9000]);
+  });
+
+  it('counts them as import freshness evidence', () => {
+    expect(detectImportGap({ movements: [internalIn], today: '2026-06-22' }).lastMovementDate)
+      .toBe('2026-06-20');
+  });
+});

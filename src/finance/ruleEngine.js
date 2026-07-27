@@ -22,6 +22,7 @@
  */
 
 import { isCostScope, normalizeCostScope } from './costScope.js';
+import { isInternalTransfer } from '../lib/finance/movementAmount.js';
 
 const norm = (s) => String(s || '').toLowerCase().trim();
 
@@ -152,6 +153,10 @@ export const groupUnclassifiedByCounterparty = (movements, topN = 10) => {
   const map = new Map();
   for (const m of movements || []) {
     if (m.status === 'void') continue;
+    // Own-account transfers need no rule: they are resolved by nature and are
+    // already excluded from every cost report. `UMTELKOMD ESPAÑA S.L.` is a
+    // subcontractor with an almost identical name and still deserves a rule.
+    if (isInternalTransfer(m)) continue;
     if (m.categoryName || m.costCenterId || m.receivableId || m.payableId) continue;
     const key = (m.counterpartyName || 'Sin contraparte').trim();
     if (!map.has(key)) {

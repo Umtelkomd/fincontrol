@@ -332,3 +332,56 @@ describe('Movimientos — nómina vs subcontratista', () => {
     expect(within(row).getByText('Nómina?')).toBeInTheDocument();
   });
 });
+
+/**
+ * Own-account transfers must be readable as such at a glance: they are excluded
+ * from every cost figure, so a row that looks like an ordinary 10.000 € payment
+ * would otherwise be unexplainable.
+ */
+describe('Movimientos — internal transfers', () => {
+  const INTERNAL = bankMovementFixture({
+    id: 'mov-internal',
+    direction: 'out',
+    amount: 10000,
+    description: 'Traspaso a cuenta propia',
+    counterpartyName: 'UMTELKOMD GmbH',
+    categoryName: '',
+    postedDate: isoDaysFromNow(-4),
+  });
+
+  const SPANISH_SUBCONTRACTOR = bankMovementFixture({
+    id: 'mov-spain',
+    direction: 'out',
+    amount: 6500,
+    description: 'Teilzahlung Rechnung INV/2025/00005',
+    counterpartyName: 'UMTELKOMD ESPA.A S.L.',
+    categoryName: '',
+    postedDate: isoDaysFromNow(-5),
+  });
+
+  beforeEach(() => {
+    store.collections.bankMovements = [INTERNAL, SPANISH_SUBCONTRACTOR];
+  });
+
+  it('badges the own-account row as an internal transfer', () => {
+    renderScreen(<Movimientos user={USER} />);
+
+    const row = screen.getByText('Traspaso a cuenta propia').closest('tr');
+    expect(within(row).getByText('Transferencia interna')).toBeInTheDocument();
+  });
+
+  it('leaves the UMTELKOMD ESPAÑA subcontractor unclassified, as a real supplier', () => {
+    renderScreen(<Movimientos user={USER} />);
+
+    const row = screen.getByText('Teilzahlung Rechnung INV/2025/00005').closest('tr');
+    expect(within(row).queryByText('Transferencia interna')).not.toBeInTheDocument();
+    expect(within(row).getByText('Sin clasificar')).toBeInTheDocument();
+  });
+
+  it('explains why internal transfers need no category', () => {
+    renderScreen(<Movimientos user={USER} />);
+
+    const note = screen.getByTestId('internal-transfer-note');
+    expect(within(note).getByText(/entre cuentas propias/i)).toBeInTheDocument();
+  });
+});

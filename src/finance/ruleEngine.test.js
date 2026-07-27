@@ -221,3 +221,30 @@ describe('rule engine previews and unclassified grouping', () => {
     });
   });
 });
+
+describe('groupUnclassifiedByCounterparty — internal transfers', () => {
+  const movement = (overrides = {}) => ({
+    id: 'mov-1',
+    direction: 'out',
+    amount: 100,
+    status: 'posted',
+    ...overrides,
+  });
+
+  it('never suggests writing a classification rule for the company own accounts', () => {
+    const grouped = groupUnclassifiedByCounterparty([
+      movement({ id: 'own', counterpartyName: 'UMTELKOMD GmbH', amount: 10000 }),
+      movement({ id: 'real', counterpartyName: 'Telekom', amount: 100 }),
+    ]);
+
+    expect(grouped.map((row) => row.counterparty)).toEqual(['Telekom']);
+  });
+
+  it('still suggests one for the UMTELKOMD ESPAÑA subcontractor', () => {
+    const grouped = groupUnclassifiedByCounterparty([
+      movement({ id: 'spain', counterpartyName: 'UMTELKOMD ESPANA S.L.', amount: 6500 }),
+    ]);
+
+    expect(grouped.map((row) => row.counterparty)).toEqual(['UMTELKOMD ESPANA S.L.']);
+  });
+});

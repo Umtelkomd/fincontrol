@@ -3,6 +3,7 @@ import { TableProperties } from 'lucide-react';
 import { useBankMovements } from '../../hooks/useBankMovements';
 import { useReceivables } from '../../hooks/useReceivables';
 import { usePayables } from '../../hooks/usePayables';
+import { isInternalTransfer } from '../../lib/finance/movementAmount';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -99,9 +100,13 @@ export default function FlujoCajaAnual({ user }) {
   const loading = bmLoading || rxLoading || pyLoading;
 
   // ── Filter movements by selected year (using postedDate) ──
+  // This grid is an income/expense breakdown by category, not a bank statement:
+  // own-account transfers carry no category, so they used to pile up 72,8k € of
+  // "spend" and 85,7k € of "income" into "Sin categoría". They are neither.
   const yearMovements = useMemo(() => {
     return (bankMovements || []).filter((m) => {
       if (m.status === 'void') return false;
+      if (isInternalTransfer(m)) return false;
       const y = m.postedDate?.slice(0, 4);
       return y === String(selectedYear);
     });

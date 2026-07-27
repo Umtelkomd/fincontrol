@@ -424,3 +424,101 @@ describe('ProyectoDashboard — nómina vs subcontratista', () => {
     expect(within(review).getByText(/alias/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * Own-account transfers between UMTELKOMD's bank accounts are not obra money.
+ * The Spanish subcontractor `UMTELKOMD ESPAÑA S.L.` shares almost the same name
+ * and IS real construction cost — the screen has to tell them apart.
+ */
+describe('ProyectoDashboard — internal transfers', () => {
+  const onProject = (overrides) =>
+    bankMovementFixture({
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      postedDate: isoDaysFromNow(-10),
+      ...overrides,
+    });
+
+  const INCOME = onProject({
+    id: 't-in',
+    direction: 'in',
+    amount: 42000,
+    description: 'Cobro certificación',
+    counterpartyName: 'Insyte Deutschland',
+    postedDate: isoDaysFromNow(-20),
+  });
+  const MATERIAL = onProject({
+    id: 't-material',
+    direction: 'out',
+    amount: 12000,
+    description: 'Material fibra',
+    counterpartyName: 'Kabel Service GmbH',
+  });
+  const INTERNAL = onProject({
+    id: 't-internal',
+    direction: 'out',
+    amount: 8000,
+    description: 'Umbuchung Tagesgeld',
+    counterpartyName: 'UMTELKOMD GmbH',
+  });
+  const SPANISH_SUBCONTRACTOR = onProject({
+    id: 't-spain',
+    direction: 'out',
+    amount: 6500,
+    description: 'Teilzahlung Rechnung INV/2025/00005',
+    counterpartyName: 'UMTELKOMD ESPA.A S.L.',
+  });
+
+  beforeEach(() => {
+    store.documents.vatRates = { rates: {} };
+    store.collections.payrollPeriods = [];
+  });
+
+  it('does NOT charge the obra for a transfer between the company own accounts', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, INTERNAL];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(kpiValue('Gastos realizados')).toContain('12.000,00');
+    expect(kpiValue('Balance neto')).toContain('+30.000,00');
+  });
+
+  it('DOES charge the obra for UMTELKOMD ESPAÑA — it is a subcontractor', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, SPANISH_SUBCONTRACTOR];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(kpiValue('Gastos realizados')).toContain('18.500,00');
+  });
+
+  it('keeps an own-account inflow out of the obra revenue', () => {
+    store.collections.bankMovements = [
+      INCOME,
+      MATERIAL,
+      onProject({ id: 't-in-own', direction: 'in', amount: 20000, counterpartyName: 'UMTELKOMD GmbH' }),
+    ];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(kpiValue('Ingresos realizados')).toContain('42.000,00');
+  });
+
+  it('explains on screen why that money is not on the obra', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, INTERNAL];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    const panel = screen.getByTestId('internal-transfer-panel');
+    expect(within(panel).getByText(/Transferencia interna/i)).toBeInTheDocument();
+    expect(within(panel).getAllByText(/8\.000,00/).length).toBeGreaterThan(0);
+    expect(within(panel).getByText(/entre cuentas propias/i)).toBeInTheDocument();
+  });
+
+  it('says nothing about transfers when the project has none', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, SPANISH_SUBCONTRACTOR];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(screen.queryByTestId('internal-transfer-panel')).not.toBeInTheDocument();
+  });
+});

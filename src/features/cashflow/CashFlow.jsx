@@ -24,6 +24,7 @@ import {
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
+import { isInternalTransfer } from '../../lib/finance/movementAmount';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const TooltipCard = ({ active, payload, label }) => {
@@ -76,6 +77,8 @@ const CashFlow = ({ user }) => {
  [forecast.weeks],
  );
 
+ // Explicitly a P&L strip: own-account transfers are excluded from both bars.
+ // The forecast and balance blocks on this screen keep counting them.
  const monthlyPL = useMemo(() => {
  const now = new Date();
  const months = [];
@@ -87,6 +90,7 @@ const CashFlow = ({ user }) => {
  (metrics.postedMovements || []).forEach((m) => {
  const ym = m.postedDate?.slice(0, 7);
  if (!ym) return;
+ if (isInternalTransfer(m)) return;
  const bucket = months.find((b) => b.ym === ym);
  if (!bucket) return;
  if (m.direction === 'in') bucket.inflows += m.amount;

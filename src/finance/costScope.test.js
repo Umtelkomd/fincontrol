@@ -170,14 +170,14 @@ describe('classificationCoverage', () => {
       total: 0,
       classified: 0,
       pct: 0,
-      byScope: { project: 0, overhead: 0, unresolved: 0 },
+      byScope: { project: 0, overhead: 0, transfer: 0, unresolved: 0 },
       unclassifiedOutflow: 0,
     });
     expect(classificationCoverage(null).pct).toBe(0);
     expect(Number.isFinite(classificationCoverage([]).pct)).toBe(true);
   });
 
-  it('splits movements by resolved destination so the three buckets add up to the total', () => {
+  it('splits movements by resolved destination so the buckets add up to the total', () => {
     const coverage = classificationCoverage([
       movement({ id: 'a', categoryName: 'Materiales', projectId: 'proj-1' }),
       movement({ id: 'b', categoryName: 'Impuestos', costScope: COST_SCOPE.OVERHEAD }),
@@ -186,9 +186,13 @@ describe('classificationCoverage', () => {
     ]);
 
     expect(coverage.total).toBe(4);
-    expect(coverage.byScope).toEqual({ project: 1, overhead: 2, unresolved: 1 });
-    expect(coverage.byScope.project + coverage.byScope.overhead + coverage.byScope.unresolved)
-      .toBe(coverage.total);
+    expect(coverage.byScope).toEqual({ project: 1, overhead: 2, transfer: 0, unresolved: 1 });
+    expect(
+      coverage.byScope.project +
+        coverage.byScope.overhead +
+        coverage.byScope.transfer +
+        coverage.byScope.unresolved,
+    ).toBe(coverage.total);
     expect(coverage.classified).toBe(3);
   });
 
@@ -217,7 +221,7 @@ describe('classificationCoverage', () => {
       total: 1,
       classified: 1,
       pct: 100,
-      byScope: { project: 0, overhead: 1, unresolved: 0 },
+      byScope: { project: 0, overhead: 1, transfer: 0, unresolved: 0 },
       unclassifiedOutflow: 0,
     });
   });
@@ -251,5 +255,62 @@ describe('classificationCoverage', () => {
 
     expect(coverage.unclassifiedOutflow).toBeCloseTo(400, 2);
     expect(coverage.classified).toBe(0);
+  });
+});
+
+// ─── Internal transfers are resolved by nature ────────────────────────────────
+// Moving money between the company's own accounts needs no category, no
+// destination and no project: there is nothing to classify. Leaving them in the
+// backlog meant the coverage number could never reach 100% and the "€ pending
+// assignment" figure quoted 72.8k € that nobody was ever meant to assign.
+
+describe('internal transfers in the classification backlog', () => {
+  const ownAccount = (overrides = {}) =>
+    movement({ counterpartyName: 'UMTELKOMD GmbH', ...overrides });
+
+  it('counts an internal transfer as classified without a category', () => {
+    expect(isClassified(ownAccount({ id: 'own-out', direction: 'out', amount: 10000 }))).toBe(true);
+    expect(isClassified(ownAccount({ id: 'own-in', direction: 'in', amount: 4000 }))).toBe(true);
+    expect(isClassified(movement({ id: 'rebooking', description: 'SVWZ+Umbuchung Tagesgeld' }))).toBe(true);
+  });
+
+  it('still refuses a void internal transfer', () => {
+    expect(isClassified(ownAccount({ status: 'void' }))).toBe(false);
+  });
+
+  it('does NOT absolve the UMTELKOMD ESPAÑA subcontractor of classification', () => {
+    expect(isClassified(movement({ counterpartyName: 'UMTELKOMD ESPANA S.L.' }))).toBe(false);
+    expect(isClassified(movement({ counterpartyName: 'UMTELKOMD ESPA.A SOCIEDAD LIMITADA' }))).toBe(false);
+  });
+
+  it('accepts the categorize form for an internal transfer with nothing filled in', () => {
+    expect(validateClassification(ownAccount(), form({ categoryName: '', costScope: '', projectId: '' })))
+      .toEqual({ valid: true, error: null });
+  });
+
+  it('keeps demanding a project from the subcontractor', () => {
+    expect(validateClassification(
+      movement({ counterpartyName: 'UMTELKOMD ESPANA S.L.' }),
+      form({ categoryName: 'Subcontratos', costScope: COST_SCOPE.PROJECT, projectId: '' }),
+    )).toEqual({ valid: false, error: 'Selecciona el proyecto de la obra' });
+  });
+
+  it('reports internal transfers in their own bucket and counts them as covered', () => {
+    const coverage = classificationCoverage([
+      ownAccount({ id: 'own-out', direction: 'out', amount: 10000 }),
+      ownAccount({ id: 'own-in', direction: 'in', amount: 4000 }),
+      movement({ id: 'pending', amount: 500 }),
+    ]);
+
+    expect(coverage.total).toBe(3);
+    expect(coverage.classified).toBe(2);
+    expect(coverage.byScope).toEqual({ project: 0, overhead: 0, transfer: 2, unresolved: 1 });
+    // The 10.000 € own-account outflow is NOT money waiting to be assigned.
+    expect(coverage.unclassifiedOutflow).toBeCloseTo(500, 2);
+  });
+
+  it('buckets an internal transfer as transfer even if it carries a stale project id', () => {
+    const coverage = classificationCoverage([ownAccount({ id: 'own', projectId: 'proj-1' })]);
+    expect(coverage.byScope).toEqual({ project: 0, overhead: 0, transfer: 1, unresolved: 0 });
   });
 });

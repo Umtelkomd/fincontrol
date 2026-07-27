@@ -9,6 +9,7 @@ import {
  Gauge,
  Percent,
  RefreshCw,
+ Repeat,
  Target,
  Users,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { createNetAmountResolver } from '../../finance/vatRates';
 import { splitPayrollSettlements } from '../../finance/counterpartyIdentity';
+import { splitInternalTransfers } from '../../lib/finance/movementAmount';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -227,6 +229,25 @@ const ProyectoDashboard = ({ user }) => {
  .sort((left, right) => (right.postedDate || '').localeCompare(left.postedDate || ''));
  }, [ledger.postedMovements, projectTokens, selectedProject, netAmountOf]);
 
+ // ── Own money moving between own accounts ───────────────────────────────
+ // A transfer to `UMTELKOMD GmbH` is the company paying itself: the euro really
+ // left the bank (the cash position counts it) but it is neither revenue nor
+ // cost, so it must not reach income, expense, margin or the category chart.
+ // `UMTELKOMD ESPAÑA S.L.` is NOT this — it is a subcontractor with an almost
+ // identical name and its payments stay real obra cost. See isInternalTransfer.
+ const transfers = useMemo(
+ () =>
+ splitInternalTransfers(projectMovements, {
+ amountOf: (entry) => Number(entry.netAmount || 0),
+ }),
+ [projectMovements],
+ );
+
+ const internalTransferIds = useMemo(
+ () => new Set(transfers.internalTransfers.map((entry) => entry.id)),
+ [transfers.internalTransfers],
+ );
+
  // ── The double count ────────────────────────────────────────────────────
  // Personnel cost reaches this obra by two routes: `allocatePayrollCost` below
  // (employee.gesamtkosten split over employee.projectIds — the authoritative
@@ -239,10 +260,10 @@ const ProyectoDashboard = ({ user }) => {
  // Everything below reads `costMovements`, never `projectMovements`.
  const personnel = useMemo(
  () =>
- splitPayrollSettlements(projectMovements, employees, {
+ splitPayrollSettlements(transfers.operationalMovements, employees, {
  amountOf: (entry) => Number(entry.netAmount || 0),
  }),
- [projectMovements, employees],
+ [transfers.operationalMovements, employees],
  );
 
  const costMovements = personnel.projectCostMovements;
@@ -635,6 +656,51 @@ const ProyectoDashboard = ({ user }) => {
  />
  </div>
 
+ {transfers.internalTransfers.length > 0 ? (
+ <section
+ data-testid="internal-transfer-panel"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5"
+ >
+ <div className="flex flex-wrap items-start justify-between gap-4">
+ <div className="max-w-3xl">
+ <p className="label-mono text-[var(--color-fg-4)]">Transferencia interna · no imputada a la obra</p>
+ <p className="mt-2 text-[15px] leading-7 text-[var(--color-fg-3)]">
+ {transfers.internalTransfers.length} movimiento(s) por{' '}
+ <span className="text-[var(--color-fg-1)]">{formatCurrency(transfers.excludedTotal)}</span> son
+ traspasos <span className="text-[var(--color-fg-1)]">entre cuentas propias</span> de UMTELKOMD GmbH.
+ El dinero salió y entró del banco —{' '}
+ <span className="text-[var(--color-fg-1)]">la caja sí los cuenta</span> — pero mover tu propio
+ dinero no es ni ingreso ni gasto, así que no suma al coste ni al margen de la obra.
+ </p>
+ <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--color-fg-4)]">
+ Ojo: <span className="text-[var(--color-fg-3)]">UMTELKOMD ESPAÑA S.L.</span> es un
+ subcontratista distinto, con nombre casi idéntico. Sus pagos sí son coste real de obra y nunca
+ entran en esta lista.
+ </p>
+ </div>
+ <span className="flex items-center gap-1.5 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-1 text-[11px] text-[var(--color-fg-3)]">
+ <Repeat size={12} />
+ {formatCurrency(transfers.excludedTotal)} fuera del coste
+ </span>
+ </div>
+ <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+ {transfers.internalTransfers.map((entry) => (
+ <li
+ key={entry.id}
+ className="flex items-center justify-between gap-3 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-2"
+ >
+ <span className="truncate text-[13px] text-[var(--color-fg-1)]">
+ {entry.counterpartyName || 'Sin contraparte'}
+ </span>
+ <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--color-fg-3)]">
+ {formatDate(entry.postedDate)} · {formatCurrency(entry.netAmount)}
+ </span>
+ </li>
+ ))}
+ </ul>
+ </section>
+ ) : null}
+
  {personnel.payrollSettlements.length > 0 ? (
  <section
  data-testid="payroll-settlement-panel"
@@ -920,6 +986,14 @@ const ProyectoDashboard = ({ user }) => {
  title="Nómina de empresa — ya contabilizada en la asignación de nómina, no se carga a la obra"
  >
  Nómina
+ </span>
+ ) : null}
+ {internalTransferIds.has(entry.id) ? (
+ <span
+ className="nx-badge"
+ title="Traspaso entre cuentas propias de UMTELKOMD — no es ingreso ni gasto, no se carga a la obra"
+ >
+ Transferencia interna
  </span>
  ) : null}
  </span>
