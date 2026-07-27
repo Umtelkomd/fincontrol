@@ -29,6 +29,21 @@ const { default: Resumen } = await import('./Resumen.jsx');
 
 const USER = { uid: 'test-uid', email: 'jromero@umtelkomd.com' };
 
+/** The "Caja actual" KPI card — cash also appears inside "Posición real". */
+const cashKpi = () => screen.getByText('Caja actual').closest('div').parentElement;
+
+/**
+ * LOCAL dates, never toISOString(): ages are computed against local midnight and
+ * in Europe/Berlin toISOString() lands on the previous day, which would make a
+ * day-count assertion off by one for half the year.
+ */
+const isoDaysAgoLocal = (days) => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
 // Restored BEFORE every test, not after the ones that mutate: a failing
 // assertion skips an inline restore and cascades into unrelated tests.
 beforeEach(() => {
@@ -64,7 +79,8 @@ describe('Resumen — cockpit render', () => {
     renderScreen(<Resumen user={USER} />);
 
     // 25.000 anchor + 42.000 − 12.000 − 3.000 (all three movements post-date it).
-    expect(screen.getByText('52.000,00')).toBeInTheDocument();
+    // Scoped to the KPI: "Posición real" repeats cash as part of its arithmetic.
+    expect(within(cashKpi()).getByText('52.000,00')).toBeInTheDocument();
     expect(screen.getByText(/Conciliado al/)).toBeInTheDocument();
   });
 
@@ -98,7 +114,7 @@ describe('Resumen — cockpit render', () => {
 
     // 25.000 anchor + 11.900 − 5.950, all gross. Netting these at 19% would
     // read 30.000,00 instead.
-    expect(screen.getByText('30.950,00')).toBeInTheDocument();
+    expect(within(cashKpi()).getByText('30.950,00')).toBeInTheDocument();
     expect(screen.queryByText('30.000,00')).not.toBeInTheDocument();
   });
 
@@ -239,5 +255,64 @@ describe('Resumen — upcoming due lists', () => {
 
     expect(screen.getByText('Sin pagos en la ventana.')).toBeInTheDocument();
     expect(screen.getByText('Sin cobros en la ventana.')).toBeInTheDocument();
+  });
+});
+
+describe('Resumen — posición real', () => {
+  // Ledger fixture: cash 52.000, CXC abierta 10.000, CXP abierta 4.000.
+  const WIP_DOC = {
+    id: 'wip-1',
+    projectId: 'proj-1',
+    projectName: 'NE4 Rossdorf',
+    amount: 30000,
+    asOf: isoDaysAgoLocal(5),
+    stage: 'executed',
+    status: 'open',
+    note: '',
+    receivableId: null,
+    createdBy: 'jromero@umtelkomd.com',
+    createdAt: '2026-07-01T08:00:00.000Z',
+  };
+
+  it('adds executed work to the position and shows the arithmetic', () => {
+    store.collections.workInProgress = [WIP_DOC];
+
+    renderScreen(<Resumen user={USER} />);
+
+    const panel = screen.getByTestId('position-panel');
+    // 52.000 caja + 30.000 obra + 10.000 por cobrar − 4.000 por pagar
+    expect(within(panel).getByTestId('position-net')).toHaveTextContent('88.000,00');
+    expect(within(panel).getByText('Obra ejecutada')).toBeInTheDocument();
+    expect(within(panel).getByText('30.000,00')).toBeInTheDocument();
+    expect(within(panel).getByText('52.000,00')).toBeInTheDocument();
+  });
+
+  it('still renders the position when nothing is captured yet', () => {
+    store.collections.workInProgress = [];
+
+    renderScreen(<Resumen user={USER} />);
+
+    const panel = screen.getByTestId('position-panel');
+    expect(within(panel).getByTestId('position-net')).toHaveTextContent('58.000,00');
+    expect(within(panel).getByText(/Sin obra ejecutada registrada/)).toBeInTheDocument();
+  });
+
+  it('says plainly when the executed work has been frozen by paperwork', () => {
+    store.collections.workInProgress = [{ ...WIP_DOC, asOf: isoDaysAgoLocal(80) }];
+
+    renderScreen(<Resumen user={USER} />);
+
+    expect(within(screen.getByTestId('position-panel')).getByText(/80 días/)).toBeInTheDocument();
+  });
+
+  it('keeps executed work OUT of the cash figure — WIP is not cash', () => {
+    store.collections.workInProgress = [WIP_DOC];
+
+    renderScreen(<Resumen user={USER} />);
+
+    // "Caja actual" is still the anchor-derived 52.000, untouched by the 30.000.
+    const cash = screen.getByText('Caja actual').closest('div').parentElement;
+    expect(within(cash).getByText('52.000,00')).toBeInTheDocument();
+    expect(within(cash).queryByText('82.000,00')).not.toBeInTheDocument();
   });
 });

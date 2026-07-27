@@ -24,6 +24,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CalendarClock,
+  HardHat,
+  Scale,
   Wallet,
 } from 'lucide-react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
@@ -33,6 +35,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
 import { useTreasurySettings } from '../../hooks/useTreasurySettings';
+import { useWorkInProgress } from '../../hooks/useWorkInProgress';
+import { netPosition } from '../../finance/workInProgress';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
@@ -108,6 +112,9 @@ const Resumen = ({ user }) => {
   // this hook projects from the same day zero by construction.
   const forecast = useCashForecast(user, { ledger });
   const { alertBufferEur } = useTreasurySettings(user);
+  // Work executed but not yet invoiced. Its own collection, deliberately: it is
+  // neither cash nor a receivable until a real invoice exists.
+  const wip = useWorkInProgress(user);
 
   const now = useMemo(() => new Date(), []);
   const monthRange = useMemo(() => currentMonthRange(now), [now]);
@@ -226,7 +233,23 @@ const Resumen = ({ user }) => {
   // ── Block 3: receivables / payables + next due ─────────────────────────────
   const pendingReceivables = metrics.pendingReceivables ?? 0;
   const pendingPayables = metrics.pendingPayables ?? 0;
-  const netPosition = pendingReceivables - pendingPayables;
+  const cxcMinusCxp = pendingReceivables - pendingPayables;
+
+  // ── Block 0: the real circulating position ─────────────────────────────────
+  // Cash alone says this company is bankrupt. It is not: a large amount of work
+  // is already executed and simply has not been certified or invoiced yet, so it
+  // exists in no other collection. WIP is added here and NOWHERE else — it never
+  // touches the cash figure, the anchors, the forecast or the aging.
+  const position = useMemo(
+    () =>
+      netPosition({
+        cash: currentCash,
+        wip: wip.total,
+        receivablesOpen: pendingReceivables,
+        payablesOpen: pendingPayables,
+      }),
+    [currentCash, wip.total, pendingReceivables, pendingPayables],
+  );
 
   // Feed the FULL open document sets (NOT the 14-day-capped upcoming* arrays) so
   // the 30-day window is real and payroll obligations due ~next month (Lohnsteuer
@@ -343,6 +366,77 @@ const Resumen = ({ user }) => {
         </Panel>
       )}
 
+      {/* ─────────────────── BLOCK 0 — POSICIÓN REAL (CAJA + OBRA) ───────────── */}
+      {/* The arithmetic is shown, not hidden behind one number: the owner has to
+          SEE why this differs from his bank balance or he will not trust it. */}
+      <Panel title="Posición real" meta="Caja + obra ejecutada + cobros − pagos">
+        <div data-testid="position-panel">
+          <div className="mb-4">
+            <p className="label-mono mb-2 text-[var(--color-fg-3)]">
+              Lo que la empresa tiene realmente en circulación
+            </p>
+            <p
+              data-testid="position-net"
+              className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
+              style={{ color: position.net >= 0 ? 'var(--color-ok)' : 'var(--color-err)' }}
+            >
+              {position.net >= 0 ? '+' : '−'}
+              {formatCurrency(Math.abs(position.net))}
+            </p>
+            <p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
+              La caja sola no mide esta empresa: el trabajo ya ejecutado todavía no está
+              facturado, así que no aparece ni en el banco ni en las cuentas por cobrar.
+            </p>
+          </div>
+
+          <KPIGrid cols={4}>
+            <KPI
+              label="Caja"
+              value={formatCurrency(currentCash)}
+              tone={currentCash < 0 ? 'err' : 'default'}
+              icon={Wallet}
+              meta="Saldo conciliado"
+            />
+            <KPI
+              label="Obra ejecutada"
+              value={formatCurrency(position.wip)}
+              tone={wip.summary.stale ? 'warn' : 'default'}
+              icon={HardHat}
+              meta={
+                wip.summary.total > 0
+                  ? `Ejecutado ${formatCurrency(wip.summary.byStage.executed)} · certificado ${formatCurrency(wip.summary.byStage.certified)}`
+                  : 'Sin obra ejecutada registrada'
+              }
+            />
+            <KPI label="Por cobrar" value={formatCurrency(pendingReceivables)} tone="ok" />
+            <KPI label="Por pagar" value={formatCurrency(pendingPayables)} tone="warn" icon={Scale} />
+          </KPIGrid>
+
+          {wip.summary.stale && (
+            <div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-warn)]/40 bg-[var(--color-bg-2)] px-4 py-3">
+              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[var(--color-warn)]" />
+              <div>
+                <p className="font-mono text-[12px] text-[var(--color-warn)]">
+                  Obra sin facturar desde hace {wip.summary.oldestDays} días
+                </p>
+                <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+                  Ese dinero está congelado por papeleo, no porque el cliente no pague. Certificar
+                  y facturar es la acción de más valor disponible ahora mismo.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <p className="mt-4 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+            La obra ejecutada se registra por obra en{' '}
+            <Link to="/proyectos" className="text-[var(--color-accent)] hover:opacity-80">
+              Proyectos
+            </Link>
+            . No es caja ni cuenta por cobrar: no altera el saldo, el runway ni la antigüedad.
+          </p>
+        </div>
+      </Panel>
+
       {/* ───────────────────────── BLOCK 1 — CAJA Y RUNWAY ───────────────────── */}
       <Panel title="Caja y runway" meta="¿Cuánto aguantamos?">
         <KPIGrid cols={2}>
@@ -441,8 +535,8 @@ const Resumen = ({ user }) => {
           <KPI label="Por pagar (CXP)" value={formatCurrency(pendingPayables)} tone="warn" />
           <KPI
             label="Posición neta"
-            value={`${netPosition >= 0 ? '+' : '−'}${formatCurrency(Math.abs(netPosition))}`}
-            tone={netPosition >= 0 ? 'ok' : 'err'}
+            value={`${cxcMinusCxp >= 0 ? '+' : '−'}${formatCurrency(Math.abs(cxcMinusCxp))}`}
+            tone={cxcMinusCxp >= 0 ? 'ok' : 'err'}
           />
         </KPIGrid>
 

@@ -34,6 +34,7 @@ import { createNetAmountResolver } from '../../finance/vatRates';
 import { splitPayrollSettlements } from '../../finance/counterpartyIdentity';
 import { splitInternalTransfers } from '../../lib/finance/movementAmount';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import WipPanel from './WipPanel';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -655,6 +656,11 @@ const ProyectoDashboard = ({ user }) => {
  icon={Percent}
  />
  </div>
+
+ {/* Executed work not yet invoiced. Sits right under the KPIs because a site
+ accumulating uncertified execution is the early warning: every KPI above
+ only knows about money that already moved. */}
+ <WipPanel project={selectedProject} user={user} />
 
  {transfers.internalTransfers.length > 0 ? (
  <section
