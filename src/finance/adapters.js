@@ -30,8 +30,10 @@ const normalizeDocument = (raw, kind, source) => {
   const paidAmount = getPaidAmount(raw);
   const stage = deriveDocumentStage(raw.status, openAmount);
   const status = deriveDocumentStatus(stage, raw.dueDate || raw.date);
-  // VAT fields — backward compat: if taxRate missing, assume 19%
-  const taxRate = raw.taxRate ?? 0.19;
+  // VAT: an unknown rate is not 19%. See adaptBankMovementDoc for the full
+  // reasoning — inventing a rate silently understates every consumer of
+  // netAmount, and plenty of what this company pays carries no VAT at all.
+  const taxRate = Number.isFinite(Number(raw.taxRate)) ? Number(raw.taxRate) : 0;
   const netAmount = raw.netAmount ?? (taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount);
   const taxAmount = raw.taxAmount ?? (grossAmount - netAmount);
 
@@ -115,8 +117,16 @@ const normalizeImportFile = (importFile) => {
 };
 
 export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
-  // VAT fields — backward compat: if taxRate missing, assume 19%
-  const taxRate = raw.taxRate ?? 0.19;
+  // VAT: an unknown rate means "not known", never 19%.
+  //
+  // The Sparkasse account statement this app imports has no VAT column, so no
+  // imported movement carries a rate. Defaulting to 19% therefore applied it to
+  // the entire ledger — including taxes, social insurance, bank interest and
+  // salaries, none of which carry German VAT — and BudgetVsActual and Nóminas
+  // both read netAmount, so their figures came out 16% below what actually left
+  // the bank. Rate 0 keeps net equal to gross until a real rate is known,
+  // whether from the linked invoice or from the category's default.
+  const taxRate = Number.isFinite(Number(raw.taxRate)) ? Number(raw.taxRate) : 0;
   const grossAmount = clampMoney(raw.amount);
   const netAmount = raw.netAmount ?? (taxRate > 0 ? grossAmount / (1 + taxRate) : grossAmount);
   const taxAmount = raw.taxAmount ?? (grossAmount - netAmount);

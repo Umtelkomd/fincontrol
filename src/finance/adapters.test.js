@@ -7,7 +7,7 @@ import {
 } from './adapters.js';
 
 describe('finance adapters document mapping', () => {
-  it('maps receivable documents with ownership, VAT defaults, payments, and legacy links', () => {
+  it('maps receivable documents with ownership, payments, and legacy links', () => {
     const receivable = adaptReceivableDoc({
       id: 'invoice-1',
       amount: 119,
@@ -50,9 +50,10 @@ describe('finance adapters document mapping', () => {
       legacyTransactionId: 'invoice-1',
       createdBy: 'jromero',
       updatedBy: 'bsandoval',
-      taxRate: 0.19,
-      netAmount: 100,
-      taxAmount: 19,
+      // No taxRate on the source document, so none is invented: net stays gross.
+      taxRate: 0,
+      netAmount: 119,
+      taxAmount: 0,
     });
     expect(receivable.payments).toEqual([
       {
@@ -163,9 +164,10 @@ describe('finance adapters bank movement mapping', () => {
       legacyTransactionId: 'legacy-1',
       reconciliationId: 'recon-1',
       createdBy: 'bsandoval',
-      taxRate: 0.19,
-      netAmount: 200,
-      taxAmount: 38,
+      // Imported from a bank statement, which carries no VAT column.
+      taxRate: 0,
+      netAmount: 238,
+      taxAmount: 0,
       categoryName: 'Materials',
     });
   });
@@ -250,6 +252,41 @@ describe('finance adapters bank movement mapping', () => {
       projectName: 'QFF',
     });
     expect(site.costScope).toBe('project');
+  });
+
+  // A Sparkasse account statement carries no VAT column, so an imported
+  // movement has no rate. Assuming 19% there invented 317,274 EUR of tax
+  // across the ledger — including on taxes, insurance and salaries, which
+  // carry no German VAT at all — and BudgetVsActual/Nóminas read netAmount,
+  // so every one of those figures came out 16% short. With no rate known,
+  // net must equal gross.
+  it('does not invent VAT when the movement carries no rate', () => {
+    const movement = adaptBankMovementDoc({
+      id: 'bank-no-rate',
+      direction: 'out',
+      amount: 1190,
+      categoryName: 'Impuestos',
+    });
+    expect(movement.taxRate).toBe(0);
+    expect(movement.netAmount).toBe(1190);
+    expect(movement.taxAmount).toBe(0);
+  });
+
+  it('honours an explicit rate when one is actually known', () => {
+    const movement = adaptBankMovementDoc({
+      id: 'bank-rated',
+      direction: 'out',
+      amount: 1190,
+      taxRate: 0.19,
+    });
+    expect(movement.netAmount).toBe(1000);
+    expect(movement.taxAmount).toBe(190);
+  });
+
+  it('treats an explicit zero rate as zero, not as missing', () => {
+    const movement = adaptBankMovementDoc({ id: 'bank-zero', direction: 'out', amount: 500, taxRate: 0 });
+    expect(movement.netAmount).toBe(500);
+    expect(movement.taxAmount).toBe(0);
   });
 
   it('drops an unrecognized cost destination instead of propagating it', () => {
