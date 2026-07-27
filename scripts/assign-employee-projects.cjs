@@ -46,10 +46,10 @@ const ASSIGNMENTS = [
   { name: 'Jorge Alexander Herrera Romero', codes: [WESCONNECT], why: 'Wesconnect, igual que Felipe' },
   { name: 'Juan De DIos Lesmes Correa', codes: [WESCONNECT], why: 'Wesconnect ("Juan jr"), igual que Felipe' },
   { name: 'Sebastian Agudelo Grajales', codes: [NE4], why: 'UGG NE4 — este sí es Vancom, no Wesconnect' },
-  // "repartido en los proyectos y algo en el backoffice" — the obras with live
-  // crews, plus structure. Even split across four; adjust in the UI if his time
-  // really leans towards one of them.
-  { name: 'Juan De Dios Lesmes Linares', codes: [ROSSDORF_1, ROSSDORF_2, NE4, OVERHEAD], why: 'repartido en obras + algo de backoffice' },
+  // "repartido en los proyectos y algo en el backoffice" — every obra with a
+  // live crew, plus structure. Even split across five, so each carries 20% of
+  // his cost; drop the ones he barely visits if that proves too generous.
+  { name: 'Juan De Dios Lesmes Linares', codes: [ROSSDORF_1, ROSSDORF_2, WESCONNECT, NE4, OVERHEAD], why: 'repartido en todas las obras vivas + algo de backoffice' },
 ];
 
 const norm = (s) => String(s || '').trim().toLowerCase();
