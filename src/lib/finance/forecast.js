@@ -23,6 +23,8 @@
  * the caller supplies. The engine never invents revenue, costs or scenario
  * multipliers — the sole modelled assumption is `collectionSlipDays`, and it
  * re-times money that is already on the books, it never changes the amount.
+ * That slip is measured from settled history by `collectionSlip.js`;
+ * COLLECTION_SLIP_DAYS below is only the fallback for a thin sample.
  *
  * Sign convention: inflows positive, outflows negative;
  * `net = inflow + outflow`; `projectedBalance` runs from `startBalance`.
@@ -48,22 +50,32 @@ import { addDays, diffDays, isIsoDate, mondayOfWeek } from './dates.js';
 import { isOpenAmount, openAmountOf as defaultOpenAmountOf } from './money.js';
 
 /**
- * Days added to a receivable's due date to get its expected collection date.
+ * FALLBACK days added to a receivable's due date to get its expected
+ * collection date, used only while there is not enough settled history to
+ * measure the real one.
  *
- * BASIS: German B2B construction/telecom clients settle on their own payment
- * runs rather than on the invoice due date, and the company's own aging
- * report has consistently shown collection landing inside the week AFTER the
- * due date. One week is the conservative, round approximation of that lag.
+ * The real slip is DERIVED, not assumed: `collectionSlip.js` reads the
+ * amount-weighted delay out of the company's own collected invoices and
+ * `buildCashForecast` feeds it in here. This constant exists because a handful
+ * of settled invoices is not a measurement — one large invoice would own the
+ * average and the forecast's central assumption would lurch by weeks every
+ * time a payment posted.
  *
- * This is the ONE place the assumption is stated. It is deliberately a single
+ * BASIS for the number itself: German B2B clients settle on their own payment
+ * runs rather than on the invoice due date, and one week is the round,
+ * conventional approximation of that lag. It is deliberately a single
  * documented number rather than a per-screen default: when two screens each
  * picked their own slip, the same invoice appeared in two different weeks.
- * Callers may override it via `collectionSlipDays` for sensitivity analysis,
- * but no caller should hardcode a different default.
+ * Callers may override `collectionSlipDays` for sensitivity analysis, but no
+ * caller should hardcode a different default.
  *
- * Applies only to receivables that are NOT yet overdue — money already past
- * due is expected immediately (week 1), since a slip on top of a slip is not
- * evidence, it is guessing.
+ * NOTE: measured against this company's real history this number is roughly
+ * three weeks optimistic. Anything reading it directly is stating an
+ * assumption, not a fact — read `forecast.collectionSlip` instead.
+ *
+ * The slip applies only to receivables that are NOT yet overdue — money
+ * already past due is expected immediately (week 1), since a slip on top of a
+ * slip is not evidence, it is guessing.
  *
  * @type {number}
  */

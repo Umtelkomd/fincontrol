@@ -1,5 +1,70 @@
 import { describe, expect, it } from 'vitest';
-import { computeNetFromGross, computeTaxFromGross } from './formatters';
+import {
+  computeNetFromGross,
+  computeTaxFromGross,
+  formatCollectionSlip,
+  formatCollectionSlipBasis,
+} from './formatters';
+
+describe('formatCollectionSlipBasis', () => {
+  it('names the sample a measured slip was taken from', () => {
+    expect(formatCollectionSlipBasis({ slipDays: 21, sampleSize: 53, confidence: 'measured' })).toBe(
+      'medido sobre 53 facturas cobradas',
+    );
+  });
+
+  it('uses the singular for a one-invoice sample', () => {
+    expect(formatCollectionSlipBasis({ slipDays: 21, sampleSize: 1, confidence: 'measured' })).toBe(
+      'medido sobre 1 factura cobrada',
+    );
+  });
+
+  it('admits when the number is the default rather than a measurement', () => {
+    expect(formatCollectionSlipBasis({ slipDays: 7, sampleSize: 4, confidence: 'default' })).toBe(
+      'supuesto por defecto — solo 4 facturas cobradas, histórico insuficiente',
+    );
+    expect(formatCollectionSlipBasis({ slipDays: 7, sampleSize: 0, confidence: 'default' })).toBe(
+      'supuesto por defecto — todavía no hay facturas cobradas',
+    );
+  });
+
+  it('flags a manually forced slip so it is never read as evidence', () => {
+    expect(formatCollectionSlipBasis({ slipDays: 0, sampleSize: 53, confidence: 'override' })).toBe(
+      'valor forzado manualmente, no medido',
+    );
+  });
+
+  it('says nothing it cannot back up when the slip metadata is missing', () => {
+    expect(formatCollectionSlipBasis(undefined)).toBe('');
+    expect(formatCollectionSlipBasis(null)).toBe('');
+    expect(formatCollectionSlipBasis({})).toBe('');
+  });
+});
+
+describe('formatCollectionSlip', () => {
+  it('states the assumption and its basis in one sentence', () => {
+    expect(formatCollectionSlip({ slipDays: 21, sampleSize: 53, confidence: 'measured' })).toBe(
+      'Cobro estimado a 21 días del vencimiento (medido sobre 53 facturas cobradas)',
+    );
+  });
+
+  it('uses the singular for a one-day slip', () => {
+    expect(formatCollectionSlip({ slipDays: 1, sampleSize: 12, confidence: 'measured' })).toBe(
+      'Cobro estimado a 1 día del vencimiento (medido sobre 12 facturas cobradas)',
+    );
+  });
+
+  it('reads naturally when the slip is zero', () => {
+    expect(formatCollectionSlip({ slipDays: 0, sampleSize: 12, confidence: 'measured' })).toBe(
+      'Cobro estimado el día del vencimiento (medido sobre 12 facturas cobradas)',
+    );
+  });
+
+  it('drops the basis clause when there is no metadata to state', () => {
+    expect(formatCollectionSlip({ slipDays: 7 })).toBe('Cobro estimado a 7 días del vencimiento');
+    expect(formatCollectionSlip(null)).toBe('');
+  });
+});
 
 describe('computeNetFromGross', () => {
   it('returns exact 100 for gross=119 at 19% (no floating-point drift)', () => {

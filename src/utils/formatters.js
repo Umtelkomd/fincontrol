@@ -29,6 +29,52 @@ export const getDaysOverdue = (dateString) => {
   return Math.floor((todayUTC - transactionDate) / (1000 * 60 * 60 * 24));
 };
 
+/**
+ * Where the forecast's collection slip came from, in words.
+ *
+ * The slip decides WHEN every open invoice becomes cash, so it is the single
+ * biggest lever in the projection. A screen that prints the number without its
+ * basis invites the reader to trust a measurement that may just be the
+ * fallback constant — which is how people end up planning against a forecast
+ * they should have questioned. Every screen showing the slip renders this too.
+ *
+ * @param {{ sampleSize?: number, confidence?: string }|null|undefined} slip
+ *   `forecast.collectionSlip` from `buildCashForecast`.
+ * @returns {string} empty when there is no metadata to state
+ */
+export const formatCollectionSlipBasis = (slip) => {
+  const sampleSize = Number(slip?.sampleSize) || 0;
+  switch (slip?.confidence) {
+    case 'measured':
+      return `medido sobre ${sampleSize} ${sampleSize === 1 ? 'factura cobrada' : 'facturas cobradas'}`;
+    case 'default':
+      return sampleSize === 0
+        ? 'supuesto por defecto — todavía no hay facturas cobradas'
+        : `supuesto por defecto — solo ${sampleSize} ${sampleSize === 1 ? 'factura cobrada' : 'facturas cobradas'}, histórico insuficiente`;
+    case 'override':
+      return 'valor forzado manualmente, no medido';
+    default:
+      return '';
+  }
+};
+
+/**
+ * The full one-line statement of the forecast's collection assumption.
+ *
+ * @param {{ slipDays?: number, sampleSize?: number, confidence?: string }|null|undefined} slip
+ * @returns {string}
+ */
+export const formatCollectionSlip = (slip) => {
+  if (!slip || !Number.isFinite(Number(slip.slipDays))) return '';
+  const days = Number(slip.slipDays);
+  const timing =
+    days === 0
+      ? 'Cobro estimado el día del vencimiento'
+      : `Cobro estimado a ${days} ${days === 1 ? 'día' : 'días'} del vencimiento`;
+  const basis = formatCollectionSlipBasis(slip);
+  return basis ? `${timing} (${basis})` : timing;
+};
+
 /** Safe stringifier for display — avoids [object Object] */
 export const safe = (v) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 

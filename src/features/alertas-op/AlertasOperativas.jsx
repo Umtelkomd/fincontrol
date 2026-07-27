@@ -33,7 +33,7 @@ import { derivePeriodStatus, statusLabel, statusBadgeTone } from '../nominas/lib
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
 import { groupUnclassifiedByCounterparty, findBestRule } from '../../finance/ruleEngine';
 import { ruleAppliesToPeriod, periodKey } from '../../finance/recurringGenerator';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCollectionSlip, formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import GenerateMonthModal from '../../components/ui/GenerateMonthModal';
@@ -521,6 +521,10 @@ const AlertasOperativas = ({ user }) => {
               <p className="mt-2 font-mono text-[12px] text-[var(--color-fg-4)]">
                 Saldo proyectado fin de horizonte ({forecast.horizonWeeks} sem.):{' '}
                 {formatCurrency(negativeAlert.endBalance)}
+              </p>
+              {/* When this week arrives depends entirely on the slip — say it. */}
+              <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+                {formatCollectionSlip(forecast.collectionSlip)}.
               </p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => navigate('/cashflow')}>

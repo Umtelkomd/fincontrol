@@ -212,19 +212,72 @@ describe('buildCashForecast derived figures', () => {
 
 // ─── the slip stays a single, overridable assumption ──────────────────────────
 
+/** A fully collected invoice — history, not a projected inflow. */
+const collected = (dueDate, amount, paidOn) => ({
+  id: `c-${dueDate}-${amount}-${paidOn}`,
+  dueDate,
+  openAmount: 0,
+  paidAmount: amount,
+  status: 'settled',
+  counterpartyName: 'Client A',
+  payments: [{ date: paidOn, amount }],
+});
+
+/** `count` invoices collected exactly `delay` days after their due date. */
+const collectionHistory = (count, delay, amount = 5000) =>
+  Array.from({ length: count }, (_, index) => {
+    const due = `2026-03-${String(index + 1).padStart(2, '0')}`;
+    const paid = `2026-03-${String(index + 1).padStart(2, '0')}`;
+    // Keep the arithmetic obvious: same month, delay added to the day number.
+    return collected(due, amount, paid.replace(/-\d{2}$/, `-${String(index + 1 + delay).padStart(2, '0')}`));
+  });
+
 describe('buildCashForecast collection slip', () => {
-  it('applies COLLECTION_SLIP_DAYS by default', () => {
+  it('falls back to COLLECTION_SLIP_DAYS when there is no collection history', () => {
     const forecast = run({ receivables: [receivable('2026-07-10', 1000)] });
     expect(forecast.weeks[1].inflow).toBe(1000); // 2026-07-17
     expect(forecast.weeks[0].inflow).toBe(0);
+    expect(forecast.collectionSlipDays).toBe(COLLECTION_SLIP_DAYS);
+    expect(forecast.collectionSlip).toEqual({
+      slipDays: COLLECTION_SLIP_DAYS,
+      sampleSize: 0,
+      confidence: 'default',
+    });
   });
 
-  it('lets the caller override the slip', () => {
+  it('derives the slip from the settled receivables it was given', () => {
     const forecast = run({
-      receivables: [receivable('2026-07-10', 1000)],
+      receivables: [...collectionHistory(12, 21), receivable('2026-07-10', 1000)],
+    });
+    expect(forecast.collectionSlip).toEqual({
+      slipDays: 21,
+      sampleSize: 12,
+      confidence: 'measured',
+    });
+    expect(forecast.collectionSlipDays).toBe(21);
+    // 2026-07-10 + 21 → 2026-07-31 → week 4, NOT week 2 as the 7-day
+    // assumption used to claim.
+    expect(forecast.weeks[1].inflow).toBe(0);
+    expect(forecast.weeks[3].inflow).toBe(1000);
+  });
+
+  it('measures the settled history without projecting it as future cash', () => {
+    const forecast = run({ receivables: collectionHistory(12, 21) });
+    expect(forecast.collectionSlip.sampleSize).toBe(12);
+    expect(forecast.totalInflow).toBe(0);
+  });
+
+  it('lets the caller override the slip and says so', () => {
+    const forecast = run({
+      receivables: [...collectionHistory(12, 21), receivable('2026-07-10', 1000)],
       collectionSlipDays: 0,
     });
     expect(forecast.weeks[0].inflow).toBe(1000);
     expect(forecast.collectionSlipDays).toBe(0);
+    expect(forecast.collectionSlip).toEqual({
+      slipDays: 0,
+      sampleSize: 12,
+      confidence: 'override',
+    });
   });
 });

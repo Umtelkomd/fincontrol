@@ -37,7 +37,7 @@ import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { missingPayrollMonths } from '../nominas/lib/missingMonths';
 import { agingBuckets, isInternalTransfer } from '../../lib/finance';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCollectionSlip, formatCurrency, formatDate } from '../../utils/formatters';
 import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
 import {
   computeMonthlyResult,
@@ -380,12 +380,16 @@ const Resumen = ({ user }) => {
                 Caja en negativo la semana del {formatDate(forecast.firstNegativeWeek.weekStart)}
               </p>
               <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-                Saldo proyectado {formatCurrency(forecast.firstNegativeWeek.projectedBalance)} con
-                cobros estimados a {forecast.collectionSlipDays} días del vencimiento.
+                Saldo proyectado {formatCurrency(forecast.firstNegativeWeek.projectedBalance)}.
               </p>
             </div>
           </div>
         )}
+
+        {/* The runway above is only as good as this assumption — state it, always. */}
+        <p className="mt-4 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+          {formatCollectionSlip(forecast.collectionSlip)}
+        </p>
       </Panel>
 
       {/* ──────────────────────── BLOCK 2 — RESULTADO DEL MES ────────────────── */}

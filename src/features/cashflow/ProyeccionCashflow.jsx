@@ -19,7 +19,7 @@ import {
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCollectionSlip, formatCollectionSlipBasis, formatCurrency } from '../../utils/formatters';
 
 const StatCard = ({ title, value, subtitle, accent, icon }) => {
  const IconComponent = icon;
@@ -99,6 +99,9 @@ const ProyeccionCashflow = ({ user }) => {
  return items;
  }, [forecast.firstNegativeWeek, metrics.next14Net, metrics.runwayMonths]);
 
+ // Where the collection slip came from — the projection's one assumption.
+ const collectionSlipBasis = formatCollectionSlipBasis(forecast.collectionSlip);
+
  if (metrics.loading || forecast.loading) {
  return (
  <div className="flex items-center justify-center py-28">
@@ -117,7 +120,8 @@ const ProyeccionCashflow = ({ user }) => {
  <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[var(--color-fg-3)]">
  Parte de la caja conciliada de hoy y solo mueve compromisos reales: facturas abiertas,
  obligaciones de nómina, costos recurrentes activos y estimados de IVA. Único supuesto:
- los cobros entran {forecast.collectionSlipDays} días después del vencimiento.
+ los cobros entran {forecast.collectionSlipDays} días después del vencimiento
+ {collectionSlipBasis ? ` (${collectionSlipBasis})` : ''}.
  </p>
  </div>
  <div className="rounded-lg border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-3">
@@ -260,7 +264,7 @@ const ProyeccionCashflow = ({ user }) => {
  </div>
  <div>
  <p className="text-sm font-medium text-[var(--color-fg-3)]">Único supuesto</p>
- <p className="mt-1 text-sm text-[var(--color-fg-3)]">Los cobros llegan {forecast.collectionSlipDays} días después del vencimiento; lo ya vencido se espera de inmediato. No se aplican escenarios ni porcentajes inventados.</p>
+ <p className="mt-1 text-sm text-[var(--color-fg-3)]">{formatCollectionSlip(forecast.collectionSlip)}; lo ya vencido se espera de inmediato. El plazo sale del histórico de cobros de la empresa, no de un porcentaje inventado.</p>
  </div>
  </div>
  </div>

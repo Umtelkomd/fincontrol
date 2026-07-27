@@ -14,5 +14,6 @@ export * from './cashPosition.js';
 export * from './aging.js';
 export * from './obligations.js';
 export * from './forecast.js';
+export * from './collectionSlip.js';
 export * from './bankingDays.js';
 export * from './fiscalCalendar.js';

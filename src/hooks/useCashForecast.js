@@ -24,8 +24,14 @@ import { useTreasurySettings } from './useTreasurySettings';
  * listeners (same convention as `useTreasuryMetrics`); without it the hook
  * opens its own ledger instance.
  *
+ * `ledger.receivables` is handed over WHOLE — settled invoices included — on
+ * purpose: they are the collection history the engine measures the slip from.
+ * Filtering them out here would silently drop the forecast back to the
+ * hardcoded default.
+ *
  * `options.collectionSlipDays` exists for sensitivity analysis only. Leave it
- * unset to get the documented COLLECTION_SLIP_DAYS default.
+ * unset to get the slip measured from that history (and the honest
+ * `collectionSlip.confidence` that goes with it).
  *
  * @param {Object|null} user
  * @param {{

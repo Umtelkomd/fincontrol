@@ -25,7 +25,7 @@ import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { isInternalTransfer } from '../../lib/finance/movementAmount';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCollectionSlip, formatCurrency, formatDate } from '../../utils/formatters';
 
 const TooltipCard = ({ active, payload, label }) => {
  if (!active || !payload?.length) return null;
@@ -256,7 +256,7 @@ const CashFlow = ({ user }) => {
  <HelpButton title="Compromisos por semana" size={14}>
  <p>Cobros, pagos, nomina, costos recurrentes e IVA agrupados por semana.</p>
  <p>Sale de la misma proyeccion que usan el Resumen y la vista de Proyeccion.</p>
- <p>Los cobros se esperan {forecast.collectionSlipDays} dias despues del vencimiento.</p>
+ <p>{formatCollectionSlip(forecast.collectionSlip)}.</p>
  </HelpButton>
  }>
  <div className="h-[300px]">
@@ -271,6 +271,10 @@ const CashFlow = ({ user }) => {
  </BarChart>
  </ResponsiveContainer>
  </div>
+ {/* The bars move with this assumption, so it does not hide in a tooltip. */}
+ <p className="mt-3 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+ {formatCollectionSlip(forecast.collectionSlip)}. Lo ya vencido se espera de inmediato.
+ </p>
  </Section>
  </div>
 
