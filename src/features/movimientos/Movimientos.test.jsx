@@ -231,3 +231,104 @@ describe('Movimientos — row detail modal', () => {
     expect(screen.getAllByText('-1.800,00').length).toBeGreaterThan(1); // row + modal hero
   });
 });
+
+/**
+ * Nómina vs subcontratista in the ledger table.
+ *
+ * Same rule as the classifier inbox, on the screen where the owner reviews
+ * everything: an internal employee is company payroll, an external one is a
+ * subcontractor, and a probable match never claims to be certain.
+ */
+describe('Movimientos — nómina vs subcontratista', () => {
+  const employee = (overrides) => ({
+    id: 'e-x',
+    fullName: '',
+    firstName: '',
+    lastName: '',
+    type: 'internal',
+    status: 'active',
+    projectIds: [],
+    aliases: [],
+    ...overrides,
+  });
+
+  const JEISSON = employee({
+    id: 'e-jeisson',
+    fullName: 'Jeisson Lesmes Linares',
+    firstName: 'Jeisson',
+    lastName: 'Lesmes Linares',
+  });
+  const JORGE = employee({
+    id: 'e-jorge',
+    fullName: 'Jorge Moran',
+    firstName: 'Jorge',
+    lastName: 'Moran',
+    type: 'external',
+  });
+
+  const SALARY = bankMovementFixture({
+    id: 'mov-salary',
+    direction: 'out',
+    amount: 2400,
+    description: 'Überweisung Gehalt',
+    counterpartyName: 'Jeisson Lesmes Linares',
+    postedDate: isoDaysFromNow(-4),
+  });
+  const SUBCONTRACT = bankMovementFixture({
+    id: 'mov-sub',
+    direction: 'out',
+    amount: 5000,
+    description: 'Pago cuadrilla',
+    counterpartyName: 'Jorge Moran',
+    postedDate: isoDaysFromNow(-4),
+  });
+
+  beforeEach(() => {
+    store.collections.employees = [JEISSON, JORGE];
+    store.collections.bankMovements = [SALARY, SUBCONTRACT, UNCLASSIFIED];
+  });
+
+  it('marks the payroll row and the subcontractor row differently', () => {
+    renderScreen(<Movimientos user={USER} />);
+
+    const payrollRow = screen.getByText('Überweisung Gehalt').closest('tr');
+    expect(within(payrollRow).getByText('Nómina')).toBeInTheDocument();
+
+    const subRow = screen.getByText('Pago cuadrilla').closest('tr');
+    expect(within(subRow).getByText('Subcontratista')).toBeInTheDocument();
+  });
+
+  it('leaves an ordinary supplier row unmarked', () => {
+    renderScreen(<Movimientos user={USER} />);
+
+    const row = screen.getByText('Cargo sin categorizar').closest('tr');
+    expect(within(row).queryByText('Nómina')).not.toBeInTheDocument();
+    expect(within(row).queryByText('Subcontratista')).not.toBeInTheDocument();
+  });
+
+  it('marks a probable match as unconfirmed rather than asserting it', () => {
+    store.collections.employees = [
+      employee({
+        id: 'e-pedro',
+        fullName: 'Pedro Pizarro Caufal',
+        firstName: 'Pedro',
+        lastName: 'Pizarro Caufal',
+      }),
+    ];
+    store.collections.bankMovements = [
+      bankMovementFixture({
+        id: 'mov-maybe',
+        direction: 'out',
+        amount: 2200,
+        description: 'Überweisung SEPA',
+        counterpartyName: 'Pedro Luis Pizarro Zapata',
+        postedDate: isoDaysFromNow(-4),
+      }),
+    ];
+
+    renderScreen(<Movimientos user={USER} />);
+
+    const row = screen.getByText('Überweisung SEPA').closest('tr');
+    expect(within(row).getByText('Nómina?')).toBeInTheDocument();
+  });
+});

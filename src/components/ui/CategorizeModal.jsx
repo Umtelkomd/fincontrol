@@ -23,6 +23,7 @@ const CategorizeModal = ({
  categories = [],
  costCenters = [],
  projects = [],
+ suggestion = null,
 }) => {
  const [form, setForm] = useState({
  categoryName: '',
@@ -36,18 +37,23 @@ const CategorizeModal = ({
 
  useEffect(() => {
  if (isOpen && movement) {
+ // A `suggestion` is only pre-filled when the counterparty resolved to a
+ // person with certainty (`autoApply`) AND the user has not classified the
+ // movement already — a suggestion must never overwrite a human decision.
+ const applySuggestion = Boolean(suggestion?.autoApply) && !movement.categoryName;
+
  setForm({
- categoryName: movement.categoryName || '',
+ categoryName: (applySuggestion ? suggestion.categoryName : movement.categoryName) || '',
  costCenterId: movement.costCenterId || '',
  projectId: movement.projectId || '',
  projectName: movement.projectName || '',
  // Legacy documents have no `costScope`; derive it so reopening a
  // classified movement shows its current destination.
- costScope: normalizeCostScope(movement),
+ costScope: applySuggestion ? suggestion.costScope : normalizeCostScope(movement),
  });
  setError('');
  }
- }, [isOpen, movement]);
+ }, [isOpen, movement, suggestion]);
 
  if (!isOpen || !movement) return null;
 

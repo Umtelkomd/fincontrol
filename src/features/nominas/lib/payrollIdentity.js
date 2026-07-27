@@ -12,27 +12,12 @@
  * second is pushed to unmatched[]. A persNr hit always beats a name hit.
  */
 
-const norm = (s) => String(s || '').trim().toLowerCase();
+import { nameMatches, normalizeName as norm } from '../../../utils/nameMatching.js';
 
-/**
- * Does the employee's name / alias set match the given free-text line name?
- * Mirrors useEmployees.findByText: substring match on fullName / firstName /
- * lastName / aliases, plus a last-name-token containment both ways so
- * "Wagner" matches "Klaus Wagner" and "Lesmes Linares, J." matches the
- * employee whose lastName is "Lesmes Linares".
- */
-const nameMatches = (employee, lineName) => {
-  const t = norm(lineName);
-  if (!t) return false;
-  const candidates = [
-    norm(employee.fullName),
-    norm(employee.firstName),
-    norm(employee.lastName),
-    ...(Array.isArray(employee.aliases) ? employee.aliases.map(norm) : []),
-  ].filter(Boolean);
-
-  return candidates.some((c) => c.includes(t) || t.includes(c));
-};
+// `nameMatches` used to live here. It is now the single shared matcher in
+// `src/utils/nameMatching.js` — `useEmployees.findByText` and the bank
+// counterparty classifier consume the exact same function, so a person can
+// never resolve one way in Nóminas and another way in the ledger.
 
 /**
  * Resolve employeeId for each parsed payroll line.

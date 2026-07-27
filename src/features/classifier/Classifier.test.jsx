@@ -193,3 +193,163 @@ describe('Classifier — rule shortcut', () => {
     expect(screen.getByRole('button', { name: /Aplicar reglas \(1\)/ })).toBeInTheDocument();
   });
 });
+
+/**
+ * Nómina vs subcontratista in the inbox.
+ *
+ * The owner's core ask: he has to tell them apart at a glance. The employee
+ * master already knows (`type`), the bank only ever writes a free-text name, so
+ * the row resolves the name to a person and says which one it is — plus the
+ * classification that person's kind implies.
+ */
+describe('Classifier — personas conocidas', () => {
+  const employee = (overrides) => ({
+    id: 'e-x',
+    fullName: '',
+    firstName: '',
+    lastName: '',
+    type: 'internal',
+    status: 'active',
+    projectIds: [],
+    aliases: [],
+    ...overrides,
+  });
+
+  const JEISSON = employee({
+    id: 'e-jeisson',
+    fullName: 'Jeisson Lesmes Linares',
+    firstName: 'Jeisson',
+    lastName: 'Lesmes Linares',
+  });
+  const JORGE = employee({
+    id: 'e-jorge',
+    fullName: 'Jorge Moran',
+    firstName: 'Jorge',
+    lastName: 'Moran',
+    type: 'external',
+    projectIds: ['proj-1'],
+  });
+
+  const salaryMovement = bankMovementFixture({
+    id: 'mov-salary',
+    direction: 'out',
+    amount: 2400,
+    description: 'Überweisung Gehalt',
+    counterpartyName: 'Jeisson Lesmes Linares',
+    postedDate: isoDaysFromNow(-2),
+  });
+  const subMovement = bankMovementFixture({
+    id: 'mov-sub',
+    direction: 'out',
+    amount: 5000,
+    description: 'Überweisung',
+    counterpartyName: 'Jorge Moran',
+    postedDate: isoDaysFromNow(-2),
+  });
+
+  const openSpontaneous = () =>
+    fireEvent.click(screen.getByRole('button', { name: /Gastos espontáneos/ }));
+
+  beforeEach(() => {
+    store.collections.employees = [JEISSON, JORGE];
+    store.collections.payables = [];
+  });
+
+  it('badges a transfer to company payroll as Nómina and names the person', () => {
+    store.collections.bankMovements = [salaryMovement];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Überweisung Gehalt').closest('div.px-5');
+    const badge = within(row).getByText('Nómina');
+    // The badge names the person it resolved to, next to the badge itself.
+    expect(badge.parentElement).toHaveTextContent('Jeisson Lesmes Linares');
+  });
+
+  it('badges a payment to an external collaborator as Subcontratista', () => {
+    store.collections.bankMovements = [subMovement];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Überweisung').closest('div.px-5');
+    expect(within(row).getByText('Subcontratista')).toBeInTheDocument();
+  });
+
+  it('pre-suggests Salarios / estructura for payroll', () => {
+    store.collections.bankMovements = [salaryMovement];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Überweisung Gehalt').closest('div.px-5');
+    expect(within(row).getByText(/Salarios/)).toBeInTheDocument();
+    expect(within(row).getByText(/Estructura/)).toBeInTheDocument();
+    expect(within(row).getByText(/no se carga a la obra/i)).toBeInTheDocument();
+  });
+
+  it('pre-suggests Subcontratos / obra and says a project is required', () => {
+    store.collections.bankMovements = [subMovement];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Überweisung').closest('div.px-5');
+    expect(within(row).getByText(/Subcontratos/)).toBeInTheDocument();
+    expect(within(row).getByText(/Obra/)).toBeInTheDocument();
+    expect(within(row).getByText(/requiere proyecto/i)).toBeInTheDocument();
+  });
+
+  it('asks for confirmation instead of asserting on a probable match', () => {
+    store.collections.employees = [
+      employee({
+        id: 'e-pedro',
+        fullName: 'Pedro Pizarro Caufal',
+        firstName: 'Pedro',
+        lastName: 'Pizarro Caufal',
+      }),
+    ];
+    store.collections.bankMovements = [
+      bankMovementFixture({
+        id: 'mov-maybe',
+        direction: 'out',
+        amount: 2200,
+        description: 'Überweisung SEPA',
+        counterpartyName: 'Pedro Luis Pizarro Zapata',
+        postedDate: isoDaysFromNow(-2),
+      }),
+    ];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Überweisung SEPA').closest('div.px-5');
+    expect(within(row).getByText(/Sin confirmar/i)).toBeInTheDocument();
+    expect(within(row).getByText(/alias/i)).toBeInTheDocument();
+  });
+
+  it('says nothing for a counterparty that is not a person in the master', () => {
+    store.collections.bankMovements = [EXPENSE_SPONTANEOUS];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Tankstelle Aral').closest('div.px-5');
+    expect(within(row).queryByText('Nómina')).not.toBeInTheDocument();
+    expect(within(row).queryByText('Subcontratista')).not.toBeInTheDocument();
+  });
+
+  it('opens the categorize modal already carrying the certain suggestion', () => {
+    store.collections.bankMovements = [salaryMovement];
+
+    renderScreen(<Classifier user={USER} />);
+    openSpontaneous();
+
+    const row = screen.getByText('Überweisung Gehalt').closest('div.px-5');
+    fireEvent.click(within(row).getByRole('button', { name: /Categorizar/ }));
+
+    expect(screen.getByLabelText('Categoría *')).toHaveValue('Salarios');
+    expect(screen.getByRole('button', { name: 'Estructura' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});

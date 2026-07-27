@@ -14,12 +14,14 @@ import {
 import { useClassifier } from '../../hooks/useClassifier';
 import { useCategories } from '../../hooks/useCategories';
 import { useCostCenters } from '../../hooks/useCostCenters';
+import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency } from '../../utils/formatters';
 import { findBestRule } from '../../finance/ruleEngine';
-import { classificationCoverage } from '../../finance/costScope';
+import { classificationCoverage, COST_SCOPE } from '../../finance/costScope';
+import { COUNTERPARTY_KIND, suggestClassification } from '../../finance/counterpartyIdentity';
 import CategorizeModal from '../../components/ui/CategorizeModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import ClassificationCoverage from './ClassificationCoverage';
@@ -43,6 +45,7 @@ const Classifier = ({ user }) => {
 
  const { expenseCategories, incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
+ const { employees } = useEmployees(user);
  const { projects } = useProjects(user);
  const { rules, createRule, applyRulesToMovements } = useClassificationRules(user);
  const { showToast } = useToast();
@@ -70,6 +73,18 @@ const Classifier = ({ user }) => {
  // Coverage is measured over the WHOLE ledger, not the inbox — the inbox is
  // unclassified by definition and would always read 0%.
  const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
+
+ // "Jeisson, Juan de Dios son nómina de empresa no subcontratistas." The bank
+ // only writes a free-text name; the employee master knows which is which. The
+ // row resolves the two and says it out loud, because telling them apart at a
+ // glance is the whole point.
+ const personnelOf = useMemo(() => {
+ const cache = new Map();
+ return (movement) => {
+ if (!cache.has(movement.id)) cache.set(movement.id, suggestClassification(movement, employees));
+ return cache.get(movement.id);
+ };
+ }, [employees]);
 
  // Bucketize inbox by tab
  const buckets = useMemo(() => {
@@ -296,6 +311,7 @@ const Classifier = ({ user }) => {
  key={m.id}
  movement={m}
  matches={matches}
+ personnel={personnelOf(m)}
  direction="in"
  busy={busyId === m.id}
  onLink={(item) => handleLinkReceivable(m, item)}
@@ -325,6 +341,7 @@ const Classifier = ({ user }) => {
  key={movement.id}
  movement={movement}
  matches={matches}
+ personnel={personnelOf(movement)}
  direction="out"
  busy={busyId === movement.id}
  onLink={(item) => handleLinkPayable(movement, item)}
@@ -353,6 +370,7 @@ const Classifier = ({ user }) => {
  key={movement.id}
  movement={movement}
  matches={matches}
+ personnel={personnelOf(movement)}
  direction="out"
  busy={busyId === movement.id}
  onLink={matches.length > 0 ? (item) => handleLinkPayable(movement, item) : null}
@@ -377,6 +395,7 @@ const Classifier = ({ user }) => {
  }
  costCenters={costCenters || []}
  projects={projects || []}
+ suggestion={categorizingMovement ? personnelOf(categorizingMovement) : null}
  />
 
  <RuleFormModal
@@ -393,7 +412,50 @@ const Classifier = ({ user }) => {
  );
 };
 
-const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize, onCreateRule }) => {
+/**
+ * Nómina vs subcontratista, said in one line.
+ *
+ * Payroll: the transfer settles a salary the payroll allocation has ALREADY
+ * charged to the obras, so it must not be charged again — hence estructura.
+ * Subcontractor: the payment IS the obra cost, so it needs a project.
+ * A probable-but-unproven match never asserts; it asks for an alias, which fixes
+ * that person's bank name permanently.
+ */
+const PersonnelHint = ({ personnel }) => {
+ if (!personnel || personnel.kind === COUNTERPARTY_KIND.UNKNOWN) return null;
+
+ const isPayroll = personnel.kind === COUNTERPARTY_KIND.PAYROLL;
+ const scopeLabel = personnel.costScope === COST_SCOPE.OVERHEAD ? 'Estructura' : 'Obra';
+
+ return (
+ <div className="mt-2">
+ <div className="flex flex-wrap items-center gap-2">
+ <Badge variant={isPayroll ? 'info' : 'warn'} dot>
+ {isPayroll ? 'Nómina' : 'Subcontratista'}
+ </Badge>
+ <span className="text-[12px] text-[var(--color-fg-3)]">{personnel.employee?.fullName}</span>
+ {!personnel.autoApply && <Badge variant="warn">Sin confirmar</Badge>}
+ </div>
+ {personnel.categoryName ? (
+ <p className="mt-1 text-[11px] leading-5 text-[var(--color-fg-4)]">
+ Sugerencia: {personnel.categoryName} · {scopeLabel}
+ {isPayroll
+ ? ' — no se carga a la obra: ya está contabilizada en la asignación de nómina.'
+ : ' — requiere proyecto.'}
+ </p>
+ ) : null}
+ {!personnel.autoApply ? (
+ <p className="mt-1 text-[11px] leading-5 text-[var(--color-warn)]">
+ El nombre del banco no coincide del todo con la ficha. Confirmá antes de guardar y añadí
+ “{personnel.employee?.fullName}” un alias con el nombre exacto del banco (Personal → Editar) para
+ resolverlo de forma permanente.
+ </p>
+ ) : null}
+ </div>
+ );
+};
+
+const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, onCategorize, onCreateRule }) => {
  const ArrowIcon = direction === 'in' ? ArrowUpRight : ArrowDownRight;
  const colorClass = direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]';
  const top = matches?.[0];
@@ -412,6 +474,8 @@ const MovementRow = ({ movement, matches, direction, busy, onLink, onCategorize,
  <p className="mt-1 font-mono text-[11px] text-[var(--color-fg-4)]">
  {movement.postedDate} · {movement.counterpartyName || 'Sin contraparte'}
  </p>
+
+ <PersonnelHint personnel={personnel} />
 
  {/* Top match suggestion */}
  {top && (

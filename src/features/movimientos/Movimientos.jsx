@@ -17,6 +17,7 @@ import { useReceivables } from '../../hooks/useReceivables';
 import { usePayables } from '../../hooks/usePayables';
 import { useCategories } from '../../hooks/useCategories';
 import { useCostCenters } from '../../hooks/useCostCenters';
+import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
 import { useClassifier } from '../../hooks/useClassifier';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
@@ -24,6 +25,11 @@ import { useToast } from '../../contexts/ToastContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
 import { classificationCoverage, isClassified } from '../../finance/costScope';
+import {
+ COUNTERPARTY_KIND,
+ classifyCounterparty,
+ isHighConfidence,
+} from '../../finance/counterpartyIdentity';
 import CanonicalRecordModal from '../../components/finance/CanonicalRecordModal';
 import { buildMovementEditRecord } from './movementRecordUtils';
 import { filterMovements } from './movementFilters';
@@ -56,6 +62,7 @@ const Movimientos = ({ user }) => {
  const { payables } = usePayables(user);
  const { expenseCategories, incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
+ const { employees } = useEmployees(user);
  const { projects } = useProjects(user);
  const { inboxMovements } = useClassifier(user);
  const { createRule } = useClassificationRules(user);
@@ -121,6 +128,18 @@ const Movimientos = ({ user }) => {
  // Coverage is measured over the WHOLE ledger, so the number matches the
  // classifier inbox no matter which filters are active here.
  const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
+
+ // Nómina vs subcontratista, resolved from the counterparty name. Only the
+ // visible page is classified — this runs per row and the ledger is thousands
+ // of movements long.
+ const personnelOf = useMemo(() => {
+ const cache = new Map();
+ return (counterpartyName) => {
+ const key = String(counterpartyName || '');
+ if (!cache.has(key)) cache.set(key, classifyCounterparty(key, employees));
+ return cache.get(key);
+ };
+ }, [employees]);
 
  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
  const safePage = Math.min(page, totalPages);
@@ -428,7 +447,10 @@ const Movimientos = ({ user }) => {
  </div>
  </div>
  </td>
- <td className="text-[var(--color-fg-3)] truncate max-w-[180px]">{m.counterpartyName || '—'}</td>
+ <td className="text-[var(--color-fg-3)] max-w-[180px]">
+ <span className="block truncate">{m.counterpartyName || '—'}</span>
+ <PersonnelBadge personnel={personnelOf(m.counterpartyName)} />
+ </td>
  <td className="text-[var(--color-fg-3)]">{m.categoryName || <span className="text-[var(--color-fg-4)]">—</span>}</td>
  <td className="text-[var(--color-fg-3)] font-mono text-[12px]">{m.costCenterId || <span className="text-[var(--color-fg-4)]">—</span>}</td>
  <td className="text-[var(--color-fg-3)] truncate max-w-[140px]">{m.projectName || m.projectId || <span className="text-[var(--color-fg-4)]">—</span>}</td>
@@ -578,6 +600,36 @@ const Movimientos = ({ user }) => {
  pendingMovements={inboxMovements}
  />
  </div>
+ );
+};
+
+/**
+ * Is this counterparty company payroll or a subcontractor?
+ *
+ * The difference is not cosmetic: payroll is already charged to the obras by the
+ * payroll allocation, so its bank transfer must not be charged again, while a
+ * subcontractor payment IS the obra cost. A trailing "?" means the bank name only
+ * probably belongs to that person — an alias on the employee settles it.
+ */
+const PersonnelBadge = ({ personnel }) => {
+ if (!personnel || personnel.kind === COUNTERPARTY_KIND.UNKNOWN) return null;
+
+ const isPayroll = personnel.kind === COUNTERPARTY_KIND.PAYROLL;
+ const certain = isHighConfidence(personnel.confidence);
+ const label = `${isPayroll ? 'Nómina' : 'Subcontratista'}${certain ? '' : '?'}`;
+
+ return (
+ <Badge
+ variant={certain ? (isPayroll ? 'info' : 'warn') : 'neutral'}
+ className="mt-1"
+ title={
+ certain
+ ? `${personnel.employee?.fullName} · ${isPayroll ? 'nómina de empresa' : 'subcontratista'}`
+ : `Posible ${personnel.employee?.fullName} — añadí el nombre exacto del banco como alias en su ficha`
+ }
+ >
+ {label}
+ </Badge>
  );
 };
 

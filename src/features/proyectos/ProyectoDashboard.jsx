@@ -10,6 +10,7 @@ import {
  Percent,
  RefreshCw,
  Target,
+ Users,
 } from 'lucide-react';
 import {
  Bar,
@@ -29,6 +30,7 @@ import { useVatRates } from '../../hooks/useVatRates';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { createNetAmountResolver } from '../../finance/vatRates';
+import { splitPayrollSettlements } from '../../finance/counterpartyIdentity';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -225,6 +227,31 @@ const ProyectoDashboard = ({ user }) => {
  .sort((left, right) => (right.postedDate || '').localeCompare(left.postedDate || ''));
  }, [ledger.postedMovements, projectTokens, selectedProject, netAmountOf]);
 
+ // ── The double count ────────────────────────────────────────────────────
+ // Personnel cost reaches this obra by two routes: `allocatePayrollCost` below
+ // (employee.gesamtkosten split over employee.projectIds — the authoritative
+ // employer cost) and the individual bank transfer to that same person. Letting
+ // both count charges the project twice for one day of work.
+ //
+ // So a transfer to an INTERNAL employee is payroll settlement: it stays in the
+ // table (it is real cash that left the bank) but never enters project cost. A
+ // transfer to an EXTERNAL one is a subcontractor payment and IS project cost.
+ // Everything below reads `costMovements`, never `projectMovements`.
+ const personnel = useMemo(
+ () =>
+ splitPayrollSettlements(projectMovements, employees, {
+ amountOf: (entry) => Number(entry.netAmount || 0),
+ }),
+ [projectMovements, employees],
+ );
+
+ const costMovements = personnel.projectCostMovements;
+
+ const payrollSettlementIds = useMemo(
+ () => new Set(personnel.payrollSettlements.map((entry) => entry.id)),
+ [personnel.payrollSettlements],
+ );
+
  const openReceivables = useMemo(() => {
  if (!selectedProject) return [];
  return (ledger.receivables || []).filter(
@@ -301,13 +328,15 @@ const ProyectoDashboard = ({ user }) => {
  }, [selectedProject, payrollPeriods, employeesById]);
 
  const kpis = useMemo(() => {
- const income = projectMovements
+ const income = costMovements
  .filter((entry) => entry.direction === 'in')
  .reduce((sum, entry) => sum + Number(entry.netAmount || 0), 0);
- const bankExpenses = projectMovements
+ const bankExpenses = costMovements
  .filter((entry) => entry.direction === 'out')
  .reduce((sum, entry) => sum + Number(entry.netAmount || 0), 0);
- // Labor cost is folded into expenses so net/margin reflect payroll.
+ // Labor cost is folded into expenses so net/margin reflect payroll — and it is
+ // the ONLY route by which payroll reaches this number, because the matching
+ // bank transfers were split out above.
  const expenses = bankExpenses + allocatedLabor;
  const net = income - expenses;
  const margin = income > 0 ? (net / income) * 100 : 0;
@@ -321,7 +350,7 @@ const ProyectoDashboard = ({ user }) => {
  openReceivableAmount: openReceivables.reduce((sum, entry) => sum + Number(entry.openAmount || 0), 0),
  openPayableAmount: openPayables.reduce((sum, entry) => sum + Number(entry.openAmount || 0), 0),
  };
- }, [openPayables, openReceivables, projectMovements, allocatedLabor]);
+ }, [openPayables, openReceivables, costMovements, allocatedLabor]);
 
  // Per-month allocated labor for the selected project — runs the allocation
  // lib once per period so spike months stay accurate.
@@ -345,7 +374,7 @@ const ProyectoDashboard = ({ user }) => {
  const monthlyData = useMemo(() => {
  const months = new Map();
 
- projectMovements.forEach((entry) => {
+ costMovements.forEach((entry) => {
  if (!entry.postedDate) return;
  const key = entry.postedDate.slice(0, 7);
  const current = months.get(key) || { month: key, ingresos: 0, gastos: 0, manoObra: 0 };
@@ -371,7 +400,7 @@ const ProyectoDashboard = ({ user }) => {
  margen: entry.ingresos - entry.gastos,
  label: monthLabel(entry.month),
  }));
- }, [projectMovements, laborByMonth]);
+ }, [costMovements, laborByMonth]);
 
  // --- Earned-value control (PMP) ------------------------------------------
  // BAC comes from the project's expense budget (lines) or, as fallback, the
@@ -386,7 +415,7 @@ const ProyectoDashboard = ({ user }) => {
  : Number(selectedProject.budget || 0);
  const incomeTarget = projectBudgetPlan?.incomeTarget || 0;
 
- const movementMonths = projectMovements
+ const movementMonths = costMovements
  .map((entry) => (entry.postedDate || '').slice(0, 7))
  .filter(Boolean)
  .sort();
@@ -416,7 +445,7 @@ const ProyectoDashboard = ({ user }) => {
 
  const incomeByMonth = {};
  const costByMonth = {};
- projectMovements.forEach((entry) => {
+ costMovements.forEach((entry) => {
  const key = (entry.postedDate || '').slice(0, 7);
  if (!key) return;
  const amount = Number(entry.netAmount || 0);
@@ -482,12 +511,12 @@ const ProyectoDashboard = ({ user }) => {
  scheduleEnd,
  scheduleMonths: scheduleMonths.length,
  };
- }, [selectedProject, projectBudgetPlan, projectMovements, laborByMonth, kpis.income]);
+ }, [selectedProject, projectBudgetPlan, costMovements, laborByMonth, kpis.income]);
 
  const categoryData = useMemo(() => {
  const categories = new Map();
 
- projectMovements
+ costMovements
  .filter((entry) => entry.direction === 'out')
  .forEach((entry) => {
  const key = entry.kind || entry.costCenterId || 'Sin categoría';
@@ -497,7 +526,7 @@ const ProyectoDashboard = ({ user }) => {
  return Array.from(categories.entries())
  .map(([name, value]) => ({ name, value }))
  .sort((left, right) => right.value - left.value);
- }, [projectMovements]);
+ }, [costMovements]);
 
  const categoryTotal = useMemo(
  () => categoryData.reduce((sum, entry) => sum + entry.value, 0),
@@ -575,7 +604,7 @@ const ProyectoDashboard = ({ user }) => {
  <KpiCard
  title="Ingresos realizados"
  value={formatCurrency(kpis.income)}
- subtitle={`${projectMovements.filter((entry) => entry.direction === 'in').length} cobros y entradas registradas`}
+ subtitle={`${costMovements.filter((entry) => entry.direction === 'in').length} cobros y entradas registradas`}
  tone="positive"
  icon={ArrowUpCircle}
  />
@@ -585,7 +614,7 @@ const ProyectoDashboard = ({ user }) => {
  subtitle={
  kpis.laborCost > 0
  ? `Incluye ${formatCurrency(kpis.laborCost)} de mano de obra (nómina)`
- : `${projectMovements.filter((entry) => entry.direction === 'out').length} pagos y salidas registradas`
+ : `${costMovements.filter((entry) => entry.direction === 'out').length} pagos y salidas registradas`
  }
  tone="negative"
  icon={ArrowDownCircle}
@@ -605,6 +634,80 @@ const ProyectoDashboard = ({ user }) => {
  icon={Percent}
  />
  </div>
+
+ {personnel.payrollSettlements.length > 0 ? (
+ <section
+ data-testid="payroll-settlement-panel"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5"
+ >
+ <div className="flex flex-wrap items-start justify-between gap-4">
+ <div className="max-w-3xl">
+ <p className="label-mono text-[var(--color-fg-4)]">Nómina de empresa · no imputado a la obra</p>
+ <p className="mt-2 text-[15px] leading-7 text-[var(--color-fg-3)]">
+ {personnel.payrollSettlements.length} transferencia(s) por{' '}
+ <span className="text-[var(--color-fg-1)]">{formatCurrency(personnel.excludedTotal)}</span> son pago
+ de nómina a personal interno de la empresa, no subcontratistas. Ese dinero salió del banco, pero
+ no se carga a la obra porque{' '}
+ <span className="text-[var(--color-fg-1)]">ya está contabilizada en la asignación de nómina</span>{' '}
+ (coste empresa repartido por los proyectos de cada empleado). Contarlo dos veces duplicaría el
+ gasto del proyecto.
+ </p>
+ </div>
+ <span className="flex items-center gap-1.5 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-1 text-[11px] text-[var(--color-fg-3)]">
+ <Users size={12} />
+ {formatCurrency(personnel.excludedTotal)} fuera del coste
+ </span>
+ </div>
+ <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+ {personnel.payrollSettlements.map((entry) => (
+ <li
+ key={entry.id}
+ className="flex items-center justify-between gap-3 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-2"
+ >
+ <span className="truncate text-[13px] text-[var(--color-fg-1)]">
+ {entry.counterpartyName || 'Sin contraparte'}
+ </span>
+ <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--color-fg-3)]">
+ {formatDate(entry.postedDate)} · {formatCurrency(entry.netAmount)}
+ </span>
+ </li>
+ ))}
+ </ul>
+ </section>
+ ) : null}
+
+ {personnel.possiblePayroll.length > 0 ? (
+ <section
+ data-testid="payroll-review-panel"
+ className="rounded-md border border-[var(--color-warn)] bg-[var(--color-bg-1)] p-5"
+ >
+ <p className="label-mono text-[var(--color-warn)]">Posible nómina sin confirmar</p>
+ <p className="mt-2 max-w-3xl text-[15px] leading-7 text-[var(--color-fg-3)]">
+ {personnel.possiblePayroll.length} movimiento(s) por{' '}
+ <span className="text-[var(--color-fg-1)]">{formatCurrency(personnel.possibleTotal)}</span> se parecen
+ a un empleado de nómina, pero el nombre del banco no coincide del todo. Siguen contando como gasto de
+ obra: si de verdad son nómina, la obra está pagando dos veces. Añadí el nombre exacto del banco como{' '}
+ <span className="text-[var(--color-fg-1)]">alias</span> en la ficha del empleado (Personal → Editar) y
+ queda resuelto para siempre.
+ </p>
+ <ul className="mt-4 space-y-2">
+ {personnel.possiblePayroll.map((entry) => (
+ <li
+ key={entry.movement.id}
+ className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-2"
+ >
+ <span className="text-[13px] text-[var(--color-fg-1)]">
+ Banco: “{entry.movement.counterpartyName}” → ficha:{' '}
+ <span className="text-[var(--color-fg-3)]">{entry.employeeName}</span>
+ </span>
+ <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--color-fg-3)]">
+ {formatCurrency(entry.amount)}
+ </span>
+ </li>
+ ))}
+ </ul>
+ </section>
+ ) : null}
 
  <Section
  title="Control de ejecución"
@@ -808,7 +911,19 @@ const ProyectoDashboard = ({ user }) => {
  {recentRows.map((entry) => (
  <tr key={entry.id} className="hover:bg-[var(--color-bg-2)]">
  <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{formatDate(entry.postedDate)}</td>
- <td className="px-4 py-3 text-sm font-medium text-[var(--color-fg-1)]">{entry.description || 'Movimiento sin descripción'}</td>
+ <td className="px-4 py-3 text-sm font-medium text-[var(--color-fg-1)]">
+ <span className="flex flex-wrap items-center gap-2">
+ {entry.description || 'Movimiento sin descripción'}
+ {payrollSettlementIds.has(entry.id) ? (
+ <span
+ className="nx-badge nx-badge-info"
+ title="Nómina de empresa — ya contabilizada en la asignación de nómina, no se carga a la obra"
+ >
+ Nómina
+ </span>
+ ) : null}
+ </span>
+ </td>
  <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{entry.kind || 'Movimiento'}</td>
  <td className="px-4 py-3 text-sm text-[var(--color-fg-3)]">{entry.counterpartyName || 'Sin contraparte'}</td>
  <td className={`px-4 py-3 text-right text-sm font-medium ${entry.direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>

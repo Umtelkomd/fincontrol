@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { nameMatches } from '../utils/nameMatching';
 
 const EMPLOYEES_COLLECTION = 'employees';
 
@@ -130,21 +131,16 @@ export const useEmployees = (user) => {
   );
 
   /**
-   * Find an employee whose fullName, firstName, lastName, or any alias
-   * matches the given text (case-insensitive). Used for matching transaction
-   * descriptions to employees during the future backfill phase.
+   * Find every employee whose fullName, firstName, lastName or alias matches
+   * the given text (case-insensitive). Used to resolve a bank counterparty or
+   * a payroll line to a person.
+   *
+   * Delegates to the shared `nameMatches` — this used to be a third, weaker
+   * copy of the same matcher (one-way containment), so "Lesmes Linares, J."
+   * resolved in Nóminas but not here. One matcher, one answer.
    */
   const findByText = useCallback(
-    (text) => {
-      if (!text) return [];
-      const t = text.toLowerCase();
-      return employees.filter((e) => {
-        if (e.fullName?.toLowerCase().includes(t)) return true;
-        if (e.firstName?.toLowerCase().includes(t)) return true;
-        if (e.lastName?.toLowerCase().includes(t)) return true;
-        return e.aliases.some((a) => a.toLowerCase().includes(t));
-      });
-    },
+    (text) => (text ? employees.filter((employee) => nameMatches(employee, text)) : []),
     [employees],
   );
 

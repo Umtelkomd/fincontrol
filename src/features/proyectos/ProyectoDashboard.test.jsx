@@ -18,6 +18,9 @@ import {
   projectFixture,
 } from '@/test/fixtures';
 
+/** Value rendered under a KPI title — the sibling `<p>` inside the KPI card. */
+const kpiValue = (title) => screen.getByText(title).nextElementSibling.textContent;
+
 const PROJECT = projectFixture({ id: 'proj-1', name: 'NE4 Rossdorf', code: 'NE4', client: 'Insyte' });
 
 const MOVEMENTS = [
@@ -236,5 +239,188 @@ describe('ProyectoDashboard — net of VAT', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByText('+47.600,00')).toBeInTheDocument();
     expect(within(table).getByText('-11.900,00')).toBeInTheDocument();
+  });
+});
+
+/**
+ * THE double count.
+ *
+ * Personnel cost reaches an obra twice over: `allocatePayrollCost` spreads each
+ * employee's gesamtkosten across `employee.projectIds`, and the individual bank
+ * transfer to that same person also sits in `bankMovements`. Charging both bills
+ * the project twice for one day of work.
+ *
+ * Rule: a movement whose counterparty is an INTERNAL employee is payroll
+ * settlement, not obra cost. A movement to an EXTERNAL one is a subcontractor
+ * payment and IS obra cost.
+ */
+describe('ProyectoDashboard — nómina vs subcontratista', () => {
+  const JEISSON = {
+    id: 'e-jeisson',
+    fullName: 'Jeisson Lesmes Linares',
+    firstName: 'Jeisson',
+    lastName: 'Lesmes Linares',
+    type: 'internal',
+    status: 'active',
+    projectIds: [],
+  };
+  const JORGE = {
+    id: 'e-jorge',
+    fullName: 'Jorge Moran',
+    firstName: 'Jorge',
+    lastName: 'Moran',
+    type: 'external',
+    status: 'active',
+    projectIds: ['proj-1'],
+  };
+
+  const onProject = (overrides) =>
+    bankMovementFixture({
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      postedDate: isoDaysFromNow(-10),
+      ...overrides,
+    });
+
+  const INCOME = onProject({
+    id: 'p-in',
+    direction: 'in',
+    amount: 42000,
+    description: 'Cobro certificación',
+    counterpartyName: 'Insyte Deutschland',
+    postedDate: isoDaysFromNow(-20),
+  });
+  const MATERIAL = onProject({
+    id: 'p-material',
+    direction: 'out',
+    amount: 12000,
+    description: 'Material fibra',
+    counterpartyName: 'Kabel Service GmbH',
+  });
+  const PAYROLL_TRANSFER = onProject({
+    id: 'p-payroll',
+    direction: 'out',
+    amount: 3000,
+    description: 'Überweisung Gehalt',
+    counterpartyName: 'Jeisson Lesmes Linares',
+  });
+
+  beforeEach(() => {
+    store.documents.vatRates = { rates: {} };
+    store.collections.employees = [JEISSON, JORGE];
+    store.collections.payrollPeriods = [];
+  });
+
+  it('does NOT charge the obra for a transfer to a company-payroll employee', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, PAYROLL_TRANSFER];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    // 12.000 of material only — the 3.000 salary transfer is payroll settlement.
+    expect(kpiValue('Gastos realizados')).toContain('12.000,00');
+    expect(kpiValue('Balance neto')).toContain('+30.000,00');
+  });
+
+  it('DOES charge the obra for a payment to a subcontractor', () => {
+    store.collections.bankMovements = [
+      INCOME,
+      MATERIAL,
+      onProject({
+        id: 'p-sub',
+        direction: 'out',
+        amount: 5000,
+        description: 'Pago cuadrilla',
+        counterpartyName: 'Jorge Moran',
+      }),
+    ];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(kpiValue('Gastos realizados')).toContain('17.000,00');
+  });
+
+  it('counts the payroll allocation once, not once per route', () => {
+    // Same person, both routes live: allocation says 4.000 of employer cost lands
+    // on proj-1, and the bank shows a 3.000 transfer to him on the same project.
+    store.collections.employees = [{ ...JEISSON, projectIds: ['proj-1'] }, JORGE];
+    store.collections.payrollPeriods = [
+      { id: 'per-1', period: isoDaysFromNow(-10).slice(0, 7), lines: [{ employeeId: 'e-jeisson', gesamtkosten: 4000 }] },
+    ];
+    store.collections.bankMovements = [INCOME, MATERIAL, PAYROLL_TRANSFER];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    // 12.000 material + 4.000 allocated labor. NOT 19.000.
+    expect(kpiValue('Gastos realizados')).toContain('16.000,00');
+    expect(screen.getByText(/Incluye 4\.000,00 de mano de obra/)).toBeInTheDocument();
+  });
+
+  it('explains on screen why that money is not on the obra', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, PAYROLL_TRANSFER];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    const panel = screen.getByTestId('payroll-settlement-panel');
+    expect(within(panel).getByText(/Nómina de empresa/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/Jeisson Lesmes Linares/)).toBeInTheDocument();
+    // The excluded total is stated in the copy, in the chip and per row.
+    expect(within(panel).getAllByText(/3\.000,00/).length).toBeGreaterThan(0);
+    expect(within(panel).getByText(/ya está contabilizada en la asignación de nómina/i)).toBeInTheDocument();
+  });
+
+  it('keeps the excluded movement visible in the table, flagged as nómina', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL, PAYROLL_TRANSFER];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    const table = screen.getByRole('table');
+    const row = within(table).getByText('Überweisung Gehalt').closest('tr');
+    expect(within(row).getByText('Nómina')).toBeInTheDocument();
+    expect(within(row).getByText('-3.000,00')).toBeInTheDocument();
+  });
+
+  it('says nothing about payroll when the project has none', () => {
+    store.collections.bankMovements = [INCOME, MATERIAL];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(screen.queryByTestId('payroll-settlement-panel')).not.toBeInTheDocument();
+  });
+
+  /**
+   * Master "Pedro Pizarro Caufal" vs bank "Pedro Luis Pizarro Zapata": probable,
+   * not proven. Removing real cost on a guess is worse than showing it, so the
+   * movement stays charged and the screen asks for an alias.
+   */
+  it('keeps a probable payroll match charged and asks for an alias instead', () => {
+    store.collections.employees = [
+      {
+        id: 'e-pedro',
+        fullName: 'Pedro Pizarro Caufal',
+        firstName: 'Pedro',
+        lastName: 'Pizarro Caufal',
+        type: 'internal',
+        status: 'active',
+        projectIds: [],
+      },
+    ];
+    store.collections.bankMovements = [
+      INCOME,
+      MATERIAL,
+      onProject({
+        id: 'p-maybe',
+        direction: 'out',
+        amount: 2200,
+        description: 'Überweisung',
+        counterpartyName: 'Pedro Luis Pizarro Zapata',
+      }),
+    ];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(kpiValue('Gastos realizados')).toContain('14.200,00');
+    const review = screen.getByTestId('payroll-review-panel');
+    expect(within(review).getByText(/Pedro Pizarro Caufal/)).toBeInTheDocument();
+    expect(within(review).getByText(/alias/i)).toBeInTheDocument();
   });
 });

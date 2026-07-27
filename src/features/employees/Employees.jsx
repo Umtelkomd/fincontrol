@@ -4,17 +4,27 @@ import { useEmployees } from '../../hooks/useEmployees';
 import { useRecurringCosts } from '../../hooks/useRecurringCosts';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
+import { employeeDataWarnings, findEmployeesWithoutProjects } from './lib/employeeDataQuality';
 import EmployeeFormModal from '../../components/ui/EmployeeFormModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
-import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
+import { Button, Badge, KPIGrid, KPI, Panel, EmptyState, Alert } from '@/components/ui/nexus';
 
 const STATUS_LABELS = { active: 'Activo', 'on-leave': 'Permiso', inactive: 'Inactivo' };
 const STATUS_VARIANTS = { active: 'ok', 'on-leave': 'warn', inactive: 'neutral' };
+
+/**
+ * The distinction the whole personnel-cost model hangs on, said in the owner's
+ * words. `internal` is company payroll — its cost reaches an obra only through
+ * the payroll allocation, so the bank transfer to that person is NOT obra cost.
+ * `external`/`contractor` is a subcontractor — the payment IS obra cost.
+ * "Interno"/"Externo" never conveyed that; these labels do.
+ */
 const TYPE_LABELS = {
- internal: 'Interno',
- external: 'Externo',
- contractor: 'Contratista',
+ internal: 'Nómina',
+ external: 'Subcontratista',
+ contractor: 'Subcontratista',
 };
+const TYPE_VARIANTS = { internal: 'info', external: 'warn', contractor: 'warn' };
 
 const Employees = ({ user }) => {
  const {
@@ -93,6 +103,15 @@ const Employees = ({ user }) => {
  };
  }, [employees, recurringCosts, totalMonthlyEquivalent]);
 
+ const warnings = useMemo(() => employeeDataWarnings(employees), [employees]);
+
+ // Row-level echo of the "missing-projects" warning: the table is where the user
+ // fixes it, so the flag belongs on the row, not only in the banner.
+ const withoutProjectIds = useMemo(
+ () => new Set(findEmployeesWithoutProjects(employees).map((e) => e.id)),
+ [employees],
+ );
+
  const handleCreate = async (data) => createEmployee(data);
  const handleUpdate = async (data) => updateEmployee(editingEmployee.id, data);
 
@@ -113,8 +132,8 @@ const Employees = ({ user }) => {
  };
 
  const tabs = [
- { key: 'internal', label: 'Internos (con nómina)', count: counts.internal, icon: HardHat },
- { key: 'external', label: 'Externos / Contratistas', count: counts.external, icon: Briefcase },
+ { key: 'internal', label: 'Nómina de empresa', count: counts.internal, icon: HardHat },
+ { key: 'external', label: 'Subcontratistas', count: counts.external, icon: Briefcase },
  { key: 'all', label: 'Todos', count: counts.all, icon: Users },
  ];
 
@@ -129,8 +148,9 @@ const Employees = ({ user }) => {
  Personal
  </h2>
  <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
- Equipo interno con nómina alemana (Brutto / Netto / SV) + colaboradores externos.
- Los costos mensuales se gestionan en <span className="text-[var(--color-fg-1)]">Costos recurrentes</span>.
+ Equipo de <span className="text-[var(--color-fg-1)]">nómina de empresa</span> (Brutto / Netto / SV
+ alemana) y <span className="text-[var(--color-fg-1)]">subcontratistas</span>. Esta distinción decide
+ cómo llega su coste a las obras.
  </p>
  </div>
  <Button variant="primary" icon={Plus} onClick={openCreate}>
@@ -138,12 +158,38 @@ const Employees = ({ user }) => {
  </Button>
  </header>
 
+ <div className="grid gap-3 md:grid-cols-2">
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+ <Badge variant="info">Nómina</Badge>
+ <p className="mt-2 text-[13px] leading-6 text-[var(--color-fg-3)]">
+ Personal de la empresa. La nómina se reparte a las obras por los proyectos del empleado, así que
+ la transferencia bancaria a esa persona <span className="text-[var(--color-fg-1)]">no</span> se
+ carga otra vez a la obra: sería contar el mismo euro dos veces.
+ </p>
+ </div>
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
+ <Badge variant="warn">Subcontratista</Badge>
+ <p className="mt-2 text-[13px] leading-6 text-[var(--color-fg-3)]">
+ Colaborador externo que factura. El subcontratista se carga a la obra directamente desde el pago
+ del banco, y por eso ese movimiento sí necesita proyecto.
+ </p>
+ </div>
+ </div>
+
+ {warnings.map((warning) => (
+ <div key={warning.id} data-testid={`warning-${warning.id}`}>
+ <Alert variant={warning.tone} title={warning.title}>
+ {warning.detail}
+ </Alert>
+ </div>
+ ))}
+
  <KPIGrid cols={4}>
- <KPI label="Internos activos" value={stats.internalActive} meta="Con nómina" icon={HardHat} />
+ <KPI label="Nómina activa" value={stats.internalActive} meta="Personal de la empresa" icon={HardHat} />
  <KPI
- label="Externos activos"
+ label="Subcontratistas activos"
  value={stats.externalActive}
- meta="Contratistas / facturadores"
+ meta="Externos que facturan"
  icon={Briefcase}
  />
  <KPI
@@ -212,9 +258,9 @@ const Employees = ({ user }) => {
  title="Sin empleados"
  description={
  isInternalTab
- ? 'Comienza creando tu primer empleado interno con nómina.'
+ ? 'Comienza creando tu primer empleado de nómina de empresa.'
  : activeTab === 'external'
- ? 'Comienza agregando colaboradores externos o contratistas.'
+ ? 'Comienza agregando subcontratistas.'
  : 'Comienza creando tu primer empleado.'
  }
  action={<Button variant="primary" icon={Plus} onClick={openCreate}>Nuevo empleado</Button>}
@@ -244,9 +290,21 @@ const Employees = ({ user }) => {
  <tbody>
  {filtered.map((e) => (
   <tr key={e.id} {...rowButtonProps(() => openEdit(e))}>
- <td className="font-medium text-[var(--color-fg-1)]">{e.fullName || '—'}</td>
+ <td className="font-medium text-[var(--color-fg-1)]">
+ <span className="flex flex-wrap items-center gap-2">
+ {e.fullName || '—'}
+ {withoutProjectIds.has(e.id) ? (
+ <Badge
+ variant="warn"
+ title="Sin proyectos asignados: su coste de nómina no se reparte a ninguna obra"
+ >
+ Sin obra
+ </Badge>
+ ) : null}
+ </span>
+ </td>
  <td>
- <Badge variant={e.type === 'internal' ? 'info' : 'neutral'}>
+ <Badge variant={TYPE_VARIANTS[e.type] || 'neutral'}>
  {TYPE_LABELS[e.type] || e.type}
  </Badge>
  </td>
