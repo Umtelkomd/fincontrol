@@ -195,3 +195,51 @@ describe('BudgetVsActual — budget loaded', () => {
     ).toBeInTheDocument();
   });
 });
+
+/**
+ * The screen has always labelled its actuals "neto sin IVA"; until the category
+ * rates existed the figure behind that label was the gross amount, because the
+ * adapter's `netAmount` equals `amount` whenever no rate is known.
+ */
+describe('BudgetVsActual — net actuals', () => {
+  const grossActuals = [
+    bankMovementFixture({
+      id: 'vat-in',
+      direction: 'in',
+      amount: 35700,
+      description: 'Cobro certificación',
+      categoryName: 'Ingresos',
+      postedDate: thisMonthIso(5),
+    }),
+    bankMovementFixture({
+      id: 'vat-out',
+      direction: 'out',
+      amount: 11900,
+      description: 'Compra material',
+      categoryName: 'Material',
+      postedDate: thisMonthIso(7),
+    }),
+  ];
+
+  it('nets the actuals against the configured category rate', () => {
+    store.collections.bankMovements = grossActuals;
+    store.documents.vatRates = { rates: { Ingresos: 0.19, Material: 0.19 } };
+
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+
+    expect(screen.getAllByText('30.000,00').length).toBeGreaterThan(0); // 35.700 / 1,19
+    expect(screen.getAllByText('10.000,00').length).toBeGreaterThan(0); // 11.900 / 1,19
+    expect(screen.queryAllByText('35.700,00')).toHaveLength(0);
+    expect(screen.queryAllByText('11.900,00')).toHaveLength(0);
+  });
+
+  it('keeps an unconfigured category at gross instead of assuming 19%', () => {
+    store.collections.bankMovements = grossActuals;
+    store.documents.vatRates = { rates: {} };
+
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+
+    expect(screen.getAllByText('35.700,00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('11.900,00').length).toBeGreaterThan(0);
+  });
+});

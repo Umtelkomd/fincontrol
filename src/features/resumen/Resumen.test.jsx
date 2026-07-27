@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import { installFirebaseMocks } from '@/test/firebaseMock';
 import {
+  bankMovementFixture,
   isoDaysFromNow,
   ledgerFixtures,
   payableFixture,
@@ -65,6 +66,40 @@ describe('Resumen — cockpit render', () => {
     // 25.000 anchor + 42.000 − 12.000 − 3.000 (all three movements post-date it).
     expect(screen.getByText('52.000,00')).toBeInTheDocument();
     expect(screen.getByText(/Conciliado al/)).toBeInTheDocument();
+  });
+
+  /**
+   * The layer boundary, asserted from the cash side.
+   *
+   * Project cost and budget actuals are measured NET, because input VAT comes
+   * back as Vorsteuer. Cash is not: the bank moved the gross amount and the
+   * balance has to match the statement. This is a characterization test — it
+   * passed before VAT rates existed and must keep passing after — so that
+   * configuring a rate can never quietly reprice the cash position.
+   */
+  it('keeps cash gross even when every category carries a VAT rate', () => {
+    store.collections.bankMovements = [
+      bankMovementFixture({
+        direction: 'in',
+        amount: 11900,
+        categoryName: 'Servicios',
+        postedDate: isoDaysFromNow(-8),
+      }),
+      bankMovementFixture({
+        direction: 'out',
+        amount: 5950,
+        categoryName: 'Materiales',
+        postedDate: isoDaysFromNow(-5),
+      }),
+    ];
+    store.documents.vatRates = { rates: { Servicios: 0.19, Materiales: 0.19 } };
+
+    renderScreen(<Resumen user={USER} />);
+
+    // 25.000 anchor + 11.900 − 5.950, all gross. Netting these at 19% would
+    // read 30.000,00 instead.
+    expect(screen.getByText('30.950,00')).toBeInTheDocument();
+    expect(screen.queryByText('30.000,00')).not.toBeInTheDocument();
   });
 
   it('warns when no anchor exists instead of silently using the legacy balance', () => {

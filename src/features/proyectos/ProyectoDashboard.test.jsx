@@ -153,3 +153,88 @@ describe('ProyectoDashboard — selected project', () => {
     ).toBeInTheDocument();
   });
 });
+
+/**
+ * Project cost is measured NET. Input VAT is reclaimed from the tax office, so
+ * charging it to the obra overstates cost and understates margin — and it is the
+ * margin the owner prices the next job from.
+ */
+describe('ProyectoDashboard — net of VAT', () => {
+  const VAT_MOVEMENTS = [
+    bankMovementFixture({
+      id: 'vat-in',
+      direction: 'in',
+      amount: 47600,
+      description: 'Cobro certificación',
+      categoryName: 'Servicios',
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      postedDate: isoDaysFromNow(-20),
+    }),
+    bankMovementFixture({
+      id: 'vat-out',
+      direction: 'out',
+      amount: 11900,
+      description: 'Material fibra',
+      categoryName: 'Materiales',
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      postedDate: isoDaysFromNow(-10),
+    }),
+  ];
+
+  it('reports KPIs net of VAT when the categories carry a rate', () => {
+    store.collections.bankMovements = VAT_MOVEMENTS;
+    store.documents.vatRates = { rates: { Servicios: 0.19, Materiales: 0.19 } };
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(screen.getByText('40.000,00')).toBeInTheDocument(); // 47.600 / 1,19
+    expect(screen.getByText('10.000,00')).toBeInTheDocument(); // 11.900 / 1,19
+    expect(screen.getByText('+30.000,00')).toBeInTheDocument();
+    expect(screen.getByText('75.0%')).toBeInTheDocument();
+  });
+
+  it('lets a rate stored on the movement override the category rate', () => {
+    store.collections.bankMovements = [
+      { ...VAT_MOVEMENTS[0], taxRate: 0.07 },
+      VAT_MOVEMENTS[1],
+    ];
+    store.documents.vatRates = { rates: { Servicios: 0.19, Materiales: 0.19 } };
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(screen.getByText('44.485,98')).toBeInTheDocument(); // 47.600 / 1,07
+  });
+
+  it('leaves an unconfigured category at gross rather than guessing 19%', () => {
+    store.collections.bankMovements = VAT_MOVEMENTS;
+    store.documents.vatRates = { rates: {} };
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(screen.getByText('47.600,00')).toBeInTheDocument();
+    expect(screen.getByText('11.900,00')).toBeInTheDocument();
+  });
+
+  it('says on screen that the figures exclude VAT and that cash does not', () => {
+    store.collections.bankMovements = VAT_MOVEMENTS;
+    store.documents.vatRates = { rates: { Servicios: 0.19, Materiales: 0.19 } };
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(screen.getAllByText(/neto, sin IVA/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Importes brutos, tal como salieron del banco/i)).toBeInTheDocument();
+  });
+
+  it('keeps the movement table on the gross amount the bank actually moved', () => {
+    store.collections.bankMovements = VAT_MOVEMENTS;
+    store.documents.vatRates = { rates: { Servicios: 0.19, Materiales: 0.19 } };
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('+47.600,00')).toBeInTheDocument();
+    expect(within(table).getByText('-11.900,00')).toBeInTheDocument();
+  });
+});

@@ -36,6 +36,8 @@ import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useAllTransactions } from '../../hooks/useAllTransactions';
 import { useProjects } from '../../hooks/useProjects';
 import { useCostCenters } from '../../hooks/useCostCenters';
+import { useVatRates } from '../../hooks/useVatRates';
+import { createNetAmountResolver } from '../../finance/vatRates';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
@@ -490,6 +492,20 @@ const BudgetVsActual = ({ user, userRole }) => {
  const ledger = useFinanceLedgerContext();
  const { allTransactions } = useAllTransactions(user);
  const { periods: payrollPeriods } = usePayrollPeriods(user);
+ const { categoryRates } = useVatRates(user);
+
+ // Actuals are compared against a budget, and a budget is planned net: input VAT
+ // is reclaimed as Vorsteuer, so it is not spend. Until the category rates
+ // existed this screen read the adapter's `netAmount`, which equals the gross
+ // amount whenever no rate is known — the label said "neto", the number did not.
+ const netAmountOf = useMemo(
+ () =>
+ createNetAmountResolver({
+ categoryRates,
+ documents: [...(ledger.receivables || []), ...(ledger.payables || [])],
+ }),
+ [categoryRates, ledger.receivables, ledger.payables],
+ );
 
  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
  const [selectedProject, setSelectedProject] = useState(null); // null = empresa
@@ -597,12 +613,12 @@ const BudgetVsActual = ({ user, userRole }) => {
  const monthIdx = Number(m.postedDate?.slice(5, 7)) - 1;
  if (monthIdx < 0 || monthIdx > 11) return;
 
- addAmount(budCat, isIncome, monthIdx, Math.abs(m.netAmount ?? m.amount));
+ addAmount(budCat, isIncome, monthIdx, Math.abs(netAmountOf(m)));
  });
  }
 
  return map;
- }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter]);
+ }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter, netAmountOf]);
 
  // Phase 3, item 4 — payroll accruals as a SEPARATE 'comprometido' overlay for
  // the Salarios line. Kept apart from `actuals` on purpose: actuals already
@@ -625,9 +641,9 @@ const BudgetVsActual = ({ user, userRole }) => {
  (m) => Number(m.postedDate?.slice(0, 4)) === Number(selectedYear)
  );
  const uncategorized = yearMovements.filter((m) => !m.categoryName);
- const totalAmount = uncategorized.reduce((s, m) => s + Math.abs(m.netAmount ?? m.amount), 0);
+ const totalAmount = uncategorized.reduce((s, m) => s + Math.abs(netAmountOf(m)), 0);
  return { total: yearMovements.length, uncategorized: uncategorized.length, totalAmount };
- }, [ledger.postedMovements, selectedYear]);
+ }, [ledger.postedMovements, selectedYear, netAmountOf]);
 
  // Summary rows: budget line vs actual
  const summaryRows = useMemo(() => {
@@ -923,7 +939,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  const dir = m.direction === 'in' ? 'income' : 'expense';
  const key = `${cat}|${dir}`;
  const existing = byKey.get(key) || { cat, dir, total: 0 };
- existing.total += Math.abs(m.netAmount ?? m.amount);
+ existing.total += Math.abs(netAmountOf(m));
  byKey.set(key, existing);
  });
 

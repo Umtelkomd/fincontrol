@@ -25,8 +25,10 @@ import {
 } from 'recharts';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useEmployees } from '../../hooks/useEmployees';
+import { useVatRates } from '../../hooks/useVatRates';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
+import { createNetAmountResolver } from '../../finance/vatRates';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -180,6 +182,7 @@ const ProyectoDashboard = ({ user }) => {
  const ledger = useFinanceLedgerContext();
  const { employees } = useEmployees(user);
  const { periods: payrollPeriods } = usePayrollPeriods(user);
+ const { categoryRates } = useVatRates(user);
  const [selectedProjectId, setSelectedProjectId] = useState('');
 
  const availableProjects = useMemo(
@@ -199,13 +202,28 @@ const ProyectoDashboard = ({ user }) => {
 
  const projectTokens = useMemo(() => buildProjectTokens(selectedProject), [selectedProject]);
 
+ // Project cost is measured NET. Input VAT comes back from the tax office as
+ // Vorsteuer, so charging it to the obra overstates the cost and understates the
+ // margin the next job gets priced from. The rate is resolved once here and every
+ // derived figure below reads `netAmount`. The movement table is the deliberate
+ // exception: it lists what the bank moved, and the bank moves gross.
+ const netAmountOf = useMemo(
+ () =>
+ createNetAmountResolver({
+ categoryRates,
+ documents: [...(ledger.receivables || []), ...(ledger.payables || [])],
+ }),
+ [categoryRates, ledger.receivables, ledger.payables],
+ );
+
  const projectMovements = useMemo(() => {
  if (!selectedProject) return [];
 
  return (ledger.postedMovements || [])
  .filter((entry) => matchesProject(entry, projectTokens, selectedProject.id))
+ .map((entry) => ({ ...entry, netAmount: netAmountOf(entry) }))
  .sort((left, right) => (right.postedDate || '').localeCompare(left.postedDate || ''));
- }, [ledger.postedMovements, projectTokens, selectedProject]);
+ }, [ledger.postedMovements, projectTokens, selectedProject, netAmountOf]);
 
  const openReceivables = useMemo(() => {
  if (!selectedProject) return [];
@@ -285,10 +303,10 @@ const ProyectoDashboard = ({ user }) => {
  const kpis = useMemo(() => {
  const income = projectMovements
  .filter((entry) => entry.direction === 'in')
- .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+ .reduce((sum, entry) => sum + Number(entry.netAmount || 0), 0);
  const bankExpenses = projectMovements
  .filter((entry) => entry.direction === 'out')
- .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+ .reduce((sum, entry) => sum + Number(entry.netAmount || 0), 0);
  // Labor cost is folded into expenses so net/margin reflect payroll.
  const expenses = bankExpenses + allocatedLabor;
  const net = income - expenses;
@@ -332,8 +350,8 @@ const ProyectoDashboard = ({ user }) => {
  const key = entry.postedDate.slice(0, 7);
  const current = months.get(key) || { month: key, ingresos: 0, gastos: 0, manoObra: 0 };
 
- if (entry.direction === 'in') current.ingresos += Number(entry.amount || 0);
- else current.gastos += Number(entry.amount || 0);
+ if (entry.direction === 'in') current.ingresos += Number(entry.netAmount || 0);
+ else current.gastos += Number(entry.netAmount || 0);
 
  months.set(key, current);
  });
@@ -401,7 +419,7 @@ const ProyectoDashboard = ({ user }) => {
  projectMovements.forEach((entry) => {
  const key = (entry.postedDate || '').slice(0, 7);
  if (!key) return;
- const amount = Number(entry.amount || 0);
+ const amount = Number(entry.netAmount || 0);
  if (entry.direction === 'in') incomeByMonth[key] = (incomeByMonth[key] || 0) + amount;
  else costByMonth[key] = (costByMonth[key] || 0) + amount;
  });
@@ -473,7 +491,7 @@ const ProyectoDashboard = ({ user }) => {
  .filter((entry) => entry.direction === 'out')
  .forEach((entry) => {
  const key = entry.kind || entry.costCenterId || 'Sin categoría';
- categories.set(key, (categories.get(key) || 0) + Number(entry.amount || 0));
+ categories.set(key, (categories.get(key) || 0) + Number(entry.netAmount || 0));
  });
 
  return Array.from(categories.entries())
@@ -508,6 +526,7 @@ const ProyectoDashboard = ({ user }) => {
  <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">Rentabilidad y seguimiento por proyecto.</h2>
  <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[var(--color-fg-4)]">
  Revisa ingresos, gastos, documentos abiertos, control de ejecución y evolución mensual de cada proyecto desde una sola vista.
+ Las cifras de coste y margen son <span className="text-[var(--color-fg-1)]">neto, sin IVA</span>: el IVA soportado se recupera vía Vorsteuer y no es coste de obra. La caja de la empresa sigue siendo bruta.
  </p>
  </div>
 
@@ -589,7 +608,7 @@ const ProyectoDashboard = ({ user }) => {
 
  <Section
  title="Control de ejecución"
- subtitle="Valor ganado (EVM): plan frente a costo real y avance por facturación."
+ subtitle="Valor ganado (EVM): plan frente a costo real y avance por facturación (neto, sin IVA)."
  action={
  evm?.available ? (
  <span className="flex items-center gap-2 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-1 text-[11px] text-[var(--color-fg-3)]">
@@ -663,7 +682,7 @@ const ProyectoDashboard = ({ user }) => {
  </Section>
 
  {projectBudgetPlan && (projectBudgetPlan.incomeTarget > 0 || projectBudgetPlan.expenseLimit > 0) ? (
- <Section title="Presupuesto frente a ejecución" subtitle="Comparativa entre objetivo y comportamiento real del proyecto.">
+ <Section title="Presupuesto frente a ejecución" subtitle="Comparativa entre objetivo y comportamiento real del proyecto (neto, sin IVA).">
  <div className="grid gap-4 lg:grid-cols-2">
  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-4">
  <div className="mb-3 flex items-center justify-between">
@@ -701,7 +720,7 @@ const ProyectoDashboard = ({ user }) => {
  <div className="grid gap-6 xl:grid-cols-[1.9fr,1.1fr]">
  <Section
  title="Evolución mensual"
- subtitle="Ingresos y gastos por mes con la línea de balance neto."
+ subtitle="Ingresos y gastos por mes (neto, sin IVA) con la línea de balance."
  action={<span className="text-xs text-[var(--color-fg-4)]">{monthlyData.length} meses</span>}
  >
  {monthlyData.length > 0 ? (
@@ -726,7 +745,7 @@ const ProyectoDashboard = ({ user }) => {
  )}
  </Section>
 
- <Section title="Gastos por categoría" subtitle="Distribución de las salidas realizadas del proyecto.">
+ <Section title="Gastos por categoría" subtitle="Distribución de las salidas realizadas del proyecto (neto, sin IVA).">
  {categoryData.length > 0 ? (
  <div className="space-y-3">
  {categoryData.slice(0, 8).map((entry) => {
@@ -765,7 +784,7 @@ const ProyectoDashboard = ({ user }) => {
 
  <Section
  title="Movimientos del proyecto"
- subtitle="Últimos registros confirmados asociados al proyecto seleccionado."
+ subtitle="Últimos registros confirmados asociados al proyecto seleccionado. Importes brutos, tal como salieron del banco."
  action={
  <span className="flex items-center gap-1.5 rounded-sm border border-[var(--color-line)] bg-[var(--color-bg-2)] px-3 py-1 text-[11px] text-[var(--color-fg-3)]">
  <Activity size={12} />

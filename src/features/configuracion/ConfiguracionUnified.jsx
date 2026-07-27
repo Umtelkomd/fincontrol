@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Tag, Building2, FolderOpen, Landmark, Anchor } from 'lucide-react';
+import { Tag, Building2, FolderOpen, Landmark, Anchor, Percent } from 'lucide-react';
 import Categories from '../settings/Categories';
 import CostCenters from '../settings/CostCenters';
 import Projects from '../settings/Projects';
 import BankAccount from '../settings/BankAccount';
 import Treasury from '../settings/Treasury';
+import VatRates from '../settings/VatRates';
 
 const TABS = [
  { key: 'treasury', label: 'Tesorería', icon: Anchor },
  { key: 'projects', label: 'Proyectos', icon: FolderOpen },
  { key: 'categories', label: 'Categorías', icon: Tag },
+ { key: 'vat-rates', label: 'IVA', icon: Percent },
  { key: 'cost-centers', label: 'Centros de Costo', icon: Building2 },
  { key: 'bank-account', label: 'Cuenta Bancaria', icon: Landmark },
 ];
@@ -25,6 +27,8 @@ const ConfiguracionUnified = ({ user }) => {
  return <Projects user={user} />;
  case 'categories':
  return <Categories user={user} />;
+ case 'vat-rates':
+ return <VatRates user={user} />;
  case 'cost-centers':
  return <CostCenters user={user} />;
  case 'bank-account':
