@@ -25,6 +25,10 @@ import {
 } from 'recharts';
 import HelpButton from '../../components/ui/HelpButton';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
+import { useAuth } from '../../hooks/useAuth';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useProjects } from '../../hooks/useProjects';
+import { buildProjectMargins } from '../../hooks/useTreasuryMetrics';
 import { exportReportToPDF } from '../../utils/pdfExport';
 import { formatCurrency } from '../../utils/formatters';
 import {
@@ -38,6 +42,8 @@ import {
  toPdfTransaction,
 } from '../../finance/reporting';
 import { splitInternalTransfers } from '../../lib/finance/movementAmount';
+import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
+import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 
 const variation = (current, previous) => {
  if (previous === 0) return current === 0 ? 0 : 100;
@@ -80,8 +86,13 @@ const YEAR_OPTIONS = [
   { value: 'all', label: 'Todos los años' },
 ];
 
-const Reports = () => {
+const Reports = ({ user }) => {
  const ledger = useFinanceLedgerContext();
+ const { hasPermission } = useAuth();
+ const canSeePayroll = hasPermission('cxp');
+ const { periods: payrollPeriods } = usePayrollPeriods(canSeePayroll ? user : null);
+ const { employees } = useEmployees(user);
+ const { projects } = useProjects(user);
  const dropdownRef = useRef(null);
  const [initialDate] = useState(() => {
  const d = new Date();
@@ -149,6 +160,22 @@ const Reports = () => {
  const currentRangeTo = currentRange.to;
  const previousRangeFrom = previousRange.from;
  const previousRangeTo = previousRange.to;
+
+ const payrollByProject = useMemo(() => {
+ const periodsInRange = payrollPeriods.filter((period) => {
+ const month = String(period.period || '');
+ return month && month >= currentRangeFrom.slice(0, 7) && month <= currentRangeTo.slice(0, 7);
+ });
+ const employeesById = Object.fromEntries(employees.map((employee) => [employee.id, employee]));
+ const projectNamesById = Object.fromEntries(
+ projects.map((project) => [project.id, project.name || project.displayName || project.code || project.id]),
+ );
+ return allocatePayrollCost({
+ periods: periodsInRange,
+ employeesById,
+ projectNamesById,
+ }).byProject;
+ }, [currentRangeFrom, currentRangeTo, employees, payrollPeriods, projects]);
 
  const currentMovements = filterRowsByRange(
  yearFilteredMovements,
@@ -222,18 +249,7 @@ const Reports = () => {
  .sort((left, right) => right.amount - left.amount);
  })();
 
- const projectMargins = (() => {
- const bucket = new Map();
- currentMovements.forEach((entry) => {
- const key = entry.projectName || 'Sin proyecto';
- const current = bucket.get(key) || { name: key, inflows: 0, outflows: 0, net: 0 };
- if (entry.direction === 'in') current.inflows += entry.amount;
- else current.outflows += entry.amount;
- current.net = current.inflows - current.outflows;
- bucket.set(key, current);
- });
- return Array.from(bucket.values()).sort((left, right) => right.net - left.net).slice(0, 6);
- })();
+ const projectMargins = buildProjectMargins(currentMovements, payrollByProject);
 
  const trendYear = selectedYear === 'all' ? initialDate.year : Number(selectedYear);
  const trendEndMonth = trendYear === initialDate.year ? initialDate.month : 11;

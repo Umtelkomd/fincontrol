@@ -62,6 +62,7 @@ const normalizeDocument = (raw, kind, source) => {
     projectName: raw.projectName || raw.project || 'Sin proyecto',
     projectCode: raw.projectCode || '',
     costCenterId: raw.costCenterId || raw.costCenter || '',
+    categoryName: raw.categoryName ?? raw.category ?? '',
     payments: normalizePayments(raw.payments),
     linkedTransactionId: raw.linkedTransactionId || null,
     legacyTransactionId: raw.legacyTransactionId || raw.id || null,
@@ -190,4 +191,3 @@ export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
     raw,
   };
 };
-

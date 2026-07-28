@@ -35,7 +35,85 @@ const NEW_NAME = flag('name');
 const line = (c = '─', w = 82) => c.repeat(w);
 const norm = (s) => String(s || '').trim().toLowerCase();
 
-(async () => {
+const executeMerge = async ({
+  apply,
+  db,
+  plan,
+  fromRef,
+  intoRef,
+  intoId,
+  intoCode,
+  fromName,
+  intoName,
+  finalName,
+  stamp,
+  today,
+  logger = console,
+}) => {
+  if (!apply) {
+    return { exitCode: 0, dryRun: true, finalized: false, ok: 0, failedBatches: 0 };
+  }
+
+  let ok = 0;
+  let failedBatches = 0;
+
+  const commit = async (items, build) => {
+    for (let i = 0; i < items.length; i += 400) {
+      const batch = db.batch();
+      for (const item of items.slice(i, i + 400)) batch.update(item.ref, build(item));
+      try {
+        await batch.commit();
+        ok += Math.min(400, items.length - i);
+      } catch (error) {
+        failedBatches += 1;
+        logger.error(`  ✖ lote: ${error.message}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  for (const key of ['movements', 'receivables', 'payables', 'wip']) {
+    const committed = await commit(plan[key], (item) =>
+      item.move === false
+        ? { projectName: finalName, ...stamp }
+        : { projectId: intoId, projectName: finalName, ...stamp });
+    if (!committed) {
+      return { exitCode: 1, dryRun: false, finalized: false, ok, failedBatches };
+    }
+    if (plan[key].length) logger.log(`  ✔ ${key}: ${plan[key].length}`);
+  }
+
+  if (!await commit(plan.budgets, () => ({ projectId: intoId, ...stamp }))) {
+    return { exitCode: 1, dryRun: false, finalized: false, ok, failedBatches };
+  }
+  if (plan.budgets.length) logger.log(`  ✔ presupuestos: ${plan.budgets.length}`);
+
+  if (!await commit(plan.rules, (item) => ({
+    applyTo: { ...item.applyTo, projectId: intoId, projectName: finalName }, ...stamp,
+  }))) {
+    return { exitCode: 1, dryRun: false, finalized: false, ok, failedBatches };
+  }
+  if (plan.rules.length) logger.log(`  ✔ reglas: ${plan.rules.length}`);
+
+  if (!await commit(plan.employees, (item) => ({ projectIds: item.next, ...stamp }))) {
+    return { exitCode: 1, dryRun: false, finalized: false, ok, failedBatches };
+  }
+  if (plan.employees.length) logger.log(`  ✔ personal: ${plan.employees.length}`);
+
+  await intoRef.update({ nombre: finalName, name: finalName, status: 'active', ...stamp });
+  await fromRef.update({
+    status: 'inactive',
+    notes: `Fusionado en ${intoCode} "${finalName}" el ${today}. No usar.`,
+    ...stamp,
+  });
+  logger.log(`  ✔ "${intoName}" → "${finalName}" (activo)`);
+  logger.log(`  ✔ "${fromName}" desactivado`);
+
+  return { exitCode: 0, dryRun: false, finalized: true, ok, failedBatches };
+};
+
+const main = async () => {
   if (!FROM || !INTO) {
     console.error('\nUso: --from <CODIGO> --into <CODIGO> [--name "Nombre final"] [--apply]');
     process.exit(1);
@@ -138,53 +216,49 @@ const norm = (s) => String(s || '').trim().toLowerCase();
   }
 
   console.log(`\n${line('═')}`);
-  if (!APPLY) {
+  const stamp = APPLY
+    ? {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: 'merge-projects',
+      }
+    : {};
+  const result = await executeMerge({
+    apply: APPLY,
+    db,
+    plan,
+    fromRef: from.ref,
+    intoRef: into.ref,
+    intoId: into.id,
+    intoCode: INTO,
+    fromName,
+    intoName,
+    finalName,
+    stamp,
+    today: new Date().toISOString().slice(0, 10),
+  });
+
+  if (result.dryRun) {
     console.log('🟢 DRY-RUN — no se escribió nada.');
     console.log(`   Aplicar: node scripts/merge-projects.cjs --from ${FROM} --into ${INTO}${NEW_NAME ? ` --name "${NEW_NAME}"` : ''} --apply`);
     console.log(line('═'));
-    process.exit(0);
+    process.exit(result.exitCode);
   }
 
-  const ts = admin.firestore.FieldValue.serverTimestamp();
-  const stamp = { updatedAt: ts, updatedBy: 'merge-projects' };
-  let ok = 0, fail = 0;
+  console.log(line('═'));
+  console.log(
+    result.exitCode === 0
+      ? '✅ Fusión completada.'
+      : `✖ Fusión abortada tras ${result.failedBatches} lote(s) fallido(s). Los proyectos no se finalizaron.`,
+  );
+  console.log(line('═'));
+  process.exit(result.exitCode);
+};
 
-  const commit = async (items, build) => {
-    for (let i = 0; i < items.length; i += 400) {
-      const batch = db.batch();
-      for (const item of items.slice(i, i + 400)) batch.update(item.ref, build(item));
-      try { await batch.commit(); ok += Math.min(400, items.length - i); }
-      catch (e) { console.error(`  ✖ lote: ${e.message}`); fail++; }
-    }
-  };
+module.exports = { executeMerge };
 
-  for (const key of ['movements', 'receivables', 'payables', 'wip']) {
-    await commit(plan[key], (item) =>
-      item.move === false
-        ? { projectName: finalName, ...stamp }
-        : { projectId: into.id, projectName: finalName, ...stamp });
-    if (plan[key].length) console.log(`  ✔ ${key}: ${plan[key].length}`);
-  }
-  await commit(plan.budgets, () => ({ projectId: into.id, ...stamp }));
-  if (plan.budgets.length) console.log(`  ✔ presupuestos: ${plan.budgets.length}`);
-  await commit(plan.rules, (item) => ({
-    applyTo: { ...item.applyTo, projectId: into.id, projectName: finalName }, ...stamp,
-  }));
-  if (plan.rules.length) console.log(`  ✔ reglas: ${plan.rules.length}`);
-  await commit(plan.employees, (item) => ({ projectIds: item.next, ...stamp }));
-  if (plan.employees.length) console.log(`  ✔ personal: ${plan.employees.length}`);
-
-  await into.ref.update({ nombre: finalName, name: finalName, status: 'active', ...stamp });
-  await from.ref.update({
-    status: 'inactive',
-    notes: `Fusionado en ${INTO} "${finalName}" el ${new Date().toISOString().slice(0, 10)}. No usar.`,
-    ...stamp,
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('ERROR:', error);
+    process.exit(1);
   });
-  console.log(`  ✔ "${intoName}" → "${finalName}" (activo)`);
-  console.log(`  ✔ "${fromName}" desactivado`);
-
-  console.log(line('═'));
-  console.log(`✅ Fusión completada${fail ? ` con ${fail} lote(s) fallido(s)` : ''}.`);
-  console.log(line('═'));
-  process.exit(fail ? 1 : 0);
-})().catch((e) => { console.error('ERROR:', e); process.exit(1); });
+}

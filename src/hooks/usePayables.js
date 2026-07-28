@@ -336,7 +336,9 @@ export const usePayables = (user) => {
         projectId: data.projectId || '',
         projectName: data.projectName || '',
         costCenterId: data.costCenterId || '',
-        categoryName: data.categoryName || '',
+        ...(Object.prototype.hasOwnProperty.call(data, 'categoryName')
+          ? { categoryName: data.categoryName ?? '' }
+          : {}),
         status: nextStatus,
         ...extraFields,
         updatedAt: serverTimestamp(),
