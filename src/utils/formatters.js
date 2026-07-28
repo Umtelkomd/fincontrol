@@ -75,6 +75,31 @@ export const formatCollectionSlip = (slip) => {
   return basis ? `${timing} (${basis})` : timing;
 };
 
+/**
+ * The honesty caveat under a DERIVED VAT figure.
+ *
+ * The derived Umsatzsteuer is only as good as the classification behind it: a
+ * bank movement with no category has no rate, and this codebase reads an
+ * unknown rate as 0 rather than inventing 19%. Presenting the result as the
+ * liquidation would therefore be a lie of precision, so the share it stands on
+ * travels with the number. The direction of the error is deliberately NOT
+ * claimed: unclassified purchases would raise the input VAT (lowering what is
+ * owed) while sales without an invoice document would raise the output VAT.
+ *
+ * @param {number|null|undefined} coverage - 0..1 share of amounts with a known rate
+ * @returns {string} empty when there is nothing to caveat
+ */
+export const formatVatCoverage = (coverage) => {
+  const value = Number(coverage);
+  if (coverage == null || !Number.isFinite(value)) return '';
+  const pct = Math.round(Math.min(Math.max(value, 0), 1) * 100);
+  if (pct >= 100) return 'Estimado sobre el 100% de los importes clasificados.';
+  return (
+    `Estimado sobre el ${pct}% de los importes clasificados; al ${100 - pct}% restante no se le ` +
+    'ha fijado tipo de IVA, así que la cifra es orientativa y no la liquidación definitiva.'
+  );
+};
+
 /** Safe stringifier for display — avoids [object Object] */
 export const safe = (v) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 

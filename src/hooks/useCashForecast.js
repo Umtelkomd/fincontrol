@@ -6,6 +6,7 @@ import { useAuth } from './useAuth';
 import { useFinanceLedger } from './useFinanceLedger';
 import { useRecurringCosts } from './useRecurringCosts';
 import { useTreasurySettings } from './useTreasurySettings';
+import { useVatRates } from './useVatRates';
 
 /**
  * useCashForecast — the ONE cash-flow projection subscription.
@@ -57,6 +58,9 @@ export const useCashForecast = (user, options = {}) => {
   const { recurringCosts } = useRecurringCosts(user);
   const { periods: payrollPeriods } = usePayrollPeriods(canSeePayroll ? user : null);
   const { vatEstimates } = useTreasurySettings(user);
+  // VAT per category (settings/vatRates) turns the posted movements into the
+  // derived Umsatzsteuer the manual estimates almost never cover.
+  const { categoryRates } = useVatRates(user);
 
   return useMemo(() => {
     const todayIso = today || new Date().toISOString().slice(0, 10);
@@ -70,6 +74,8 @@ export const useCashForecast = (user, options = {}) => {
       recurringCosts: recurringCosts || [],
       payrollPeriods: payrollPeriods || [],
       vatEstimates: vatEstimates || [],
+      movements: ledger.postedMovements || [],
+      categoryRates: categoryRates || {},
       ...(collectionSlipDays === undefined ? {} : { collectionSlipDays }),
     });
 
@@ -79,7 +85,16 @@ export const useCashForecast = (user, options = {}) => {
       loading: ledger.loading,
       error: ledger.error,
     };
-  }, [collectionSlipDays, ledger, payrollPeriods, recurringCosts, today, vatEstimates, weeks]);
+  }, [
+    categoryRates,
+    collectionSlipDays,
+    ledger,
+    payrollPeriods,
+    recurringCosts,
+    today,
+    vatEstimates,
+    weeks,
+  ]);
 };
 
 export default useCashForecast;

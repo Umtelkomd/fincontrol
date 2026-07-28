@@ -25,7 +25,12 @@ import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
 import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { isInternalTransfer } from '../../lib/finance/movementAmount';
-import { formatCollectionSlip, formatCurrency, formatDate } from '../../utils/formatters';
+import {
+ formatCollectionSlip,
+ formatCurrency,
+ formatDate,
+ formatVatCoverage,
+} from '../../utils/formatters';
 
 const TooltipCard = ({ active, payload, label }) => {
  if (!active || !payload?.length) return null;
@@ -55,6 +60,13 @@ const Section = ({ title, subtitle, children, help }) => (
 );
 
 const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** 'YYYY-MM' → 'Jul 2026'; unparseable keys are shown as they are. */
+const monthLabel = (monthKey) => {
+ const [year, month] = String(monthKey || '').split('-');
+ const name = SHORT_MONTHS[Number(month) - 1];
+ return name ? `${name} ${year}` : monthKey;
+};
 
 const CashFlow = ({ user }) => {
  const ledger = useFinanceLedgerContext();
@@ -99,6 +111,26 @@ const CashFlow = ({ user }) => {
  months.forEach((b) => { b.net = b.inflows - b.outflows; });
  return months;
  }, [metrics.postedMovements]);
+
+ // Upcoming Umsatzsteuer, in filing order. A month the owner typed by hand has
+ // already won by the time it reaches here (see finance/vatObligation.js); this
+ // screen only decides what to show and how honestly to label it.
+ const vatUpcoming = useMemo(
+ () =>
+ (forecast.vatObligations || [])
+ .filter((entry) => entry.dueDate && entry.dueDate >= forecast.today)
+ .sort((left, right) => left.dueDate.localeCompare(right.dueDate)),
+ [forecast.vatObligations, forecast.today],
+ );
+
+ // Weighted by amount, never an average of percentages: one fully classified
+ // 200 € month must not paper over a 40%-classified 20.000 € one.
+ const vatCoverage = useMemo(() => {
+ const derived = vatUpcoming.filter((entry) => entry.source === 'derived');
+ const total = derived.reduce((sum, entry) => sum + (entry.totalAmount || 0), 0);
+ const known = derived.reduce((sum, entry) => sum + (entry.knownAmount || 0), 0);
+ return total > 0 ? known / total : null;
+ }, [vatUpcoming]);
 
  if (metrics.loading) {
  return (
@@ -277,6 +309,64 @@ const CashFlow = ({ user }) => {
  </p>
  </Section>
  </div>
+
+ <Section
+ title="IVA por liquidar"
+ subtitle="Umsatzsteuer por mes. Con Dauerfristverlängerung se paga el 10 del segundo mes siguiente."
+ help={
+ <HelpButton title="IVA por liquidar" size={14}>
+ <p>IVA repercutido de las facturas emitidas menos IVA soportado de los pagos ya clasificados.</p>
+ <p>Los meses marcados como Manual vienen de Configuracion → Tesoreria y mandan sobre el calculo.</p>
+ <p>La cobertura dice que parte de los importes tiene tipo de IVA configurado.</p>
+ </HelpButton>
+ }
+ >
+ {vatUpcoming.length === 0 ? (
+ <div className="rounded-lg border border-dashed border-[var(--color-line)] px-4 py-10 text-center text-sm text-[var(--color-fg-3)]">
+ Sin IVA estimado por liquidar: no hay facturas emitidas ni pagos clasificados en los meses todavía sin declarar.
+ </div>
+ ) : (
+ <>
+ <div className="overflow-x-auto">
+ <table className="w-full text-left text-sm">
+ <thead>
+ <tr className="border-b border-[var(--color-line)]">
+ <th className="px-3 py-2.5 label-mono text-[var(--color-fg-4)]">Periodo</th>
+ <th className="px-3 py-2.5 label-mono text-[var(--color-fg-4)]">Vence</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Cobertura</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Importe</th>
+ </tr>
+ </thead>
+ <tbody className="divide-y divide-[var(--color-line)]">
+ {vatUpcoming.map((entry) => (
+ <tr key={entry.month} className="hover:bg-[var(--color-bg-1)]">
+ <td className="px-3 py-3 text-[13px] font-medium text-[var(--color-fg-1)]">
+ {monthLabel(entry.month)}
+ <span className={`nx-badge ml-2 ${entry.source === 'manual' ? 'nx-badge-info' : 'nx-badge-neutral'}`}>
+ {entry.source === 'manual' ? 'Manual' : 'Estimado'}
+ </span>
+ </td>
+ <td className="px-3 py-3 text-[13px] text-[var(--color-fg-3)]">{formatDate(entry.dueDate)}</td>
+ <td className="px-3 py-3 text-right text-[13px] text-[var(--color-fg-3)]">
+ {entry.coverage == null ? '—' : `${Math.round(entry.coverage * 100)}%`}
+ </td>
+ <td className="px-3 py-3 text-right text-[13px] font-medium text-[var(--color-warn)]">
+ {formatCurrency(entry.amount)}
+ </td>
+ </tr>
+ ))}
+ </tbody>
+ </table>
+ </div>
+ {/* The estimate moves with the classification, so the caveat travels with it. */}
+ {vatCoverage != null && (
+ <p className="mt-3 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+ {formatVatCoverage(vatCoverage)}
+ </p>
+ )}
+ </>
+ )}
+ </Section>
 
  <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
  <div ref={movementsRef}>

@@ -4,7 +4,26 @@ import {
   computeTaxFromGross,
   formatCollectionSlip,
   formatCollectionSlipBasis,
+  formatVatCoverage,
 } from './formatters';
+
+describe('formatVatCoverage', () => {
+  it('states the share the estimate was built on and that the rest is missing', () => {
+    expect(formatVatCoverage(0.73)).toBe(
+      'Estimado sobre el 73% de los importes clasificados; al 27% restante no se le ha fijado tipo de IVA, así que la cifra es orientativa y no la liquidación definitiva.',
+    );
+  });
+
+  it('drops the caveat when every amount carried a known rate', () => {
+    expect(formatVatCoverage(1)).toBe('Estimado sobre el 100% de los importes clasificados.');
+  });
+
+  it('says nothing when there is no coverage to report', () => {
+    expect(formatVatCoverage(null)).toBe('');
+    expect(formatVatCoverage(undefined)).toBe('');
+    expect(formatVatCoverage(Number.NaN)).toBe('');
+  });
+});
 
 describe('formatCollectionSlipBasis', () => {
   it('names the sample a measured slip was taken from', () => {

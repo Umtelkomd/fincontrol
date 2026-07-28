@@ -8,8 +8,14 @@
  *   inflows   open receivables, expected `collectionSlipDays` after their due
  *             date (overdue ones expected immediately)
  *   outflows  open payables + payroll (net wages, social security, wage tax)
- *             + VAT estimates + active recurring-cost rules that have not
- *             been materialized into a payable yet
+ *             + VAT + active recurring-cost rules that have not been
+ *             materialized into a payable yet
+ *
+ * VAT used to come exclusively from `settings/treasury.vatEstimates` — a figure
+ * a human types per month, and empty in production, so the projection assumed
+ * the company owed no Umsatzsteuer. It is now DERIVED from the ledger
+ * (`vatObligation.js`) whenever `movements`/`receivables` are supplied, with a
+ * manually entered month still winning: a human number beats a computed one.
  *
  * There is no optimistic/pessimistic band and no scenario multiplier. Every
  * number here traces to a document, a configured estimate, or a recurring
@@ -36,6 +42,7 @@
 
 import { deriveCollectionSlip, forecastHorizon, forecastWeeks } from '../lib/finance';
 import { buildCompanyObligations } from './companyObligations';
+import { buildVatEstimates } from './vatObligation';
 
 /** Month abbreviations for week labels — fixed, so labels never vary by ICU build. */
 const MONTH_ABBR_ES = [
@@ -62,9 +69,13 @@ const isForecastable = (doc) => doc && !CLOSED_STATUSES.has(doc.status);
  *   recurringCosts?: Object[],
  *   payrollPeriods?: Object[],
  *   vatEstimates?: Array<{ month: string, amount: number }>,
+ *   movements?: Object[],
+ *   categoryRates?: Record<string, number>,
  *   collectionSlipDays?: number,
  * }} params - omit `collectionSlipDays` to use the slip measured from
- *   `receivables`; pass it only for sensitivity analysis.
+ *   `receivables`; pass it only for sensitivity analysis. `movements` (posted
+ *   bank movements) and `categoryRates` (settings/vatRates) enable the derived
+ *   VAT; without them only manual estimates are projected, exactly as before.
  * @returns {{
  *   weeks: CashForecastWeek[],
  *   obligations: import('../lib/finance/obligations.js').Obligation[],
@@ -81,6 +92,7 @@ const isForecastable = (doc) => doc && !CLOSED_STATUSES.has(doc.status);
  *     sampleSize: number,
  *     confidence: 'measured'|'default'|'override',
  *   },
+ *   vatObligations: import('./vatObligation.js').VatEstimateEntry[],
  *   horizonWeeks: number,
  *   horizonEnd: string,
  * }}
@@ -94,6 +106,8 @@ export const buildCashForecast = ({
   recurringCosts = [],
   payrollPeriods = [],
   vatEstimates = [],
+  movements = [],
+  categoryRates = {},
   collectionSlipDays,
 }) => {
   const horizon = forecastHorizon({ today, weeks });
@@ -111,12 +125,23 @@ export const buildCashForecast = ({
   const openReceivables = (receivables || []).filter(isForecastable);
   const openPayables = (payables || []).filter(isForecastable);
 
+  // Derived from the WHOLE receivables array, settled invoices included: VAT is
+  // owed the month an invoice is issued, not the month it is collected, so the
+  // `isForecastable` filter (which is about future cash) must not reach it.
+  const vatObligations = buildVatEstimates({
+    movements,
+    receivables,
+    categoryRates,
+    today,
+    vatEstimates,
+  });
+
   // Size the obligations window to exactly the weeks the forecast will build,
   // so nothing due inside the horizon is missed and nothing beyond it leaks in.
   const obligations = buildCompanyObligations({
     payables: openPayables,
     payrollPeriods,
-    vatEstimates,
+    vatEstimates: vatObligations,
     recurringCosts,
     today,
     horizonDays: horizon.horizonDays,
@@ -161,6 +186,7 @@ export const buildCashForecast = ({
     lowestWeek,
     collectionSlipDays: slipDays,
     collectionSlip,
+    vatObligations,
     horizonWeeks: weeks,
     horizonEnd: horizon.horizonEnd,
   };

@@ -139,6 +139,90 @@ describe('buildCashForecast obligation coverage', () => {
   });
 });
 
+// ─── VAT: derived from the ledger, overridable by hand ────────────────────────
+
+describe('buildCashForecast VAT', () => {
+  // Settled on purpose: the invoice owes VAT the month it was issued, but must
+  // not also show up as future cash in.
+  const invoice = (issueDate, amount, extra = {}) => ({
+    id: `inv-${issueDate}-${amount}`,
+    issueDate,
+    dueDate: issueDate,
+    amount,
+    openAmount: 0,
+    status: 'settled',
+    taxRate: 0.19,
+    ...extra,
+  });
+
+  const purchase = (postedDate, amount, categoryName) => ({
+    id: `mov-${postedDate}-${amount}`,
+    postedDate,
+    amount,
+    direction: 'out',
+    signedAmount: -amount,
+    status: 'posted',
+    counterpartyName: 'Vendor B',
+    categoryName,
+  });
+
+  it('projects nothing when neither a manual estimate nor ledger data exists', () => {
+    const forecast = run();
+    expect(forecast.vatObligations).toEqual([]);
+    expect(forecast.obligations.some((item) => item.kind === 'vat')).toBe(false);
+  });
+
+  it('derives the VAT obligation from issued invoices when no manual estimate exists', () => {
+    const forecast = run({ receivables: [invoice('2026-05-20', 11900)] });
+    const vat = forecast.obligations.filter((item) => item.kind === 'vat');
+
+    expect(vat).toHaveLength(1);
+    expect(vat[0]).toMatchObject({ date: '2026-07-10', month: '2026-05' });
+    expect(vat[0].amount).toBeCloseTo(1900, 2);
+    expect(forecast.vatObligations[0]).toMatchObject({ month: '2026-05', source: 'derived', coverage: 1 });
+  });
+
+  it('nets input VAT from what actually left the bank', () => {
+    const forecast = run({
+      receivables: [invoice('2026-05-20', 11900)],
+      movements: [purchase('2026-05-04', 1190, 'Materiales')],
+      categoryRates: { Materiales: 0.19 },
+    });
+
+    expect(forecast.obligations.find((item) => item.kind === 'vat').amount).toBeCloseTo(1710, 2);
+  });
+
+  it('lets a manually entered amount override the derived one for that month', () => {
+    const forecast = run({
+      receivables: [invoice('2026-05-20', 11900)],
+      vatEstimates: [{ month: '2026-05', amount: 500 }],
+    });
+    const vat = forecast.obligations.filter((item) => item.kind === 'vat');
+
+    expect(vat).toHaveLength(1);
+    expect(vat[0].amount).toBeCloseTo(500, 2);
+    expect(forecast.vatObligations).toEqual([
+      expect.objectContaining({ month: '2026-05', source: 'manual', coverage: null }),
+    ]);
+  });
+
+  it('reports the coverage behind a derived month so the screen can caveat it', () => {
+    const forecast = run({
+      receivables: [invoice('2026-05-20', 11900)],
+      movements: [purchase('2026-05-04', 4000, '')],
+      categoryRates: { Materiales: 0.19 },
+    });
+
+    expect(forecast.vatObligations[0].coverage).toBeCloseTo(11900 / 15900, 6);
+  });
+
+  it('leaves day zero alone — VAT is a projected outflow, never a cash adjustment', () => {
+    const forecast = run({ receivables: [invoice('2026-05-20', 11900)] });
+    expect(forecast.startBalance).toBe(10000);
+    expect(forecast.weeks[0].projectedBalance).toBeLessThan(10000);
+  });
+});
+
 // ─── document hygiene ─────────────────────────────────────────────────────────
 
 describe('buildCashForecast document filtering', () => {
