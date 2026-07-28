@@ -27,6 +27,109 @@ import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContr
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
+/**
+ * Editable CXP fields, each with the legacy aliases it has to keep in sync.
+ * `vendor` and `invoiceNumber` predate the canonical names and are still what
+ * several views and exports read, so they move together or the document
+ * contradicts itself.
+ */
+const PAYABLE_TEXT_FIELDS = [
+  ['description', ['description']],
+  ['counterpartyName', ['counterpartyName', 'vendor']],
+  ['documentNumber', ['documentNumber', 'invoiceNumber']],
+  ['projectId', ['projectId']],
+  ['projectName', ['projectName']],
+  ['costCenterId', ['costCenterId']],
+  ['categoryName', ['categoryName']],
+];
+
+/**
+ * Builds a PARTIAL Firestore payload for updatePayable.
+ *
+ * Twin of `buildReceivableUpdatePayload`, and of `buildMovementUpdatePayload`
+ * before it: a key is written only when the caller actually supplied it —
+ * `undefined` means "leave it alone", `''` is a deliberate clear and is still
+ * written. Writing a default for every field wiped whatever the caller had not
+ * sent, and because the money block is DERIVED from `clampMoney(data.amount)`
+ * (0 when absent), a metadata-only edit zeroed an open CXP and closed it.
+ * Money is therefore restated only when the caller sends an amount or forces a
+ * status.
+ *
+ * The payroll and ops-gate markers (`payrollPeriodId`, `opsCleared`, …) are
+ * deliberately absent from this payload: the CXP editor does not own them, and
+ * `setOpsCleared` is the only path that may move the gate.
+ *
+ * createPayable keeps its defaults on purpose: a new document must be complete.
+ *
+ * @param {object} payable the stored document (source of every fallback)
+ * @param {object} data the caller's patch
+ * @returns {{ payload: object, nextPaidAmount: number } | { error: Error }}
+ */
+export const buildPayableUpdatePayload = (payable = {}, data = {}) => {
+  const supplied = (key) => data?.[key] !== undefined;
+  const payload = {};
+
+  PAYABLE_TEXT_FIELDS.forEach(([key, targets]) => {
+    if (!supplied(key)) return;
+    targets.forEach((target) => {
+      payload[target] = data[key] || '';
+    });
+  });
+
+  // An unparseable or absent date leaves the stored one in place. Writing the
+  // fallback explicitly would push `undefined` into Firestore on documents that
+  // never had the field.
+  const issueDate = toISODate(data.issueDate);
+  if (issueDate) payload.issueDate = issueDate;
+  const dueDate = toISODate(data.dueDate);
+  if (dueDate) payload.dueDate = dueDate;
+
+  const currentPaid = clampMoney(payable?.paidAmount ?? 0);
+  const forceStatus = data.forceStatus || '';
+  const restatesAmount = supplied('amount') && data.amount !== null && data.amount !== '';
+  if (!restatesAmount && !forceStatus) return { payload, nextPaidAmount: currentPaid };
+
+  const grossAmount = restatesAmount
+    ? clampMoney(data.amount)
+    : clampMoney(payable?.grossAmount ?? payable?.amount ?? 0);
+
+  let nextStatus;
+  let nextOpenAmount;
+  let nextPaidAmount = currentPaid;
+
+  if (forceStatus) {
+    nextStatus = forceStatus;
+    if (forceStatus === 'issued') {
+      nextOpenAmount = grossAmount;
+      nextPaidAmount = 0;
+      payload.paidAmount = 0;
+      payload.payments = [];
+    } else if (forceStatus === 'settled') {
+      nextOpenAmount = 0;
+      nextPaidAmount = grossAmount;
+      payload.paidAmount = grossAmount;
+    } else if (forceStatus === 'cancelled') {
+      nextOpenAmount = 0;
+    } else {
+      nextOpenAmount = clampMoney(grossAmount - currentPaid);
+    }
+  } else {
+    if (grossAmount < currentPaid) {
+      return { error: new Error('El importe no puede quedar por debajo de lo ya pagado') };
+    }
+    nextOpenAmount = clampMoney(grossAmount - currentPaid);
+    nextStatus = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
+  }
+
+  payload.grossAmount = grossAmount;
+  payload.amount = grossAmount;
+  payload.openAmount = clampMoney(nextOpenAmount);
+  payload.pendingAmount = clampMoney(nextOpenAmount);
+  payload.status = nextStatus;
+
+  return { payload, nextPaidAmount };
+};
+
 const buildPayableSnapshot = (payable, override = {}) => ({
   grossAmount: override.grossAmount ?? override.amount ?? clampMoney(payable?.grossAmount ?? payable?.amount ?? 0),
   openAmount: override.openAmount ?? clampMoney(payable?.openAmount ?? 0),
@@ -286,59 +389,15 @@ export const usePayables = (user) => {
   const updatePayable = async (payable, data) => {
     if (!user) return { success: false };
 
+    const { payload: updates, nextPaidAmount, error: invalid } =
+      buildPayableUpdatePayload(payable, data);
+    if (invalid) return { success: false, error: invalid };
+
     try {
-      const grossAmount = clampMoney(data.amount);
-      const currentPaid = clampMoney(payable.paidAmount ?? 0);
-
-      let nextStatus;
-      let nextOpenAmount;
-      let nextPaidAmount = currentPaid;
-      const extraFields = {};
-
-      if (data.forceStatus) {
-        nextStatus = data.forceStatus;
-        if (data.forceStatus === 'issued') {
-          nextOpenAmount = grossAmount;
-          nextPaidAmount = 0;
-          extraFields.paidAmount = 0;
-          extraFields.payments = [];
-        } else if (data.forceStatus === 'settled') {
-          nextOpenAmount = 0;
-          nextPaidAmount = grossAmount;
-          extraFields.paidAmount = grossAmount;
-        } else if (data.forceStatus === 'cancelled') {
-          nextOpenAmount = 0;
-        } else {
-          nextOpenAmount = clampMoney(grossAmount - currentPaid);
-        }
-      } else {
-        if (grossAmount < currentPaid) {
-          return { success: false, error: new Error('El importe no puede quedar por debajo de lo ya pagado') };
-        }
-        nextOpenAmount = clampMoney(grossAmount - currentPaid);
-        nextStatus = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
-      }
-
       const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
 
       const payload = {
-        grossAmount,
-        amount: grossAmount,
-        openAmount: clampMoney(nextOpenAmount),
-        pendingAmount: clampMoney(nextOpenAmount),
-        issueDate: toISODate(data.issueDate) || payable.issueDate,
-        dueDate: toISODate(data.dueDate) || payable.dueDate,
-        description: data.description || '',
-        counterpartyName: data.counterpartyName || '',
-        vendor: data.counterpartyName || '',
-        documentNumber: data.documentNumber || '',
-        invoiceNumber: data.documentNumber || '',
-        projectId: data.projectId || '',
-        projectName: data.projectName || '',
-        costCenterId: data.costCenterId || '',
-        categoryName: data.categoryName || '',
-        status: nextStatus,
-        ...extraFields,
+        ...updates,
         updatedAt: serverTimestamp(),
         updatedBy: user.email,
         auditTrail: arrayUnion({

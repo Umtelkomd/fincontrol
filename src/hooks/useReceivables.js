@@ -61,6 +61,111 @@ export const buildReconciliationSnapshot = (receivable) => ({
   reconciliationPending: isReconciliationPending(receivable),
 });
 
+/**
+ * Editable CXC fields, each with the legacy aliases it has to keep in sync.
+ * `client` and `invoiceNumber` predate the canonical names and are still what
+ * several views and exports read, so they move together or the document
+ * contradicts itself.
+ */
+const RECEIVABLE_TEXT_FIELDS = [
+  ['description', ['description']],
+  ['counterpartyName', ['counterpartyName', 'client']],
+  ['documentNumber', ['documentNumber', 'invoiceNumber']],
+  ['projectId', ['projectId']],
+  ['projectName', ['projectName']],
+  ['costCenterId', ['costCenterId']],
+  ['categoryName', ['categoryName']],
+];
+
+/**
+ * Builds a PARTIAL Firestore payload for updateReceivable.
+ *
+ * Same discipline as `buildMovementUpdatePayload` (useBankMovements), and for
+ * the same reason: writing a default for every field destroyed whatever the
+ * caller had not sent. A key is written only when the caller actually supplied
+ * it — `undefined` means "leave it alone", while `''` is a deliberate clear and
+ * is still written, so picking "sin proyecto" in the form keeps working.
+ *
+ * On a CXC the money block made this worse than on a movement, because it is
+ * DERIVED: `grossAmount` came from `clampMoney(data.amount)`, which is 0 when
+ * no amount was sent, and `openAmount`/`pendingAmount`/`status` followed it. A
+ * caller that only wanted to set a project therefore zeroed the invoice and
+ * marked it `settled`. So money is now restated only when the caller sends an
+ * amount or forces a status; a metadata-only edit cannot move a balance, nor
+ * resurrect a cancelled invoice by recomputing its status.
+ *
+ * createReceivable keeps its defaults on purpose: a new document must be
+ * complete.
+ *
+ * @param {object} receivable the stored document (source of every fallback)
+ * @param {object} data the caller's patch
+ * @returns {{ payload: object, nextPaidAmount: number } | { error: Error }}
+ */
+export const buildReceivableUpdatePayload = (receivable = {}, data = {}) => {
+  const supplied = (key) => data?.[key] !== undefined;
+  const payload = {};
+
+  RECEIVABLE_TEXT_FIELDS.forEach(([key, targets]) => {
+    if (!supplied(key)) return;
+    targets.forEach((target) => {
+      payload[target] = data[key] || '';
+    });
+  });
+
+  // An unparseable or absent date leaves the stored one in place. Writing the
+  // fallback explicitly would push `undefined` into Firestore on documents that
+  // never had the field.
+  const issueDate = toISODate(data.issueDate);
+  if (issueDate) payload.issueDate = issueDate;
+  const dueDate = toISODate(data.dueDate);
+  if (dueDate) payload.dueDate = dueDate;
+
+  const currentPaid = clampMoney(receivable?.paidAmount ?? 0);
+  const forceStatus = data.forceStatus || '';
+  const restatesAmount = supplied('amount') && data.amount !== null && data.amount !== '';
+  if (!restatesAmount && !forceStatus) return { payload, nextPaidAmount: currentPaid };
+
+  const grossAmount = restatesAmount
+    ? clampMoney(data.amount)
+    : clampMoney(receivable?.grossAmount ?? receivable?.amount ?? 0);
+
+  let nextStatus;
+  let nextOpenAmount;
+  let nextPaidAmount = currentPaid;
+
+  if (forceStatus) {
+    nextStatus = forceStatus;
+    if (forceStatus === 'issued') {
+      nextOpenAmount = grossAmount;
+      nextPaidAmount = 0;
+      payload.paidAmount = 0;
+      payload.payments = [];
+    } else if (forceStatus === 'settled') {
+      nextOpenAmount = 0;
+      nextPaidAmount = grossAmount;
+      payload.paidAmount = grossAmount;
+    } else if (forceStatus === 'cancelled') {
+      nextOpenAmount = 0;
+    } else {
+      nextOpenAmount = clampMoney(grossAmount - currentPaid);
+    }
+  } else {
+    if (grossAmount < currentPaid) {
+      return { error: new Error('El importe no puede quedar por debajo de lo ya cobrado') };
+    }
+    nextOpenAmount = clampMoney(grossAmount - currentPaid);
+    nextStatus = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
+  }
+
+  payload.grossAmount = grossAmount;
+  payload.amount = grossAmount;
+  payload.openAmount = clampMoney(nextOpenAmount);
+  payload.pendingAmount = clampMoney(nextOpenAmount);
+  payload.status = nextStatus;
+
+  return { payload, nextPaidAmount };
+};
+
 const buildReceivableSnapshot = (receivable, override = {}) => ({
   grossAmount: override.grossAmount ?? override.amount ?? clampMoney(receivable?.grossAmount ?? receivable?.amount ?? 0),
   openAmount: override.openAmount ?? clampMoney(receivable?.openAmount ?? 0),
@@ -282,59 +387,15 @@ export const useReceivables = (user) => {
   const updateReceivable = async (receivable, data) => {
     if (!user) return { success: false };
 
+    const { payload: updates, nextPaidAmount, error: invalid } =
+      buildReceivableUpdatePayload(receivable, data);
+    if (invalid) return { success: false, error: invalid };
+
     try {
-      const grossAmount = clampMoney(data.amount);
-      const currentPaid = clampMoney(receivable.paidAmount ?? 0);
-
-      let nextStatus;
-      let nextOpenAmount;
-      let nextPaidAmount = currentPaid;
-      const extraFields = {};
-
-      if (data.forceStatus) {
-        nextStatus = data.forceStatus;
-        if (data.forceStatus === 'issued') {
-          nextOpenAmount = grossAmount;
-          nextPaidAmount = 0;
-          extraFields.paidAmount = 0;
-          extraFields.payments = [];
-        } else if (data.forceStatus === 'settled') {
-          nextOpenAmount = 0;
-          nextPaidAmount = grossAmount;
-          extraFields.paidAmount = grossAmount;
-        } else if (data.forceStatus === 'cancelled') {
-          nextOpenAmount = 0;
-        } else {
-          nextOpenAmount = clampMoney(grossAmount - currentPaid);
-        }
-      } else {
-        if (grossAmount < currentPaid) {
-          return { success: false, error: new Error('El importe no puede quedar por debajo de lo ya cobrado') };
-        }
-        nextOpenAmount = clampMoney(grossAmount - currentPaid);
-        nextStatus = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
-      }
-
       const receivableRef = doc(db, 'artifacts', appId, 'public', 'data', 'receivables', receivable.id);
 
       const payload = {
-        grossAmount,
-        amount: grossAmount,
-        openAmount: clampMoney(nextOpenAmount),
-        pendingAmount: clampMoney(nextOpenAmount),
-        issueDate: toISODate(data.issueDate) || receivable.issueDate,
-        dueDate: toISODate(data.dueDate) || receivable.dueDate,
-        description: data.description || '',
-        counterpartyName: data.counterpartyName || '',
-        client: data.counterpartyName || '',
-        documentNumber: data.documentNumber || '',
-        invoiceNumber: data.documentNumber || '',
-        projectId: data.projectId || '',
-        projectName: data.projectName || '',
-        costCenterId: data.costCenterId || '',
-        categoryName: data.categoryName || '',
-        status: nextStatus,
-        ...extraFields,
+        ...updates,
         updatedAt: serverTimestamp(),
         updatedBy: user.email,
         auditTrail: arrayUnion({

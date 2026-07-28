@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import HelpButton from '../../components/ui/HelpButton';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
+import { buildProjectMargins, buildUnassignedMargin } from '../../hooks/useTreasuryMetrics';
 import { exportReportToPDF } from '../../utils/pdfExport';
 import { formatCurrency } from '../../utils/formatters';
 import {
@@ -222,18 +223,13 @@ const Reports = () => {
  .sort((left, right) => right.amount - left.amount);
  })();
 
- const projectMargins = (() => {
- const bucket = new Map();
- currentMovements.forEach((entry) => {
- const key = entry.projectName || 'Sin proyecto';
- const current = bucket.get(key) || { name: key, inflows: 0, outflows: 0, net: 0 };
- if (entry.direction === 'in') current.inflows += entry.amount;
- else current.outflows += entry.amount;
- current.net = current.inflows - current.outflows;
- bucket.set(key, current);
- });
- return Array.from(bucket.values()).sort((left, right) => right.net - left.net).slice(0, 6);
- })();
+ // Same helpers Resumen ranks with (`useTreasuryMetrics`) and the same notion
+ // of "no project" the management report uses. This panel used to bucket
+ // inline with `entry.projectName || 'Sin proyecto'`, which made the
+ // unassigned pile a row — and, being the largest, the company's best obra.
+ // The money is not dropped: buildUnassignedMargin surfaces it as its own row.
+ const projectMargins = buildProjectMargins(currentMovements);
+ const unassignedMargin = buildUnassignedMargin(currentMovements);
 
  const trendYear = selectedYear === 'all' ? initialDate.year : Number(selectedYear);
  const trendEndMonth = trendYear === initialDate.year ? initialDate.month : 11;
@@ -499,10 +495,14 @@ const Reports = () => {
  </div>
  <div className="space-y-3">
  {projectMargins.map((project) => (
- <div key={project.name} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
+ <div
+ key={project.name}
+ data-testid="report-project-margin"
+ className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4"
+ >
  <div className="flex items-center justify-between gap-4">
  <div>
- <p className="text-sm font-medium text-[var(--color-fg-1)]">{project.name}</p>
+ <p data-testid="report-project-name" className="text-sm font-medium text-[var(--color-fg-1)]">{project.name}</p>
  <p className="mt-1 text-xs text-[var(--color-fg-3)]">
  Ingresos {formatCurrency(project.inflows)} · Gastos {formatCurrency(project.outflows)}
  </p>
@@ -513,7 +513,25 @@ const Reports = () => {
  </div>
  </div>
  ))}
- {projectMargins.length === 0 && (
+ {unassignedMargin && (
+ <div
+ data-testid="report-unassigned-margin"
+ className="rounded-lg border border-dashed border-[var(--color-line)] p-4"
+ >
+ <div className="flex items-center justify-between gap-4">
+ <div>
+ <p className="text-sm font-medium text-[var(--color-fg-3)]">Sin asignar</p>
+ <p className="mt-1 text-xs text-[var(--color-fg-4)]">
+ Ingresos {formatCurrency(unassignedMargin.inflows)} · Gastos {formatCurrency(unassignedMargin.outflows)} · fuera del ranking
+ </p>
+ </div>
+ <span className="text-sm font-medium text-[var(--color-fg-3)]">
+ {unassignedMargin.net >= 0 ? '+' : ''}{formatCurrency(unassignedMargin.net)}
+ </span>
+ </div>
+ </div>
+ )}
+ {projectMargins.length === 0 && !unassignedMargin && (
  <div className="rounded-lg border border-dashed border-[var(--color-line)] px-4 py-8 text-center text-sm text-[var(--color-fg-3)]">
  No hay movimientos realizados con proyecto en este período.
  </div>
