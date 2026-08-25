@@ -30,6 +30,14 @@ import {
 } from '../finance/batchReconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
 import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
+import {
+  INSYTE_SOURCE_SYSTEM,
+  INSYTE_OPEN_SIN_PEDIDO,
+  insyteSourceKey,
+  padPresupuesto,
+  padPedido,
+  parseKw,
+} from '../finance/insyteContract';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
@@ -245,13 +253,26 @@ export const useReceivables = (user) => {
         status: 'issued',
         payments: [],
         notes: data.notes || '',
-        productionWeekRef: data.productionWeekRef || '',
+        productionWeekRef: data.productionWeekRef || data.kw || parseKw(data.referenciaObra || data.description || ''),
         source: typeof data.source === 'string' ? data.source : null,
         sourceKey: data.sourceKey || '',
-        sourceSystem: data.sourceSystem || (data.sourceKey ? LUMEN_SOURCE_SYSTEM : ''),
+        sourceSystem: data.sourceSystem || (String(data.sourceKey || '').startsWith('insyte:') ? INSYTE_SOURCE_SYSTEM : data.sourceKey ? LUMEN_SOURCE_SYSTEM : ''),
         lumenWorkOrderId: data.lumenWorkOrderId || '',
         lumenOrderNumber: data.lumenOrderNumber || data.documentNumber || '',
         lumenCycleId: data.lumenCycleId || '',
+        numeroPresupuesto: padPresupuesto(data.numeroPresupuesto || ''),
+        numeroPedido: padPedido(data.numeroPedido || ''),
+        fechaPresupuesto: data.fechaPresupuesto || '',
+        fechaPedido: data.fechaPedido || '',
+        referenciaObra: data.referenciaObra || '',
+        kw: data.kw || parseKw(data.referenciaObra || data.description || ''),
+        tipoObra: data.tipoObra || '',
+        obraPueblo: data.obraPueblo || '',
+        pep: data.pep || '',
+        estadoInsyte: data.estadoInsyte || '',
+        importePedido: data.importePedido ?? null,
+        importePresupuesto: data.importePresupuesto ?? null,
+        rechnungId: data.rechnungId || '',
         linkedTransactionId: data.linkedTransactionId || null,
         legacyTransactionId: data.legacyTransactionId || null,
         createdBy: user.email,
@@ -819,6 +840,108 @@ export const useReceivables = (user) => {
     }
   };
 
+
+  /**
+   * Insyte 2026+: create or update CxC by numero_presupuesto (pad 10).
+   * Does not touch Lumen sourceKeys. Skips settled/cancelled.
+   */
+  const upsertReceivableByInsyteKey = async (data) => {
+    if (!user) return { success: false, error: new Error('No user') };
+    const numeroPresupuesto = padPresupuesto(data.numeroPresupuesto || data.sourceKey);
+    const sourceKey = insyteSourceKey(numeroPresupuesto);
+    if (!sourceKey) return { success: false, error: new Error('numero_presupuesto requerido') };
+
+    try {
+      const q = query(receivablesRef, where('sourceKey', '==', sourceKey), limit(1));
+      const snap = await getDocs(q);
+      const amount = clampMoney(
+        data.importePedido ?? data.importePresupuesto ?? data.amount ?? 0,
+      );
+      const patch = {
+        numeroPresupuesto,
+        numeroPedido: padPedido(data.numeroPedido || ''),
+        fechaPresupuesto: data.fechaPresupuesto || '',
+        fechaPedido: data.fechaPedido || '',
+        referenciaObra: data.referenciaObra || '',
+        kw: data.kw || parseKw(data.referenciaObra || ''),
+        tipoObra: data.tipoObra || '',
+        obraPueblo: data.obraPueblo || '',
+        pep: data.pep || '',
+        estadoInsyte: data.estadoInsyte || '',
+        importePedido: data.importePedido ?? null,
+        importePresupuesto: data.importePresupuesto ?? amount,
+        rechnungId: data.rechnungId || '',
+        productionWeekRef: data.kw || parseKw(data.referenciaObra || ''),
+        sourceSystem: INSYTE_SOURCE_SYSTEM,
+        sourceKey,
+        source: 'insyte',
+        description: data.description || data.referenciaObra || '',
+        client: data.client || 'INSYTE',
+        counterpartyName: data.client || 'INSYTE',
+        documentNumber: numeroPresupuesto,
+        issueDate: data.fechaPresupuesto || data.fechaPedido || data.issueDate,
+        dueDate: data.dueDate || data.fechaPresupuesto || data.fechaPedido,
+        projectName: data.projectName || data.obraPueblo || data.tipoObra || '',
+      };
+
+      if (!snap.empty) {
+        const existing = adaptReceivableDoc({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        if (existing.status === 'settled' || existing.status === 'cancelled') {
+          return { success: true, id: existing.id, action: 'skipped', reason: existing.status };
+        }
+        const paid = clampMoney(existing.paidAmount || 0);
+        const nextGross = Math.max(amount, paid);
+        const nextOpen = clampMoney(nextGross - paid);
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'receivables', existing.id);
+        await updateDoc(ref, {
+          ...patch,
+          grossAmount: nextGross,
+          amount: nextGross,
+          openAmount: nextOpen,
+          pendingAmount: nextOpen,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email,
+          auditTrail: arrayUnion({
+            action: 'upsert-insyte',
+            user: user.email,
+            timestamp: new Date().toISOString(),
+            detail: `Upsert Insyte ${sourceKey}`,
+          }),
+        });
+        return { success: true, id: existing.id, action: 'updated' };
+      }
+
+      const created = await createReceivable({
+        ...patch,
+        amount,
+        invoiceNumber: numeroPresupuesto,
+      });
+      return { ...created, action: created.success ? 'created' : 'error' };
+    } catch (error) {
+      logError('upsertReceivableByInsyteKey:', error);
+      return { success: false, error };
+    }
+  };
+
+  const importInsyteOpenSinPedido = async () => {
+    const results = [];
+    for (const row of INSYTE_OPEN_SIN_PEDIDO) {
+      results.push(await upsertReceivableByInsyteKey({
+        ...row,
+        numeroPresupuesto: row.numero_presupuesto,
+        numeroPedido: row.numero_pedido,
+        fechaPresupuesto: row.fecha_presupuesto,
+        referenciaObra: row.referencia_obra,
+        tipoObra: row.tipo_obra,
+        obraPueblo: row.obra_pueblo,
+        estadoInsyte: row.estado_insyte,
+        importePresupuesto: row.importe_presupuesto,
+        amount: row.importe_presupuesto,
+      }));
+    }
+    return results;
+  };
+
   return {
     receivables,
     loading,
@@ -831,6 +954,8 @@ export const useReceivables = (user) => {
     convertToPayable,
     markAsPaid,
     upsertReceivableBySourceKey,
+    upsertReceivableByInsyteKey,
+    importInsyteOpenSinPedido,
   };
 };
 

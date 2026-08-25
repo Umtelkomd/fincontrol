@@ -81,7 +81,7 @@ const normalizeDocument = (raw, kind, source) => {
     sourceDocument: raw.sourceDocument || null,
     // S2 — Lumen integration / idempotency
     sourceKey: raw.sourceKey || '',
-    sourceSystem: raw.sourceSystem || (raw.sourceKey ? 'lumen' : ''),
+    sourceSystem: raw.sourceSystem || (String(raw.sourceKey || '').startsWith('insyte:') ? 'insyte' : raw.sourceKey ? 'lumen' : ''),
     lumenWorkOrderId: raw.lumenWorkOrderId || '',
     lumenOrderNumber: raw.lumenOrderNumber || '',
     lumenCycleId: raw.lumenCycleId || '',
@@ -92,6 +92,19 @@ const normalizeDocument = (raw, kind, source) => {
     opsGateRequired: raw.opsGateRequired,
     productionWeekRef: raw.productionWeekRef || '',
     employeeIds: Array.isArray(raw.employeeIds) ? raw.employeeIds : [],
+    numeroPresupuesto: raw.numeroPresupuesto || '',
+    numeroPedido: raw.numeroPedido || '',
+    fechaPresupuesto: raw.fechaPresupuesto || '',
+    fechaPedido: raw.fechaPedido || '',
+    referenciaObra: raw.referenciaObra || '',
+    kw: raw.kw || raw.productionWeekRef || '',
+    tipoObra: raw.tipoObra || '',
+    obraPueblo: raw.obraPueblo || '',
+    pep: raw.pep || '',
+    estadoInsyte: raw.estadoInsyte || '',
+    importePedido: raw.importePedido ?? null,
+    importePresupuesto: raw.importePresupuesto ?? null,
+    rechnungId: raw.rechnungId || '',
     raw,
   };
 };
