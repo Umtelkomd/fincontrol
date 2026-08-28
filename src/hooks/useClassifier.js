@@ -14,7 +14,8 @@ import {
 } from '../finance/constants';
 import {
  buildMovementAllocations,
- getDocumentOpenAmount,
+ movementNeedsAction,
+ unallocatedAmountOf,
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
@@ -123,18 +124,22 @@ export const useClassifier = (user) => {
  }
  }
 
- const allocationPlan = buildMovementAllocations(movement.amount, docs);
+ // Allocate against what is STILL unexplained, not the gross movement: a
+ // movement may already carry allocations from an earlier pass, and reusing
+ // the full amount would hand out the same euros twice.
+ const availableAmount = unallocatedAmountOf(movement);
+ if (availableAmount <= 0) {
+ return { success: false, error: new Error('Este movimiento ya está totalmente conciliado') };
+ }
+
+ const allocationPlan = buildMovementAllocations(availableAmount, docs);
  if (!allocationPlan.allocations.length) {
  return { success: false, error: new Error('Las órdenes seleccionadas no tienen saldo abierto') };
  }
- if (!allocationPlan.isFullyAllocated) {
- return {
- success: false,
- error: new Error(
- `El movimiento todavía tiene ${allocationPlan.remainingMovementAmount.toFixed(2)} ${movement.currency || DEFAULT_CURRENCY} sin explicar. Seleccioná más órdenes o ajustá la selección.`,
- ),
- };
- }
+
+ // A partially explained movement is allowed and stays in the Bandeja for its
+ // remainder. Demanding a fully-explained movement is what made `forceStatus`
+ // the path of least resistance — one UTA debit covers rows not captured yet.
 
  try {
  const nowIso = new Date().toISOString();
@@ -144,25 +149,42 @@ export const useClassifier = (user) => {
  const idsField = kind === 'receivable' ? 'receivableIds' : 'payableIds';
  const allocationField = kind === 'receivable' ? 'receivableAllocations' : 'payableAllocations';
  const label = LABEL_BY_KIND[kind];
- const reconciliationMode = docs.length > 1 ? 'grouped-datev' : 'datev';
+ const allocatedNow = allocationPlan.allocations.reduce((sum, entry) => sum + entry.amount, 0);
+ const totalReconciled = clampMoney((Number(movement.reconciledAmount) || 0) + allocatedNow);
+ const totalMovementAmount = clampMoney(Math.abs(Number(movement.amount) || 0));
+ const nextUnallocated = clampMoney(Math.max(0, totalMovementAmount - totalReconciled));
+ const isMovementClosed = nextUnallocated <= RECONCILIATION_EPSILON;
+ const reconciliationMode = !isMovementClosed
+ ? 'partial-datev'
+ : docs.length > 1
+ ? 'grouped-datev'
+ : 'datev';
+ const previousIds = Array.isArray(movement[idsField]) ? movement[idsField] : [];
+ const previousAllocations = Array.isArray(movement[allocationField]) ? movement[allocationField] : [];
  const commonProjectId = getCommonValue(docs, 'projectId');
  const commonProjectName = getCommonValue(docs, 'projectName');
  const commonCostCenterId = getCommonValue(docs, 'costCenterId');
  const commonCategoryName = getCommonValue(docs, 'categoryName');
 
  batch.update(movementsRef(movement.id), {
- [idField]: ids[0],
- [idsField]: ids,
- [allocationField]: allocationPlan.allocations.map((allocation) => ({
+ [idField]: movement[idField] || ids[0],
+ [idsField]: Array.from(new Set([...previousIds, ...ids])),
+ [allocationField]: [
+ ...previousAllocations,
+ ...allocationPlan.allocations.map((allocation) => ({
  documentId: allocation.documentId,
  amount: allocation.amount,
  openAmountBefore: allocation.openAmount,
  openAmountAfter: allocation.nextOpenAmount,
  })),
- reconciledAt: serverTimestamp(),
+ ],
+ // Only a fully explained movement counts as reconciled. Stamping the date
+ // on a partial one would hide the remainder from the Bandeja.
+ reconciledAt: isMovementClosed ? serverTimestamp() : null,
  reconciliationId: movement.reconciliationId || `movement:${movement.id}`,
  reconciliationMode,
- reconciledAmount: allocationPlan.movementAmount,
+ reconciledAmount: totalReconciled,
+ unallocatedAmount: nextUnallocated,
  categoryName: commonCategoryName || movement.categoryName || '',
  projectId: commonProjectId || movement.projectId || '',
  projectName: commonProjectName || movement.projectName || (docs.length > 1 ? 'Múltiples proyectos' : ''),
@@ -173,7 +195,9 @@ export const useClassifier = (user) => {
  action: `link-${kind}`,
  user: user.email,
  timestamp: nowIso,
- detail: `Conciliado con ${ids.length} ${label} por ${allocationPlan.movementAmount.toFixed(2)} ${movement.currency || DEFAULT_CURRENCY}`,
+ detail: isMovementClosed
+ ? `Conciliado con ${ids.length} ${label} por ${allocatedNow.toFixed(2)} ${movement.currency || DEFAULT_CURRENCY}`
+ : `Conciliado parcialmente con ${ids.length} ${label} por ${allocatedNow.toFixed(2)} ${movement.currency || DEFAULT_CURRENCY}. Quedan ${nextUnallocated.toFixed(2)} sin explicar.`,
  }),
  });
 
@@ -262,114 +286,13 @@ export const useClassifier = (user) => {
  [user],
  );
 
- // Admin escape hatch: settle one or more orders WITHOUT a DATEV bankMovement.
- // Used when the bank confirms a payment/collection but the DATEV extract is not
- // yet available. Every forced settle is audited with a mandatory reason so the
- // deviation from the "DATEV is the sole source" policy stays traceable.
- const forceReconcileDocuments = useCallback(
- async (documents, kind, { reason, adminOpsOverride = true } = {}) => {
- if (!user) return { success: false, error: new Error('No user') };
- const docs = normalizeDocuments(documents);
- if (!docs.length) return { success: false, error: new Error('Seleccioná al menos una orden') };
- const trimmedReason = String(reason || '').trim();
- if (!trimmedReason) {
- return { success: false, error: new Error('Indicá el motivo para forzar la conciliación sin DATEV') };
- }
-
- // F1: forced DATEV-less settle still needs production clear (or reason as override).
- if (kind === 'payable') {
- const { assertPayablePaymentAllowed } = await import('../finance/opsControl');
- for (const document of docs) {
- const gate = assertPayablePaymentAllowed(document, {
- adminOverride: adminOpsOverride,
- overrideReason: trimmedReason,
- });
- if (!gate.allowed) {
- return { success: false, error: gate.error };
- }
- }
- }
-
- const settlements = docs
- .map((document) => ({ document, openAmount: getDocumentOpenAmount(document) }))
- .filter((entry) => entry.openAmount > RECONCILIATION_EPSILON);
- if (!settlements.length) {
- return { success: false, error: new Error('Las órdenes seleccionadas no tienen saldo abierto') };
- }
-
- try {
- const nowIso = new Date().toISOString();
- const label = LABEL_BY_KIND[kind];
- const batch = writeBatch(db);
-
- settlements.forEach(({ document, openAmount }) => {
- const documentRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_BY_KIND[kind], document.id);
- const nextPaid = clampMoney((Number(document.paidAmount) || 0) + openAmount);
- batch.update(documentRef, {
- openAmount: 0,
- pendingAmount: 0,
- paidAmount: nextPaid,
- status: 'settled',
- forcedReconciliation: true,
- payments: arrayUnion({
- date: toISODate(new Date()),
- amount: openAmount,
- method: 'Manual',
- reference: '',
- note: `Conciliación forzada sin DATEV: ${trimmedReason}`,
- bankMovementId: null,
- reconciliationMode: 'manual-force',
- registeredBy: user.email,
- timestamp: nowIso,
- }),
- updatedBy: user.email,
- updatedAt: serverTimestamp(),
- auditTrail: arrayUnion({
- action: 'force-reconcile',
- user: user.email,
- timestamp: nowIso,
- detail: `Conciliación forzada sin DATEV por ${openAmount.toFixed(2)}. Motivo: ${trimmedReason}`,
- }),
- });
- });
-
- await batch.commit();
-
- await Promise.all(
- settlements.map(({ document, openAmount }) =>
- writeAuditLogEntry({
- action: 'force-reconcile',
- entityType: ENTITY_TYPE_BY_KIND[kind],
- entityId: document.id,
- description: `${label} conciliada sin DATEV (forzada por admin): ${getDocumentLabel(document)}`,
- userEmail: user.email,
- metadata: {
- amount: openAmount,
- reason: trimmedReason,
- reconciliationMode: 'manual-force',
- },
- }),
- ),
- );
-
- return { success: true, status: 'settled', count: settlements.length };
- } catch (err) {
- logError(`forceReconcileDocuments ${kind} error:`, err);
- return { success: false, error: err };
- }
- },
- [user],
- );
-
- const forceReceivablesReconcile = useCallback(
- (documents, options) => forceReconcileDocuments(documents, 'receivable', options),
- [forceReconcileDocuments],
- );
-
- const forcePayablesReconcile = useCallback(
- (documents, options) => forceReconcileDocuments(documents, 'payable', options),
- [forceReconcileDocuments],
- );
+ // NOTE: `forceReconcileDocuments` lived here — a DATEV-less settle that closed
+ // documents to zero with no bankMovementId, gated only by a non-empty reason.
+ // It was removed on purpose: it produced exactly the unevidenced "liquidada"
+ // state this module now refuses everywhere else. The case it existed for —
+ // several documents paid inside ONE consolidated bank transaction — is served
+ // by linkDocumentsToMovement, which allocates a single movement across many
+ // documents and now tolerates a remainder.
 
  const linkToReceivable = useCallback(
  async (movement, receivable) => {
@@ -468,19 +391,12 @@ export const useClassifier = (user) => {
  );
 
  // Inbox: movements that need action
- const inboxMovements = useMemo(() => {
- return (bankMovements || []).filter((m) => {
- if (m.status === 'void') return false;
- if (m.direction === 'in') {
- // Income needs link to a CXC
- return !m.receivableId;
- }
- // Outflow: needs CXP link OR explicit categorization
- const hasLink = !!m.payableId;
- const hasCategory = !!(m.categoryName || m.costCenterId);
- return !hasLink && !hasCategory;
- });
- }, [bankMovements]);
+ // A linked movement is NOT necessarily done: partial allocation leaves a
+ // remainder that still needs a document. See movementNeedsAction.
+ const inboxMovements = useMemo(
+ () => (bankMovements || []).filter(movementNeedsAction),
+ [bankMovements],
+ );
 
  return {
  inboxMovements,
@@ -491,8 +407,6 @@ export const useClassifier = (user) => {
  linkToPayable,
  linkReceivablesToMovement,
  linkPayablesToMovement,
- forceReceivablesReconcile,
- forcePayablesReconcile,
  categorize,
  suggestMatches,
  };
