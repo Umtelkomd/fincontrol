@@ -52,3 +52,7 @@ _design/
 *.zip
 # Local Pi runtime state
 .atl/
+
+# tooling artifacts
+.codegraph/
+.codex/
