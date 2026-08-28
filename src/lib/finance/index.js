@@ -9,6 +9,7 @@
  */
 
 export * from './money.js';
+export * from './documentLifecycle.js';
 export * from './movementAmount.js';
 export * from './cashPosition.js';
 export * from './burnRate.js';
