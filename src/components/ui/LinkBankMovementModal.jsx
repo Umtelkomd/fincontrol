@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Search,
   Database,
-  ShieldAlert,
 } from 'lucide-react';
 import { Button, Badge, EmptyState } from '@/components/ui/nexus';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -48,16 +47,12 @@ const LinkBankMovementModal = ({
   documents = [],
   bankMovements = [],
   onSubmit,
-  allowManualForce = false,
-  onForceSubmit,
 }) => {
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [forceSubmitting, setForceSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [selectedDocIds, setSelectedDocIds] = useState([]);
-  const [manualReason, setManualReason] = useState('');
 
   useEffect(() => {
     if (!isOpen || !doc) return;
@@ -65,7 +60,6 @@ const LinkBankMovementModal = ({
     setError('');
     setSelectedId(null);
     setSelectedDocIds([doc.id]);
-    setManualReason('');
   }, [doc, isOpen]);
 
   const direction = docKind === 'receivable' ? 'in' : 'out';
@@ -171,20 +165,6 @@ const LinkBankMovementModal = ({
     setSubmitting(false);
     if (result?.success) onClose();
     else setError(result?.error?.message || result?.error || 'Error al vincular');
-  };
-
-  const handleForceSubmit = async () => {
-    if (!allowManualForce || !onForceSubmit) return;
-    if (selectedOpen <= RECONCILIATION_EPSILON) {
-      setError('Seleccioná órdenes con saldo abierto');
-      return;
-    }
-    setForceSubmitting(true);
-    setError('');
-    const result = await onForceSubmit(selectedDocuments, { reason: manualReason });
-    setForceSubmitting(false);
-    if (result?.success) onClose();
-    else setError(result?.error?.message || result?.error || 'Error al forzar la conciliación');
   };
 
   const ArrowIcon = direction === 'in' ? ArrowUpRight : ArrowDownRight;
@@ -306,7 +286,7 @@ const LinkBankMovementModal = ({
               title="No hay movimientos bancarios disponibles"
               description={`Subí el último DATEV para que aparezcan los ${
                 direction === 'in' ? 'ingresos' : 'gastos'
-              } correspondientes. Un admin puede forzar la conciliación si hace falta.`}
+              } correspondientes. Sin movimiento bancario no se puede liquidar un documento.`}
             />
           ) : (
             <div className="divide-y divide-[var(--color-line)]">
@@ -364,24 +344,6 @@ const LinkBankMovementModal = ({
           )}
         </div>
 
-        {allowManualForce && (
-          <div className="border-t border-[var(--color-line)] px-6 py-3">
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-2 label-mono text-[var(--color-fg-4)]">
-                <ShieldAlert size={13} />
-                Motivo para forzar sin DATEV
-              </span>
-              <input
-                type="text"
-                value={manualReason}
-                onChange={(event) => setManualReason(event.target.value)}
-                placeholder="Ej: pago confirmado por banco, DATEV pendiente"
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
-              />
-            </label>
-          </div>
-        )}
-
         {selectedMovementLeavesPartial && (
           <div className="px-6 py-2 border-t border-[var(--color-line)]">
             <p className="text-[12px] text-[var(--color-warn)]">
@@ -398,26 +360,15 @@ const LinkBankMovementModal = ({
 
         <footer className="px-6 py-4 border-t border-[var(--color-line)] flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            {allowManualForce && (
-              <Button
-                variant="danger"
-                icon={ShieldAlert}
-                disabled={forceSubmitting || submitting || selectedOpen <= RECONCILIATION_EPSILON}
-                loading={forceSubmitting}
-                onClick={handleForceSubmit}
-              >
-                Forzar sin DATEV
-              </Button>
-            )}
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={onClose} disabled={submitting || forceSubmitting}>
+            <Button variant="ghost" onClick={onClose} disabled={submitting}>
               Cancelar
             </Button>
             <Button
               variant="primary"
               icon={Link2}
-              disabled={submitting || forceSubmitting || !selectedId}
+              disabled={!selectedId}
               loading={submitting}
               onClick={handleSubmit}
             >

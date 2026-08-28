@@ -24,6 +24,7 @@ import {
 import { clampMoney, toISODate } from '../finance/utils';
 import { assertPayablePaymentAllowed } from '../finance/opsControl';
 import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
+import { CORRECTION_TARGET, applyCorrection } from '../lib/finance';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
@@ -296,21 +297,25 @@ export const usePayables = (user) => {
       const extraFields = {};
 
       if (data.forceStatus) {
-        nextStatus = data.forceStatus;
-        if (data.forceStatus === 'issued') {
-          nextOpenAmount = grossAmount;
-          nextPaidAmount = 0;
-          extraFields.paidAmount = 0;
-          extraFields.payments = [];
-        } else if (data.forceStatus === 'settled') {
-          nextOpenAmount = 0;
-          nextPaidAmount = grossAmount;
-          extraFields.paidAmount = grossAmount;
-        } else if (data.forceStatus === 'cancelled') {
-          nextOpenAmount = 0;
-        } else {
-          nextOpenAmount = clampMoney(grossAmount - currentPaid);
-        }
+        // Status is no longer settable by decree. This branch is how 27 payables
+        // (55,257 EUR) reached "settled" with zero payments behind them.
+        // `applyCorrection` allows only cancel or reopen and refuses 'settled'.
+        // See src/lib/finance/documentLifecycle.js.
+        const correction = applyCorrection(
+          { ...payable, grossAmount },
+          {
+            target: data.forceStatus === 'issued' ? CORRECTION_TARGET.REOPENED : data.forceStatus,
+            reason: data.correctionReason || '',
+            actor: user.email,
+          },
+        );
+        if (!correction.ok) return { success: false, error: new Error(correction.message) };
+
+        nextStatus = correction.next.status;
+        nextOpenAmount = correction.next.openAmount;
+        nextPaidAmount = correction.next.paidAmount;
+        extraFields.paidAmount = correction.next.paidAmount;
+        extraFields.payments = correction.next.payments;
       } else {
         if (grossAmount < currentPaid) {
           return { success: false, error: new Error('El importe no puede quedar por debajo de lo ya pagado') };

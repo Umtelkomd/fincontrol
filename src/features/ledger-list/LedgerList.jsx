@@ -12,7 +12,6 @@ import ConfirmModal from '../../components/ui/ConfirmModal';
 import PartialPaymentModal from '../../components/ui/PartialPaymentModal';
 import RecordDetailModal from '../../components/ui/RecordDetailModal';
 import { useToast } from '../../contexts/ToastContext';
-import { useClassifier } from '../../hooks/useClassifier';
 import { useReceivables } from '../../hooks/useReceivables';
 import { usePayables } from '../../hooks/usePayables';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
@@ -99,11 +98,10 @@ const toModalTransaction = (row) => ({
  *   (PartialPaymentModal). legacy-transaction rows settle via markAsCompleted,
  *   which legitimately predates that policy.
  *
- *   For CXC/CXP document rows, "Liquidar" is an ADMIN-ONLY escape hatch: it runs
- *   the audited force-reconcile path (forceReceivablesReconcile /
- *   forcePayablesReconcile) after asking for a mandatory reason — same mechanism
- *   as "Forzar sin DATEV" in the reconciliation modal. Managers still get the
- *   policy error and must reconcile through /cxc /cxp.
+ *   For CXC/CXP document rows there is NO escape hatch, for admins either: the
+ *   DATEV-less force path was removed because it produced settlements with no
+ *   cash behind them. "Liquidar" returns the policy error and sends the user to
+ *   /cxc /cxp, where one bank movement can be split across several documents.
  *
  *   Bulk settle reports successes vs rejections honestly — it must never claim
  *   a CXC/CXP document was settled when the guard rejected it.
@@ -117,7 +115,6 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
   const { registerPayment: registerReceivablePayment, markAsPaid: settleReceivable } = useReceivables(user);
   const { registerPayment: registerPayablePayment, markAsPaid: settlePayable } = usePayables(user);
   const { registerPayment: registerLegacyPayment, markAsCompleted: settleLegacy } = useTransactionActions(user);
-  const { forceReceivablesReconcile, forcePayablesReconcile } = useClassifier(user);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -130,10 +127,8 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Admin force-settle confirmation: { docRows, legacyRows } | null
-  const [forceTarget, setForceTarget] = useState(null);
 
   const canAct = userRole === 'admin' || userRole === 'manager';
-  const isAdmin = userRole === 'admin';
 
   // Movement stats differ by family
   const movementStat = useMemo(() => {
@@ -203,45 +198,11 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
     }
   };
 
-  // "Liquidar" click on a single row. Doc rows (CXC/CXP) require the audited
-  // admin force path with a mandatory reason; legacy rows settle directly.
-  const handleSettleClick = (row) => {
-    if (isAdmin && (row.source === 'receivable' || row.source === 'payable')) {
-      setForceTarget({ docRows: [row], legacyRows: [] });
-      return;
-    }
-    handleSettle(row);
-  };
-
-  // Confirmed force-settle (admin): legacy rows keep their native settle path,
-  // doc rows go through the audited force-reconcile in one batch.
-  const handleForceConfirm = async (reason) => {
-    if (!forceTarget) return true;
-    if (bulkProcessing) return false; // guard against double-submit while awaiting
-    const { docRows, legacyRows } = forceTarget;
-    setBulkProcessing(true);
-    let legacySucceeded = 0;
-    for (const row of legacyRows) {
-      const result = await handleSettle(row, { silent: true });
-      if (result?.success) legacySucceeded += 1;
-    }
-    const forceFn = isIncome ? forceReceivablesReconcile : forcePayablesReconcile;
-    const result = docRows.length > 0 ? await forceFn(docRows, { reason }) : { success: true, count: 0 };
-    setBulkProcessing(false);
-    if (!result.success) {
-      showToast(result.error?.message || 'Error al forzar la liquidación', 'error');
-      return false; // keep the modal open so the admin can retry/fix the reason
-    }
-    setSelectedIds(new Set());
-    setForceTarget(null);
-    const total = legacySucceeded + (result.count || 0);
-    showToast(
-      docRows.length > 0
-        ? `${total} documento(s) liquidado(s) sin DATEV (forzado, auditado)`
-        : `${total} documento(s) liquidado(s)`,
-    );
-    return true;
-  };
+  // "Liquidar" click on a single row. CXC/CXP document rows have no decree path
+  // at all now — markAsPaid returns the policy error and points at /cxc /cxp.
+  // Legacy-transaction rows keep markAsCompleted: they predate the policy and
+  // have no bank movement to link.
+  const handleSettleClick = (row) => handleSettle(row);
 
   // Bulk settle: process selected settleable rows one by one using the same
   // handleSettle path, counting only real successes — CXC/CXP documents are
@@ -256,14 +217,6 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         row.status !== 'cancelled',
     );
     if (settleableRows.length === 0) return;
-    const docRows = settleableRows.filter((row) => row.source === 'receivable' || row.source === 'payable');
-    if (isAdmin && docRows.length > 0) {
-      setForceTarget({
-        docRows,
-        legacyRows: settleableRows.filter((row) => row.source === 'legacy-transaction'),
-      });
-      return;
-    }
     setBulkProcessing(true);
     let succeeded = 0;
     for (const row of settleableRows) {
@@ -570,40 +523,6 @@ const LedgerList = ({ family, userRole, user, onNewTransaction }) => {
         onClose={() => setSelectedRow(null)}
         transaction={selectedRow ? toModalTransaction(selectedRow) : null}
         onSubmit={handlePartialPayment}
-      />
-
-      <ConfirmModal
-        isOpen={Boolean(forceTarget)}
-        onClose={() => setForceTarget(null)}
-        onConfirm={handleForceConfirm}
-        title="Liquidar sin DATEV"
-        message={
-          isIncome
-            ? 'Vas a marcar como cobradas estas facturas SIN vincular un movimiento bancario DATEV. La operación queda auditada con tu usuario y motivo.'
-            : 'Vas a marcar como pagadas estas facturas SIN vincular un movimiento bancario DATEV. La operación queda auditada con tu usuario y motivo.'
-        }
-        confirmText={bulkProcessing ? 'Procesando…' : 'Forzar liquidación'}
-        variant="warning"
-        details={
-          forceTarget
-            ? [
-                { label: 'Documentos', value: String(forceTarget.docRows.length + forceTarget.legacyRows.length), emphasis: true },
-                {
-                  label: 'Importe abierto',
-                  value: formatCurrency(
-                    [...forceTarget.docRows, ...forceTarget.legacyRows].reduce(
-                      (sum, row) => sum + (Number(row.openAmount) || 0),
-                      0,
-                    ),
-                  ),
-                  emphasis: true,
-                },
-              ]
-            : []
-        }
-        warning="Política UMTELKOMD: la vía normal es conciliar con el extracto DATEV. Usá esto solo cuando el banco confirmó y el DATEV todavía no llegó."
-        reasonLabel="Motivo para forzar sin DATEV"
-        reasonPlaceholder="Ej: pago confirmado por banco, DATEV pendiente"
       />
 
       <RecordDetailModal record={detailRecord} onClose={() => setDetailRecord(null)} userRole={userRole} />

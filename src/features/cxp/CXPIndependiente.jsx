@@ -105,7 +105,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
- const { linkPayablesToMovement, forcePayablesReconcile } = useClassifier(user);
+ const { linkPayablesToMovement } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { expenseCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -306,28 +306,6 @@ const CXPIndependiente = ({ user, userRole }) => {
  };
 
  // Admin-only escape hatch: settle CXP without a DATEV movement (audited).
- const handleForceReconcile = async (selectedDocuments = [selectedRow], { reason } = {}) => {
- if (!selectedRow) return { success: false, error: 'Sin CXP seleccionada' };
- const documentsToForce = selectedDocuments.filter((entry) => entry?.source === 'payable');
- if (documentsToForce.length === 0) {
- return { success: false, error: 'Seleccioná al menos una CXP actual' };
- }
- setLoadingId(selectedRow.id);
- const result = await forcePayablesReconcile(documentsToForce, { reason });
- setLoadingId(null);
- if (result.success) {
- showToast(
- result.count > 1
- ? `${result.count} CXP liquidadas sin DATEV (forzado)`
- : 'CXP liquidada sin DATEV (forzado)',
- 'success',
- );
- } else {
- showToast(result.error?.message || 'Error al forzar la conciliación', 'error');
- }
- return result;
- };
-
  if (metrics.loading) {
  return (
  <div className="flex items-center justify-center py-28">
@@ -566,8 +544,6 @@ const CXPIndependiente = ({ user, userRole }) => {
  documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
- allowManualForce={userRole === 'admin'}
- onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
+import { MIN_REASON_LENGTH } from '../../lib/finance';
 
 const fieldClassName =
  'w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-[13px] text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:';
@@ -11,11 +12,17 @@ const STATUS_LABELS = {
   cancelled: 'Cancelada',
 };
 
-const STATUS_WARNINGS = {
-  issued: 'Revertir a Emitida borrará todos los pagos registrados y pondrá el importe abierto a cero.',
-  settled: 'Marcar como Liquidada forzará el importe cobrado/pagado al total bruto.',
-  cancelled: 'Cancelar la orden cierra el importe abierto a cero.',
-  partial: '',
+// A document can only reach "Liquidada" by linking a bank movement, so the
+// override offers the two honest corrections instead. See
+// src/lib/finance/documentLifecycle.js — applyCorrection rejects anything else.
+const CORRECTION_LABELS = {
+  issued: 'Reabrir — el pago no tiene respaldo bancario',
+  cancelled: 'Anular — es un duplicado o no debió existir',
+};
+
+const CORRECTION_WARNINGS = {
+  issued: 'Reabrir descarta el importe cobrado/pagado que no esté vinculado a un movimiento bancario. Los pagos conciliados se conservan.',
+  cancelled: 'Anular cierra el importe abierto a cero. No se permite si el documento tiene pagos conciliados.',
 };
 
 const buildInitialFormData = (record) => ({
@@ -43,7 +50,10 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  const isAdmin = userRole === 'admin';
  const showStatusOverride = isAdmin && isOrder;
  const requiresReason = Boolean(formData.forceStatus);
- const canSubmit = !submitting && (!requiresReason || formData.correctionReason.trim().length > 0);
+ // Mirrors MIN_REASON_LENGTH in the engine so the form fails here instead of
+ // bouncing off Firestore with a toast.
+ const canSubmit =
+   !submitting && (!requiresReason || formData.correctionReason.trim().length >= MIN_REASON_LENGTH);
 
  const projectLabel = record.recordFamily === 'movement' ? 'Movimiento bancario' : record.recordFamily === 'receivable' ? 'Factura CXC' : 'Factura CXP';
 
@@ -235,23 +245,26 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
    <span className="font-medium text-[var(--color-fg-1)]">{STATUS_LABELS[record.rawRecord?.status] || record.rawRecord?.status || '—'}</span>
  </div>
  <label className="block">
-   <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Forzar estado</span>
+   <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Corregir estado</span>
    <select
      className={fieldClassName}
      value={formData.forceStatus}
      onChange={(event) => setFormData((current) => ({ ...current, forceStatus: event.target.value, correctionReason: '' }))}
    >
-     <option value="">Automático (calculado por importe)</option>
-     {Object.entries(STATUS_LABELS).map(([value, label]) => (
+     <option value="">Automático (calculado por los pagos conciliados)</option>
+     {Object.entries(CORRECTION_LABELS).map(([value, label]) => (
        <option key={value} value={value}>{label}</option>
      ))}
    </select>
+   <span className="mt-1.5 block text-xs text-[var(--color-fg-4)]">
+     Para marcar como Liquidada, vinculá el movimiento bancario desde Conciliar.
+   </span>
  </label>
 
- {formData.forceStatus && STATUS_WARNINGS[formData.forceStatus] && (
+ {formData.forceStatus && CORRECTION_WARNINGS[formData.forceStatus] && (
    <div className="flex items-start gap-2 rounded-md border border-[var(--color-warn)] bg-[var(--color-bg-1)] px-3 py-2.5 text-xs text-[var(--color-warn)]">
      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-     <span>{STATUS_WARNINGS[formData.forceStatus]}</span>
+     <span>{CORRECTION_WARNINGS[formData.forceStatus]}</span>
    </div>
  )}
 
@@ -263,7 +276,7 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
      <textarea
        rows="2"
        required
-       placeholder="Describí brevemente por qué se corrige el estado..."
+       placeholder={`Motivo (mínimo ${MIN_REASON_LENGTH} caracteres) — ej: duplicado de la factura X`}
        className={fieldClassName}
        value={formData.correctionReason}
        onChange={(event) => setFormData((current) => ({ ...current, correctionReason: event.target.value }))}

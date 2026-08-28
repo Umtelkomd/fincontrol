@@ -102,12 +102,12 @@ const CXCIndependiente = ({ user, userRole }) => {
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ledger });
  const { bankMovements } = useBankMovements(user);
- const { linkReceivablesToMovement, forceReceivablesReconcile } = useClassifier(user);
+ const { linkReceivablesToMovement } = useClassifier(user);
  const { logs: auditLogs, loading: auditLogsLoading } = useAuditLog(user);
  const { incomeCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { projects } = useProjects(user);
- const { updateReceivable, convertToPayable } = useReceivables(user);
+ const { updateReceivable, convertToPayable, importInsyteOpenSinPedido } = useReceivables(user);
 
  const [searchTerm, setSearchTerm] = useState('');
  const [statusFilter, setStatusFilter] = useState('all');
@@ -118,6 +118,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  const [auditRecord, setAuditRecord] = useState(null);
  const [submittingEdit, setSubmittingEdit] = useState(false);
  const [convertingRecord, setConvertingRecord] = useState(null);
+ const [importingInsyte, setImportingInsyte] = useState(false);
 
  const rows = useMemo(() => {
  const source = metrics.receivables;
@@ -134,7 +135,11 @@ const CXCIndependiente = ({ user, userRole }) => {
  (entry.counterpartyName || '').toLowerCase().includes(query) ||
  (entry.description || '').toLowerCase().includes(query) ||
  (entry.documentNumber || '').toLowerCase().includes(query) ||
- (entry.projectName || '').toLowerCase().includes(query)
+ (entry.projectName || '').toLowerCase().includes(query) ||
+ (entry.numeroPresupuesto || '').toLowerCase().includes(query) ||
+ (entry.numeroPedido || '').toLowerCase().includes(query) ||
+ (entry.referenciaObra || '').toLowerCase().includes(query) ||
+ (entry.kw || '').toLowerCase().includes(query)
  );
  })
  .sort((left, right) => (right.dueDate || '').localeCompare(left.dueDate || ''));
@@ -157,6 +162,25 @@ const CXCIndependiente = ({ user, userRole }) => {
  );
 
  const canAct = userRole === 'admin' || userRole === 'manager';
+
+ const handleImportInsyteOpen = async () => {
+ if (!canAct) return;
+ setImportingInsyte(true);
+ try {
+ const results = await importInsyteOpenSinPedido();
+ const created = results.filter((r) => r.action === 'created').length;
+ const updated = results.filter((r) => r.action === 'updated').length;
+ const skipped = results.filter((r) => r.action === 'skipped').length;
+ const failed = results.filter((r) => !r.success).length;
+ if (failed) showToast(`Insyte: ${failed} fallos`, 'error');
+ else showToast(`Insyte abiertos: ${created} altas, ${updated} updates, ${skipped} omitidos`, 'success');
+ } catch (error) {
+ showToast(error.message || 'No se pudieron cargar los abiertos Insyte', 'error');
+ } finally {
+ setImportingInsyte(false);
+ }
+ };
+
  const wrapRecord = (row) => buildFinanceOrderRecord(row, 'receivable');
  const toOrderRecord = (row) => (row?.rawRecord && row?.recordFamily === 'receivable' ? row : wrapRecord(row));
 
@@ -249,28 +273,6 @@ const CXCIndependiente = ({ user, userRole }) => {
  };
 
  // Admin-only escape hatch: settle CXC without a DATEV movement (audited).
- const handleForceReconcile = async (selectedDocuments = [selectedRow], { reason } = {}) => {
- if (!selectedRow) return { success: false, error: 'Sin CXC seleccionada' };
- const documentsToForce = selectedDocuments.filter((entry) => entry?.source === 'receivable');
- if (documentsToForce.length === 0) {
- return { success: false, error: 'Seleccioná al menos una CXC actual' };
- }
- setLoadingId(selectedRow.id);
- const result = await forceReceivablesReconcile(documentsToForce, { reason });
- setLoadingId(null);
- if (result.success) {
- showToast(
- result.count > 1
- ? `${result.count} CXC liquidadas sin DATEV (forzado)`
- : 'CXC liquidada sin DATEV (forzado)',
- 'success',
- );
- } else {
- showToast(result.error?.message || 'Error al forzar la conciliación', 'error');
- }
- return result;
- };
-
  if (metrics.loading) {
  return (
  <div className="flex items-center justify-center py-28">
@@ -343,12 +345,23 @@ const CXCIndependiente = ({ user, userRole }) => {
   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={16} />
  <input
   className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] py-3 pl-10 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition-all placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
- placeholder="Buscar cliente, documento o proyecto"
+ placeholder="Buscar presupuesto, pedido, obra, KW…"
  value={searchTerm}
  onChange={(event) => setSearchTerm(event.target.value)}
  />
  </div>
  <div className="flex flex-wrap items-center gap-2">
+ {canAct && (
+ <Button
+ variant="secondary"
+ size="sm"
+ disabled={importingInsyte}
+ loading={importingInsyte}
+ onClick={handleImportInsyteOpen}
+ >
+ Cargar abiertos Insyte
+ </Button>
+ )}
    <div className="inline-flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 label-mono text-[var(--color-fg-4)]">
  <Filter size={14} />
  Estado
@@ -371,11 +384,13 @@ const CXCIndependiente = ({ user, userRole }) => {
  </div>
 
  <div className="overflow-x-auto">
- <table className="w-full min-w-[980px] text-left">
+ <table className="w-full min-w-[1280px] text-left">
  <thead>
   <tr className="border-b border-[var(--color-line)] label-mono text-[var(--color-fg-4)]">
  <th className="px-4 py-3">Cliente</th>
- <th className="px-4 py-3">Documento</th>
+ <th className="px-4 py-3">Presupuesto</th>
+ <th className="px-4 py-3">Pedido</th>
+ <th className="px-4 py-3">Obra / KW</th>
  <th className="px-4 py-3">Proyecto</th>
  <th className="px-4 py-3 text-right">Importe</th>
  <th className="px-4 py-3 text-right">Abierto</th>
@@ -400,7 +415,12 @@ const CXCIndependiente = ({ user, userRole }) => {
   <p className="text-sm font-medium text-[var(--color-fg-1)]">{row.counterpartyName}</p>
   <p className="text-xs text-[var(--color-fg-3)]">{row.description || 'Sin descripción'}</p>
  </td>
-  <td className="px-4 py-4 text-sm text-[var(--color-fg-1)]">{row.documentNumber || 'Sin documento'}</td>
+  <td className="px-4 py-4 font-mono text-sm text-[var(--color-fg-1)]">{row.numeroPresupuesto || row.documentNumber || '—'}</td>
+  <td className="px-4 py-4 font-mono text-sm text-[var(--color-fg-3)]">{row.numeroPedido || '—'}</td>
+  <td className="px-4 py-4 text-sm text-[var(--color-fg-3)]">
+ <p>{row.referenciaObra || row.description || '—'}</p>
+ <p className="font-mono text-[11px] text-[var(--color-fg-4)]">{[row.kw, row.tipoObra, row.estadoInsyte].filter(Boolean).join(' · ') || (row.sourceSystem === 'insyte' ? 'Insyte' : '')}</p>
+ </td>
   <td className="px-4 py-4 text-sm text-[var(--color-fg-3)]">{row.projectName || 'Sin proyecto'}</td>
   <td className="px-4 py-4 text-right font-mono text-sm tabular-nums text-[var(--color-fg-1)]">{formatCurrency(row.grossAmount)}</td>
   <td className="px-4 py-4 text-right font-mono text-sm tabular-nums text-[var(--color-fg-1)]">{formatCurrency(row.openAmount)}</td>
@@ -420,7 +440,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  {isLegacy && <Badge variant="warn">Pago legacy</Badge>}
  </div>
  </td>
-  <td className="px-4 py-4 text-center text-xs text-[var(--color-fg-3)]">{row.source}</td>
+  <td className="px-4 py-4 text-center text-xs text-[var(--color-fg-3)]">{row.sourceSystem || row.source}</td>
  {canAct && (
  <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
  <div className="flex justify-end gap-2">
@@ -489,8 +509,6 @@ const CXCIndependiente = ({ user, userRole }) => {
  documents={reconcileDocuments}
  bankMovements={bankMovements}
  onSubmit={handleLinkMovement}
- allowManualForce={userRole === 'admin'}
- onForceSubmit={handleForceReconcile}
  />
 
  <CanonicalRecordModal
