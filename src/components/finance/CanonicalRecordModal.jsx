@@ -154,6 +154,33 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  </label>
  </div>
 
+ {record.recordFamily === 'receivable' && (
+ <div className="grid gap-4 md:grid-cols-2">
+ <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Rechnung DATEV</span>
+ <input
+ type="text"
+ placeholder="2025-NNN"
+ className={fieldClassName}
+ value={formData.rechnungId}
+ onChange={(event) => setFormData((current) => ({ ...current, rechnungId: event.target.value }))}
+ />
+ </label>
+
+ <label className="block">
+ <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Pedido Insyte</span>
+ <input
+ type="text"
+ inputMode="numeric"
+ placeholder="7 dígitos"
+ className={fieldClassName}
+ value={formData.numeroPedido}
+ onChange={(event) => setFormData((current) => ({ ...current, numeroPedido: event.target.value }))}
+ />
+ </label>
+ </div>
+ )}
+
  <label className="block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Descripción</span>
  <textarea

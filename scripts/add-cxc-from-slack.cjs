@@ -12,6 +12,16 @@
  *
  *   node scripts/add-cxc-from-slack.cjs           # dry-run
  *   node scripts/add-cxc-from-slack.cjs --apply
+ *
+ * GUARD (Jeisson, 30.08.2026): only a B2C Servicepaket Leitungsweg is
+ * "1 DATEV = 1 CxC". An Insyte UT Rechnung groups N Insyte presupuestos and
+ * is ATTACHED to their rows (rechnungId) — it never becomes a row of its own
+ * (see scripts/backfill-split-datev-267-269.cjs). Confirming settlements,
+ * HKL, diesel, FeWo and Korrektur are not income. Every INVOICES entry
+ * therefore carries an explicit `kind`, and anything that is not
+ * `sp_leitungsweg` makes the script refuse and exit 1 BEFORE touching
+ * Firebase. The check itself lives in src/finance/datevSlackKind.js
+ * (`assertSlackCxcAllowed`) so it is unit-tested.
  */
 const path = require('node:path');
 const os = require('node:os');
@@ -33,6 +43,11 @@ const round = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const INVOICES = [
   {
     documentNumber: '2025-256',
+    // Insyte UT Rechnung: refused by the guard on purpose. Its presupuestos
+    // get the Rechnung attached instead of a row per DATEV.
+    kind: 'insyte_ut',
+    filename: 'Rechnung 2025-256.pdf',
+    caption: 'Insyte QFF Roßdorf KW29',
     client: 'Insyte Deutschland GmbH',
     issueDate: '2026-07-23',
     dueDate: '2026-08-22',
@@ -46,6 +61,9 @@ const INVOICES = [
   },
   {
     documentNumber: '2025-257',
+    kind: 'sp_leitungsweg',
+    filename: 'Rechnung 2025-257.pdf',
+    caption: 'Servicepaket Leitungsweg Weicker',
     client: 'Markus Weicker',
     issueDate: '2026-07-23',
     dueDate: '2026-08-02',
@@ -59,6 +77,9 @@ const INVOICES = [
   },
   {
     documentNumber: '2025-258',
+    kind: 'sp_leitungsweg',
+    filename: 'Rechnung 2025-258.pdf',
+    caption: 'Servicepaket Leitungsweg Becker',
     client: 'Liebke Becker',
     issueDate: '2026-07-23',
     dueDate: '2026-08-02',
@@ -72,7 +93,34 @@ const INVOICES = [
   },
 ];
 
+/**
+ * Refuse anything that is not a B2C Servicepaket Leitungsweg, and say why.
+ * Runs before Firebase is initialised so a bad list never gets near the data.
+ */
+const guardInvoices = async (invoices) => {
+  const { assertSlackCxcAllowed } = await import('../src/finance/datevSlackKind.js');
+  const refused = [];
+  for (const entry of invoices) {
+    try {
+      assertSlackCxcAllowed(entry);
+    } catch (error) {
+      refused.push(error.message);
+    }
+  }
+  if (refused.length === 0) return;
+  console.error(`\n${line('═')}`);
+  console.error('✖ LISTA RECHAZADA — solo un Servicepaket Leitungsweg (B2C) crea una CxC desde Slack');
+  console.error(line('═'));
+  refused.forEach((why) => console.error(`  · ${why}`));
+  console.error('\n  Una Rechnung Insyte UT se adjunta a sus presupuestos:');
+  console.error('  node scripts/backfill-split-datev-267-269.cjs --extract 2025-NNN=<pdftotext.txt>');
+  console.error(line('═'));
+  throw new Error(`${refused.length} entrada(s) no permitida(s)`);
+};
+
 (async () => {
+  await guardInvoices(INVOICES);
+
   admin.initializeApp({ credential: admin.credential.cert(require(KEY_PATH)) });
   const db = admin.firestore();
 

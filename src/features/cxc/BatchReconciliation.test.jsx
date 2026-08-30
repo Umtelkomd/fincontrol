@@ -277,3 +277,48 @@ describe('BatchReconciliation — applying', () => {
     expect(screen.getByRole('button', { name: /^Conciliar/i })).toBeDisabled();
   });
 });
+
+describe('BatchReconciliation — confirming discount', () => {
+  it('lets the fee explain a selection that exceeds the transfer', () => {
+    render();
+    selectConfirming();
+    tick('RE-2026-001');
+    tick('RE-2026-002');
+    tick('RE-2026-003'); // 13.000 against a 10.000 transfer
+    expect(screen.getByTestId('batch-status')).toHaveTextContent(/Excede/i);
+    expect(screen.getByRole('button', { name: /^Conciliar/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Descuento confirming/i), { target: { value: '3000' } });
+
+    expect(screen.getByTestId('batch-status')).toHaveTextContent(/Cuadra/i);
+    expect(differenceValue()).toBe('0,00');
+    expect(screen.getByRole('button', { name: /^Conciliar/i })).toBeEnabled();
+  });
+
+  it('shows only the remainder beyond the discount as unexplained', () => {
+    render();
+    selectConfirming();
+    tick('RE-2026-001'); // 6.000 of 10.000
+
+    fireEvent.change(screen.getByLabelText(/Descuento confirming/i), { target: { value: '1000' } });
+
+    expect(differenceValue()).toBe('5.000,00');
+    expect(screen.getByTestId('batch-unexplained')).toHaveTextContent(/5\.000,00 € sin explicar/);
+  });
+
+  it('passes the discount along when the operator confirms', async () => {
+    render();
+    selectConfirming();
+    tick('RE-2026-001');
+    tick('RE-2026-002');
+    tick('RE-2026-003');
+    fireEvent.change(screen.getByLabelText(/Descuento confirming/i), { target: { value: '3000' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Conciliar/i }));
+
+    await screen.findByText(/3 facturas conciliadas/i);
+    const batch = firestore.writeBatch.mock.results[0].value;
+    const movementUpdate = batch.update.mock.calls.find(([ref]) => ref.path.includes('bankMovements'));
+    expect(movementUpdate[1]).toMatchObject({ confirmingDiscount: 3000 });
+  });
+});

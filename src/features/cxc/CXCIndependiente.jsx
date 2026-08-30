@@ -5,8 +5,11 @@ import {
  ArrowLeftRight,
  ArrowUpRight,
  BadgeEuro,
+ ChevronDown,
+ ChevronRight,
  Clock3,
  Edit3,
+ FileText,
  Filter,
  History,
  Layers,
@@ -48,7 +51,34 @@ const filters = [
  { id: 'partial', label: 'Parciales' },
  { id: 'overdue', label: 'Vencidas' },
  { id: 'settled', label: 'Liquidadas' },
+ // Insyte rows waiting for their DATEV Rechnung (pending invoice).
+ { id: 'sin-rechnung', label: 'Sin Rechnung' },
 ];
+
+const isInsyteRow = (row) =>
+ row?.sourceSystem === 'insyte' || String(row?.sourceKey || '').startsWith('insyte:');
+
+/** Only a DATEV number groups rows; anything else in rechnungId is noise. */
+const DATEV_RECHNUNG = /^\d{4}-\d{3}$/;
+
+/**
+ * Group Insyte rows by their DATEV Rechnung. The sum is the Insyte NET each
+ * row carries (`grossAmount` on an Insyte row IS the net) — the DATEV Endbetrag
+ * is never stored here, so it cannot be shown here either.
+ */
+const groupByRechnung = (rows) => {
+ const groups = new Map();
+ rows.forEach((row) => {
+ const rechnungId = String(row.rechnungId || '').trim();
+ if (!DATEV_RECHNUNG.test(rechnungId)) return;
+ const group = groups.get(rechnungId) || { rechnungId, rows: [], net: 0, statuses: new Set() };
+ group.rows.push(row);
+ group.net += Number(row.grossAmount) || 0;
+ group.statuses.add(row.status);
+ groups.set(rechnungId, group);
+ });
+ return [...groups.values()].sort((left, right) => right.rechnungId.localeCompare(left.rechnungId));
+};
 
 const bucketColor = ['var(--color-warn)', 'var(--color-accent)', 'var(--color-accent)', 'var(--color-accent)'];
 
@@ -121,6 +151,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  const [submittingEdit, setSubmittingEdit] = useState(false);
  const [convertingRecord, setConvertingRecord] = useState(null);
  const [importingInsyte, setImportingInsyte] = useState(false);
+ const [showRechnungGroups, setShowRechnungGroups] = useState(false);
 
  const rows = useMemo(() => {
  const source = metrics.receivables;
@@ -128,6 +159,8 @@ const CXCIndependiente = ({ user, userRole }) => {
  .filter((entry) => {
  if (statusFilter === 'partial') {
  if (entry.stage !== 'partial' && !(entry.paidAmount > 0 && entry.openAmount > 0)) return false;
+ } else if (statusFilter === 'sin-rechnung') {
+ if (!isInsyteRow(entry) || String(entry.rechnungId || '').trim()) return false;
  } else if (statusFilter !== 'all' && entry.status !== statusFilter) {
  return false;
  }
@@ -140,12 +173,18 @@ const CXCIndependiente = ({ user, userRole }) => {
  (entry.projectName || '').toLowerCase().includes(query) ||
  (entry.numeroPresupuesto || '').toLowerCase().includes(query) ||
  (entry.numeroPedido || '').toLowerCase().includes(query) ||
+ (entry.rechnungId || '').toLowerCase().includes(query) ||
  (entry.referenciaObra || '').toLowerCase().includes(query) ||
  (entry.kw || '').toLowerCase().includes(query)
  );
  })
  .sort((left, right) => (right.dueDate || '').localeCompare(left.dueDate || ''));
  }, [metrics.receivables, searchTerm, statusFilter]);
+
+ const rechnungGroups = useMemo(
+ () => groupByRechnung(metrics.receivables.filter(isInsyteRow)),
+ [metrics.receivables],
+ );
 
  const openRows = metrics.receivables.filter((entry) => ['issued', 'partial', 'overdue'].includes(entry.status));
  const totalOpen = openRows.reduce((sum, entry) => sum + entry.openAmount, 0);
@@ -369,13 +408,74 @@ const CXCIndependiente = ({ user, userRole }) => {
 
  <AgingBar buckets={metrics.receivablesAging} />
 
+ {/* One DATEV Rechnung groups N Insyte presupuestos. This is the only place
+     that reads the ledger the way DATEV does — by Rechnung — and the sum is
+     the Insyte NET of its rows, never the Endbetrag of the PDF. */}
+ <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
+ <button
+ type="button"
+ aria-expanded={showRechnungGroups}
+ onClick={() => setShowRechnungGroups((current) => !current)}
+ className="flex w-full items-center justify-between px-5 py-4 text-left"
+ >
+ <span className="flex items-center gap-2">
+ <FileText size={14} className="text-[var(--color-fg-4)]" />
+ <span className="label-mono text-[var(--color-fg-4)]">Por Rechnung DATEV</span>
+ <Badge variant="neutral">{rechnungGroups.length}</Badge>
+ </span>
+ {showRechnungGroups ? <ChevronDown size={16} className="text-[var(--color-fg-4)]" /> : <ChevronRight size={16} className="text-[var(--color-fg-4)]" />}
+ </button>
+ {showRechnungGroups && (
+ <div className="border-t border-[var(--color-line)] px-5 py-4">
+ {rechnungGroups.length === 0 ? (
+ <p className="text-sm text-[var(--color-fg-3)]">Ninguna CXC Insyte tiene todavía una Rechnung DATEV adjunta.</p>
+ ) : (
+ <ul className="divide-y divide-[var(--color-line)]">
+ {rechnungGroups.map((group) => (
+ <li
+ key={group.rechnungId}
+ data-testid={`rechnung-group-${group.rechnungId}`}
+ className="flex flex-wrap items-center justify-between gap-3 py-3"
+ >
+ <div className="flex flex-wrap items-center gap-3">
+ <button
+ type="button"
+ onClick={() => setSearchTerm(group.rechnungId)}
+ className="font-mono text-sm font-medium text-[var(--color-fg-1)] hover:text-[var(--color-accent)]"
+ title="Filtrar la tabla por esta Rechnung"
+ >
+ {group.rechnungId}
+ </button>
+ <span className="text-sm text-[var(--color-fg-3)]">
+ · {group.rows.length} presupuesto{group.rows.length === 1 ? '' : 's'}
+ </span>
+ <span className="font-mono text-sm tabular-nums text-[var(--color-fg-1)]">· {formatCurrency(group.net)} neto</span>
+ </div>
+ <div className="flex flex-wrap items-center gap-1">
+ {[...group.statuses].map((status) => (
+ <Badge
+ key={status}
+ variant={status === 'settled' ? 'ok' : status === 'overdue' ? 'err' : status === 'partial' ? 'warn' : 'neutral'}
+ >
+ {statusLabels[status] || status}
+ </Badge>
+ ))}
+ </div>
+ </li>
+ ))}
+ </ul>
+ )}
+ </div>
+ )}
+ </section>
+
   <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5">
  <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
  <div className="relative w-full xl:max-w-sm">
   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={16} />
  <input
   className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] py-3 pl-10 pr-4 text-sm text-[var(--color-fg-1)] outline-none transition-all placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
- placeholder="Buscar presupuesto, pedido, obra, KW…"
+ placeholder="Buscar presupuesto, pedido, Rechnung, obra, KW…"
  value={searchTerm}
  onChange={(event) => setSearchTerm(event.target.value)}
  />
@@ -420,6 +520,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  <th className="px-4 py-3">Cliente</th>
  <th className="px-4 py-3">Presupuesto</th>
  <th className="px-4 py-3">Pedido</th>
+ <th className="px-4 py-3">Rechnung</th>
  <th className="px-4 py-3">Obra / KW</th>
  <th className="px-4 py-3">Proyecto</th>
  <th className="px-4 py-3 text-right">Importe</th>
@@ -447,6 +548,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  </td>
   <td className="px-4 py-4 font-mono text-sm text-[var(--color-fg-1)]">{row.numeroPresupuesto || row.documentNumber || '—'}</td>
   <td className="px-4 py-4 font-mono text-sm text-[var(--color-fg-3)]">{row.numeroPedido || '—'}</td>
+  <td className="px-4 py-4 font-mono text-sm text-[var(--color-fg-3)]">{row.rechnungId || '—'}</td>
   <td className="px-4 py-4 text-sm text-[var(--color-fg-3)]">
  <p>{row.referenciaObra || row.description || '—'}</p>
  <p className="font-mono text-[11px] text-[var(--color-fg-4)]">{[row.kw, row.tipoObra, row.estadoInsyte].filter(Boolean).join(' · ') || (row.sourceSystem === 'insyte' ? 'Insyte' : '')}</p>

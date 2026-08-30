@@ -33,6 +33,49 @@ const PARTIAL = receivableFixture({
   dueDate: isoDaysFromNow(15),
 });
 
+// Two Insyte presupuestos grouped by one DATEV Rechnung, and one still without it.
+const INSYTE_270_A = receivableFixture({
+  id: 'cxc-8420',
+  counterpartyName: 'INSYTE',
+  documentNumber: '0026048420',
+  description: 'NAS Reinheim QFC-003 KW33 2026',
+  sourceKey: 'insyte:cxc:0026048420',
+  sourceSystem: 'insyte',
+  numeroPresupuesto: '0026048420',
+  numeroPedido: '2640070',
+  rechnungId: '2025-270',
+  amount: 230,
+  openAmount: 230,
+  dueDate: isoDaysFromNow(20),
+});
+const INSYTE_270_B = receivableFixture({
+  id: 'cxc-8468',
+  counterpartyName: 'INSYTE',
+  documentNumber: '0026048468',
+  description: 'Groß-Zimmern QGF-002 KW34 2026',
+  sourceKey: 'insyte:cxc:0026048468',
+  sourceSystem: 'insyte',
+  numeroPresupuesto: '0026048468',
+  numeroPedido: '2640164',
+  rechnungId: '2025-270',
+  amount: 460,
+  openAmount: 460,
+  dueDate: isoDaysFromNow(20),
+});
+const INSYTE_SIN_RECHNUNG = receivableFixture({
+  id: 'cxc-8505',
+  counterpartyName: 'INSYTE',
+  documentNumber: '0026048505',
+  description: 'M26-14 Rossdorf',
+  sourceKey: 'insyte:cxc:0026048505',
+  sourceSystem: 'insyte',
+  numeroPresupuesto: '0026048505',
+  rechnungId: '',
+  amount: 12608.36,
+  openAmount: 12608.36,
+  dueDate: isoDaysFromNow(25),
+});
+
 const store = installFirebaseMocks(
   ledgerFixtures({ collections: { receivables: [OVERDUE, PARTIAL] } }),
 );
@@ -59,7 +102,10 @@ describe('CXC — screen render', () => {
     const headers = screen.getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual([
       'Cliente',
-      'Documento',
+      'Presupuesto',
+      'Pedido',
+      'Rechnung',
+      'Obra / KW',
       'Proyecto',
       'Importe',
       'Abierto',
@@ -128,7 +174,7 @@ describe('CXC — filters', () => {
   it('filters by free text across client, document and project', () => {
     renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar cliente, documento o proyecto'), {
+    fireEvent.change(screen.getByPlaceholderText('Buscar presupuesto, pedido, Rechnung, obra, KW…'), {
       target: { value: 'RE-2026-102' },
     });
 
@@ -138,12 +184,75 @@ describe('CXC — filters', () => {
   });
 });
 
+describe('CXC — DATEV Rechnung on Insyte rows', () => {
+  beforeEach(() => {
+    store.collections.receivables = [OVERDUE, PARTIAL, INSYTE_270_A, INSYTE_270_B, INSYTE_SIN_RECHNUNG];
+  });
+
+  it('shows the Rechnung of every row, or a dash', () => {
+    renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
+
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByText('2025-270')).toHaveLength(2);
+    const rowSinRechnung = within(table).getByRole('row', { name: /0026048505/ });
+    expect(within(rowSinRechnung).getAllByRole('cell')[3]).toHaveTextContent('—');
+  });
+
+  it('finds rows by their Rechnung number', () => {
+    renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar presupuesto, pedido, Rechnung, obra, KW…'), {
+      target: { value: '2025-270' },
+    });
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('0026048420')).toBeInTheDocument();
+    expect(within(table).getByText('0026048468')).toBeInTheDocument();
+    expect(within(table).queryByText('0026048505')).not.toBeInTheDocument();
+    expect(within(table).queryByText('Deutsche Telekom')).not.toBeInTheDocument();
+  });
+
+  it('narrows to Insyte rows without a Rechnung with the "Sin Rechnung" chip', () => {
+    renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sin Rechnung' }));
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('0026048505')).toBeInTheDocument();
+    expect(within(table).queryByText('0026048420')).not.toBeInTheDocument();
+    // Non-Insyte rows are not "missing" a Rechnung — they never had one.
+    expect(within(table).queryByText('Deutsche Telekom')).not.toBeInTheDocument();
+  });
+
+  it('groups the Insyte rows by Rechnung in a collapsible panel with the NET sum', () => {
+    renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
+
+    const toggle = screen.getByRole('button', { name: /Por Rechnung DATEV/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('rechnung-group-2025-270')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    const group = screen.getByTestId('rechnung-group-2025-270');
+    expect(group).toHaveTextContent('2025-270');
+    expect(group).toHaveTextContent('2 presupuestos');
+    expect(group).toHaveTextContent('690,00'); // 230 + 460 NET Insyte, never the Endbetrag
+    expect(group).toHaveTextContent('Emitida');
+  });
+
+  it('keeps the Insyte import button as it was', () => {
+    renderScreen(<CXCIndependiente user={USER} userRole="admin" />);
+    expect(screen.getByRole('button', { name: 'Cargar abiertos Insyte' })).toBeInTheDocument();
+  });
+});
+
 describe('CXC — role gating', () => {
   it('drops the actions column for a role that cannot act', () => {
     renderScreen(<CXCIndependiente user={USER} userRole="editor" />);
 
     const headers = screen.getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).not.toContain('Acciones');
+    expect(headers).toContain('Rechnung');
     // The data itself stays readable — the restriction is on writing, not seeing.
     expect(within(screen.getByRole('table')).getByText('Insyte Deutschland')).toBeInTheDocument();
   });

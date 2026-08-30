@@ -62,6 +62,11 @@ const BatchReconciliation = ({ user, userRole }) => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [notice, setNotice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // The fee the bank kept on this remesa. Invoices are measured against
+  // movement + fee, so a batch that covers its invoices exactly "cuadra"
+  // even though the transfer arrived short by the fee.
+  const [discountInput, setDiscountInput] = useState('');
+  const confirmingDiscount = Math.max(0, Number(discountInput) || 0);
 
   const canAct = userRole === 'admin' || userRole === 'manager';
 
@@ -105,8 +110,8 @@ const BatchReconciliation = ({ user, userRole }) => {
   );
 
   const summary = useMemo(
-    () => summarizeSelection({ movement: movement || { amount: 0 }, selected }),
-    [movement, selected],
+    () => summarizeSelection({ movement: movement || { amount: 0 }, selected, confirmingDiscount }),
+    [movement, selected, confirmingDiscount],
   );
 
   // The reconciled transfer leaves `pendingBatches` as soon as Firestore echoes
@@ -116,6 +121,7 @@ const BatchReconciliation = ({ user, userRole }) => {
       setSelectedMovementId('');
       setSelectedIds([]);
       setNotice(null);
+      setDiscountInput('');
     }
   }, [movement, selectedMovementId]);
 
@@ -126,6 +132,7 @@ const BatchReconciliation = ({ user, userRole }) => {
     setSelectedMovementId(id);
     setSelectedIds([]);
     setNotice(null);
+    setDiscountInput('');
   };
 
   const handleToggle = (id) => {
@@ -164,16 +171,17 @@ const BatchReconciliation = ({ user, userRole }) => {
     if (!movement || selected.length === 0) return;
     setSubmitting(true);
     try {
-      const result = await reconcileBatch(movement, buildAllocationDraft(selected));
+      const result = await reconcileBatch(movement, buildAllocationDraft(selected), { confirmingDiscount });
       if (!result?.success) {
         showToast(result?.error?.message || 'No se pudo conciliar la remesa', 'error');
         return;
       }
+      const unexplained = result.unexplained ?? result.difference;
       showToast(
         `${result.count} factura${result.count === 1 ? '' : 's'} conciliada${result.count === 1 ? '' : 's'} con la remesa${
-          result.difference > 0 ? ` — quedan ${formatCurrency(result.difference)} € sin explicar` : ''
+          unexplained > 0 ? ` — quedan ${formatCurrency(unexplained)} € sin explicar` : ''
         }`,
-        result.difference > 0 ? 'warning' : 'success',
+        unexplained > 0 ? 'warning' : 'success',
       );
       setSelectedIds([]);
       setNotice(null);
@@ -338,8 +346,31 @@ const BatchReconciliation = ({ user, userRole }) => {
                   <p data-testid="batch-status" className="label-mono mt-1" style={{ color: tone }}>
                     {STATUS_LABEL[summary.status]}
                   </p>
+                  {hasSelection && summary.status === 'under' && (
+                    <p data-testid="batch-unexplained" className="label-mono mt-1 text-[var(--color-fg-4)]">
+                      {formatCurrency(summary.difference)} € sin explicar
+                      {confirmingDiscount > 0 ? ' (más allá del descuento)' : ''}
+                    </p>
+                  )}
                 </div>
               </div>
+
+              <label className="block max-w-xs">
+                <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Descuento confirming (€)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={discountInput}
+                  onChange={(event) => setDiscountInput(event.target.value)}
+                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 font-mono text-sm tabular-nums text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+                />
+                <span className="mt-1 block text-xs text-[var(--color-fg-4)]">
+                  Comisión que retuvo el banco. Las facturas se miden contra el cobro más este descuento.
+                </span>
+              </label>
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="secondary" size="sm" icon={Wand2} onClick={handleSuggest}>

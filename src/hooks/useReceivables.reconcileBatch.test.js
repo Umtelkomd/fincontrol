@@ -203,8 +203,8 @@ describe('reconcileBatch — what it links', () => {
       reconciledAmount: 10000,
     });
     expect(movementPayload().receivableAllocations).toEqual([
-      { documentId: 'cxc-open', amount: 6000, openAmountBefore: 6000, openAmountAfter: 0 },
-      { documentId: 'cxc-bulk', amount: 4000, openAmountBefore: 4000, openAmountAfter: 0 },
+      { documentId: 'cxc-open', amount: 6000, openAmountBefore: 6000, openAmountAfter: 0, confirmingDiscount: 0 },
+      { documentId: 'cxc-bulk', amount: 4000, openAmountBefore: 4000, openAmountAfter: 0, confirmingDiscount: 0 },
     ]);
   });
 
@@ -366,5 +366,40 @@ describe('reconcileBatch — refusals', () => {
     ]);
 
     expect(applied).toMatchObject({ success: true, count: 1, difference: 4000, status: 'under' });
+  });
+});
+
+describe('reconcileBatch — confirming discount', () => {
+  // The bank kept 100 as its fee: 10.000 of invoices arrived as 9.900.
+  const feeMovement = { ...MOVEMENT, amount: 9900, signedAmount: 9900 };
+
+  it('closes every invoice in full and persists the discount on the movement', async () => {
+    const result = await mountReceivables();
+
+    const applied = await result.current.reconcileBatch(feeMovement, fullBatch, { confirmingDiscount: 100 });
+
+    expect(applied).toMatchObject({ success: true, count: 2, difference: 0, status: 'exact', confirmingDiscount: 100 });
+    expect(movementPayload()).toMatchObject({ confirmingDiscount: 100, reconciledAmount: 10000 });
+    expect(receivablePayload('cxc-open')).toMatchObject({ openAmount: 0, status: 'settled', paidAmount: 6000 });
+    expect(receivablePayload('cxc-bulk')).toMatchObject({ openAmount: 0, status: 'settled' });
+  });
+
+  it('splits the discount across the allocations in proportion, summing exactly', async () => {
+    const result = await mountReceivables();
+    await result.current.reconcileBatch(feeMovement, fullBatch, { confirmingDiscount: 100 });
+
+    const allocations = movementPayload().receivableAllocations;
+    expect(allocations.map((entry) => entry.confirmingDiscount)).toEqual([60, 40]);
+    expect(allocations.reduce((sum, entry) => sum + entry.confirmingDiscount, 0)).toBe(100);
+    expect(firestore.arrayUnion).toHaveBeenCalledWith(
+      expect.objectContaining({ bankMovementId: 'mov-bbva', amount: 6000, confirmingDiscount: 60 }),
+    );
+  });
+
+  it('refuses invoices beyond the transfer when no discount explains them', async () => {
+    const result = await mountReceivables();
+    const rejected = await result.current.reconcileBatch(feeMovement, fullBatch);
+    expect(rejected.success).toBe(false);
+    expect(batches()).toHaveLength(0);
   });
 });

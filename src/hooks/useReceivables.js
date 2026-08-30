@@ -27,6 +27,7 @@ import {
   isReconciliationPending,
   rawPaymentsOf,
   resolveBatchAllocations,
+  splitConfirmingDiscount,
 } from '../finance/batchReconciliation';
 import { clampMoney, toISODate } from '../finance/utils';
 import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
@@ -38,6 +39,7 @@ import {
   padPedido,
   parseKw,
 } from '../finance/insyteContract';
+import { planDatevAttach } from '../finance/datevAttach';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 
@@ -83,6 +85,9 @@ const RECEIVABLE_TEXT_FIELDS = [
   ['projectName', ['projectName']],
   ['costCenterId', ['costCenterId']],
   ['categoryName', ['categoryName']],
+  // Insyte / DATEV linkage — plain text, no aliases, no money implications.
+  ['rechnungId', ['rechnungId']],
+  ['numeroPedido', ['numeroPedido']],
 ];
 
 /**
@@ -172,6 +177,92 @@ export const buildReceivableUpdatePayload = (receivable = {}, data = {}) => {
   payload.status = nextStatus;
 
   return { payload, nextPaidAmount };
+};
+
+/**
+ * Insyte fields that an upsert may only WRITE when the caller supplied a
+ * non-empty value. On update an omitted or empty value leaves the stored one
+ * alone; on create every one of them defaults to ''. Before this rule the
+ * upsert wrote `data.rechnungId || ''` on every call, so a re-import from
+ * Insyte (which knows nothing about DATEV) wiped the Rechnung link, and a
+ * DATEV attach (which knows nothing about Insyte) wiped pep/estado/obra.
+ */
+const INSYTE_OPTIONAL_TEXT_FIELDS = [
+  'numeroPedido',
+  'rechnungId',
+  'pep',
+  'estadoInsyte',
+  'tipoObra',
+  'obraPueblo',
+  'fechaPedido',
+  'fechaPresupuesto',
+  'kw',
+  'referenciaObra',
+  'description',
+  'projectName',
+];
+
+const hasText = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+const hasNumber = (value) => value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value));
+
+/**
+ * Builds the Firestore patch for `upsertReceivableByInsyteKey`.
+ *
+ * Money rule (Jeisson, 30.08.2026): the amount of an Insyte row is
+ * coalesce(importePedido, importePresupuesto) — the NET the Insyte order
+ * carries. It is recomputed ONLY when one of those two is supplied. A bare
+ * `amount` is honoured on create as a last resort (legacy callers) and ignored
+ * on update, so a DATEV Endbetrag, a Slack caption or a Lumen figure can never
+ * replace the Insyte net through this path.
+ *
+ * @param {object} data caller input
+ * @param {{ create: boolean }} options
+ * @returns {{ patch: object, amount: number|null }} `amount` is null when the money block must not move
+ */
+export const buildInsyteUpsertPatch = (data = {}, { create = false } = {}) => {
+  const numeroPresupuesto = padPresupuesto(data.numeroPresupuesto || data.sourceKey);
+  const sourceKey = insyteSourceKey(numeroPresupuesto);
+  const kw = hasText(data.kw) ? data.kw : parseKw(data.referenciaObra || '');
+  const supplied = { ...data, kw, numeroPedido: padPedido(data.numeroPedido || '') };
+
+  const patch = {
+    numeroPresupuesto,
+    sourceSystem: INSYTE_SOURCE_SYSTEM,
+    sourceKey,
+    source: 'insyte',
+    documentNumber: numeroPresupuesto,
+  };
+
+  INSYTE_OPTIONAL_TEXT_FIELDS.forEach((key) => {
+    if (hasText(supplied[key])) patch[key] = supplied[key];
+    else if (create) patch[key] = '';
+  });
+  if (hasText(kw)) patch.productionWeekRef = kw;
+  else if (create) patch.productionWeekRef = '';
+
+  if (hasNumber(data.importePedido)) patch.importePedido = clampMoney(data.importePedido);
+  else if (create) patch.importePedido = null;
+  if (hasNumber(data.importePresupuesto)) patch.importePresupuesto = clampMoney(data.importePresupuesto);
+  else if (create) patch.importePresupuesto = null;
+
+  if (create) {
+    patch.description = patch.description || data.referenciaObra || '';
+    patch.client = data.client || 'INSYTE';
+    patch.counterpartyName = data.client || 'INSYTE';
+    patch.issueDate = data.fechaPresupuesto || data.fechaPedido || data.issueDate;
+    patch.dueDate = data.dueDate || data.fechaPresupuesto || data.fechaPedido;
+    patch.projectName = patch.projectName || data.obraPueblo || data.tipoObra || '';
+  } else if (hasText(data.client)) {
+    patch.client = data.client;
+    patch.counterpartyName = data.client;
+  }
+
+  let amount = null;
+  if (hasNumber(data.importePedido)) amount = clampMoney(data.importePedido);
+  else if (hasNumber(data.importePresupuesto)) amount = clampMoney(data.importePresupuesto);
+  else if (create) amount = clampMoney(data.amount ?? 0);
+
+  return { patch, amount };
 };
 
 const buildReceivableSnapshot = (receivable, override = {}) => ({
@@ -671,7 +762,7 @@ export const useReceivables = (user) => {
    *     and `status` are never written, so the cash position — derived from
    *     anchors plus signed movements — cannot move by reconciling.
    */
-  const reconcileBatch = async (movement, allocations) => {
+  const reconcileBatch = async (movement, allocations, { confirmingDiscount = 0 } = {}) => {
     if (!user) return { success: false, error: new Error('No user') };
     if (typeof movement === 'string') {
       return {
@@ -690,12 +781,15 @@ export const useReceivables = (user) => {
       };
     }
 
-    const plan = resolveBatchAllocations({ movement, allocations: draft, receivables });
+    const plan = resolveBatchAllocations({ movement, allocations: draft, receivables, confirmingDiscount });
     if (plan.error) return { success: false, error: new Error(plan.error) };
 
     try {
       const nowIso = new Date().toISOString();
       const ids = plan.allocations.map((entry) => entry.receivableId);
+      // The bank's fee, spread over the invoices it was charged against, so a
+      // later reading of the allocations still adds up to the invoices.
+      const discountShares = splitConfirmingDiscount(plan.allocations, plan.confirmingDiscount);
       const batch = writeBatch(db);
 
       // A remesa may be finished in two sittings, so an earlier pass's links
@@ -714,17 +808,19 @@ export const useReceivables = (user) => {
         receivableIds: [...new Set([...priorIds, ...ids])],
         receivableAllocations: [
           ...priorAllocations,
-          ...plan.allocations.map((entry) => ({
+          ...plan.allocations.map((entry, index) => ({
             documentId: entry.receivableId,
             amount: entry.amount,
             openAmountBefore: entry.openAmountBefore,
             openAmountAfter: entry.openAmountAfter,
+            confirmingDiscount: discountShares[index],
           })),
         ],
         reconciledAt: serverTimestamp(),
         reconciliationId: movement.reconciliationId || `movement:${movement.id}`,
         reconciliationMode: 'batch-confirming',
         reconciledAmount: clampMoney(priorAmount + plan.total),
+        confirmingDiscount: clampMoney((Number(movement.confirmingDiscount) || 0) + plan.confirmingDiscount),
         categoryName: commonValue(plan.allocations, 'categoryName') || movement.categoryName || '',
         projectId: commonValue(plan.allocations, 'projectId') || movement.projectId || '',
         projectName:
@@ -738,12 +834,12 @@ export const useReceivables = (user) => {
           user: user.email,
           timestamp: nowIso,
           detail: `Remesa conciliada con ${ids.length} CXC por ${plan.total.toFixed(2)} ${movement.currency || DEFAULT_CURRENCY}${
-            plan.difference > 0 ? ` (quedan ${plan.difference.toFixed(2)} sin explicar)` : ''
-          }`,
+            plan.confirmingDiscount > 0 ? ` (descuento confirming ${plan.confirmingDiscount.toFixed(2)})` : ''
+          }${plan.unexplained > 0 ? ` (quedan ${plan.unexplained.toFixed(2)} sin explicar)` : ''}`,
         }),
       });
 
-      plan.allocations.forEach((entry) => {
+      plan.allocations.forEach((entry, index) => {
         const payment = {
           date: movement.postedDate || toISODate(new Date()),
           amount: entry.amount,
@@ -752,6 +848,7 @@ export const useReceivables = (user) => {
           note: 'Conciliado en remesa agrupada (confirming)',
           bankMovementId: movement.id,
           reconciliationMode: 'batch-confirming',
+          confirmingDiscount: discountShares[index],
           registeredBy: user.email,
           timestamp: nowIso,
         };
@@ -799,6 +896,7 @@ export const useReceivables = (user) => {
             amount: plan.total,
             movementAmount: plan.movementAmount,
             difference: plan.difference,
+            confirmingDiscount: plan.confirmingDiscount,
           },
         }),
         ...plan.allocations.map((entry) =>
@@ -832,6 +930,8 @@ export const useReceivables = (user) => {
         count: plan.allocations.length,
         total: plan.total,
         difference: plan.difference,
+        unexplained: plan.unexplained,
+        confirmingDiscount: plan.confirmingDiscount,
         status: plan.status,
       };
     } catch (batchError) {
@@ -844,6 +944,10 @@ export const useReceivables = (user) => {
   /**
    * Insyte 2026+: create or update CxC by numero_presupuesto (pad 10).
    * Does not touch Lumen sourceKeys. Skips settled/cancelled.
+   *
+   * Partial by design — see `buildInsyteUpsertPatch`: omitted fields stay as
+   * stored, and the money block only moves when importePedido/importePresupuesto
+   * is supplied.
    */
   const upsertReceivableByInsyteKey = async (data) => {
     if (!user) return { success: false, error: new Error('No user') };
@@ -854,51 +958,27 @@ export const useReceivables = (user) => {
     try {
       const q = query(receivablesRef, where('sourceKey', '==', sourceKey), limit(1));
       const snap = await getDocs(q);
-      const amount = clampMoney(
-        data.importePedido ?? data.importePresupuesto ?? data.amount ?? 0,
-      );
-      const patch = {
-        numeroPresupuesto,
-        numeroPedido: padPedido(data.numeroPedido || ''),
-        fechaPresupuesto: data.fechaPresupuesto || '',
-        fechaPedido: data.fechaPedido || '',
-        referenciaObra: data.referenciaObra || '',
-        kw: data.kw || parseKw(data.referenciaObra || ''),
-        tipoObra: data.tipoObra || '',
-        obraPueblo: data.obraPueblo || '',
-        pep: data.pep || '',
-        estadoInsyte: data.estadoInsyte || '',
-        importePedido: data.importePedido ?? null,
-        importePresupuesto: data.importePresupuesto ?? amount,
-        rechnungId: data.rechnungId || '',
-        productionWeekRef: data.kw || parseKw(data.referenciaObra || ''),
-        sourceSystem: INSYTE_SOURCE_SYSTEM,
-        sourceKey,
-        source: 'insyte',
-        description: data.description || data.referenciaObra || '',
-        client: data.client || 'INSYTE',
-        counterpartyName: data.client || 'INSYTE',
-        documentNumber: numeroPresupuesto,
-        issueDate: data.fechaPresupuesto || data.fechaPedido || data.issueDate,
-        dueDate: data.dueDate || data.fechaPresupuesto || data.fechaPedido,
-        projectName: data.projectName || data.obraPueblo || data.tipoObra || '',
-      };
 
       if (!snap.empty) {
         const existing = adaptReceivableDoc({ id: snap.docs[0].id, ...snap.docs[0].data() });
         if (existing.status === 'settled' || existing.status === 'cancelled') {
           return { success: true, id: existing.id, action: 'skipped', reason: existing.status };
         }
-        const paid = clampMoney(existing.paidAmount || 0);
-        const nextGross = Math.max(amount, paid);
-        const nextOpen = clampMoney(nextGross - paid);
+        const { patch, amount } = buildInsyteUpsertPatch(data, { create: false });
+        const money = {};
+        if (amount !== null) {
+          const paid = clampMoney(existing.paidAmount || 0);
+          const nextGross = Math.max(amount, paid);
+          const nextOpen = clampMoney(nextGross - paid);
+          money.grossAmount = nextGross;
+          money.amount = nextGross;
+          money.openAmount = nextOpen;
+          money.pendingAmount = nextOpen;
+        }
         const ref = doc(db, 'artifacts', appId, 'public', 'data', 'receivables', existing.id);
         await updateDoc(ref, {
           ...patch,
-          grossAmount: nextGross,
-          amount: nextGross,
-          openAmount: nextOpen,
-          pendingAmount: nextOpen,
+          ...money,
           updatedAt: serverTimestamp(),
           updatedBy: user.email,
           auditTrail: arrayUnion({
@@ -911,6 +991,7 @@ export const useReceivables = (user) => {
         return { success: true, id: existing.id, action: 'updated' };
       }
 
+      const { patch, amount } = buildInsyteUpsertPatch(data, { create: true });
       const created = await createReceivable({
         ...patch,
         amount,
@@ -920,6 +1001,118 @@ export const useReceivables = (user) => {
     } catch (error) {
       logError('upsertReceivableByInsyteKey:', error);
       return { success: false, error };
+    }
+  };
+
+  /**
+   * Attach ONE DATEV `Rechnung 2025-NNN` to the N Insyte rows it groups.
+   *
+   *   attachDatevRechnungToInsyte({ rechnungId, pedidos, map?, pdfNet?, pdfGross?, insyteRows? })
+   *     → { success, plan, updated: [ids], deleted: [ids], created: [...] }
+   *
+   * Applies `planDatevAttach` over the loaded receivables and nothing beyond it:
+   *   · attach targets get ONLY rechnungId, numeroPedido, `status: 'issued'`
+   *     when they were missing/pending, updatedAt/By and `datevMeta` when the
+   *     PDF totals were passed. No amount is ever written — the Insyte net stays.
+   *   · pedidos in `missing` with reason 'no-row' are created through
+   *     `upsertReceivableByInsyteKey` ONLY when `insyteRows` carries that
+   *     presupuesto with importePedido/importePresupuesto; otherwise they stay
+   *     in `missing`. The row is keyed by presupuesto — its invoiceNumber is
+   *     never the Rechnung number.
+   *   · aggregate rows (invoiceNumber === rechnungId, no insyte: sourceKey) are
+   *     deleted: one Rechnung is never one CxC.
+   */
+  const attachDatevRechnungToInsyte = async ({ rechnungId, pedidos, map, pdfNet, pdfGross, insyteRows, pedidoRows } = {}) => {
+    if (!user) return { success: false, error: new Error('No user') };
+
+    // `pedidoRows` (parsed Insyte export) resolve pedidos AND carry the Insyte
+    // net, so they double as the source for rows that do not exist yet.
+    const plan = planDatevAttach({ rechnungId, pedidos, receivables, map, pedidoRows, pdfNet: pdfNet ?? null, pdfGross: pdfGross ?? null });
+    if (plan.error) return { success: false, error: new Error(plan.error), plan };
+
+    const nowIso = new Date().toISOString();
+    const hasMeta = Number.isFinite(Number(pdfNet)) || Number.isFinite(Number(pdfGross));
+    const byId = new Map(receivables.map((entry) => [entry.id, entry]));
+
+    try {
+      const updated = [];
+      for (const target of plan.attach) {
+        const current = byId.get(target.receivableId);
+        const payload = {
+          rechnungId: plan.rechnungId,
+          numeroPedido: target.numeroPedido,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email,
+          auditTrail: arrayUnion({
+            action: 'attach-datev',
+            user: user.email,
+            timestamp: nowIso,
+            detail: `Rechnung DATEV ${plan.rechnungId} adjunta (pedido ${target.numeroPedido}). Importe Insyte sin cambio.`,
+          }),
+        };
+        // The adapter derives `status`; the stored value is what decides here.
+        const storedStatus = current?.raw?.status ?? current?.status;
+        if (!storedStatus || storedStatus === 'pending') payload.status = 'issued';
+        if (hasMeta) {
+          payload.datevMeta = {
+            pdfNet: Number.isFinite(Number(pdfNet)) ? clampMoney(pdfNet) : null,
+            pdfGross: Number.isFinite(Number(pdfGross)) ? clampMoney(pdfGross) : null,
+          };
+        }
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'receivables', target.receivableId), payload);
+        updated.push(target.receivableId);
+      }
+
+      const created = [];
+      const stillMissing = [];
+      const insyteByPresupuesto = new Map(
+        [...(Array.isArray(pedidoRows) ? pedidoRows : []), ...(Array.isArray(insyteRows) ? insyteRows : [])]
+          .map((row) => [padPresupuesto(row?.numeroPresupuesto), row]),
+      );
+      for (const entry of plan.missing) {
+        const insyte = entry.reason === 'no-row' ? insyteByPresupuesto.get(entry.numeroPresupuesto) : null;
+        const hasImporte = insyte && (hasNumber(insyte.importePedido) || hasNumber(insyte.importePresupuesto));
+        if (!hasImporte) {
+          stillMissing.push(entry);
+          continue;
+        }
+        const result = await upsertReceivableByInsyteKey({
+          ...insyte,
+          numeroPresupuesto: entry.numeroPresupuesto,
+          numeroPedido: entry.numeroPedido,
+          rechnungId: plan.rechnungId,
+        });
+        created.push({ ...result, numeroPresupuesto: entry.numeroPresupuesto, numeroPedido: entry.numeroPedido });
+      }
+
+      const deleted = [];
+      for (const id of plan.aggregateRowsToDelete) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'receivables', id));
+        deleted.push(id);
+      }
+
+      await writeAuditLogEntry({
+        action: 'attach-datev',
+        entityType: 'receivable',
+        entityId: plan.rechnungId,
+        description: `Rechnung DATEV ${plan.rechnungId} adjunta a ${updated.length} CXC Insyte`,
+        userEmail: user.email,
+        metadata: {
+          rechnungId: plan.rechnungId,
+          updated,
+          created: created.map((entry) => entry.id || null),
+          deleted,
+          missing: stillMissing,
+          conflicts: plan.conflicts,
+          pdfNet: plan.pdfNet,
+          pdfGross: plan.pdfGross,
+        },
+      });
+
+      return { success: true, plan: { ...plan, missing: stillMissing }, updated, created, deleted };
+    } catch (error) {
+      logError('attachDatevRechnungToInsyte:', error);
+      return { success: false, error, plan };
     }
   };
 
@@ -955,6 +1148,7 @@ export const useReceivables = (user) => {
     markAsPaid,
     upsertReceivableBySourceKey,
     upsertReceivableByInsyteKey,
+    attachDatevRechnungToInsyte,
     importInsyteOpenSinPedido,
   };
 };

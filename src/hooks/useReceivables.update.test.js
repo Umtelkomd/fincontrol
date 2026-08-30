@@ -308,3 +308,18 @@ describe('updateReceivable — admin status override', () => {
     });
   });
 });
+
+describe('updateReceivable — Insyte / DATEV fields are editable text fields', () => {
+  it('writes rechnungId and numeroPedido when supplied and leaves them alone otherwise', async () => {
+    const { updateReceivable } = useReceivables(USER);
+
+    await updateReceivable(storedReceivable(), { rechnungId: '2025-270', numeroPedido: '2640070' });
+    expect(writtenPayload()).toMatchObject({ rechnungId: '2025-270', numeroPedido: '2640070' });
+    MONEY_KEYS.forEach((key) => expect(writtenPayload()).not.toHaveProperty(key));
+
+    firestoreMocks.updateDoc.mockClear();
+    await updateReceivable(storedReceivable(), { description: 'x' });
+    expect(writtenPayload()).not.toHaveProperty('rechnungId');
+    expect(writtenPayload()).not.toHaveProperty('numeroPedido');
+  });
+});

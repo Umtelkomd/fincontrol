@@ -272,6 +272,7 @@ describe('summarizeSelection — the discrepancy is the point', () => {
       movementAmount: 10000,
       difference: 10000,
       status: 'under',
+      confirmingDiscount: 0,
     });
   });
 });
@@ -536,5 +537,86 @@ describe('buildAllocationDraft', () => {
       { receivableId: 'cxc-1', amount: 10000 },
       { receivableId: 'cxc-2', amount: 10000 },
     ]);
+  });
+});
+
+/**
+ * Confirming discount. The bank keeps a fee and transfers invoices − fee, so a
+ * remesa that covers its invoices EXACTLY always arrives short by the fee. The
+ * model: the invoices are measured against movement + discount ("coverage");
+ * each invoice still closes by its own reconcilable; only what is left beyond
+ * the discount is unexplained; over is still refused.
+ */
+describe('resolveBatchAllocations — confirming discount', () => {
+  const draftOf = (entries) => entries.map(([receivableId, amount]) => ({ receivableId, amount }));
+  const invoices = [receivable({ id: 'a', grossAmount: 3542, amount: 3542, openAmount: 3542 }), receivable({ id: 'b', grossAmount: 1610, amount: 1610, openAmount: 1610 })];
+  const bank = { ...CONFIRMING_MOVEMENT, amount: 5100.48 }; // 5152 − 51.52 fee
+
+  it('accepts invoices that exceed the transfer by exactly the discount and closes each of them', () => {
+    const result = resolveBatchAllocations({
+      movement: bank,
+      allocations: draftOf([['a', 3542], ['b', 1610]]),
+      receivables: invoices,
+      confirmingDiscount: 51.52,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result).toMatchObject({
+      total: 5152,
+      movementAmount: 5100.48,
+      confirmingDiscount: 51.52,
+      difference: 0,
+      unexplained: 0,
+      discountCovered: true,
+      status: 'exact',
+    });
+    result.allocations.forEach((entry) => {
+      expect(entry.openAmountAfter).toBe(0);
+      expect(entry.nextStatus).toBe('settled');
+    });
+  });
+
+  it('still refuses a total beyond movement + discount', () => {
+    const result = resolveBatchAllocations({
+      movement: bank,
+      allocations: draftOf([['a', 3542], ['b', 1610]]),
+      receivables: invoices,
+      confirmingDiscount: 20,
+    });
+    expect(result.error).toMatch(/5\.?152/);
+  });
+
+  it('exposes only the remainder beyond the discount as unexplained', () => {
+    const result = resolveBatchAllocations({
+      movement: { ...bank, amount: 5000 },
+      allocations: draftOf([['a', 3542]]),
+      receivables: invoices,
+      confirmingDiscount: 50,
+    });
+    expect(result).toMatchObject({ status: 'under', confirmingDiscount: 50, difference: 1508, unexplained: 1508, discountCovered: false });
+  });
+
+  it('defaults to no discount and keeps the legacy shape', () => {
+    const result = resolveBatchAllocations({
+      movement: { ...bank, amount: 10000 },
+      allocations: draftOf([['a', 3542]]),
+      receivables: invoices,
+    });
+    expect(result).toMatchObject({ confirmingDiscount: 0, difference: 6458, unexplained: 6458, discountCovered: false, status: 'under' });
+  });
+
+  it('refuses a negative or non-numeric discount', () => {
+    expect(resolveBatchAllocations({ movement: bank, allocations: draftOf([['a', 100]]), receivables: invoices, confirmingDiscount: -1 }).error).toMatch(/descuento/i);
+    expect(resolveBatchAllocations({ movement: bank, allocations: draftOf([['a', 100]]), receivables: invoices, confirmingDiscount: 'abc' }).error).toMatch(/descuento/i);
+  });
+});
+
+describe('summarizeSelection — confirming discount', () => {
+  it('measures the selection against movement + discount', () => {
+    const summary = summarizeSelection({
+      movement: { ...CONFIRMING_MOVEMENT, amount: 5100.48 },
+      selected: [receivable({ openAmount: 3542 }), receivable({ id: 'b', openAmount: 1610 })],
+      confirmingDiscount: 51.52,
+    });
+    expect(summary).toMatchObject({ selectedTotal: 5152, difference: 0, status: 'exact', confirmingDiscount: 51.52 });
   });
 });

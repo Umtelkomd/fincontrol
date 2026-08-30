@@ -283,21 +283,23 @@ export const buildBatchCandidates = ({ movement, receivables }) => {
  * @param {{ movement: object, selected: object[] }} params
  * @returns {{ selectedTotal: number, movementAmount: number, difference: number, status: 'exact'|'under'|'over' }}
  */
-export const summarizeSelection = ({ movement, selected }) => {
+export const summarizeSelection = ({ movement, selected, confirmingDiscount = 0 }) => {
   const movementAmount = unreconciledAmountOf(movement);
+  const discount = normalizeDiscount(confirmingDiscount) ?? 0;
   const selectedTotal = clampMoney(
     (Array.isArray(selected) ? selected : []).reduce(
       (sum, entry) => sum + reconcilableAmountOf(entry),
       0,
     ),
   );
-  const difference = clampMoney(movementAmount - selectedTotal);
+  // The invoices are measured against what the bank sent PLUS the fee it kept.
+  const difference = clampMoney(movementAmount + discount - selectedTotal);
 
   let status = 'exact';
   if (difference > RECONCILIATION_TOLERANCE) status = 'under';
   else if (difference < -RECONCILIATION_TOLERANCE) status = 'over';
 
-  return { selectedTotal, movementAmount, difference, status };
+  return { selectedTotal, movementAmount, difference, status, confirmingDiscount: discount };
 };
 
 /** Ticked invoices → the `[{ receivableId, amount }]` shape the write path takes. */
@@ -380,6 +382,17 @@ const eur = (value) => `${clampMoney(value).toFixed(2)} €`;
 const failure = (message) => ({ error: message });
 
 /**
+ * A confirming discount is the fee the bank keeps: the transfer arrives short
+ * of the invoices it settles by exactly this much. `null` means invalid.
+ */
+const normalizeDiscount = (value) => {
+  if (value === undefined || value === null || value === '') return 0;
+  const discount = Number(value);
+  if (!Number.isFinite(discount) || discount < 0) return null;
+  return clampMoney(discount);
+};
+
+/**
  * Turn a `[{ receivableId, amount }]` draft into the plan the write path
  * applies — or refuse it with a reason a human can act on.
  *
@@ -400,8 +413,10 @@ const failure = (message) => ({ error: message });
  * @param {{ movement: object, allocations: Array<{receivableId: string, amount: number}>, receivables: object[] }} params
  * @returns {{ error: string }|{ allocations: object[], total: number, movementAmount: number, difference: number, status: string }}
  */
-export const resolveBatchAllocations = ({ movement, allocations, receivables }) => {
+export const resolveBatchAllocations = ({ movement, allocations, receivables, confirmingDiscount = 0 }) => {
   if (!movement?.id) return failure('Movimiento bancario inválido');
+  const discount = normalizeDiscount(confirmingDiscount);
+  if (discount === null) return failure('El descuento confirming debe ser un importe igual o mayor que cero');
   if (!isLiveCollection(movement)) {
     return failure('Solo un cobro entrante vigente puede conciliar facturas de venta');
   }
@@ -465,19 +480,55 @@ export const resolveBatchAllocations = ({ movement, allocations, receivables }) 
 
   // What is left of the transfer, not its face value: a second pass may only
   // claim what the first one did not.
+  //
+  // Confirming: the bank keeps its fee, so the invoices legitimately exceed the
+  // transfer by the discount. Coverage = movement + discount is what the
+  // selection is measured against; each invoice still closes by its own
+  // reconcilable, and `unexplained` is only what lies beyond the discount.
   const movementAmount = unreconciledAmountOf(movement);
-  if (total > movementAmount + RECONCILIATION_TOLERANCE) {
+  const coverage = clampMoney(movementAmount + discount);
+  if (total > coverage + RECONCILIATION_TOLERANCE) {
     return failure(
-      `La remesa asigna ${eur(total)} pero al movimiento solo le quedan ${eur(movementAmount)} sin conciliar`,
+      `La remesa asigna ${eur(total)} pero al movimiento solo le quedan ${eur(movementAmount)} sin conciliar${
+        discount > 0 ? ` (más ${eur(discount)} de descuento confirming)` : ''
+      }`,
     );
   }
 
-  const difference = clampMoney(movementAmount - total);
+  const difference = clampMoney(Math.max(0, coverage - total));
   return {
     allocations: resolved,
     total,
     movementAmount,
+    confirmingDiscount: discount,
     difference,
+    unexplained: difference,
+    discountCovered: discount > 0 && total > movementAmount + RECONCILIATION_TOLERANCE,
     status: difference > RECONCILIATION_TOLERANCE ? 'under' : 'exact',
   };
+};
+
+/**
+ * Split a confirming discount across allocations in proportion to their
+ * amounts, in cents, so the shares sum to the discount exactly (the last one
+ * absorbs the rounding remainder).
+ *
+ * @param {Array<{amount:number}>} allocations
+ * @param {number} discount
+ * @returns {number[]}
+ */
+export const splitConfirmingDiscount = (allocations, discount) => {
+  const entries = Array.isArray(allocations) ? allocations : [];
+  const fee = normalizeDiscount(discount) ?? 0;
+  if (entries.length === 0 || fee <= 0) return entries.map(() => 0);
+  const total = entries.reduce((sum, entry) => sum + (Number(entry?.amount) || 0), 0);
+  if (total <= 0) return entries.map(() => 0);
+  const feeCents = Math.round(fee * 100);
+  let assigned = 0;
+  return entries.map((entry, index) => {
+    if (index === entries.length - 1) return clampMoney((feeCents - assigned) / 100);
+    const share = Math.round((feeCents * (Number(entry?.amount) || 0)) / total);
+    assigned += share;
+    return clampMoney(share / 100);
+  });
 };

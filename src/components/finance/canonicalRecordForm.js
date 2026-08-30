@@ -21,6 +21,9 @@ export const buildInitialFormData = (record) => ({
   // marking uncategorized rows as classified. Only real category fields may
   // seed it: canonical rows carry `categoryName`, legacy 2025 rows `category`.
   categoryName: record?.rawRecord?.categoryName || record?.rawRecord?.category || '',
+  // Insyte / DATEV linkage — receivables only; seeded so an edit never blanks them.
+  rechnungId: record?.rawRecord?.rechnungId || '',
+  numeroPedido: record?.rawRecord?.numeroPedido || '',
   forceStatus: '',
   correctionReason: '',
 });
