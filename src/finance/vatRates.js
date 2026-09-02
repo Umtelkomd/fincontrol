@@ -19,6 +19,7 @@
  * yet" instead of silently claiming "no VAT".
  */
 import { computeNetFromGross, computeTaxFromGross } from '../utils/formatters';
+import { resolveLegacyCategory } from './taxonomy';
 
 /** Where a resolved rate came from, most specific first. */
 export const VAT_RATE_SOURCE = {
@@ -33,19 +34,28 @@ export const VAT_RATE_SOURCE = {
  * payments to the tax office, statutory insurance, financial services under
  * §4 Nr. 8/10 UStG and wages carry no VAT.
  *
- * Everything else is deliberately ABSENT rather than guessed. Subcontratos in
+ * Everything else is deliberately ABSENT rather than guessed. Subcontratas in
  * particular hinges on whether the subcontractors invoice under §13b UStG
  * (Steuerschuldnerschaft des Leistungsempfängers) — a question only the owner
  * can answer, and getting it wrong shifts project cost by 19%.
+ *
+ * Keys are taxonomy v2 names (`src/finance/taxonomy.js`). A movement that still
+ * carries a legacy name (2025 data is never rewritten) is resolved through the
+ * taxonomy before the lookup, so `Impuestos` still finds the `IVA` rate.
  */
 export const DEFAULT_CATEGORY_VAT_RATES = Object.freeze({
-  Impuestos: 0,
-  'Impuestos Vehiculos': 0,
-  'Intereses Bancos': 0,
-  'Intereses prestamos': 0,
   Salarios: 0,
-  Seguros: 0,
-  Financiero: 0,
+  'Seguridad social': 0,
+  'Impuesto de nómina': 0,
+  IVA: 0,
+  'Impuesto sobre beneficios': 0,
+  'Intereses y comisiones bancarias': 0,
+  'Amortización de préstamos': 0,
+  'Intereses de préstamos de socios': 0,
+  'Aportes y préstamos de socios recibidos': 0,
+  'Devoluciones e ingresos financieros': 0,
+  'Transferencia interna': 0,
+  'Tarjeta corporativa': 0,
 });
 
 /**
@@ -76,9 +86,19 @@ const storedRateOf = (record) => {
   return isValidVatRate(rate) ? rate : null;
 };
 
-const categoryKeyOf = (record) => {
+/**
+ * Keys to try in `categoryRates`, most literal first: the name as stored on
+ * the record, then the taxonomy v2 name it resolves to. A rate map written
+ * before the taxonomy migration is keyed by legacy names and must keep
+ * working; one written after it is keyed by v2 names and must serve the 2025
+ * movements that still carry the legacy spelling.
+ */
+const categoryKeysOf = (record) => {
   const name = record?.categoryName || record?.category || '';
-  return typeof name === 'string' ? name.trim() : '';
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (!trimmed) return [];
+  const resolved = resolveLegacyCategory({ categoryName: trimmed, direction: record?.direction });
+  return resolved && resolved !== trimmed ? [trimmed, resolved] : [trimmed];
 };
 
 /**
@@ -97,9 +117,10 @@ export const resolveVatRate = ({ movement, linkedDocument, categoryRates } = {})
   const documentRate = storedRateOf(linkedDocument);
   if (documentRate != null) return { rate: documentRate, source: VAT_RATE_SOURCE.DOCUMENT };
 
-  const key = categoryKeyOf(movement);
-  if (key && isValidVatRate(categoryRates?.[key])) {
-    return { rate: categoryRates[key], source: VAT_RATE_SOURCE.CATEGORY };
+  for (const key of categoryKeysOf(movement)) {
+    if (isValidVatRate(categoryRates?.[key])) {
+      return { rate: categoryRates[key], source: VAT_RATE_SOURCE.CATEGORY };
+    }
   }
 
   return { rate: 0, source: VAT_RATE_SOURCE.UNSET };

@@ -43,6 +43,7 @@
 import { signedAmountOf } from '../lib/finance/movementAmount.js';
 import { nameMatches, nameTokens, normalizeName } from '../utils/nameMatching.js';
 import { COST_SCOPE } from './costScope.js';
+import { categoryByName, resolveLegacyCategory } from './taxonomy.js';
 
 /** What a bank counterparty turned out to be. */
 export const COUNTERPARTY_KIND = {
@@ -59,9 +60,20 @@ export const MATCH_CONFIDENCE = {
   NONE: 'none',
 };
 
-/** Categories the suggestions point at. Both exist in EXPENSE_CATEGORIES. */
+/** Categories the suggestions point at. Both exist in the taxonomy. */
 export const PAYROLL_CATEGORY = 'Salarios';
-export const SUBCONTRACTOR_CATEGORY = 'Subcontratos';
+export const SUBCONTRACTOR_CATEGORY = 'Subcontratas';
+
+const PAYROLL_CATEGORY_ID = 'salarios';
+
+/**
+ * Taxonomy id behind a stored category name. Legacy spellings (2025 data is
+ * never rewritten) resolve through the legacy map; unknown names give ''.
+ */
+const categoryIdOf = (name) => {
+  const resolved = resolveLegacyCategory({ categoryName: name, direction: 'out' });
+  return resolved ? categoryByName(resolved)?.id || '' : '';
+};
 
 const CONFIDENCE_RANK = {
   [MATCH_CONFIDENCE.EXACT]: 3,
@@ -179,8 +191,7 @@ export const classifyCounterparty = (counterpartyName, employees) => {
 const isLiveOutflow = (movement) =>
   Boolean(movement) && movement.status !== 'void' && movement.direction === 'out';
 
-const isSalaryCategory = (movement) =>
-  normalizeName(movement?.categoryName) === normalizeName(PAYROLL_CATEGORY);
+const isSalaryCategory = (movement) => categoryIdOf(movement?.categoryName) === PAYROLL_CATEGORY_ID;
 
 /**
  * Is this movement the settlement of company payroll?

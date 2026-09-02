@@ -43,7 +43,7 @@ const Classifier = ({ user }) => {
  suggestMatches,
  } = useClassifier(user);
 
- const { expenseCategories, incomeCategories } = useCategories(user);
+ const { categoryOptions: allCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { employees } = useEmployees(user);
  const { projects } = useProjects(user);
@@ -56,14 +56,6 @@ const Classifier = ({ user }) => {
  const [ruleSeedMovement, setRuleSeedMovement] = useState(null);
  const [busyId, setBusyId] = useState(null);
  const [applyingAll, setApplyingAll] = useState(false);
-
- const allCategories = useMemo(
- () => [
- ...(incomeCategories || []).map((name) => ({ name, type: 'income' })),
- ...(expenseCategories || []).map((name) => ({ name, type: 'expense' })),
- ],
- [incomeCategories, expenseCategories],
- );
 
  const ruleHitCount = useMemo(
  () => (inboxMovements || []).reduce((sum, m) => (findBestRule(m, rules) ? sum + 1 : sum), 0),
@@ -388,11 +380,7 @@ const Classifier = ({ user }) => {
  onClose={() => setCategorizingMovement(null)}
  onSubmit={handleCategorize}
  movement={categorizingMovement}
- categories={
- categorizingMovement?.direction === 'in'
- ? (incomeCategories || []).map((name) => ({ name, type: 'income' }))
- : (expenseCategories || []).map((name) => ({ name, type: 'expense' }))
- }
+ categories={allCategories}
  costCenters={costCenters || []}
  projects={projects || []}
  suggestion={categorizingMovement ? personnelOf(categorizingMovement) : null}

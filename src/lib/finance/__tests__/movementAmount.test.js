@@ -175,3 +175,14 @@ describe('splitInternalTransfers', () => {
     });
   });
 });
+
+describe('isInternalTransfer — taxonomy internal category', () => {
+  it('treats a movement filed under "Transferencia interna" as internal before kind is stamped', () => {
+    expect(isInternalTransfer({ counterpartyName: 'Sparkasse Konto 2', categoryName: 'Transferencia interna' })).toBe(true);
+    expect(isInternalTransfer({ counterpartyName: 'Sparkasse Konto 2', category: 'Transferencia interna' })).toBe(true);
+  });
+
+  it('does not read any other category as internal', () => {
+    expect(isInternalTransfer({ counterpartyName: 'Sparkasse Konto 2', categoryName: 'Otros administrativos' })).toBe(false);
+  });
+});

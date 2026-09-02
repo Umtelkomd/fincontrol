@@ -4,7 +4,7 @@
  * The point of this panel is the thing an unset rate hides: rate 0 and "nobody
  * decided yet" produce the same number, so the screen has to say which one it
  * is — per row and as a count at the top — or the owner never learns that
- * Subcontratos is silently costing 19% too much (or too little).
+ * Subcontratas is silently costing 19% too much (or too little).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -29,10 +29,9 @@ const MISSING_WITH_DEFAULTS = categoriesMissingVatRate(
 );
 
 /**
- * `useCategories` seeds `settings/categories` when the document is absent — as
- * it is under the fixtures — and only clears its loading flag after that write
- * resolves, one microtask later. Every assertion waits for the panel to be past
- * that gate.
+ * `useCategories` falls back to the code taxonomy when `settings/categories` is
+ * absent — as it is under the fixtures — and clears its loading flag on the
+ * first snapshot. Every assertion waits for the panel to be past that gate.
  */
 const renderPanel = async () => {
   renderScreen(<VatRates user={USER} />);
@@ -54,7 +53,7 @@ describe('VatRates — orientation', () => {
     expect(screen.getByText(/no altera la caja/i)).toBeInTheDocument();
   });
 
-  it('explains that Subcontratos hangs on §13b reverse charge', async () => {
+  it('explains that Subcontratas hangs on §13b reverse charge', async () => {
     await renderPanel();
 
     const explainer = screen.getByText(/13b/i);
@@ -89,7 +88,7 @@ describe('VatRates — rows', () => {
     await renderPanel();
 
     expect(screen.getByLabelText('IVA de Salarios')).toHaveValue('0');
-    expect(screen.getByLabelText('IVA de Seguros')).toHaveValue('0');
+    expect(screen.getByLabelText('IVA de Seguridad social')).toHaveValue('0');
   });
 
   it('flags an unconfigured category and leaves a deliberate 0 unflagged', async () => {
@@ -102,19 +101,16 @@ describe('VatRates — rows', () => {
         selector: 'p',
       });
 
-    expect(flagIn('Subcontratos')).toBeInTheDocument();
+    expect(flagIn('Subcontratas')).toBeInTheDocument();
     expect(flagIn('Salarios')).toBeNull();
   });
 
-  it('renders exactly one row per category name, even for names in both lists', async () => {
+  it('renders exactly one row per category name', async () => {
     await renderPanel();
 
     [...new Set([...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES])].forEach((name) => {
-      expect(screen.getByLabelText(`IVA de ${name}`)).toBeInTheDocument();
+      expect(screen.getAllByLabelText(`IVA de ${name}`)).toHaveLength(1);
     });
-
-    // "Otros" is an expense and an income category; one stored rate means one control.
-    expect(screen.getAllByLabelText('IVA de Otros')).toHaveLength(1);
   });
 });
 
@@ -124,22 +120,22 @@ describe('VatRates — editing', () => {
 
     await renderPanel();
 
-    fireEvent.change(screen.getByLabelText('IVA de Subcontratos'), { target: { value: '0.19' } });
+    fireEvent.change(screen.getByLabelText('IVA de Subcontratas'), { target: { value: '0.19' } });
 
     await waitFor(() => expect(firestore.setDoc).toHaveBeenCalled());
     const payload = firestore.setDoc.mock.calls.at(-1)[1];
-    expect(payload.rates.Subcontratos).toBe(0.19);
+    expect(payload.rates.Subcontratas).toBe(0.19);
     expect(payload.rates.Salarios).toBe(0);
   });
 
   it('clears a rate back to unconfigured', async () => {
-    store.documents.vatRates = { rates: { ...DEFAULT_CATEGORY_VAT_RATES, Subcontratos: 0.19 } };
+    store.documents.vatRates = { rates: { ...DEFAULT_CATEGORY_VAT_RATES, Subcontratas: 0.19 } };
 
     await renderPanel();
 
-    fireEvent.change(screen.getByLabelText('IVA de Subcontratos'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('IVA de Subcontratas'), { target: { value: '' } });
 
     await waitFor(() => expect(firestore.setDoc).toHaveBeenCalled());
-    expect(firestore.setDoc.mock.calls.at(-1)[1].rates).not.toHaveProperty('Subcontratos');
+    expect(firestore.setDoc.mock.calls.at(-1)[1].rates).not.toHaveProperty('Subcontratas');
   });
 });

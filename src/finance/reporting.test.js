@@ -126,6 +126,13 @@ describe('finance reporting grouped totals and VAT summaries', () => {
 });
 
 describe('finance reporting transaction shaping', () => {
+  it('buckets by the classified categoryName before anything else', () => {
+    expect(
+      getMovementCategory({ categoryName: 'Materiales', counterpartyName: 'BAUHAUS', projectName: 'NE4', direction: 'out' }),
+    ).toBe('Materiales');
+    expect(getMovementCategory({ categoryName: '   ', counterpartyName: 'Customer AG', direction: 'in' })).toBe('Customer AG');
+  });
+
   it('resolves movement categories through raw metadata before operational fallbacks', () => {
     expect(getMovementCategory({ raw: { category: 'Materials' }, direction: 'out' })).toBe('Materials');
     expect(getMovementCategory({ raw: { costCenter: 'cc-build' }, direction: 'out' })).toBe('cc-build');

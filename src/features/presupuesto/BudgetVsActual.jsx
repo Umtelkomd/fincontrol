@@ -41,6 +41,7 @@ import { createNetAmountResolver } from '../../finance/vatRates';
 import { isInternalTransfer } from '../../lib/finance/movementAmount';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
+import { categoryByName } from '../../finance/taxonomy';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { buildPayrollBudgetActuals } from '../nominas/lib/payrollBudgetActuals';
 import { OPERATIONAL_DATA_START } from '../../finance/constants';
@@ -951,27 +952,18 @@ const BudgetVsActual = ({ user, userRole }) => {
  byKey.set(key, existing);
  });
 
- const txToBudgetMap_local = new Map([
- ['EGR-ADM','Administrativo'],['EGR-CXP','Administrativo'],['EGR-GES','Administrativo'],
- ['EGR-SUB','Subcontratos'],
- ['EGR-MO','Salarios'],['Nomina','Salarios'],
- ['EGR-ARR','Vivienda'],
- ['EGR-SEG','Seguros'],
- ['EGR-TRN','Cuotas vehiculos'],
- ['EGR-GAS','Combustible'],['Gasolina','Combustible'],
- ['EGR-MAT','Materiales'],
- ['EGR-FIN','Impuestos'],['EGR-IMP','Impuestos'],
- ['EGR-EQP','Equipos'],['EGR-HERR','Equipos'],
- ['EGR-SRV','Servicios'],
- ['EGR-OTR','Otros'],
- ['ING-FAC','Servicios'],['ING-SRV','Servicios'],
- ['ING-OTR','SP'],['SP','SP'],
- ]);
+ // Budget lines are named with taxonomy v2 names: a v2 category is its own
+ // line, a legacy 2025 name resolves through the shared alias maps.
+ const budgetNameOf = (cat, dir) => {
+ const category = categoryByName(cat);
+ if (category) return category.type === dir ? category.name : null;
+ return (dir === 'income' ? incToBudgetMap : txToBudgetMap).get(cat) || null;
+ };
 
  const seen = new Set();
  const lines = [];
  byKey.forEach(({ cat, dir, total }) => {
- const budCat = txToBudgetMap_local.get(cat);
+ const budCat = budgetNameOf(cat, dir);
  if (!budCat) return;
  const key2 = `${budCat}|${dir}`;
  if (seen.has(key2)) return;

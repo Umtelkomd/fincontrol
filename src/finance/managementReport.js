@@ -22,6 +22,7 @@ import {
 } from './utils';
 import { partnerComplianceStatus, payableRequiresOpsClear } from './opsControl';
 import { isInternalTransfer } from '../lib/finance/movementAmount';
+import { categoryByName, resolveLegacyCategory } from './taxonomy';
 
 /** KPI thresholds from the UMTELKOMD management model (objetivo | alarma). */
 export const KPI_THRESHOLDS = {
@@ -120,9 +121,38 @@ const movementText = (movement) =>
 // excluded from the EBIT approximation.
 const isVatOrProfitTax = (text) => !text.includes('lohnsteuer') && hasAny(text, VAT_TAX_MOVEMENT_PATTERNS);
 
-const isFinancialCost = (movement, text) =>
-  hasAny(text, FINANCIAL_COST_PATTERNS) ||
-  normalizeText(movement?.categoryName || movement?.category || '').includes('financier');
+/**
+ * Taxonomy entry behind a movement's category, or null when it has none.
+ * Legacy names (2025 data is never rewritten) roll up through the legacy map.
+ */
+const categoryOf = (movement) => {
+  const resolved = resolveLegacyCategory({
+    categoryName: movement?.categoryName || movement?.category || '',
+    direction: movement?.direction,
+  });
+  return resolved ? categoryByName(resolved) : null;
+};
+
+/**
+ * Loan principal and partner contributions move money without being a cost or
+ * a sale: they sit in the financiero group but are financing flows, so they
+ * stay out of EBIT AND out of the financial-cost KPI.
+ */
+const FINANCING_CATEGORY_IDS = new Set(['amortizacion-prestamos', 'aportes-socios']);
+
+// A classified movement is judged by its taxonomy group; the text patterns are
+// only the fallback for movements nobody has categorized yet.
+const isFinancialCost = (text, category) => {
+  if (category) {
+    return category.group === 'financiero' && category.type === 'expense' && !FINANCING_CATEGORY_IDS.has(category.id);
+  }
+  return hasAny(text, FINANCIAL_COST_PATTERNS);
+};
+
+const isTaxPassThrough = (text, category) => (category ? category.group === 'impuestos' : isVatOrProfitTax(text));
+
+const isFinancingFlow = (text, category) =>
+  category ? FINANCING_CATEGORY_IDS.has(category.id) : hasAny(text, FINANCING_MOVEMENT_PATTERNS);
 
 const formatNumber = (value, digits = 1) =>
   Number(value).toLocaleString('de-DE', { maximumFractionDigits: digits });
@@ -379,13 +409,14 @@ const summarizeMonthFlows = (movements = [], monthKey) => {
     const amount = Math.abs(Number(movement.amount) || 0);
     if (amount === 0) continue;
     const text = movementText(movement);
+    const category = categoryOf(movement);
     movementCount += 1;
-    if (movement.direction === 'out' && isFinancialCost(movement, text)) {
+    if (movement.direction === 'out' && isFinancialCost(text, category)) {
       financialCosts += amount;
       continue;
     }
-    if (isVatOrProfitTax(text)) continue;
-    if (hasAny(text, FINANCING_MOVEMENT_PATTERNS)) continue;
+    if (isTaxPassThrough(text, category)) continue;
+    if (isFinancingFlow(text, category)) continue;
     if (movement.direction === 'in') sales += amount;
     else costs += amount;
   }

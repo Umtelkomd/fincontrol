@@ -87,11 +87,13 @@ const CategorizeModal = ({
  else setError(result?.error?.message || 'Error al guardar');
  };
 
- // Filter categories by direction (income vs expense)
+ // Filter categories by direction (income vs expense). The internal-transfer
+ // category applies to both: money between own accounts flows either way.
  const filtered = categories.filter((c) => {
  const type = c.tipo || c.type || '';
- if (movement.direction === 'in') return type === 'income' || type === '' || type === 'ingreso';
- return type === 'expense' || type === '' || type === 'gasto';
+ if (type === 'internal' || type === '') return true;
+ if (movement.direction === 'in') return type === 'income' || type === 'ingreso';
+ return type === 'expense' || type === 'gasto';
  });
 
  return (

@@ -1,38 +1,15 @@
-// Categorías de Gastos
-export const EXPENSE_CATEGORIES = [
-  "Administrativo",
-  "Alquiler vehiculo",
-  "Combustible",
-  "Cuotas vehiculos",
-  "Equipos",
-  "Equipos Alquileres",
-  "Facturas Telefonos",
-  "Impuestos",
-  "Impuestos Vehiculos",
-  "Intereses Bancos",
-  "Intereses prestamos",
-  "Materiales",
-  "Miscelaneos Oficina",
-  "Otros",
-  "Reparaciones",
-  "Salarios",
-  "Seguros",
-  "Subcontratos",
-  "Transporte/Combustible",
-  "Vehiculos",
-  "Vivienda"
-];
+/**
+ * Flat category name lists, derived from the versioned taxonomy.
+ *
+ * Kept for the screens that still take `string[]` (TransactionFormModal,
+ * CanonicalRecordModal, CXP/CXC forms). The catalogue itself — groups, types,
+ * default scopes, legacy mapping — lives in `src/finance/taxonomy.js`; nothing
+ * is declared here any more.
+ */
+import { EXPENSE_CATEGORY_NAMES, INCOME_CATEGORY_NAMES } from '../finance/taxonomy.js';
 
-// Categorías de Ingresos
-export const INCOME_CATEGORIES = [
-  "Consultoria",
-  "Financiero",
-  "Ingresos Servicios",
-  "Otros",
-  "Por Venta",
-  "Servicios",
-  "SP"
-];
+// Categorías de gastos
+export const EXPENSE_CATEGORIES = [...EXPENSE_CATEGORY_NAMES];
 
-// Para compatibilidad con código existente
-export const CATEGORIES = [...EXPENSE_CATEGORIES];
+// Categorías de ingresos
+export const INCOME_CATEGORIES = [...INCOME_CATEGORY_NAMES];

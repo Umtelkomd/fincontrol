@@ -155,8 +155,15 @@ export const summarizeVAT = (rows) => {
   };
 };
 
+/**
+ * Bucket key for the category breakdowns in Reports. The classified
+ * `categoryName` wins; the legacy `raw.category` / cost-centre / project /
+ * counterparty chain only steps in for movements nobody has classified.
+ */
 export const getMovementCategory = (movement) => {
+  const categoryName = typeof movement.categoryName === 'string' ? movement.categoryName.trim() : '';
   return (
+    categoryName ||
     movement.raw?.category ||
     movement.raw?.costCenter ||
     movement.costCenterId ||

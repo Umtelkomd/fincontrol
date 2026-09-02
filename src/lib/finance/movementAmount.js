@@ -40,8 +40,14 @@ export const signedAmountOf = (movement) => {
   return movement.direction === 'out' ? -Math.abs(amount) : Math.abs(amount);
 };
 
+import { categoryByName } from '../../finance/taxonomy.js';
+
 /** German "Umbuchung" (internal rebooking) as a whole word. */
 const REBOOKING_RE = /\bumbuchung\b/i;
+
+/** Filed under the taxonomy's internal category ("Transferencia interna"). */
+const isInternalCategory = (movement) =>
+  categoryByName(movement?.categoryName)?.type === 'internal' || categoryByName(movement?.category)?.type === 'internal';
 
 /**
  * Fields the rebooking keyword may legitimately appear in. The own-company name
@@ -113,9 +119,11 @@ const isOwnCompanyCounterparty = (counterpartyName) => {
  * Conservative internal-transfer heuristic. A movement is internal only when:
  *
  *   1. `kind === 'transfer'` (explicitly categorized), or
- *   2. the counterparty IS the company itself (see `isOwnCompanyCounterparty`
+ *   2. its category is the taxonomy's internal one ("Transferencia interna"),
+ *      the declaration a user makes in the categorize form, or
+ *   3. the counterparty IS the company itself (see `isOwnCompanyCounterparty`
  *      — an allow-list, not a substring match), or
- *   3. the whole word "Umbuchung" appears in the counterparty, description,
+ *   4. the whole word "Umbuchung" appears in the counterparty, description,
  *      category or vendor (bank wording for internal rebooking;
  *      "Überweisung" — an ordinary transfer to a third party — never matches).
  *
@@ -135,6 +143,7 @@ const isOwnCompanyCounterparty = (counterpartyName) => {
 export const isInternalTransfer = (movement) => {
   if (!movement) return false;
   if (String(movement.kind || '').toLowerCase() === 'transfer') return true;
+  if (isInternalCategory(movement)) return true;
   if (isOwnCompanyCounterparty(movement.counterpartyName)) return true;
   return REBOOKING_FIELDS.some((field) => REBOOKING_RE.test(String(movement[field] || '')));
 };

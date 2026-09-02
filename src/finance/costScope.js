@@ -23,6 +23,7 @@
  */
 
 import { isInternalTransfer, signedAmountOf } from '../lib/finance/movementAmount.js';
+import { categoryByName } from './taxonomy.js';
 
 /** The two destinations an outbound movement can be assigned to. */
 export const COST_SCOPE = {
@@ -69,8 +70,9 @@ export const validateClassification = (movement, form) => {
 
   // Moving money between the company's own accounts is neither revenue nor
   // spend, so there is no category and no destination to demand. Asking for one
-  // would force the user to invent an answer that then pollutes the P&L.
-  if (isInternalTransfer(movement)) {
+  // would force the user to invent an answer that then pollutes the P&L. The
+  // same holds when the user is filing it under the internal category right now.
+  if (isInternalTransfer(movement) || categoryByName(draft.categoryName)?.type === 'internal') {
     return { valid: true, error: null };
   }
 

@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { EXPENSE_CATEGORIES } from '../constants/categories.js';
+import { groupOfCategory } from './taxonomy.js';
 import { deriveBalance } from '../lib/finance/cashPosition.js';
 import {
   COUNTERPARTY_KIND,
@@ -416,6 +417,25 @@ describe('suggestClassification', () => {
   it('only ever suggests categories the app actually offers', () => {
     expect(EXPENSE_CATEGORIES).toContain(PAYROLL_CATEGORY);
     expect(EXPENSE_CATEGORIES).toContain(SUBCONTRACTOR_CATEGORY);
+    expect(SUBCONTRACTOR_CATEGORY).toBe('Subcontratas');
+    expect(groupOfCategory(SUBCONTRACTOR_CATEGORY)).toBe('subcontratas');
+    expect(groupOfCategory(PAYROLL_CATEGORY)).toBe('personal');
+  });
+
+  it('recognises a salary category however the name was typed', () => {
+    // "Pedro Bau GmbH" is only a LOW match for Pedro Pizarro, so the category
+    // is what decides.
+    const probable = movement({ counterpartyName: 'Pedro Bau GmbH', categoryName: '  SALARIOS ' });
+    expect(isPayrollSettlement(probable, [
+      employee({ id: 'e-ped', fullName: 'Pedro Pizarro Caufal', firstName: 'Pedro', lastName: 'Pizarro', type: 'internal' }),
+    ])).toBe(true);
+  });
+
+  it('does not read another personnel category as a salary settlement', () => {
+    const probable = movement({ counterpartyName: 'Pedro Bau GmbH', categoryName: 'Seguridad social' });
+    expect(isPayrollSettlement(probable, [
+      employee({ id: 'e-ped', fullName: 'Pedro Pizarro Caufal', firstName: 'Pedro', lastName: 'Pizarro', type: 'internal' }),
+    ])).toBe(false);
   });
 });
 

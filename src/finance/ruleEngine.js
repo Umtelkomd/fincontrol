@@ -23,6 +23,7 @@
 
 import { isCostScope, normalizeCostScope } from './costScope.js';
 import { isInternalTransfer } from '../lib/finance/movementAmount.js';
+import { categoryByName } from './taxonomy.js';
 
 const norm = (s) => String(s || '').toLowerCase().trim();
 
@@ -117,12 +118,19 @@ export const findBestRule = (movement, rules) => {
  * when the rule carries a valid COST_SCOPE value and the movement has no
  * destination yet — including the legacy ones derived from an "Overhead"
  * project name or a bare projectId.
+ *
+ * A rule that files a movement under the taxonomy's internal category also
+ * stamps `kind: 'transfer'` (when the movement has no kind), which is what
+ * every P&L view keys on to leave own-account transfers out.
  */
 export const buildClassificationPayload = (rule, movement) => {
   if (!rule || !rule.applyTo) return {};
   const apply = rule.applyTo;
   const out = {};
-  if (apply.categoryName && !movement?.categoryName) out.categoryName = apply.categoryName;
+  if (apply.categoryName && !movement?.categoryName) {
+    out.categoryName = apply.categoryName;
+    if (categoryByName(apply.categoryName)?.type === 'internal' && !movement?.kind) out.kind = 'transfer';
+  }
   if (apply.costCenterId && !movement?.costCenterId) out.costCenterId = apply.costCenterId;
   if (apply.projectId && !movement?.projectId) out.projectId = apply.projectId;
   if (apply.projectName && !movement?.projectName) out.projectName = apply.projectName;

@@ -1,207 +1,82 @@
-import React, { useState } from 'react';
-import { TrendingDown, TrendingUp, Edit2, Trash2, X, Check, Plus, Loader2 } from 'lucide-react';
+import React from 'react';
+import { Loader2 } from 'lucide-react';
 import { useCategories } from '../../hooks/useCategories';
-import { Button } from '@/components/ui/nexus';
+import { TAXONOMY_VERSION } from '../../finance/taxonomy';
 
+const TYPE_LABEL = { income: 'ingreso', expense: 'gasto', internal: 'interno' };
+const TYPE_TONE = {
+  income: 'text-[var(--color-ok)] border-[var(--color-ok)]',
+  expense: 'text-[var(--color-fg-3)] border-[var(--color-line-s)]',
+  internal: 'text-[var(--color-fg-4)] border-[var(--color-line-s)]',
+};
+const SCOPE_LABEL = { overhead: 'estructura', project: 'obra' };
+
+/**
+ * Configuración → Categorías: a read-only view of the versioned taxonomy.
+ *
+ * Free-form add/edit/delete is what produced the duplicates ("Cuotas
+ * vehiculos" / "Alquiler vehiculo" / "Vehiculos"), so the catalogue is
+ * versioned and lives in `src/finance/taxonomy.js`.
+ */
 const Categories = ({ user }) => {
- const {
- expenseCategories,
- incomeCategories,
- loading,
- addCategory,
- updateCategory,
- deleteCategory
- } = useCategories(user);
+  const { taxonomy, groups, loading } = useCategories(user);
 
- const [editingItem, setEditingItem] = useState(null);
- const [editValue, setEditValue] = useState('');
- const [newExpense, setNewExpense] = useState('');
- const [newIncome, setNewIncome] = useState('');
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
+        <span className="ml-3 text-[var(--color-fg-3)]">Cargando categorías…</span>
+      </div>
+    );
+  }
 
- const handleEdit = (type, index) => {
- setEditingItem({ type, index });
- setEditValue(type === 'expense' ? expenseCategories[index] : incomeCategories[index]);
- };
+  return (
+    <div className="space-y-6">
+      <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-5">
+        <p className="label-mono text-[var(--color-fg-1)]">Configuración financiera</p>
+        <h2 className="mt-2 font-display text-[24px] font-light tracking-[-0.03em] text-[var(--color-fg-1)]">Categorías</h2>
+        <p className="mt-1 text-sm text-[var(--color-fg-3)]">
+          Catálogo versionado (v{TAXONOMY_VERSION}): {taxonomy.length} categorías en {groups.length} grupos. Los cambios se hacen en la
+          taxonomía, no aquí — la edición libre es la que generó los duplicados.
+        </p>
+      </div>
 
- const handleSaveEdit = async () => {
- if (!editValue.trim() || !editingItem) return;
-
- const oldValue = editingItem.type === 'expense'
- ? expenseCategories[editingItem.index]
- : incomeCategories[editingItem.index];
-
- await updateCategory(oldValue, editValue.trim(), editingItem.type);
- setEditingItem(null);
- setEditValue('');
- };
-
- const handleDelete = async (type, index) => {
- const category = type === 'expense' ? expenseCategories[index] : incomeCategories[index];
- await deleteCategory(category, type);
- };
-
- const handleAddExpense = async () => {
- if (newExpense.trim() && !expenseCategories.includes(newExpense.trim())) {
- await addCategory(newExpense.trim(), 'expense');
- setNewExpense('');
- }
- };
-
- const handleAddIncome = async () => {
- if (newIncome.trim() && !incomeCategories.includes(newIncome.trim())) {
- await addCategory(newIncome.trim(), 'income');
- setNewIncome('');
- }
- };
-
- const CategoryItem = ({ category, index, type }) => {
- const isEditing = editingItem?.type === type && editingItem?.index === index;
- const accent = type === 'expense'
- ? {
-  card: 'border-[var(--color-line-s)] bg-transparent',
-  text: 'text-[var(--color-fg-1)]',
-  subtle: 'text-[var(--color-fg-3)]',
-  edit: 'hover:bg-transparent hover:text-[var(--color-fg-1)]',
-  delete: 'hover:bg-transparent hover:text-[var(--color-accent)]'
- }
- : {
-  card: 'border-[var(--color-line-s)] bg-transparent',
-  text: 'text-[var(--color-fg-1)]',
-  subtle: 'text-[var(--color-ok)]',
-  edit: 'hover:bg-transparent hover:text-[var(--color-fg-1)]',
-  delete: 'hover:bg-transparent hover:text-[var(--color-accent)]'
- };
-
- if (isEditing) {
- return (
-  <div className={`flex items-center gap-2 rounded-md border p-3 ${accent.card}`}>
- <input
- type="text"
-  className="flex-1 rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-3 py-2 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
- value={editValue}
- onChange={(e) => setEditValue(e.target.value)}
- onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
- autoFocus
- />
- <button
- onClick={handleSaveEdit}
-  className="rounded-md p-2 text-[var(--color-ok)] transition-colors hover:bg-transparent"
- >
- <Check size={16} />
- </button>
- <button
- onClick={() => setEditingItem(null)}
-  className="rounded-md p-2 text-[var(--color-fg-3)] transition-colors hover:bg-transparent"
- >
- <X size={16} />
- </button>
- </div>
- );
- }
-
- return (
-  <div className={`flex items-center justify-between rounded-md border p-3 transition ${accent.card}`}>
- <span className={`text-sm font-medium ${accent.text}`}>{category}</span>
- <div className="flex items-center gap-1">
- <button
- onClick={() => handleEdit(type, index)}
-  className={`rounded-md p-2 text-[var(--color-fg-3)] transition-colors ${accent.edit}`}
- >
- <Edit2 size={14} />
- </button>
- <button
- onClick={() => handleDelete(type, index)}
-  className={`rounded-md p-2 text-[var(--color-fg-3)] transition-colors ${accent.delete}`}
- >
- <Trash2 size={14} />
- </button>
- </div>
- </div>
- );
- };
-
- if (loading) {
- return (
- <div className="flex items-center justify-center py-12">
-  <Loader2 className="w-8 h-8 text-[var(--color-accent)] animate-spin" />
-  <span className="ml-3 text-[var(--color-fg-3)]">Cargando categorías…</span>
- </div>
- );
- }
-
- return (
- <div className="space-y-6">
-  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-6 py-5">
-  <p className="label-mono text-[var(--color-fg-1)]">Configuración financiera</p>
-  <h2 className="mt-2 font-display text-[24px] font-light tracking-[-0.03em] text-[var(--color-fg-1)]">Categorías</h2>
-  <p className="mt-1 text-sm text-[var(--color-fg-3)]">Mantén el catálogo de ingresos y gastos con una estructura clara para el análisis financiero.</p>
- </div>
-
-  <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-6">
- <div className="flex items-center gap-3 mb-4">
- <div className="rounded-lg bg-transparent p-2.5">
-  <TrendingDown className="text-[var(--color-fg-4)]" size={16} />
- </div>
- <div>
-  <h3 className="text-base font-medium tracking-[-0.02em] text-[var(--color-fg-1)]">Categorías de gastos</h3>
-  <p className="text-sm text-[var(--color-fg-3)]">{expenseCategories.length} categorías activas</p>
- </div>
- </div>
-
- <div className="flex gap-2 mb-4">
- <input
- type="text"
- placeholder="Nueva categoría de gasto..."
-  className="flex-1 rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
- value={newExpense}
- onChange={(e) => setNewExpense(e.target.value)}
- onKeyDown={(e) => e.key === 'Enter' && handleAddExpense()}
- />
- <Button variant="primary" icon={Plus} onClick={handleAddExpense}>
- Agregar
- </Button>
- </div>
-
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
- {expenseCategories.map((category, index) => (
- <CategoryItem key={index} category={category} index={index} type="expense" />
- ))}
- </div>
- </div>
-
-  <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-6">
- <div className="flex items-center gap-3 mb-4">
- <div className="rounded-lg bg-transparent p-2.5">
-  <TrendingUp className="text-[var(--color-fg-4)]" size={16} />
- </div>
- <div>
-  <h3 className="text-base font-medium tracking-[-0.02em] text-[var(--color-fg-1)]">Categorías de ingresos</h3>
-  <p className="text-sm text-[var(--color-ok)]">{incomeCategories.length} categorías activas</p>
- </div>
- </div>
-
- <div className="flex gap-2 mb-4">
- <input
- type="text"
- placeholder="Nueva categoría de ingreso..."
-  className="flex-1 rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] px-4 py-2.5 text-sm text-[var(--color-fg-1)] outline-none transition placeholder:text-[var(--color-fg-4)] focus:border-[var(--color-line-s)]"
- value={newIncome}
- onChange={(e) => setNewIncome(e.target.value)}
- onKeyDown={(e) => e.key === 'Enter' && handleAddIncome()}
- />
- <Button variant="primary" icon={Plus} onClick={handleAddIncome}>
- Agregar
- </Button>
- </div>
-
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
- {incomeCategories.map((category, index) => (
- <CategoryItem key={index} category={category} index={index} type="income" />
- ))}
- </div>
- </div>
- </div>
- );
+      {groups.map((group) => {
+        const rows = taxonomy.filter((category) => category.group === group.id);
+        if (rows.length === 0) return null;
+        return (
+          <section key={group.id} className="rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-1)] p-6">
+            <div className="mb-4 flex items-baseline justify-between">
+              <h3 className="font-display text-base font-medium tracking-[-0.02em] text-[var(--color-fg-1)]">{group.label}</h3>
+              <span className="label-mono text-[var(--color-fg-4)]">
+                {rows.length} {rows.length === 1 ? 'categoría' : 'categorías'}
+              </span>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {rows.map((category) => (
+                <li
+                  key={category.id}
+                  className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-line-s)] bg-transparent px-3 py-3"
+                >
+                  <span className="text-sm font-medium text-[var(--color-fg-1)]">{category.name}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {category.defaultScope && (
+                      <span className="label-mono text-[var(--color-fg-4)]" title="Destino por defecto del gasto">
+                        {SCOPE_LABEL[category.defaultScope]}
+                      </span>
+                    )}
+                    <span className={`rounded-sm border px-1.5 py-0.5 label-mono ${TYPE_TONE[category.type]}`}>
+                      {TYPE_LABEL[category.type]}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
 };
 
 export default Categories;

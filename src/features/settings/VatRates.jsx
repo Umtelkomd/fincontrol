@@ -152,7 +152,7 @@ const VatRates = ({ user }) => {
         <div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-warn)] bg-[var(--color-bg-2)] px-4 py-3">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--color-warn)]" />
           <p className="text-[13px] leading-6 text-[var(--color-fg-3)]">
-            <span className="text-[var(--color-fg-1)]">Subcontratos</span> depende del §13b UStG
+            <span className="text-[var(--color-fg-1)]">Subcontratas</span> depende del §13b UStG
             (Steuerschuldnerschaft des Leistungsempfängers). Si el subcontratista factura con
             inversión del sujeto pasivo, la factura llega sin IVA y el coste del proyecto es el
             importe íntegro; si factura con IVA, el coste es un 19 % menor. Confirma cómo facturan

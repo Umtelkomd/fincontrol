@@ -314,3 +314,23 @@ describe('internal transfers in the classification backlog', () => {
     expect(coverage.byScope).toEqual({ project: 0, overhead: 0, transfer: 1, unresolved: 0 });
   });
 });
+
+describe('internal-transfer category', () => {
+  // A movement the user files under the taxonomy's internal category is an
+  // own-account transfer by declaration, even before `kind` is stamped on it.
+  it('needs no destination when the category is Transferencia interna', () => {
+    expect(
+      validateClassification(movement({ counterpartyName: 'Sparkasse Konto 2' }), form({ categoryName: 'Transferencia interna', costScope: '' })),
+    ).toEqual({ valid: true, error: null });
+  });
+
+  it('counts as classified without a scope or project', () => {
+    const transfer = movement({ counterpartyName: 'Sparkasse Konto 2', categoryName: 'Transferencia interna' });
+    expect(isClassified(transfer)).toBe(true);
+
+    const coverage = classificationCoverage([transfer]);
+    expect(coverage.classified).toBe(1);
+    expect(coverage.byScope.transfer).toBe(1);
+    expect(coverage.unclassifiedOutflow).toBe(0);
+  });
+});

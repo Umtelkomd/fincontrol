@@ -248,3 +248,32 @@ describe('groupUnclassifiedByCounterparty — internal transfers', () => {
     expect(grouped.map((row) => row.counterparty)).toEqual(['UMTELKOMD ESPANA S.L.']);
   });
 });
+
+describe('rule engine — internal transfer category', () => {
+  const transferRule = rule({
+    id: 'rule-own',
+    name: 'UMTELKOMD GmbH — Transferencia interna',
+    pattern: 'umtelkomd gmbh',
+    applyTo: { categoryName: 'Transferencia interna' },
+  });
+
+  it('stamps kind: transfer alongside the internal category', () => {
+    const own = movement({ counterpartyName: 'UMTELKOMD GmbH', description: 'Umbuchung Konto 2' });
+    expect(buildClassificationPayload(transferRule, own)).toEqual({
+      categoryName: 'Transferencia interna',
+      kind: 'transfer',
+    });
+  });
+
+  it('never overwrites an existing kind or category', () => {
+    const own = movement({ counterpartyName: 'UMTELKOMD GmbH', kind: 'fee', categoryName: 'Otros administrativos' });
+    expect(buildClassificationPayload(transferRule, own)).toEqual({});
+    const typed = movement({ counterpartyName: 'UMTELKOMD GmbH', kind: 'payment' });
+    expect(buildClassificationPayload(transferRule, typed)).toEqual({ categoryName: 'Transferencia interna' });
+  });
+
+  it('does not stamp kind for an ordinary category', () => {
+    const ordinary = rule({ applyTo: { categoryName: 'Materiales' } });
+    expect(buildClassificationPayload(ordinary, movement())).toEqual({ categoryName: 'Materiales' });
+  });
+});

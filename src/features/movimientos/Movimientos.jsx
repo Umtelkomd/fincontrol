@@ -61,21 +61,13 @@ const Movimientos = ({ user }) => {
  const { bankMovements, loading, updateBankMovement, bulkClassify } = useBankMovements(user);
  const { receivables } = useReceivables(user);
  const { payables } = usePayables(user);
- const { expenseCategories, incomeCategories } = useCategories(user);
+ const { expenseCategories, incomeCategories, categoryOptions: allCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { employees } = useEmployees(user);
  const { projects } = useProjects(user);
  const { inboxMovements } = useClassifier(user);
  const { createRule } = useClassificationRules(user);
  const { showToast } = useToast();
-
- const allCategories = useMemo(
- () => [
- ...(incomeCategories || []).map((name) => ({ name, type: 'income' })),
- ...(expenseCategories || []).map((name) => ({ name, type: 'expense' })),
- ],
- [incomeCategories, expenseCategories],
- );
 
  // ─── Filters ───
  const allYears = useMemo(() => {

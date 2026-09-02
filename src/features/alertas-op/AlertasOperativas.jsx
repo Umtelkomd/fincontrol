@@ -78,7 +78,7 @@ const AlertasOperativas = ({ user }) => {
   const ledger = useFinanceLedgerContext();
   const forecast = useCashForecast(user, { ledger });
 
-  const { incomeCategories, expenseCategories } = useCategories(user);
+  const { categoryOptions: allCategories } = useCategories(user);
   const { costCenters } = useCostCenters(user);
   const { projects } = useProjects(user);
   const { showToast } = useToast();
@@ -232,14 +232,6 @@ const AlertasOperativas = ({ user }) => {
       endBalance: forecast.endBalance,
     };
   }, [forecast.endBalance, forecast.firstNegativeWeek, forecast.weeksToNegative]);
-
-  const allCategories = useMemo(
-    () => [
-      ...(incomeCategories || []).map((name) => ({ name, type: 'income' })),
-      ...(expenseCategories || []).map((name) => ({ name, type: 'expense' })),
-    ],
-    [incomeCategories, expenseCategories],
-  );
 
   const handleCreateRule = async (data) => {
     const r = await createRule(data);

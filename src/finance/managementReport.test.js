@@ -279,6 +279,58 @@ describe('computeMonthlyEbit / computeFinancialCosts', () => {
   });
 });
 
+describe('summarizeMonthFlows — taxonomy groups decide before text patterns', () => {
+  const sale = { direction: 'in', amount: 10000, postedDate: '2026-06-03', status: 'posted', categoryName: 'Facturación obra' };
+
+  it('counts a movement in the financiero group as a financial cost whatever its text says', () => {
+    const fee = { direction: 'out', amount: 120, postedDate: '2026-06-04', status: 'posted', categoryName: 'Intereses y comisiones bancarias', description: 'Entgelt 06/26' };
+    const fin = computeFinancialCosts([sale, fee], { monthKey: '2026-06' });
+    expect(fin.financialCosts).toBe(120);
+    expect(computeMonthlyEbit([sale, fee], { monthKey: '2026-06' }).costs).toBe(0);
+  });
+
+  it('rolls a legacy financial category up through the taxonomy', () => {
+    const fee = { direction: 'out', amount: 80, postedDate: '2026-06-04', status: 'posted', categoryName: 'Intereses Bancos', description: 'Entgelt' };
+    expect(computeFinancialCosts([sale, fee], { monthKey: '2026-06' }).financialCosts).toBe(80);
+  });
+
+  it('never counts the income category "Devoluciones e ingresos financieros" as a cost', () => {
+    const refund = { direction: 'in', amount: 300, postedDate: '2026-06-05', status: 'posted', categoryName: 'Devoluciones e ingresos financieros', counterpartyName: 'Finanzamt Stralsund', description: 'ERSTATT' };
+    const misfiled = { direction: 'out', amount: 300, postedDate: '2026-06-05', status: 'posted', categoryName: 'Devoluciones e ingresos financieros', description: 'Bankgebühr' };
+    const fin = computeFinancialCosts([sale, refund, misfiled], { monthKey: '2026-06' });
+    expect(fin.financialCosts).toBe(0);
+  });
+
+  it('keeps loan principal out of costs and out of financial costs', () => {
+    const principal = { direction: 'out', amount: 2000, postedDate: '2026-06-06', status: 'posted', categoryName: 'Amortización de préstamos', description: 'Rate 06/26' };
+    const ebit = computeMonthlyEbit([sale, principal], { monthKey: '2026-06' });
+    expect(ebit.costs).toBe(0);
+    expect(computeFinancialCosts([sale, principal], { monthKey: '2026-06' }).financialCosts).toBe(0);
+  });
+
+  it('keeps a partner contribution out of sales', () => {
+    const loan = { direction: 'in', amount: 8000, postedDate: '2026-06-07', status: 'posted', categoryName: 'Aportes y préstamos de socios recibidos', counterpartyName: 'JEISSON ANDRES ROMERO LESMES' };
+    expect(computeMonthlyEbit([sale, loan], { monthKey: '2026-06' }).sales).toBe(10000);
+  });
+
+  it('treats a categorized wage tax as an operating cost even though it comes from the Finanzkasse', () => {
+    const wageTax = { direction: 'out', amount: 1500, postedDate: '2026-06-10', status: 'posted', categoryName: 'Impuesto de nómina', counterpartyName: 'FINANZKASSE STRALSUND', description: 'STEUERNR 082/121/02610 LOHNST MAI.26' };
+    const vat = { direction: 'out', amount: 4000, postedDate: '2026-06-10', status: 'posted', categoryName: 'IVA', counterpartyName: 'FINANZKASSE STRALSUND', description: 'UMS.ST APR.26' };
+    const ebit = computeMonthlyEbit([sale, wageTax, vat], { monthKey: '2026-06' });
+    expect(ebit.costs).toBe(1500);
+  });
+
+  it('ignores a movement categorized as an internal transfer', () => {
+    const transfer = { direction: 'out', amount: 5000, postedDate: '2026-06-11', status: 'posted', categoryName: 'Transferencia interna', counterpartyName: 'Sparkasse Konto 2' };
+    expect(computeMonthlyEbit([sale, transfer], { monthKey: '2026-06' }).costs).toBe(0);
+  });
+
+  it('still falls back to text patterns for an uncategorized movement', () => {
+    const fee = { direction: 'out', amount: 60, postedDate: '2026-06-12', status: 'posted', description: 'Kontoführung Juni' };
+    expect(computeFinancialCosts([sale, fee], { monthKey: '2026-06' }).financialCosts).toBe(60);
+  });
+});
+
 describe('computeKpis', () => {
   it('returns the 7 KPIs with coherent statuses on synthetic data', () => {
     const kpis = computeKpis({

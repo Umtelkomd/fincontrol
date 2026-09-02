@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { adaptBankMovementDoc, adaptPayableDoc } from './adapters';
+import { TAXONOMY } from './taxonomy';
 import {
   DEFAULT_CATEGORY_VAT_RATES,
   VAT_RATE_SOURCE,
@@ -20,42 +21,48 @@ import {
 } from './vatRates';
 
 const ZERO_RATED = [
-  'Impuestos',
-  'Impuestos Vehiculos',
-  'Intereses Bancos',
-  'Intereses prestamos',
   'Salarios',
-  'Seguros',
-  'Financiero',
+  'Seguridad social',
+  'Impuesto de nómina',
+  'IVA',
+  'Impuesto sobre beneficios',
+  'Intereses y comisiones bancarias',
+  'Amortización de préstamos',
+  'Intereses de préstamos de socios',
+  'Aportes y préstamos de socios recibidos',
+  'Devoluciones e ingresos financieros',
+  'Transferencia interna',
+  'Tarjeta corporativa',
 ];
 
-// Live categories (src/constants/categories.js) that German law does not settle
-// on its own — Subcontratos in particular depends on §13b reverse charge.
+// Live categories (src/finance/taxonomy.js) that German law does not settle
+// on its own — Subcontratas in particular depends on §13b reverse charge.
 const DELIBERATELY_UNCONFIGURED = [
-  'Administrativo',
-  'Alquiler vehiculo',
-  'Combustible',
-  'Cuotas vehiculos',
-  'Equipos',
-  'Equipos Alquileres',
-  'Facturas Telefonos',
+  'Facturación obra',
+  'Servicios particulares',
+  'Otros ingresos',
+  'Alojamiento trabajadores',
+  'Otros de personal',
+  'Subcontratas',
   'Materiales',
-  'Miscelaneos Oficina',
-  'Otros',
+  'Equipos y herramienta',
   'Reparaciones',
-  'Subcontratos',
-  'Transporte/Combustible',
-  'Vehiculos',
-  'Vivienda',
-  'Consultoria',
-  'Por Venta',
-  'Servicios',
-  'SP',
+  'Daños a terceros',
+  'Combustible',
+  'Cuotas y alquiler de vehículos',
+  'Mantenimiento, seguro e impuesto de vehículos',
+  'Asesoría y gestoría',
+  'Oficina, telefonía y software',
+  'Seguros de empresa',
+  'Otros administrativos',
 ];
 
 describe('DEFAULT_CATEGORY_VAT_RATES', () => {
   it('zero-rates only the categories German law does not debate', () => {
     expect(Object.keys(DEFAULT_CATEGORY_VAT_RATES).sort()).toEqual([...ZERO_RATED].sort());
+    // The two lists together are the whole taxonomy — a new category must be
+    // placed on one side or the other on purpose.
+    expect([...ZERO_RATED, ...DELIBERATELY_UNCONFIGURED].sort()).toEqual([...TAXONOMY.map((c) => c.name)].sort());
     ZERO_RATED.forEach((name) => {
       expect(DEFAULT_CATEGORY_VAT_RATES[name]).toBe(0);
     });
@@ -145,8 +152,8 @@ describe('resolveVatRate', () => {
   });
 
   it('reports an unconfigured category as unset, distinct from a deliberate 0', () => {
-    const configured = resolveVatRate({ movement: { categoryName: 'Seguros' }, categoryRates });
-    const unconfigured = resolveVatRate({ movement: { categoryName: 'Subcontratos' }, categoryRates });
+    const configured = resolveVatRate({ movement: { categoryName: 'Seguridad social' }, categoryRates });
+    const unconfigured = resolveVatRate({ movement: { categoryName: 'Subcontratas' }, categoryRates });
 
     expect(configured).toEqual({ rate: 0, source: VAT_RATE_SOURCE.CATEGORY });
     expect(unconfigured).toEqual({ rate: 0, source: VAT_RATE_SOURCE.UNSET });
@@ -161,10 +168,32 @@ describe('resolveVatRate', () => {
   });
 
   it('reads the legacy `category` key when `categoryName` is absent', () => {
-    expect(resolveVatRate({ movement: { category: 'Impuestos' }, categoryRates })).toEqual({
+    expect(resolveVatRate({ movement: { category: 'IVA' }, categoryRates })).toEqual({
       rate: 0,
       source: VAT_RATE_SOURCE.CATEGORY,
     });
+  });
+
+  it('resolves a legacy category name through the taxonomy (2025 data is never rewritten)', () => {
+    expect(resolveVatRate({ movement: { categoryName: 'Impuestos', direction: 'out' }, categoryRates })).toEqual({
+      rate: 0,
+      source: VAT_RATE_SOURCE.CATEGORY,
+    });
+    expect(resolveVatRate({ movement: { categoryName: 'Subcontratos' }, categoryRates: { Subcontratas: 0.19 } })).toEqual({
+      rate: 0.19,
+      source: VAT_RATE_SOURCE.CATEGORY,
+    });
+  });
+
+  it('still honours a rate map keyed by the legacy name (written before the migration)', () => {
+    expect(resolveVatRate({ movement: { categoryName: 'Servicios', direction: 'in' }, categoryRates: { Servicios: 0.19 } })).toEqual({
+      rate: 0.19,
+      source: VAT_RATE_SOURCE.CATEGORY,
+    });
+    // The literal key wins over the resolved one when both are configured.
+    expect(
+      resolveVatRate({ movement: { categoryName: 'Subcontratos' }, categoryRates: { Subcontratos: 0, Subcontratas: 0.19 } }),
+    ).toEqual({ rate: 0, source: VAT_RATE_SOURCE.CATEGORY });
   });
 
   it('ignores an out-of-range stored rate instead of trusting it', () => {
@@ -251,10 +280,10 @@ describe('createNetAmountResolver', () => {
 
 describe('categoriesMissingVatRate', () => {
   it('lists the categories the settings screen must nag about', () => {
-    const categories = ['Salarios', 'Subcontratos', 'Materiales', 'Seguros'];
+    const categories = ['Salarios', 'Subcontratas', 'Materiales', 'Seguridad social'];
 
     expect(categoriesMissingVatRate(categories, DEFAULT_CATEGORY_VAT_RATES)).toEqual([
-      'Subcontratos',
+      'Subcontratas',
       'Materiales',
     ]);
   });

@@ -134,8 +134,9 @@ const RuleFormModal = ({
     else setError(result?.error?.message || 'Error al guardar');
   };
 
-  const incomeCats = categories.filter((c) => c.type === 'income' || !c.type);
-  const expenseCats = categories.filter((c) => c.type === 'expense' || !c.type);
+  // A type-less entry and the internal-transfer category belong to both sides.
+  const incomeCats = categories.filter((c) => c.type === 'income' || c.type === 'internal' || !c.type);
+  const expenseCats = categories.filter((c) => c.type === 'expense' || c.type === 'internal' || !c.type);
   const visibleCats =
     form.direction === 'in' ? incomeCats : form.direction === 'out' ? expenseCats : categories;
 

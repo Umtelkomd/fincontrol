@@ -58,7 +58,7 @@ const Rules = ({ user }) => {
   } = useClassificationRules(user);
 
   const { inboxMovements } = useClassifier(user);
-  const { expenseCategories, incomeCategories } = useCategories(user);
+  const { categoryOptions: allCategories } = useCategories(user);
   const { costCenters } = useCostCenters(user);
   const { projects } = useProjects(user);
   const { showToast } = useToast();
@@ -72,14 +72,6 @@ const Rules = ({ user }) => {
   const [isApplying, setIsApplying] = useState(false);
   const [confirmImportSeeds, setConfirmImportSeeds] = useState(false);
   const [importingSeeds, setImportingSeeds] = useState(false);
-
-  const allCategories = useMemo(
-    () => [
-      ...(incomeCategories || []).map((name) => ({ name, type: 'income' })),
-      ...(expenseCategories || []).map((name) => ({ name, type: 'expense' })),
-    ],
-    [incomeCategories, expenseCategories],
-  );
 
   const rulesWithStats = useMemo(() => {
     return rules.map((r) => {

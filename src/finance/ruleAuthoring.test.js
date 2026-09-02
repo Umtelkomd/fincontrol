@@ -180,6 +180,27 @@ describe('ruleSeedKey', () => {
       .toBe(ruleSeedKey({ field: 'counterpartyName', pattern: 'ADYEN' }));
   });
 
+  it('separates the same field + pattern on a different direction', () => {
+    // Jeisson is paid a salary (out) AND lends money to the company (in):
+    // the same counterparty pattern is two different rules.
+    const payroll = { field: 'counterpartyName', pattern: 'JEISSON ANDRES ROMERO LESMES', direction: 'out' };
+    const loan = { ...payroll, direction: 'in' };
+    expect(ruleSeedKey(payroll)).not.toBe(ruleSeedKey(loan));
+  });
+
+  it('normalises a missing or empty direction to both', () => {
+    const base = { field: 'counterpartyName', pattern: 'ADYEN' };
+    expect(ruleSeedKey(base)).toBe(ruleSeedKey({ ...base, direction: 'both' }));
+    expect(ruleSeedKey({ ...base, direction: '' })).toBe(ruleSeedKey({ ...base, direction: 'both' }));
+    expect(ruleSeedKey({ ...base, direction: 'both' })).not.toBe(ruleSeedKey({ ...base, direction: 'out' }));
+  });
+
+  it('separates a contains match from a regex match on the same text, defaulting to contains', () => {
+    const base = { field: 'counterpartyName', pattern: 'NÜRNBERGER', direction: 'out' };
+    expect(ruleSeedKey(base)).toBe(ruleSeedKey({ ...base, matchType: 'contains' }));
+    expect(ruleSeedKey(base)).not.toBe(ruleSeedKey({ ...base, matchType: 'regex' }));
+  });
+
   it('separates the same pattern on a different field', () => {
     expect(ruleSeedKey({ field: 'description', pattern: 'ADYEN' }))
       .not.toBe(ruleSeedKey({ field: 'counterpartyName', pattern: 'ADYEN' }));
@@ -204,14 +225,42 @@ describe('selectMissingSeedRules', () => {
     expect(skipped).toBe(0);
   });
 
-  it('skips a seed whose field + pattern already exists', () => {
-    const existing = [{ field: 'counterpartyName', pattern: 'adyen', name: 'Mi propia regla' }];
+  it('skips a seed whose field + pattern + direction already exists', () => {
+    const existing = [{ field: 'counterpartyName', pattern: 'adyen', direction: 'out', name: 'Mi propia regla' }];
 
     const { toCreate, skipped } = selectMissingSeedRules(existing);
 
     expect(skipped).toBe(1);
     expect(toCreate).toHaveLength(SEED_CLASSIFICATION_RULES.length - 1);
     expect(toCreate.map((r) => r.pattern)).not.toContain('ADYEN');
+  });
+
+  it('still offers a seed when the existing twin only differs by direction', () => {
+    const payroll = { field: 'counterpartyName', pattern: 'JEISSON ANDRES ROMERO LESMES', direction: 'out', name: 'Jeisson — nómina' };
+
+    const { toCreate, skipped } = selectMissingSeedRules([payroll]);
+
+    expect(skipped).toBe(0);
+    expect(toCreate.map((r) => r.name)).toContain('JEISSON ANDRES ROMERO LESMES — Aportes y préstamos de socios recibidos');
+  });
+
+  it('dedupes a production-like set: same field, pattern and direction under other names', () => {
+    // Rules the people/entity script wrote before the seeds existed: same
+    // text, same direction, different names. Every one of them is a duplicate
+    // of a seed and must be skipped; a direction flip is not a duplicate.
+    const twins = SEED_CLASSIFICATION_RULES.slice(0, 13).map((seed, index) => ({
+      name: `Regla histórica ${index + 1}`,
+      field: seed.field,
+      matchType: seed.matchType,
+      pattern: seed.pattern.toLowerCase(),
+      direction: seed.direction,
+    }));
+    const flipped = { ...twins[0], name: 'Misma contraparte, otra dirección', direction: twins[0].direction === 'in' ? 'out' : 'in' };
+
+    const { toCreate, skipped } = selectMissingSeedRules([...twins, flipped]);
+
+    expect(skipped).toBe(13);
+    expect(toCreate).toHaveLength(SEED_CLASSIFICATION_RULES.length - 13);
   });
 
   it('is idempotent — a second run after seeding creates nothing', () => {

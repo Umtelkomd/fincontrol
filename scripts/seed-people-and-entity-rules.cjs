@@ -12,7 +12,10 @@
  *               reaches the obra through payrollAllocation, and ProyectoDashboard
  *               excludes these movements so the site is not billed twice. The
  *               category exists so the movement leaves the inbox.
- *   external  → Subcontratos, obra. A subcontractor payment IS direct site cost.
+ *   external  → Subcontratas, obra. A subcontractor payment IS direct site cost.
+ *
+ * Category names are taxonomy v2 (`src/finance/taxonomy.js`); a re-run can no
+ * longer reintroduce a legacy name.
  *               The project comes from the person's file when they have exactly
  *               one; with several it is left for bulk assignment, since a rule
  *               cannot know which site a given payment belongs to.
@@ -36,12 +39,12 @@ const line = (c = '─', w = 88) => c.repeat(w);
  * [pattern, category, costScope, direction, note]
  */
 const ENTITIES = [
-  ['TUI BKK', 'Seguros', 'overhead', 'out', 'Krankenkasse: seguridad social de la plantilla.'],
-  ['Techniker Krankenkasse', 'Seguros', 'overhead', 'out', 'Krankenkasse: seguridad social de la plantilla.'],
-  ['NÜRNBERGER', 'Seguros', 'overhead', 'out', 'Aseguradora: pólizas de la empresa.'],
-  ['Monteurwohnungen', 'Vivienda', 'overhead', 'out', 'Alojamiento de montadores desplazados a obra.'],
-  ['Kreditkartenkto', 'Administrativo', 'overhead', 'out', 'Liquidación de la tarjeta de empresa. Revisar el detalle si se quiere abrir por concepto.'],
-  ['ALGUS TELECOM', 'Subcontratos', '', 'out', 'Subcontratista español, §13b (reverse charge): sin IVA alemán. Falta asignar obra.'],
+  ['TUI BKK', 'Seguridad social', 'overhead', 'out', 'Krankenkasse: seguridad social de la plantilla.'],
+  ['Techniker Krankenkasse', 'Seguridad social', 'overhead', 'out', 'Krankenkasse: seguridad social de la plantilla.'],
+  ['NÜRNBERGER', 'Seguros de empresa', 'overhead', 'out', 'Aseguradora: pólizas de la empresa.'],
+  ['Monteurwohnungen', 'Alojamiento trabajadores', 'project', 'out', 'Alojamiento de montadores desplazados a obra. Falta asignar obra.'],
+  ['Kreditkartenkto', 'Tarjeta corporativa', 'overhead', 'out', 'Liquidación de la tarjeta de empresa. Revisar el detalle si se quiere abrir por concepto.'],
+  ['ALGUS TELECOM', 'Subcontratas', 'project', 'out', 'Subcontratista español, §13b (reverse charge): sin IVA alemán. Falta asignar obra.'],
 ];
 
 /**
@@ -52,10 +55,10 @@ const ENTITIES = [
  * concentration is total.
  */
 const INCOME = [
-  ['INSYTE', 'Servicios', 'in', 'Cliente único: cobros por servicios de obra, facturados a Insyte.'],
-  ['CAIXABANK', 'Servicios', 'in', 'Cobro de INSYTE vía confirming de CaixaBank. El banco es el canal, no el cliente.'],
-  ['BANCO BILBAO VIZCAYA', 'Servicios', 'in', 'Cobro de INSYTE vía confirming de BBVA. El banco es el canal, no el cliente.'],
-  ['SANTANDER FACTORING', 'Servicios', 'in', 'Cobro de INSYTE vía confirming de Santander. Es facturación cobrada, NO financiación propia de UMTELKOMD.'],
+  ['INSYTE', 'Facturación obra', 'in', 'Cliente único: cobros por servicios de obra, facturados a Insyte.'],
+  ['CAIXABANK', 'Facturación obra', 'in', 'Cobro de INSYTE vía confirming de CaixaBank. El banco es el canal, no el cliente.'],
+  ['BANCO BILBAO VIZCAYA', 'Facturación obra', 'in', 'Cobro de INSYTE vía confirming de BBVA. El banco es el canal, no el cliente.'],
+  ['SANTANDER FACTORING', 'Facturación obra', 'in', 'Cobro de INSYTE vía confirming de Santander. Es facturación cobrada, NO financiación propia de UMTELKOMD.'],
 ];
 
 const norm = (s) => String(s || '').trim().toLowerCase();
@@ -120,7 +123,7 @@ const makeRule = ({ name, pattern, category, costScope = '', direction = 'out', 
       proposed.push(makeRule({
         name: `${full} — ${isInternal ? 'nómina' : 'subcontrata'}`,
         pattern: spelling,
-        category: isInternal ? 'Salarios' : 'Subcontratos',
+        category: isInternal ? 'Salarios' : 'Subcontratas',
         costScope: isInternal ? 'overhead' : (single ? 'project' : ''),
         projectId: single,
         projectName: single ? projLabel(single) : '',
@@ -149,8 +152,8 @@ const makeRule = ({ name, pattern, category, costScope = '', direction = 'out', 
 
   const groups = {
     'NÓMINA (Salarios · estructura)': fresh.filter((r) => r.applyTo.categoryName === 'Salarios'),
-    'SUBCONTRATA (Subcontratos)': fresh.filter((r) => r.applyTo.categoryName === 'Subcontratos'),
-    'ENTIDADES (gasto de estructura)': fresh.filter((r) => r.direction === 'out' && !['Salarios', 'Subcontratos'].includes(r.applyTo.categoryName)),
+    'SUBCONTRATA (Subcontratas)': fresh.filter((r) => r.applyTo.categoryName === 'Subcontratas'),
+    'ENTIDADES (gasto de estructura)': fresh.filter((r) => r.direction === 'out' && !['Salarios', 'Subcontratas'].includes(r.applyTo.categoryName)),
     'INGRESOS': fresh.filter((r) => r.direction === 'in'),
   };
   for (const [title, rows] of Object.entries(groups)) {

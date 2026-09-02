@@ -289,14 +289,14 @@ describe('Classifier — personas conocidas', () => {
     expect(within(row).getByText(/no se carga a la obra/i)).toBeInTheDocument();
   });
 
-  it('pre-suggests Subcontratos / obra and says a project is required', () => {
+  it('pre-suggests Subcontratas / obra and says a project is required', () => {
     store.collections.bankMovements = [subMovement];
 
     renderScreen(<Classifier user={USER} />);
     openSpontaneous();
 
     const row = screen.getByText('Überweisung').closest('div.px-5');
-    expect(within(row).getByText(/Subcontratos/)).toBeInTheDocument();
+    expect(within(row).getByText(/Subcontratas/)).toBeInTheDocument();
     expect(within(row).getByText(/Obra/)).toBeInTheDocument();
     expect(within(row).getByText(/requiere proyecto/i)).toBeInTheDocument();
   });

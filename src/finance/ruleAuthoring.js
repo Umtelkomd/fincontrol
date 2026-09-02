@@ -90,15 +90,21 @@ export const applyCostScopeToRuleForm = (form, scope) => {
 /**
  * ruleSeedKey — identity of a rule for seeding purposes.
  *
- * Keyed on `field` + `pattern` (trimmed, lower-cased) rather than on `name`:
- * two rules matching the same text on the same field are duplicates whatever
- * they are called, and a name the user edited must not resurrect a seed.
+ * Keyed on `field` + `matchType` + `pattern` (trimmed, lower-cased) +
+ * `direction` rather than on `name`: two rules matching the same text on the
+ * same field in the same direction are duplicates whatever they are called,
+ * and a name the user edited must not resurrect a seed. Direction is part of
+ * the identity because one counterparty can legitimately be two rules — a
+ * partner is paid a salary (out) and lends the company money (in). A missing
+ * or empty direction reads as `both`, a missing matchType as `contains`.
  */
 export const ruleSeedKey = (rule) => {
   const pattern = text(rule?.pattern).toLowerCase();
   if (!pattern) return '';
   const field = text(rule?.field) || 'counterpartyName';
-  return `${field}::${pattern}`;
+  const matchType = text(rule?.matchType) || 'contains';
+  const direction = text(rule?.direction) || 'both';
+  return `${field}::${matchType}::${pattern}::${direction}`;
 };
 
 /**
