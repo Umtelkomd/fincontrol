@@ -8,7 +8,7 @@
  * it was.
  */
 
-import { isClassified } from '../../finance/costScope.js';
+import { isClassified, pendingReasonOf } from '../../finance/costScope.js';
 
 export const DEFAULT_MOVEMENT_FILTERS = {
   year: 'all',
@@ -39,7 +39,8 @@ const matchesStatus = (movement, statusFilter) => {
   if (statusFilter === 'void') return isVoid;
   if (isVoid) return false;
   if (statusFilter === 'classified') return isClassified(movement);
-  if (statusFilter === 'unclassified') return !isClassified(movement);
+  // "Sin clasificar" is the Bandeja's definition of pending, verbatim.
+  if (statusFilter === 'unclassified') return pendingReasonOf(movement) !== null;
   if (statusFilter === 'reconciled') return isReconciled(movement);
   return true;
 };

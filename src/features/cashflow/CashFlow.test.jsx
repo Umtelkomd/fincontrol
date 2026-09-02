@@ -8,12 +8,23 @@
  * reaches the user WITH its coverage caveat — a number presented as exact when
  * it is only an estimate is worse than no number.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import { installFirebaseMocks } from '@/test/firebaseMock';
 import { bankMovementFixture, isoThisMonth, ledgerFixtures, receivableFixture } from '@/test/fixtures';
 import { vatDueDate } from '@/lib/finance/fiscalCalendar';
 import { formatDate } from '@/utils/formatters';
+
+// The clock is pinned BEFORE any fixture is built. `computeVatByMonth` skips
+// dates after today on purpose, and the fixtures below sit on the 5th–7th of
+// "this month" — so on days 1–6 of every month they were in the future and the
+// two assertions on the derived figure failed. Only `Date` is faked: timers and
+// React scheduling keep running for real.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date('2026-09-15T12:00:00Z'));
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 const store = installFirebaseMocks(ledgerFixtures());
 

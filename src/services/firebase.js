@@ -1,6 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -26,9 +31,30 @@ if (missingConfig.length > 0) {
   );
 }
 
+/**
+ * Firestore with a persistent (IndexedDB) local cache shared across tabs.
+ *
+ * Every route used to re-read the full bankMovements collection from the
+ * network on mount because the default cache is memory-only and dies with the
+ * page. With persistence, a reload — and a second tab — resolve listeners from
+ * disk first and only fetch the delta. Falls back to the memory cache when the
+ * browser refuses persistence (private mode, storage quota, an already
+ * initialised instance under HMR).
+ */
+const createFirestore = (firebaseApp) => {
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch (error) {
+    console.warn('[fincontrol] Persistent Firestore cache unavailable; using the memory cache.', error);
+    return getFirestore(firebaseApp);
+  }
+};
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = createFirestore(app);
 
 // Tenant key — must match the appId used in Firestore rules. Validated above so
 // data never accidentally mixes under a fallback id.

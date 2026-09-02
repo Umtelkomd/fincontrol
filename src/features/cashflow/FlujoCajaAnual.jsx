@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { TableProperties } from 'lucide-react';
-import { useBankMovements } from '../../hooks/useBankMovements';
-import { useReceivables } from '../../hooks/useReceivables';
-import { usePayables } from '../../hooks/usePayables';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { isInternalTransfer } from '../../lib/finance/movementAmount';
+import { isOpenDocument } from '../../finance/utils';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -89,15 +88,11 @@ function KpiCard({ label, value, color, prefix = '', negative = false, signed = 
   );
 }
 
-export default function FlujoCajaAnual({ user }) {
+export default function FlujoCajaAnual() {
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
-  // Source of truth: bankMovements (DATEV truth). The previous implementation
-  // used `transactions` which was deprecated in the asset-management refactor.
-  const { bankMovements, loading: bmLoading } = useBankMovements(user);
-  const { receivables, loading: rxLoading } = useReceivables(user);
-  const { payables, loading: pyLoading } = usePayables(user);
-
-  const loading = bmLoading || rxLoading || pyLoading;
+  // Source of truth: the shared ledger (bankMovements = DATEV truth). This
+  // view used to open three private subscriptions of its own on top of it.
+  const { bankMovements, receivables, payables, loading } = useFinanceLedgerContext();
 
   // ── Filter movements by selected year (using postedDate) ──
   // This grid is an income/expense breakdown by category, not a bank statement:
@@ -166,15 +161,11 @@ export default function FlujoCajaAnual({ user }) {
   const ytdExpense = monthTotalsExpense.reduce((a, b) => a + b, 0);
   const ytdNet = ytdIncome - ytdExpense;
 
-  // ── CxC / CxP ──
-  const pendingCxC = useMemo(
-    () => (receivables || []).filter((r) => r.status === 'issued'),
-    [receivables],
-  );
-  const pendingCxP = useMemo(
-    () => (payables || []).filter((p) => p.status === 'issued' || p.status === 'partial'),
-    [payables],
-  );
+  // ── CxC / CxP ── open = not settled/cancelled with money still due, the same
+  // rule Resumen and Tesorería apply (an overdue invoice is still pending).
+  const isPending = (doc) => isOpenDocument(doc) && (Number(doc.openAmount) || 0) > 0.005;
+  const pendingCxC = useMemo(() => (receivables || []).filter(isPending), [receivables]);
+  const pendingCxP = useMemo(() => (payables || []).filter(isPending), [payables]);
 
   const totalCxC = pendingCxC.reduce((a, r) => a + (r.openAmount || 0), 0);
   const totalCxP = pendingCxP.reduce((a, p) => a + (p.openAmount || 0), 0);
@@ -206,17 +197,12 @@ export default function FlujoCajaAnual({ user }) {
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="rounded-lg border border-[var(--color-line)] text-sm px-3 py-1.5 cursor-pointer"
+            className="rounded-md border border-[var(--color-line)] text-sm px-3 py-1.5 cursor-pointer"
             style={{ background: 'var(--color-bg-1)', color: 'var(--color-fg-1)' }}
           >
             {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
-          <span
-            className="text-xs font-medium px-3 py-1 rounded-full"
-            style={{ background: 'rgba(74, 222, 128, 0.12)', color: 'var(--color-ok)', border: '1px solid var(--color-ok)' }}
-          >
-            {selectedYear} YTD
-          </span>
+          <span className="nx-badge nx-badge-ok">{selectedYear} YTD</span>
         </div>
       </div>
 

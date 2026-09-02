@@ -17,16 +17,19 @@ import {
  getDocumentOpenAmount,
  RECONCILIATION_EPSILON,
 } from '../finance/reconciliation';
-import { isClassified, isCostScope } from '../finance/costScope';
-import { isInternalTransfer } from '../lib/finance/movementAmount';
+import { OPERATIONAL_DATA_START } from '../finance/constants';
+import {
+ PENDING_REASON,
+ classificationCoverage,
+ isCostScope,
+ pendingReasonOf,
+} from '../finance/costScope';
 import { clampMoney, toISODate } from '../finance/utils';
 import { scorePayrollMatch } from '../features/nominas/lib/payrollMatch';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 import { logError } from '../utils/logger';
-import { useBankMovements } from './useBankMovements';
-import { useReceivables } from './useReceivables';
-import { usePayables } from './usePayables';
+import { useFinanceLedgerContext } from '../contexts/FinanceLedgerContext';
 
 const COLLECTION_BY_KIND = {
  receivable: 'receivables',
@@ -91,15 +94,23 @@ const normalizeDocuments = (documents) =>
  *     Excludes receivables/payables already settled.
  *
  *   inboxMovements
- *     Memoized list of bankMovements that need action:
- *       - direction=in and !receivableId
- *       - direction=out and !payableId and not fully classified
- *         (see `isClassified`: category + resolved cost destination)
+ *     `{ sinCategoria, sinObra, sinConciliar }` — the operational movements
+ *     (postedDate ≥ OPERATIONAL_DATA_START, optionally one month) split by
+ *     `pendingReasonOf`, newest first. `pendingMovements` is the flat union
+ *     for consumers that only need a list (rules, alerts).
+ *
+ * Data comes from the shared ledger (FinanceLedgerContext): movements,
+ * receivables and payables plus the bulkClassify mutator. Opening /clasificar
+ * used to add eight fresh Firestore listeners on top of the provider's eight.
+ *
+ * @param {object|null} user
+ * @param {{ month?: string }} [options] 'all' or 'YYYY-MM' (inbox + coverage)
  */
-export const useClassifier = (user) => {
- const { bankMovements } = useBankMovements(user);
- const { receivables } = useReceivables(user);
- const { payables } = usePayables(user);
+export const useClassifier = (user, options = {}) => {
+ const { month = 'all' } = options;
+ const ledger = useFinanceLedgerContext();
+ const { bankMovements, receivables, payables, loading } = ledger;
+ const bulkClassify = ledger.actions?.bankMovements?.bulkClassify;
 
  const movementsRef = (id) => doc(db, 'artifacts', appId, 'public', 'data', 'bankMovements', id);
 
@@ -474,28 +485,64 @@ export const useClassifier = (user) => {
  [receivables, payables],
  );
 
- // Inbox: movements that need action
- const inboxMovements = useMemo(() => {
- return (bankMovements || []).filter((m) => {
- if (m.status === 'void') return false;
- // A traspaso between the company's own accounts is resolved by nature: it
- // is neither revenue nor spend, so there is no CXC to link, no category and
- // no project to demand. `UMTELKOMD ESPAÑA S.L.` is a subcontractor with an
- // almost identical name and is deliberately NOT covered by this.
- if (isInternalTransfer(m)) return false;
- if (m.direction === 'in') {
- // Income needs link to a CXC
- return !m.receivableId;
- }
- // Outflow: needs a CXP link OR a complete classification. `isClassified`
- // replaces the old `categoryName || costCenterId` check, which let a
- // movement carrying only a cost center leave the inbox unclassified.
- return !m.payableId && !isClassified(m);
+ // Operational scope: 2026+ only. The 2025 rows are a closed, DATEV-reconciled
+ // year that nobody classifies any more; leaving them in made the coverage
+ // read 7% forever and the inbox impossible to finish.
+ const operationalMovements = useMemo(
+ () => (bankMovements || []).filter((m) => (m.postedDate || '') >= OPERATIONAL_DATA_START),
+ [bankMovements],
+ );
+
+ // 'YYYY-MM' keys present in the operational data, newest first — the Mes filter.
+ const availableMonths = useMemo(() => {
+ const keys = new Set();
+ operationalMovements.forEach((m) => {
+ const key = (m.postedDate || '').slice(0, 7);
+ if (key.length === 7) keys.add(key);
  });
- }, [bankMovements]);
+ return [...keys].sort().reverse();
+ }, [operationalMovements]);
+
+ const scopedMovements = useMemo(
+ () =>
+ month === 'all'
+ ? operationalMovements
+ : operationalMovements.filter((m) => (m.postedDate || '').slice(0, 7) === month),
+ [operationalMovements, month],
+ );
+
+ // Inbox: the scoped movements that still need something, by reason.
+ const inboxMovements = useMemo(() => {
+ const buckets = { sinCategoria: [], sinObra: [], sinConciliar: [] };
+ scopedMovements.forEach((m) => {
+ const reason = pendingReasonOf(m);
+ if (reason === PENDING_REASON.SIN_CATEGORIA) buckets.sinCategoria.push(m);
+ else if (reason === PENDING_REASON.SIN_OBRA) buckets.sinObra.push(m);
+ else if (reason === PENDING_REASON.SIN_CONCILIAR) buckets.sinConciliar.push(m);
+ });
+ const byDateDesc = (a, b) => (b.postedDate || '').localeCompare(a.postedDate || '');
+ buckets.sinCategoria.sort(byDateDesc);
+ buckets.sinObra.sort(byDateDesc);
+ buckets.sinConciliar.sort(byDateDesc);
+ return buckets;
+ }, [scopedMovements]);
+
+ const pendingMovements = useMemo(
+ () => [...inboxMovements.sinCategoria, ...inboxMovements.sinObra, ...inboxMovements.sinConciliar],
+ [inboxMovements],
+ );
+
+ // Coverage over the SAME scoped set, so the header and the tabs add up.
+ const coverage = useMemo(() => classificationCoverage(scopedMovements), [scopedMovements]);
 
  return {
  inboxMovements,
+ pendingMovements,
+ scopedMovements,
+ availableMonths,
+ coverage,
+ loading,
+ bulkClassify,
  bankMovements,
  receivables,
  payables,

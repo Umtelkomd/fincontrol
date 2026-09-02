@@ -23,7 +23,6 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  CalendarClock,
   HardHat,
   Scale,
   Wallet,
@@ -43,6 +42,8 @@ import { missingPayrollMonths } from '../nominas/lib/missingMonths';
 import { agingBuckets, isInternalTransfer } from '../../lib/finance';
 import { formatCollectionSlip, formatCurrency, formatDate } from '../../utils/formatters';
 import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
+import PageHeader from '../../components/layout/PageHeader';
+import LiquidityKpis from '../../components/finance/LiquidityKpis';
 import {
   computeMonthlyResult,
   selectDueWithinDays,
@@ -52,7 +53,6 @@ import { buildResumenAlerts } from './lib/alertsPanel';
 
 const DUE_WINDOW_DAYS = 30;
 const UPCOMING_LIMIT = 6;
-const CRITICAL_RUNWAY_MONTHS = 3;
 
 // Maps a payroll-kind tag to a short Spanish badge label. Unknown / null kinds
 // produce no badge. Mirrors the labels used in payrollReminders.js.
@@ -148,33 +148,10 @@ const Resumen = ({ user }) => {
   }, [alertBufferEur, canSeePayroll, forecast.weeks, metrics, now, payrollPeriods]);
 
   // ── Block 1: cash + runway ─────────────────────────────────────────────────
+  // Caja / Posición neta / Runway are rendered by <LiquidityKpis>, the same
+  // component Tesorería and the executive summary use, so the three screens
+  // cannot disagree on a label or a number.
   const currentCash = metrics.currentCash ?? 0;
-  const runwayMonths = metrics.runwayMonths; // avg cash-burn estimate; null when no burn
-
-  // Prefer the COMMITTED-outflow wall: the forecast buckets open payables
-  // (incl. unpaid payroll), recurring costs and VAT by due week, so the week
-  // cash hits 0 is the real, payroll-aware runway. Fall back to the
-  // average-burn estimate only when cash never goes negative in the horizon.
-  const weeksToNegative = forecast.weeksToNegative; // 0-based week index | null
-
-  const runwayValue =
-    weeksToNegative != null
-      ? `${weeksToNegative} sem.`
-      : runwayMonths == null
-        ? 'Sin gasto'
-        : `${runwayMonths.toLocaleString('es-ES', { maximumFractionDigits: 1 })} meses`;
-  const runwayMeta =
-    weeksToNegative != null
-      ? 'Hasta caja en 0 (nómina, recurrentes, IVA y vencimientos incluidos)'
-      : runwayMonths == null
-        ? 'No hay salidas para proyectar'
-        : 'Al ritmo de gasto promedio';
-  // 9 weeks ≈ the 60-day alarm this KPI used before the forecast moved to
-  // weekly buckets, so the threshold for "critical" is unchanged in practice.
-  const runwayCritical =
-    weeksToNegative != null
-      ? weeksToNegative < 9
-      : runwayMonths != null && runwayMonths < CRITICAL_RUNWAY_MONTHS;
 
   // ── Block 2: monthly result WITH payroll ───────────────────────────────────
   // Own-account transfers are dropped from BOTH sides: moving money between
@@ -235,11 +212,13 @@ const Resumen = ({ user }) => {
   const pendingPayables = metrics.pendingPayables ?? 0;
   const cxcMinusCxp = pendingReceivables - pendingPayables;
 
-  // ── Block 0: the real circulating position ─────────────────────────────────
-  // Cash alone says this company is bankrupt. It is not: a large amount of work
-  // is already executed and simply has not been certified or invoiced yet, so it
-  // exists in no other collection. WIP is added here and NOWHERE else — it never
-  // touches the cash figure, the anchors, the forecast or the aging.
+  // ── Block 0: the net position ──────────────────────────────────────────────
+  // ONE formula, shared with Tesorería and the executive summary:
+  // cash + open receivables − open payables (`useTreasuryMetrics.netPosition`).
+  // Executed-but-uninvoiced work is real money this company is owed, but it is
+  // neither cash nor a receivable, so it is stated as its own line UNDER the
+  // headline instead of being folded into it — and it never touches the cash
+  // figure, the anchors, the forecast or the aging.
   const position = useMemo(
     () =>
       netPosition({
@@ -250,6 +229,7 @@ const Resumen = ({ user }) => {
       }),
     [currentCash, wip.total, pendingReceivables, pendingPayables],
   );
+  const headlinePosition = metrics.netPosition ?? 0;
 
   // Feed the FULL open document sets (NOT the 14-day-capped upcoming* arrays) so
   // the 30-day window is real and payroll obligations due ~next month (Lohnsteuer
@@ -316,16 +296,12 @@ const Resumen = ({ user }) => {
         </div>
       )}
 
-      {/* Page header */}
-      <header>
-        <p className="label-mono text-[var(--color-accent)] mb-2">§ Resumen</p>
-        <h1 className="font-display text-[32px] font-light leading-[1.05] tracking-tight text-[var(--color-fg-1)] md:text-[40px]">
-          Cómo va la <span className="text-[var(--color-accent)]">empresa</span>
-        </h1>
-        <p className="mt-2 label-mono text-[var(--color-fg-4)]">
-          {now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-      </header>
+      <PageHeader
+        section="Resumen"
+        title="Cómo va la"
+        accent="empresa"
+        subtitle={now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+      />
 
       {/* ───────────────────────── ALERTAS ────────────────────────────────────── */}
       {alerts.length > 0 && (
@@ -366,27 +342,38 @@ const Resumen = ({ user }) => {
         </Panel>
       )}
 
-      {/* ─────────────────── BLOCK 0 — POSICIÓN REAL (CAJA + OBRA) ───────────── */}
+      {/* ───────────────────── BLOCK 0 — POSICIÓN NETA ───────────────────────── */}
       {/* The arithmetic is shown, not hidden behind one number: the owner has to
           SEE why this differs from his bank balance or he will not trust it. */}
-      <Panel title="Posición real" meta="Caja + obra ejecutada + cobros − pagos">
+      <Panel title="Posición neta" meta="Caja + por cobrar − por pagar">
         <div data-testid="position-panel">
           <div className="mb-4">
             <p className="label-mono mb-2 text-[var(--color-fg-3)]">
-              Lo que la empresa tiene realmente en circulación
+              Lo que la empresa tiene en circulación
             </p>
             <p
               data-testid="position-net"
               className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
-              style={{ color: position.net >= 0 ? 'var(--color-ok)' : 'var(--color-err)' }}
+              style={{ color: headlinePosition >= 0 ? 'var(--color-ok)' : 'var(--color-err)' }}
             >
-              {position.net >= 0 ? '+' : '−'}
-              {formatCurrency(Math.abs(position.net))}
+              {formatCurrency(headlinePosition)}
             </p>
-            <p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
-              La caja sola no mide esta empresa: el trabajo ya ejecutado todavía no está
-              facturado, así que no aparece ni en el banco ni en las cuentas por cobrar.
-            </p>
+            {wip.total > 0 ? (
+              <p
+                data-testid="position-with-wip"
+                className="mt-2 font-mono text-[13px] tabular-nums text-[var(--color-fg-2)]"
+              >
+                <span className="label-mono text-[var(--color-fg-3)]">Posición con obra ejecutada</span>
+                <span className="mx-2 text-[var(--color-fg-4)]">·</span>
+                + {formatCurrency(position.wip)} de obra ejecutada sin facturar →{' '}
+                <span className="text-[var(--color-fg-1)]">{formatCurrency(position.net)}</span>
+              </p>
+            ) : (
+              <p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
+                El trabajo ya ejecutado y todavía sin facturar no aparece ni en el banco ni en
+                las cuentas por cobrar; cuando exista, se suma aquí como una línea aparte.
+              </p>
+            )}
           </div>
 
           <KPIGrid cols={4}>
@@ -395,7 +382,7 @@ const Resumen = ({ user }) => {
               value={formatCurrency(currentCash)}
               tone={currentCash < 0 ? 'err' : 'default'}
               icon={Wallet}
-              meta="Saldo conciliado"
+              meta="Saldo bancario conciliado"
             />
             <KPI
               label="Obra ejecutada"
@@ -439,32 +426,7 @@ const Resumen = ({ user }) => {
 
       {/* ───────────────────────── BLOCK 1 — CAJA Y RUNWAY ───────────────────── */}
       <Panel title="Caja y runway" meta="¿Cuánto aguantamos?">
-        <KPIGrid cols={2}>
-          <KPI
-            label="Caja actual"
-            value={formatCurrency(currentCash)}
-            size="lg"
-            tone={currentCash < 0 ? 'err' : 'default'}
-            icon={Wallet}
-            meta={
-              metrics.cashSource === 'anchors' && metrics.cashMeta?.anchor
-                ? `Conciliado al ${formatDate(metrics.cashMeta.anchor.date)} · últ. mov. ${
-                    metrics.cashMeta.lastMovementDate
-                      ? formatDate(metrics.cashMeta.lastMovementDate)
-                      : '—'
-                  }`
-                : 'Sin conciliar — registra un ancla en Configuración → Tesorería'
-            }
-          />
-          <KPI
-            label="Runway"
-            value={runwayValue}
-            size="lg"
-            tone={runwayCritical ? 'err' : 'default'}
-            icon={CalendarClock}
-            meta={runwayMeta}
-          />
-        </KPIGrid>
+        <LiquidityKpis metrics={metrics} forecast={forecast} size="lg" />
 
         {forecast.firstNegativeWeek && (
           <div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-err)]/40 bg-[var(--color-bg-2)] px-4 py-3">
@@ -534,9 +496,10 @@ const Resumen = ({ user }) => {
           <KPI label="Por cobrar (CXC)" value={formatCurrency(pendingReceivables)} tone="ok" />
           <KPI label="Por pagar (CXP)" value={formatCurrency(pendingPayables)} tone="warn" />
           <KPI
-            label="Posición neta"
+            label="CXC − CXP"
             value={`${cxcMinusCxp >= 0 ? '+' : '−'}${formatCurrency(Math.abs(cxcMinusCxp))}`}
             tone={cxcMinusCxp >= 0 ? 'ok' : 'err'}
+            meta="Saldo entre cobros y pagos abiertos"
           />
         </KPIGrid>
 

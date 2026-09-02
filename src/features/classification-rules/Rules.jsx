@@ -25,6 +25,7 @@ import { rowButtonProps } from '../../utils/a11y';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
+import PageHeader from '../../components/layout/PageHeader';
 
 const FIELD_LABELS = {
   counterpartyName: 'Contraparte',
@@ -57,7 +58,7 @@ const Rules = ({ user }) => {
     applyRulesToMovements,
   } = useClassificationRules(user);
 
-  const { inboxMovements } = useClassifier(user);
+  const { pendingMovements: inboxMovements } = useClassifier(user);
   const { categoryOptions: allCategories } = useCategories(user);
   const { costCenters } = useCostCenters(user);
   const { projects } = useProjects(user);
@@ -169,18 +170,13 @@ const Rules = ({ user }) => {
 
   return (
     <div className="space-y-6 pb-12">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <p className="label-mono text-[var(--color-fg-3)]">Automatización · Reglas</p>
-          <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
-            Reglas de clasificación automática
-          </h2>
-          <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
-            Cuando importás DATEV, las reglas asignan categoría / centro de costo / proyecto
-            automáticamente según contraparte o descripción. Tu bandeja queda más chica cada semana.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      <PageHeader
+        section="Configuración"
+        title="Reglas de"
+        accent="clasificación"
+        subtitle="Categoría, destino y proyecto automáticos tras cada importación DATEV"
+        actions={
+          <>
           <Button
             variant="secondary"
             icon={Download}
@@ -204,8 +200,14 @@ const Rules = ({ user }) => {
           <Button variant="primary" icon={Plus} onClick={openCreate}>
             Nueva regla
           </Button>
-        </div>
-      </header>
+          </>
+        }
+      >
+        <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
+          Cuando importás DATEV, las reglas asignan categoría / centro de costo / proyecto
+          automáticamente según contraparte o descripción. Tu bandeja queda más chica cada semana.
+        </p>
+      </PageHeader>
 
       <KPIGrid cols={4}>
         <KPI
@@ -268,7 +270,7 @@ const Rules = ({ user }) => {
       >
         {loading ? (
           <div className="px-4 py-12 text-center">
-            <p className="label-mono">Cargando...</p>
+            <p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState

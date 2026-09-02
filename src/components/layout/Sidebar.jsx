@@ -11,19 +11,18 @@ import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
 import { formatCurrency } from '../../utils/formatters';
 import { useTheme } from '../../hooks/useTheme';
-import { NAV_GROUPS } from './navItems';
+import { activeGroupKey, isItemActive, visibleNavGroups } from './navItems';
 
 const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceData, bankAccount }) => {
  const navigate = useNavigate();
  const location = useLocation();
  const { theme, toggle: toggleTheme } = useTheme();
- // Build visible groups — only include groups that have at least one visible item
- const visibleGroups = NAV_GROUPS
-   .map((group) => ({
-     ...group,
-     items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
-   }))
-   .filter((group) => group.items.length > 0);
+ // Row 1 = the groups the role may open; row 2 = the items of the group the
+ // current route belongs to. Clicking a group tab navigates to its first
+ // item, so the active group is always derived from the route.
+ const visibleGroups = visibleNavGroups(hasPermission);
+ const activeKey = activeGroupKey(location.pathname, visibleGroups);
+ const activeGroup = visibleGroups.find((group) => group.key === activeKey) ?? visibleGroups[0] ?? null;
 
  const handleLogout = async () => {
  if (!window.confirm('¿Estás seguro que deseas cerrar sesión?')) return;
@@ -51,7 +50,7 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  >
  NEXUS<span style={{ color: 'var(--color-accent)' }}>.OS</span>
  </h1>
-  <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent)]">
+  <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--color-accent)]">
   Rebuilt around software
  </p>
  </div>
@@ -125,53 +124,62 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  </div>
  </div>
 
- {/* Nav row */}
-  <nav className="relative -mx-5 mt-4 border-t border-[var(--color-line)] px-5 pt-2">
- {/* Right-side fade hint that there is more to scroll */}
- <span aria-hidden="true" className="pointer-events-none absolute right-0 top-2 bottom-0 w-12 bg-gradient-to-l from-[var(--color-bg-0)] to-transparent z-10" />
-  <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide pb-0.5">
-   {visibleGroups.map((group, groupIdx) => (
-     <div key={group.key} className="flex flex-shrink-0 items-center gap-1">
-       {/* Group separator + label (not shown for first group to save space) */}
-       {groupIdx > 0 && (
-         <div className="flex items-center gap-1.5 px-2">
-           <span aria-hidden="true" className="h-3 w-px bg-[var(--color-line-s)]" />
-           <span className="label-mono text-[9px] text-[var(--color-fg-4)]">{group.label}</span>
-         </div>
-       )}
-       {group.items.map((item) => {
-         const Icon = item.icon;
-         const active = location.pathname === item.path;
-         return (
-           <button
-             key={item.path}
-             type="button"
-             onClick={() => navigate(item.path)}
-             className={`relative inline-flex flex-shrink-0 items-center gap-2 rounded-md px-3 py-2 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors ${
-               active
-                 ? 'bg-[var(--color-bg-3)] text-[var(--color-fg-1)]'
-                 : 'text-[var(--color-fg-3)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]'
-             }`}
-           >
-             <Icon size={13} />
-             <span>
-               {item.label}
-               {item.accent && (
-                 <span style={{ color: 'var(--color-accent)' }}>{item.accent}</span>
-               )}
-             </span>
-             {active && (
-               <span
-                 aria-hidden="true"
-                 className="pointer-events-none absolute inset-x-3 -bottom-[9px] h-[2px] bg-[var(--color-accent)]"
-               />
-             )}
-           </button>
-         );
-       })}
-     </div>
-   ))}
+ {/* Row 1 — group tabs */}
+ <div
+ role="tablist"
+ aria-label="Secciones"
+ className="nx-tabs -mx-5 mt-4 mb-0 border-t border-[var(--color-line)] px-5"
+ >
+ {visibleGroups.map((group) => {
+ const selected = group.key === activeGroup?.key;
+ return (
+ <button
+ key={group.key}
+ type="button"
+ role="tab"
+ aria-selected={selected}
+ className={`nx-tab ${selected ? 'active' : ''}`}
+ onClick={() => navigate(group.items[0].path)}
+ >
+ {group.label}
+ </button>
+ );
+ })}
  </div>
+
+ {/* Row 2 — items of the active group */}
+ <nav aria-label="Páginas de la sección" className="mt-2 flex flex-wrap items-center gap-1">
+ {(activeGroup?.items || []).map((item) => {
+ const Icon = item.icon;
+ const active = isItemActive(location.pathname, item);
+ return (
+ <button
+ key={item.path}
+ type="button"
+ aria-current={active ? 'page' : undefined}
+ onClick={() => navigate(item.path)}
+ className={`relative inline-flex flex-shrink-0 items-center gap-2 rounded-md px-3 py-2 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors ${
+ active
+ ? 'bg-[var(--color-bg-3)] text-[var(--color-fg-1)]'
+ : 'text-[var(--color-fg-3)] hover:bg-[var(--color-bg-2)] hover:text-[var(--color-fg-1)]'
+ }`}
+ >
+ <Icon size={13} />
+ <span>
+ {item.label}
+ {item.accent && (
+ <span style={{ color: 'var(--color-accent)' }}>{item.accent}</span>
+ )}
+ </span>
+ {active && (
+ <span
+ aria-hidden="true"
+ className="pointer-events-none absolute inset-x-3 bottom-0 h-[2px] bg-[var(--color-accent)]"
+ />
+ )}
+ </button>
+ );
+ })}
  </nav>
  </div>
  </header>

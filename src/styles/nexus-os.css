@@ -349,11 +349,11 @@ button { font: inherit; cursor: pointer; }
 .nx-table thead th {
   text-align: left;
   font-family: var(--f-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 500;
-  opacity: 0.7;
+  color: var(--color-fg-3);
   padding: var(--s-3) var(--s-4);
   border-bottom: 1px solid var(--rule-strong);
   white-space: nowrap;
@@ -564,6 +564,29 @@ button { font: inherit; cursor: pointer; }
 
 .nx-tabs .tab:hover { opacity: 0.85; }
 .nx-tabs .tab.active { opacity: 1; border-bottom-color: var(--accent); }
+
+/* Canonical tab item — what Tabs.jsx, the Bandeja and the shell group row
+   emit. No radius, no background: a mono label with an accent underline. */
+.nx-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-fg-3);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.nx-tab:hover { color: var(--color-fg-1); }
+.nx-tab.active { color: var(--color-fg-1); border-bottom-color: var(--color-accent); }
 
 /* ============================================================
    TOGGLE
@@ -897,10 +920,10 @@ button { font: inherit; cursor: pointer; }
 }
 .phead .m {
   font-family: var(--f-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  opacity: 0.55;
+  color: var(--color-fg-3);
 }
 .pbody { padding: var(--s-5); }
 
@@ -929,12 +952,14 @@ button { font: inherit; cursor: pointer; }
 /* Legacy typography utilities */
 .label-mono {
   font-family: var(--f-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
   line-height: 1.2;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  opacity: 0.55;
+  /* No opacity here: the colour comes from the token class at the call site
+     (text-fg-3 for eyebrows/labels, text-fg-4 for secondary metas). Stacking
+     0.55 opacity on top of fg-3/fg-4 made every label unreadable. */
 }
 .heading-display {
   font-family: var(--f-display);

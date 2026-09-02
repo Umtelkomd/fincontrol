@@ -72,6 +72,7 @@ describe('Movimientos — ledger table', () => {
     renderScreen(<Movimientos user={USER} />);
 
     expect(screen.getByRole('heading', { name: 'Revisión de movimientos' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByText('Cobertura de clasificación')).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
 
@@ -106,7 +107,7 @@ describe('Movimientos — ledger table', () => {
   it('shows the loading branch before the snapshot lands', () => {
     renderScreen(<Movimientos user={null} />, { user: null });
 
-    expect(screen.getByText('Cargando...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando…')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
@@ -115,14 +116,51 @@ describe('Movimientos — ledger table', () => {
 
     renderScreen(<Movimientos user={USER} />);
 
-    // NEXUS.OS EmptyState brackets its title.
-    expect(screen.getByText('[Sin resultados]')).toBeInTheDocument();
+    expect(screen.getByText('Sin resultados')).toBeInTheDocument();
     expect(screen.getByText('Ajustá los filtros o el rango de búsqueda.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });
 
 describe('Movimientos — filters', () => {
+  it('opens on the current year, not on the whole history', () => {
+    store.collections.bankMovements = [
+      CLASSIFIED,
+      bankMovementFixture({ id: 'mov-2025', direction: 'out', amount: 15, description: 'Del año pasado', postedDate: '2025-12-20' }),
+    ];
+
+    renderScreen(<Movimientos user={USER} />);
+
+    expect(screen.getByLabelText('Año')).toHaveValue(String(new Date().getFullYear()));
+    expect(screen.getByText('Material fibra óptica')).toBeInTheDocument();
+    expect(screen.queryByText('Del año pasado')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Año'), { target: { value: 'all' } });
+    expect(screen.getByText('Del año pasado')).toBeInTheDocument();
+  });
+
+  it('treats an obra cost without a project as "Sin clasificar", like the Bandeja does', () => {
+    store.collections.bankMovements = [
+      CLASSIFIED,
+      bankMovementFixture({
+        id: 'mov-no-obra',
+        direction: 'out',
+        amount: 44,
+        description: 'Gasoil sin obra',
+        categoryName: 'Combustible',
+        costScope: 'project',
+        projectId: '',
+        postedDate: isoDaysFromNow(-4),
+      }),
+    ];
+
+    renderScreen(<Movimientos user={USER} />);
+    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'unclassified' } });
+
+    expect(screen.getByText('Gasoil sin obra')).toBeInTheDocument();
+    expect(screen.queryByText('Material fibra óptica')).not.toBeInTheDocument();
+  });
+
   it('narrows the table when the status filter changes', () => {
     renderScreen(<Movimientos user={USER} />);
 

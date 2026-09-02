@@ -2,14 +2,17 @@ import { useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
  ArrowDownLeft,
+ ArrowDownRight,
  ArrowUpRight,
  CheckCircle2,
  Clock3,
  Landmark,
  ShieldAlert,
- TrendingUp,
 } from 'lucide-react';
 import HelpButton from '../../components/ui/HelpButton';
+import PageHeader from '../../components/layout/PageHeader';
+import LiquidityKpis from '../../components/finance/LiquidityKpis';
+import { Badge, KPI, KPIGrid } from '@/components/ui/nexus';
 import {
  Bar,
  BarChart,
@@ -36,7 +39,7 @@ const TooltipCard = ({ active, payload, label }) => {
  if (!active || !payload?.length) return null;
  return (
  <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-3 ">
- <p className="label-mono text-[var(--color-fg-4)] mb-2">{label}</p>
+ <p className="label-mono text-[var(--color-fg-3)] mb-2">{label}</p>
  {payload.map((entry) => (
  <p key={entry.name} className="font-mono text-sm" style={{ color: entry.color }}>
  {entry.name}: {formatCurrency(entry.value)}
@@ -146,77 +149,38 @@ const CashFlow = ({ user }) => {
 
  return (
  <div className="space-y-6 pb-12">
- <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-6 py-7 ">
- <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
- <div>
- <p className="label-mono text-[var(--color-fg-3)] mb-3">Tesorería</p>
- <h2 className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">
- Caja, vencimientos y seguimiento diario en una sola vista.
- </h2>
- <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[var(--color-fg-4)]">
- Consulta el saldo disponible, las próximas entradas y salidas y los movimientos pendientes de revisión sin mezclar compromisos con caja real.
- </p>
- </div>
- <div className="grid gap-3 sm:grid-cols-2">
- <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
- <div className="flex items-center gap-1.5">
- <p className="label-mono text-[var(--color-fg-4)]">Caja actual</p>
- <HelpButton title="Caja actual" size={13}>
- <p>Saldo operativo real de la cuenta bancaria principal.</p>
- <p>Calculado desde el saldo de apertura (dic 2025) mas todos los movimientos bancarios registrados.</p>
- </HelpButton>
- </div>
- <p className="mt-2 font-display text-[30px] font-medium text-[var(--color-fg-1)]">{formatCurrency(metrics.currentCash)}</p>
- </div>
- <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
- <div className="flex items-center gap-1.5">
- <p className="label-mono text-[var(--color-fg-4)]">Liquidez proyectada</p>
- <HelpButton title="Liquidez proyectada" size={13}>
- <p>Caja actual + CXC abiertas - CXP abiertas.</p>
- <p>Muestra cuanto tendria la empresa si se cobrara y pagara todo lo pendiente.</p>
- </HelpButton>
- </div>
- <p className="mt-2 font-display text-[30px] font-medium text-[var(--color-fg-1)]">{formatCurrency(metrics.projectedLiquidity)}</p>
- </div>
- <div
- className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4 cursor-pointer hover: transition-transform duration-200"
+ <PageHeader
+ section="Tesorería"
+ title="Caja y"
+ accent="vencimientos"
+ subtitle="Caja conciliada, próximos cobros y pagos, IVA y movimientos"
+ />
+
+ {/* The same three numbers Resumen and the executive summary print. */}
+ <LiquidityKpis metrics={metrics} forecast={forecast} size="lg" />
+
+ <KPIGrid cols={2}>
+ <KPI
+ label="Cobros próximos"
+ value={formatCurrency(metrics.upcomingReceivables.reduce((sum, entry) => sum + entry.openAmount, 0))}
+ tone="ok"
+ icon={ArrowUpRight}
+ meta={`${metrics.upcomingReceivables.length} documento(s) CXC con vencimiento en 14 días`}
  onClick={() => movementsRef.current?.scrollIntoView({ behavior: 'smooth' })}
- role="button"
- tabIndex={0}
- onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); movementsRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}
- >
- <div className="flex items-center gap-1.5">
- <p className="label-mono text-[var(--color-fg-4)]">Cobros proximos</p>
- <HelpButton title="Cobros proximos" size={13}>
- <p>Suma de documentos CXC abiertos con vencimiento en los proximos 14 dias.</p>
- <p>Representa el dinero que se espera recibir a corto plazo.</p>
- </HelpButton>
- </div>
- <p className="mt-2 font-display text-[30px] font-medium text-[var(--color-ok)]">
- {formatCurrency(metrics.upcomingReceivables.reduce((sum, entry) => sum + entry.openAmount, 0))}
- </p>
- </div>
- <div
- className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4 cursor-pointer hover: transition-transform duration-200"
+ />
+ <KPI
+ label="Pagos próximos"
+ value={formatCurrency(metrics.upcomingPayables.reduce((sum, entry) => sum + entry.openAmount, 0))}
+ tone="warn"
+ icon={ArrowDownRight}
+ meta={`${metrics.upcomingPayables.length} documento(s) CXP con vencimiento en 14 días`}
  onClick={() => reconciliationRef.current?.scrollIntoView({ behavior: 'smooth' })}
- role="button"
- tabIndex={0}
- onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reconciliationRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}
- >
- <div className="flex items-center gap-1.5">
- <p className="label-mono text-[var(--color-fg-4)]">Pagos proximos</p>
- <HelpButton title="Pagos proximos" size={13}>
- <p>Suma de documentos CXP abiertos con vencimiento en la siguiente ventana.</p>
- <p>Representa las obligaciones de pago mas inmediatas.</p>
- </HelpButton>
- </div>
- <p className="mt-2 font-display text-[30px] font-medium text-[var(--color-warn)]">
- {formatCurrency(metrics.upcomingPayables.reduce((sum, entry) => sum + entry.openAmount, 0))}
+ />
+ </KPIGrid>
+
+ <p className="text-[12px] text-[var(--color-fg-4)]">
+ Caja conciliada: último ancla + movimientos bancarios posteriores.
  </p>
- </div>
- </div>
- </div>
- </section>
 
  <Section title="Estado de Resultados" subtitle="Ingresos vs gastos realizados, agrupados por mes." help={
  <HelpButton title="Estado de Resultados" size={14}>
@@ -228,10 +192,10 @@ const CashFlow = ({ user }) => {
  <table className="w-full text-left text-sm">
  <thead>
  <tr className="border-b border-[var(--color-line)]">
- <th className="px-3 py-2.5 label-mono text-[var(--color-fg-4)]">Mes</th>
- <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Ingresos</th>
- <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Gastos</th>
- <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Resultado</th>
+ <th className="px-3 py-2.5 label-mono text-[var(--color-fg-3)]">Mes</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-3)]">Ingresos</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-3)]">Gastos</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-3)]">Resultado</th>
  </tr>
  </thead>
  <tbody className="divide-y divide-[var(--color-line)]">
@@ -241,7 +205,10 @@ const CashFlow = ({ user }) => {
  <td className="px-3 py-3 text-right text-[13px] font-medium text-[var(--color-ok)]">{formatCurrency(row.inflows)}</td>
  <td className="px-3 py-3 text-right text-[13px] font-medium text-[var(--color-warn)]">{formatCurrency(row.outflows)}</td>
  <td className={`px-3 py-3 text-right text-[13px] font-medium ${row.net >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
- {row.net >= 0 ? '\u{1F7E2}' : '\u{1F534}'} {formatCurrency(row.net)}
+ <span className="inline-flex items-center justify-end gap-2">
+ <Badge variant={row.net >= 0 ? 'ok' : 'err'} dot>{row.net >= 0 ? 'Positivo' : 'Negativo'}</Badge>
+ {formatCurrency(row.net)}
+ </span>
  </td>
  </tr>
  ))}
@@ -331,10 +298,10 @@ const CashFlow = ({ user }) => {
  <table className="w-full text-left text-sm">
  <thead>
  <tr className="border-b border-[var(--color-line)]">
- <th className="px-3 py-2.5 label-mono text-[var(--color-fg-4)]">Periodo</th>
- <th className="px-3 py-2.5 label-mono text-[var(--color-fg-4)]">Vence</th>
- <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Cobertura</th>
- <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-4)]">Importe</th>
+ <th className="px-3 py-2.5 label-mono text-[var(--color-fg-3)]">Periodo</th>
+ <th className="px-3 py-2.5 label-mono text-[var(--color-fg-3)]">Vence</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-3)]">Cobertura</th>
+ <th className="px-3 py-2.5 text-right label-mono text-[var(--color-fg-3)]">Importe</th>
  </tr>
  </thead>
  <tbody className="divide-y divide-[var(--color-line)]">
@@ -381,7 +348,7 @@ const CashFlow = ({ user }) => {
  >
  <div className="flex items-center gap-3">
  <div
- className="flex h-11 w-11 items-center justify-center rounded-lg"
+ className="flex h-11 w-11 items-center justify-center rounded-md"
  style={{
  backgroundColor: isInflow ? 'rgba(74, 222, 128, 0.12)' : 'rgba(255, 176, 32, 0.12)',
  color: isInflow ? 'var(--color-ok)' : 'var(--color-warn)',
@@ -440,28 +407,9 @@ const CashFlow = ({ user }) => {
  </div>
  </div>
 
- <div className="grid gap-6 lg:grid-cols-3">
- <Section title="Cobertura de caja" subtitle="Caja actual sobre el egreso promedio de 90 dias." help={
- <HelpButton title="Cobertura de caja" size={14}>
- <p>Meses de operacion que la caja actual puede cubrir al ritmo de gasto promedio de los ultimos 90 dias.</p>
- <p>Una cobertura inferior a 3 meses se considera critica.</p>
- </HelpButton>
- }>
- <div className="flex items-center gap-4">
- <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--color-bg-1)] text-[var(--color-fg-1)]">
- <TrendingUp size={18} />
- </div>
- <div>
- <p className="font-display text-[32px] font-medium tracking-tight text-[var(--color-fg-1)]">
- {metrics.runwayMonths == null ? 'N/A' : `${metrics.runwayMonths.toFixed(1)} meses`}
- </p>
- <p className="text-sm text-[var(--color-fg-3)]">Egreso medio mensual: {formatCurrency(metrics.avgMonthlyOutflows)}</p>
- </div>
- </div>
- </Section>
-
+ <div className="grid gap-6 lg:grid-cols-2">
  <div
- className="cursor-pointer hover: transition-transform duration-200 rounded-md"
+ className="cursor-pointer rounded-md"
  onClick={() => navigate('/cxc')}
  role="button"
  tabIndex={0}
@@ -469,7 +417,7 @@ const CashFlow = ({ user }) => {
  >
  <Section title="Cobros vencidos" subtitle="Documentos abiertos con vencimiento pasado.">
  <div className="flex items-center gap-4">
- <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-transparent text-[var(--color-warn)]">
+ <div className="flex h-12 w-12 items-center justify-center rounded-md border border-[var(--color-line)] text-[var(--color-warn)]">
  <ShieldAlert size={18} />
  </div>
  <div>
@@ -485,7 +433,7 @@ const CashFlow = ({ user }) => {
  </div>
 
  <div
- className="cursor-pointer hover: transition-transform duration-200 rounded-md"
+ className="cursor-pointer rounded-md"
  onClick={() => navigate('/cxp')}
  role="button"
  tabIndex={0}
@@ -493,7 +441,7 @@ const CashFlow = ({ user }) => {
  >
  <Section title="Pagos por salir" subtitle="Compromisos abiertos dentro de la siguiente ventana.">
  <div className="flex items-center gap-4">
- <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-transparent text-[var(--color-warn)]">
+ <div className="flex h-12 w-12 items-center justify-center rounded-md border border-[var(--color-line)] text-[var(--color-warn)]">
  <Clock3 size={18} />
  </div>
  <div>

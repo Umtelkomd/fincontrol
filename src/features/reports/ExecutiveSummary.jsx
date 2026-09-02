@@ -1,15 +1,11 @@
 import { useState } from 'react';
-import {
- AlertTriangle,
- ArrowDownRight,
- ArrowUpRight,
- Landmark,
- ShieldAlert,
- Target,
-} from 'lucide-react';
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Clock3 } from 'lucide-react';
 import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
+import { useCashForecast } from '../../hooks/useCashForecast';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
-import { formatCurrency } from '../../utils/formatters';
+import LiquidityKpis from '../../components/finance/LiquidityKpis';
+import { KPI, KPIGrid } from '@/components/ui/nexus';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [
@@ -20,33 +16,23 @@ const YEAR_OPTIONS = [
   { value: 'all', label: 'Todos los años' },
 ];
 
-const Card = ({ title, value, subtitle, accent, icon }) => {
- const IconComponent = icon;
- return (
- <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
- <div className="mb-4 flex items-center justify-between">
- <div>
- <p className="label-mono text-[var(--color-fg-4)]">{title}</p>
- <p className="mt-2 text-[26px] font-medium tracking-tight text-[var(--color-fg-1)]">{value}</p>
- </div>
- <div className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: `${accent}20`, color: accent }}>
- <IconComponent size={18} />
- </div>
- </div>
- <p className="text-sm text-[var(--color-fg-3)]">{subtitle}</p>
- </div>
- );
-};
+const sumOpen = (rows) => rows.reduce((sum, entry) => sum + entry.openAmount, 0);
 
 const ExecutiveSummary = ({ user }) => {
  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
 
+ // The range scopes movement-based figures only; open documents (and therefore
+ // Caja / Posición neta / Runway) are never filtered by year — see
+ // useTreasuryMetrics.
  const yearRange = selectedYear === 'all'
  ? {}
  : { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31` };
 
  const ledger = useFinanceLedgerContext();
  const metrics = useTreasuryMetrics({ user, ...yearRange, ledger });
+ // Same forecast, same day zero as Resumen and Tesorería, so the runway tile
+ // here is the same runway — not a second estimate.
+ const forecast = useCashForecast(user, { ledger });
 
  if (metrics.loading) {
  return (
@@ -56,23 +42,26 @@ const ExecutiveSummary = ({ user }) => {
  );
  }
 
+ const overdueTotal = sumOpen(metrics.overdueReceivables);
+ const upcomingPayablesTotal = sumOpen(metrics.upcomingPayables);
+
  const alerts = [
  {
  id: 'cash',
  title: 'Posición de caja',
- body: `Caja actual ${formatCurrency(metrics.currentCash)} y liquidez proyectada ${formatCurrency(metrics.projectedLiquidity)}.`,
- tone: metrics.projectedLiquidity >= 0 ? 'good' : 'bad',
+ body: `Caja ${formatCurrency(metrics.currentCash)} y posición neta ${formatCurrency(metrics.netPosition)}.`,
+ tone: metrics.netPosition >= 0 ? 'good' : 'bad',
  },
  {
  id: 'collections',
  title: 'Riesgo de cobranza',
- body: `${metrics.overdueReceivables.length} documentos vencidos por cobrar por ${formatCurrency(metrics.overdueReceivables.reduce((sum, entry) => sum + entry.openAmount, 0))}.`,
+ body: `${metrics.overdueReceivables.length} documentos vencidos por cobrar por ${formatCurrency(overdueTotal)}.`,
  tone: metrics.overdueReceivables.length > 0 ? 'bad' : 'good',
  },
  {
  id: 'payments',
  title: 'Presión de pagos',
- body: `${metrics.upcomingPayables.length} pagos dentro de la siguiente ventana por ${formatCurrency(metrics.upcomingPayables.reduce((sum, entry) => sum + entry.openAmount, 0))}.`,
+ body: `${metrics.upcomingPayables.length} pagos dentro de la siguiente ventana por ${formatCurrency(upcomingPayablesTotal)}.`,
  tone: metrics.upcomingPayables.length > 0 ? 'warning' : 'good',
  },
  ];
@@ -87,7 +76,7 @@ const ExecutiveSummary = ({ user }) => {
  <div className="space-y-6">
  {/* Year selector */}
  <div className="flex items-center gap-3 flex-wrap">
- <span className="label-mono text-[var(--color-fg-4)]">Año fiscal</span>
+ <span className="label-mono text-[var(--color-fg-3)]">Año fiscal</span>
  <div className="flex flex-wrap gap-2">
  {YEAR_OPTIONS.map((opt) => (
  <button
@@ -106,12 +95,25 @@ const ExecutiveSummary = ({ user }) => {
  </div>
  </div>
 
- <div className="grid gap-4 lg:grid-cols-4">
- <Card title="Caja actual" value={formatCurrency(metrics.currentCash)} subtitle="Saldo operativo real." accent="var(--color-ok)" icon={Landmark} />
- <Card title="Liquidez proyectada" value={formatCurrency(metrics.projectedLiquidity)} subtitle="Caja mas CXC menos CXP." accent="var(--color-fg-3)" icon={Target} />
- <Card title="CXC vencida" value={formatCurrency(metrics.overdueReceivables.reduce((sum, entry) => sum + entry.openAmount, 0))} subtitle={`${metrics.overdueReceivables.length} documentos`} accent="var(--color-accent)" icon={AlertTriangle} />
- <Card title="Cobertura de caja" value={metrics.runwayMonths == null ? 'N/A' : `${metrics.runwayMonths.toFixed(1)} meses`} subtitle="Meses cubiertos al ritmo promedio de egresos." accent="var(--color-warn)" icon={ShieldAlert} />
- </div>
+ {/* The same three numbers Resumen and Tesorería print. */}
+ <LiquidityKpis metrics={metrics} forecast={forecast} />
+
+ <KPIGrid cols={2}>
+ <KPI
+ label="CXC vencida"
+ value={formatCurrency(overdueTotal)}
+ tone={metrics.overdueReceivables.length > 0 ? 'err' : 'ok'}
+ icon={AlertTriangle}
+ meta={`${metrics.overdueReceivables.length} documento(s)`}
+ />
+ <KPI
+ label="Pagos próximos"
+ value={formatCurrency(upcomingPayablesTotal)}
+ tone={metrics.upcomingPayables.length > 0 ? 'warn' : 'ok'}
+ icon={Clock3}
+ meta={`${metrics.upcomingPayables.length} documento(s) CXP con vencimiento en 14 días`}
+ />
+ </KPIGrid>
 
  <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] p-5 ">
  <div className="mb-5">
@@ -122,13 +124,7 @@ const ExecutiveSummary = ({ user }) => {
  {alerts.map((alert) => (
  <div
  key={alert.id}
- className={`rounded-md border px-4 py-4 ${
- alert.tone === 'good'
- ? 'border-[var(--color-line-s)] bg-transparent'
- : alert.tone === 'warning'
- ? 'border-[var(--color-line-s)] bg-transparent'
- : 'border-[var(--color-line-s)] bg-transparent'
- }`}
+ className="rounded-md border border-[var(--color-line-s)] bg-transparent px-4 py-4"
  >
  <p className="text-sm font-medium text-[var(--color-fg-1)]">{alert.title}</p>
  <p className="mt-2 text-sm leading-7 text-[var(--color-fg-4)]">{alert.body}</p>
@@ -147,7 +143,7 @@ const ExecutiveSummary = ({ user }) => {
  {[...metrics.upcomingReceivables.slice(0, 3), ...metrics.upcomingPayables.slice(0, 3)].map((entry) => {
  const isInflow = entry.kind === 'receivable';
  return (
- <div key={entry.id} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
+ <div key={entry.id} className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
  <div className="mb-2 flex items-center justify-between gap-3">
  <div className="flex items-center gap-2">
  {isInflow ? <ArrowUpRight size={16} className="text-[var(--color-ok)]" /> : <ArrowDownRight size={16} className="text-[var(--color-warn)]" />}
@@ -158,7 +154,9 @@ const ExecutiveSummary = ({ user }) => {
  {formatCurrency(entry.openAmount)}
  </span>
  </div>
- <p className="text-xs text-[var(--color-fg-3)]">{entry.documentNumber || 'Sin documento'} · {entry.dueDate}</p>
+ <p className="text-xs text-[var(--color-fg-3)]">
+ {entry.documentNumber || 'Sin documento'} · {entry.dueDate ? formatDate(entry.dueDate) : '—'}
+ </p>
  </div>
  );
  })}
@@ -172,7 +170,7 @@ const ExecutiveSummary = ({ user }) => {
  </div>
  <div className="space-y-3">
  {recommendations.map((recommendation) => (
- <div key={recommendation} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
+ <div key={recommendation} className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-4">
  <p className="text-sm leading-7 text-[var(--color-fg-4)]">{recommendation}</p>
  </div>
  ))}

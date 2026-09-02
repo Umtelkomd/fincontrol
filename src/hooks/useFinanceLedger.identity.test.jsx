@@ -52,3 +52,60 @@ describe('useFinanceLedger subscription identity', () => {
     expect(() => renderHook(() => useFinanceLedger(null))).not.toThrow();
   });
 });
+
+/**
+ * The ledger also carries the MUTATORS of the hooks it fans out to, so a
+ * screen that reads `ledger.bankMovements` from the context can write through
+ * `ledger.actions.bankMovements.bulkClassify` without opening a second
+ * subscription of its own. The references are stable across renders, so a
+ * consumer may list them as effect/memo dependencies without churn.
+ */
+describe('useFinanceLedger — mutators travel with the data', () => {
+  it('exposes the bank movement, receivable and payable actions without their data', () => {
+    const { result } = renderHook(() => useFinanceLedger({ ...TEST_USER }));
+    const { actions } = result.current;
+
+    [
+      'createBankMovement',
+      'updateBankMovement',
+      'bulkClassify',
+      'voidBankMovement',
+      'reconcileMovement',
+      'unreconcileMovement',
+    ].forEach((name) => expect(typeof actions.bankMovements[name]).toBe('function'));
+    ['createReceivable', 'registerPayment', 'updateReceivable', 'cancelReceivable', 'markAsPaid'].forEach(
+      (name) => expect(typeof actions.receivables[name]).toBe('function'),
+    );
+    ['createPayable', 'registerPayment', 'updatePayable', 'cancelPayable', 'setOpsCleared'].forEach(
+      (name) => expect(typeof actions.payables[name]).toBe('function'),
+    );
+
+    expect(actions.bankMovements.bankMovements).toBeUndefined();
+    expect(actions.receivables.receivables).toBeUndefined();
+    expect(actions.payables.loading).toBeUndefined();
+  });
+
+  it('keeps the same references across renders', () => {
+    const { result, rerender } = renderHook(({ user }) => useFinanceLedger(user), {
+      initialProps: { user: { ...TEST_USER } },
+    });
+    const first = result.current.actions;
+
+    rerender({ user: { ...TEST_USER } });
+    rerender({ user: { ...TEST_USER } });
+
+    expect(result.current.actions).toBe(first);
+    expect(result.current.actions.bankMovements.bulkClassify).toBe(first.bankMovements.bulkClassify);
+    expect(result.current.actions.payables.createPayable).toBe(first.payables.createPayable);
+  });
+
+  it('forwards a call to the underlying mutator', async () => {
+    const { result } = renderHook(() => useFinanceLedger({ ...TEST_USER }));
+
+    // No ids ⇒ the real bulkClassify refuses before touching Firestore.
+    const outcome = await result.current.actions.bankMovements.bulkClassify([], { categoryName: 'X' });
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.error.message).toBe('No hay movimientos seleccionados');
+  });
+});

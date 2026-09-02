@@ -12,9 +12,7 @@ import {
  Filter,
  Wand2,
 } from 'lucide-react';
-import { useBankMovements } from '../../hooks/useBankMovements';
-import { useReceivables } from '../../hooks/useReceivables';
-import { usePayables } from '../../hooks/usePayables';
+import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useCategories } from '../../hooks/useCategories';
 import { useCostCenters } from '../../hooks/useCostCenters';
 import { useEmployees } from '../../hooks/useEmployees';
@@ -25,6 +23,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency } from '../../utils/formatters';
 import { classificationCoverage, isClassified } from '../../finance/costScope';
+import { OPERATIONAL_DATA_START } from '../../finance/constants';
 import { isInternalTransfer, splitInternalTransfers } from '../../lib/finance/movementAmount';
 import {
  COUNTERPARTY_KIND,
@@ -52,26 +51,32 @@ import MovementDetailModal from '../../components/ui/MovementDetailModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
+import PageHeader from '../../components/layout/PageHeader';
 
 const PAGE_SIZE = 50;
+const CURRENT_YEAR = String(new Date().getFullYear());
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 const Movimientos = ({ user }) => {
- const { bankMovements, loading, updateBankMovement, bulkClassify } = useBankMovements(user);
- const { receivables } = useReceivables(user);
- const { payables } = usePayables(user);
+ // The shared ledger: same movements, receivables and payables the rest of
+ // the app reads, plus the movement mutators — no private subscriptions.
+ const ledger = useFinanceLedgerContext();
+ const { bankMovements, receivables, payables, loading } = ledger;
+ const { updateBankMovement, bulkClassify } = ledger.actions.bankMovements;
  const { expenseCategories, incomeCategories, categoryOptions: allCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
  const { employees } = useEmployees(user);
  const { projects } = useProjects(user);
- const { inboxMovements } = useClassifier(user);
+ const { pendingMovements: inboxMovements } = useClassifier(user);
  const { createRule } = useClassificationRules(user);
  const { showToast } = useToast();
 
  // ─── Filters ───
+ // The current year is always offered, even before its first movement lands,
+ // because it is the default selection.
  const allYears = useMemo(() => {
- const set = new Set();
+ const set = new Set([CURRENT_YEAR]);
  (bankMovements || []).forEach((m) => {
  const y = (m.postedDate || '').slice(0, 4);
  if (y) set.add(y);
@@ -79,7 +84,7 @@ const Movimientos = ({ user }) => {
  return [...set].sort().reverse();
  }, [bankMovements]);
 
- const [year, setYear] = useState('all');
+ const [year, setYear] = useState(CURRENT_YEAR);
  const [month, setMonth] = useState('all'); // 'all' | '1'..'12'
  const [direction, setDirection] = useState('all'); // all | in | out
  const [statusFilter, setStatusFilter] = useState('all'); // all | classified | unclassified | reconciled | void
@@ -118,9 +123,13 @@ const Movimientos = ({ user }) => {
  };
  }, [filtered]);
 
- // Coverage is measured over the WHOLE ledger, so the number matches the
- // classifier inbox no matter which filters are active here.
- const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
+ // Coverage is measured over the operational ledger (2026+), the same scope
+ // the Bandeja uses, so both screens quote the same number no matter which
+ // filters are active here.
+ const coverage = useMemo(
+ () => classificationCoverage((bankMovements || []).filter((m) => (m.postedDate || '') >= OPERATIONAL_DATA_START)),
+ [bankMovements],
+ );
 
  // Own-account transfers inside the current filter. The KPI totals above stay
  // BANK truth (they must reconcile with the rows on screen), so the amount that
@@ -250,18 +259,12 @@ const Movimientos = ({ user }) => {
 
  return (
  <div className="space-y-6 pb-12">
- <header className="flex items-end justify-between gap-4 flex-wrap">
- <div>
- <p className="label-mono text-[var(--color-fg-3)]">Banco · Movimientos</p>
- <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
- Revisión de movimientos
- </h2>
- <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
- Historial completo de movimientos bancarios (DATEV + recurrentes generadas + manuales).
- Filtros por año/mes, dirección y estado de clasificación.
- </p>
- </div>
- </header>
+ <PageHeader
+ section="Movimientos"
+ title="Revisión de"
+ accent="movimientos"
+ subtitle="Banco · DATEV, recurrentes y manuales"
+ />
 
  <ClassificationCoverage
  coverage={coverage}
@@ -306,7 +309,7 @@ const Movimientos = ({ user }) => {
  data-testid="internal-transfer-note"
  className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-4"
  >
- <p className="label-mono text-[var(--color-fg-4)]">Transferencias internas</p>
+ <p className="label-mono text-[var(--color-fg-3)]">Transferencias internas</p>
  <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--color-fg-3)]">
  {internalTransfers.internalTransfers.length} movimiento(s) por{' '}
  <span className="text-[var(--color-fg-1)]">{formatCurrency(internalTransfers.excludedTotal)}</span>{' '}
@@ -397,7 +400,7 @@ const Movimientos = ({ user }) => {
  padding={false}
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono text-[var(--color-fg-3)]">Cargando…</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={Filter}
@@ -692,7 +695,7 @@ const SelectAllCheckbox = ({ state, onChange, disabled }) => {
 
 const FilterSelect = ({ label, value, onChange, options }) => (
  <label className="block">
- <span className="mb-1 block label-mono text-[var(--color-fg-4)]">{label}</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-3)]">{label}</span>
  <select
  className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1.5 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={value}

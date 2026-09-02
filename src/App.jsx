@@ -1,18 +1,15 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { Landmark } from 'lucide-react';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Sidebar from './components/layout/Sidebar';
 import MobileMenu, { MobileMenuButton } from './components/layout/MobileMenu';
-import NexusMark from './components/brand/NexusMark';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { FinanceLedgerProvider, useFinanceLedgerContext } from './contexts/FinanceLedgerContext';
 import Login from './features/auth/Login';
 import { useAuth } from './hooks/useAuth';
 import { useFilters } from './hooks/useFilters';
 import { useTransactions } from './hooks/useTransactions';
-import { formatCurrency } from './utils/formatters';
 
 const Resumen = lazy(() => import('./features/resumen/Resumen'));
 const CashFlow = lazy(() => import('./features/cashflow/CashFlow'));
@@ -41,36 +38,6 @@ const AlertasOperativas = lazy(() => import('./features/alertas-op/AlertasOperat
 const Nominas = lazy(() => import('./features/nominas/Nominas'));
 const FinanceActionLauncher = lazy(() => import('./components/finance/FinanceActionLauncher'));
 
-const VIEW_TITLES = {
- '/': 'Resumen',
- '/resumen': 'Resumen',
- '/cashflow': 'Tesorería',
- '/flujo-caja-anual': 'Flujo Anual',
- '/tesoreria': 'Tesorería',
- '/reportes': 'Reportes',
- '/configuracion': 'Configuración',
- '/cxc': 'Cuentas por Cobrar',
- '/cxc/remesas': 'Conciliación de remesas',
- '/cxp': 'Cuentas por Pagar',
- '/nominas': 'Nóminas',
- '/presupuesto': 'Presupuesto',
- '/auditoria': 'Auditoría',
- '/proyectos': 'Proyectos',
- '/proyeccion': 'Proyección',
- '/roles': 'Roles',
- '/backup': 'Backup',
- '/perfil': 'Perfil',
- '/empleados': 'Empleados',
- '/viviendas': 'Viviendas',
- '/vehiculos': 'Vehículos',
- '/seguros': 'Seguros',
- '/datev': 'Importar DATEV',
- '/clasificar': 'Bandeja semanal',
- '/movimientos': 'Movimientos bancarios',
- '/reglas': 'Reglas de clasificación',
- '/alertas-op': 'Alertas operativas',
-};
-
 const LoadingState = () => (
  <div className="flex items-center justify-center py-32 animate-fadeIn">
  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--color-fg-3)]">
@@ -82,36 +49,18 @@ const LoadingState = () => (
 // AppContent — only rendered when user is authenticated (provider already mounted).
 function AppContent({ user, userRole, hasPermission }) {
  useToast();
- const { transactions, loading: transactionsLoading } = useTransactions(user);
+ // The legacy `transactions` collection only feeds Configuración; the shell
+ // must not wait for it. Screens gate themselves on `ledger.loading`.
+ const { transactions } = useTransactions(user);
  // Header balance comes from the shared ledger (no extra listeners needed here).
  const ledger = useFinanceLedgerContext();
  const {
  filteredTransactions,
  } = useFilters(transactions);
 
- const location = useLocation();
-
  const [isActionLauncherOpen, setIsActionLauncherOpen] = useState(false);
  const [launcherDefaultAction, setLauncherDefaultAction] = useState(null);
  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
- const loading = transactionsLoading;
- const currentTitle = VIEW_TITLES[location.pathname] || 'Inicio';
-
- const contentRef = useRef(null);
- const prevPathRef = useRef(location.pathname);
- useEffect(() => {
- if (prevPathRef.current !== location.pathname) {
- prevPathRef.current = location.pathname;
- const el = contentRef.current;
- if (el) {
- el.style.opacity = '0';
- requestAnimationFrame(() => {
- el.style.opacity = '1';
- });
- }
- }
- }, [location.pathname]);
 
  const handleOpenLauncher = (defaultAction = null) => {
  setLauncherDefaultAction(defaultAction);
@@ -155,52 +104,19 @@ function AppContent({ user, userRole, hasPermission }) {
  />
 
  <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-  <div className="z-20 flex-shrink-0 px-4 pb-0 pt-4 md:px-8 md:pt-6">
-  <div className="relative flex flex-wrap items-end justify-between gap-4 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-5">
-  <div aria-hidden="true" className="absolute bottom-[-18px] right-5 font-display text-[86px] font-medium leading-none tracking-[-0.08em] text-[var(--color-fg-1)] opacity-[0.025] md:text-[124px]">
-  NEXUS
-  </div>
-  <div className="relative flex items-center gap-4">
+  {/* Mobile top row: the desktop top bar is hidden below `md`, so the menu
+      button lives here. Every page renders its own <PageHeader>. */}
+  <div className="flex flex-shrink-0 items-center gap-3 px-4 pt-4 md:hidden">
   <MobileMenuButton onClick={() => setIsMobileMenuOpen(true)} />
-  <div className="hidden h-14 w-14 items-center justify-center rounded-md border border-[var(--color-line-s)] bg-[var(--color-bg-0)] md:flex">
-  <NexusMark size={34} title="NEXUS" />
-  </div>
-  <div>
-  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-accent)]">NEXUS.OS // UMTELKOMD FINANCE</p>
-  <h1
-  className="mt-1 font-display text-[34px] font-light leading-[0.95] tracking-[-0.04em] text-[var(--color-fg-1)] md:text-[46px]"
+  <p
+  className="text-[16px] leading-none text-[var(--color-fg-1)]"
+  style={{ fontFamily: 'var(--font-display)', fontWeight: 500, letterSpacing: '-0.02em' }}
   >
-  {currentTitle}
- </h1>
- <p className="mt-2 hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-fg-4)] md:block">
- {new Date().toLocaleDateString('es-ES', {
- weekday: 'long',
- year: 'numeric',
- month: 'long',
- day: 'numeric',
- })}
- </p>
- </div>
- </div>
-
- {!loading && bankBalanceData && (
-  <div className="relative hidden items-center gap-2 md:flex">
-  <div className="flex items-center gap-2 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3.5 py-2">
- <Landmark size={12} className={bankBalanceData.currentBalance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'} />
- <span className={`font-mono text-[12px] font-medium tabular-nums ${bankBalanceData.currentBalance >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-err)]'}`}>
- {formatCurrency(bankBalanceData.currentBalance)}
- </span>
- </div>
- </div>
- )}
- </div>
- </div>
+  NEXUS<span style={{ color: 'var(--color-accent)' }}>.OS</span>
+  </p>
+  </div>
 
  <div className="flex-1 overflow-y-auto px-4 pb-8 pt-5 md:px-8 md:pb-10 md:pt-6">
- <div ref={contentRef} className="transition-opacity duration-150">
- {loading ? (
- <LoadingState />
- ) : (
  <Suspense fallback={<LoadingState />}>
  <Routes>
  <Route path="/" element={<Navigate to="/resumen" replace />} />
@@ -240,8 +156,6 @@ function AppContent({ user, userRole, hasPermission }) {
  <Route path="*" element={<Navigate to="/" replace />} />
  </Routes>
  </Suspense>
- )}
- </div>
  </div>
  </main>
 

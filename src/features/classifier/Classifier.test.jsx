@@ -1,10 +1,11 @@
 /**
- * Classifier — render smoke tests.
+ * Classifier — render tests for the weekly inbox.
  *
- * The weekly DATEV inbox. Three mutually exclusive tab panels, each with its
- * own empty state, plus a coverage header shared with Movimientos. Only one
- * panel is mounted at a time, so two thirds of this screen's JSX had never been
- * evaluated by anything before these tests.
+ * The Bandeja is scoped to the operational data (2026+) and splits what is
+ * still pending into the three things it can ask: Sin categoría, Sin obra
+ * and Sin conciliar. Only one tab panel is mounted at a time, so each gets
+ * its own coverage here, plus the group-level "Asignar obra" bulk action —
+ * the 30-minute job the tab exists for.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
@@ -27,7 +28,7 @@ const INCOME = bankMovementFixture({
 });
 
 // Same amount and a due date inside the ±21-day window ⇒ score ≥ 100, which is
-// what routes an outflow into the "Gastos con CXP sugerida" bucket.
+// what puts the CXP suggestion card (with "Vincular") on the row.
 const EXPENSE_WITH_MATCH = bankMovementFixture({
   id: 'mov-out-matched',
   direction: 'out',
@@ -48,6 +49,22 @@ const EXPENSE_SPONTANEOUS = bankMovementFixture({
 
 const INBOX = [INCOME, EXPENSE_WITH_MATCH, EXPENSE_SPONTANEOUS];
 
+// A categorised obra cost with no project — the "Sin obra" case, twice for
+// the same counterparty so the group action has something to group.
+const sinObra = (id, amount, postedDate) =>
+  bankMovementFixture({
+    id,
+    direction: 'out',
+    amount,
+    description: `Tankstelle ${id}`,
+    counterpartyName: 'Aral AG',
+    categoryName: 'Combustible',
+    costScope: 'project',
+    projectId: '',
+    projectName: '',
+    postedDate,
+  });
+
 const store = installFirebaseMocks(
   ledgerFixtures({
     collections: {
@@ -59,9 +76,15 @@ const store = installFirebaseMocks(
 );
 
 const { renderScreen } = await import('@/test/renderScreen.jsx');
+const { writeBatch } = await import('firebase/firestore');
 const { default: Classifier } = await import('./Classifier.jsx');
 
 const USER = { uid: 'test-uid', email: 'jromero@umtelkomd.com' };
+
+const kpiValue = (label) =>
+  screen.getByText(label, { selector: 'p' }).closest('div').parentElement.querySelector(':scope > p');
+
+const openTab = (name) => fireEvent.click(screen.getByRole('tab', { name }));
 
 beforeEach(() => {
   const pristine = ledgerFixtures();
@@ -74,33 +97,30 @@ beforeEach(() => {
     receivableFixture({ id: 'cxc-open', openAmount: 10000, amount: 10000, dueDate: isoDaysFromNow(-4) }),
   ];
   store.collections.classificationRules = [];
+  writeBatch.mockClear();
 });
 
 describe('Classifier — inbox shell', () => {
-  it('renders the header and the coverage banner without throwing', () => {
+  it('renders one page header and the coverage banner without throwing', () => {
     renderScreen(<Classifier user={USER} />);
 
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Clasificar movimientos' })).toBeInTheDocument();
-    expect(screen.getByText('Bandeja semanal')).toBeInTheDocument();
-    expect(screen.getByText('Cobertura de clasificación')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Cobertura de clasificación' })).toBeInTheDocument();
+    expect(screen.getByText('§ Bandeja')).toBeInTheDocument();
+    expect(screen.getByText('2026 · 3 pendientes')).toBeInTheDocument();
+    expect(screen.getByText(/Cobertura de clasificación/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /Cobertura de clasificación/ })).toBeInTheDocument();
   });
 
-  it('buckets the inbox across the KPI row', () => {
+  it('buckets the inbox across the KPI row by pending reason', () => {
+    store.collections.bankMovements = [...INBOX, sinObra('mov-obra-1', 50, isoDaysFromNow(-5))];
+
     renderScreen(<Classifier user={USER} />);
 
-    // One inflow + one matched outflow + one loose outflow. The bucket labels
-    // also appear on the tabs (inside a <span>), so each KPI is read from its
-    // own tile: label <p> → header row → tile root → the tile's value <p>.
-    const kpiValue = (label) =>
-      screen
-        .getByText(label, { selector: 'p' })
-        .closest('div')
-        .parentElement.querySelector(':scope > p');
-
-    expect(kpiValue('Pendientes total')).toHaveTextContent('3');
-    expect(kpiValue('Con CXP sugerida')).toHaveTextContent('1');
-    expect(kpiValue('Gastos espontáneos')).toHaveTextContent('1');
+    expect(kpiValue('Pendientes 2026')).toHaveTextContent('4');
+    expect(kpiValue('Sin categoría')).toHaveTextContent('3');
+    expect(kpiValue('Sin obra')).toHaveTextContent('1');
+    expect(kpiValue('Sin conciliar')).toHaveTextContent('0');
   });
 
   it('reports an empty inbox as up to date rather than as an error', () => {
@@ -109,48 +129,176 @@ describe('Classifier — inbox shell', () => {
     renderScreen(<Classifier user={USER} />);
 
     expect(screen.getByText('✓ Bandeja al día')).toBeInTheDocument();
-    expect(screen.getByText('[Sin ingresos pendientes]')).toBeInTheDocument();
+    expect(screen.getByText('Sin pendientes de categoría')).toBeInTheDocument();
+  });
+
+  it('says it is loading instead of flashing "Bandeja al día / 0 %"', () => {
+    renderScreen(<Classifier user={null} />, { user: null });
+
+    expect(screen.getByText('Cargando…')).toBeInTheDocument();
+    expect(screen.queryByText('✓ Bandeja al día')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 });
 
-describe('Classifier — tab panels', () => {
-  it('opens on the income bucket and lists the unreconciled inflow', () => {
+describe('Classifier — scope', () => {
+  it('ignores everything posted before the operational year', () => {
+    store.collections.bankMovements = [
+      ...INBOX,
+      bankMovementFixture({ id: 'mov-2025', direction: 'out', amount: 300, description: 'Alt', postedDate: '2025-12-20' }),
+    ];
+
     renderScreen(<Classifier user={USER} />);
 
-    const panel = screen.getByText('Ingresos sin conciliar', { selector: 'h3' }).closest('section');
+    expect(kpiValue('Pendientes 2026')).toHaveTextContent('3');
+    expect(screen.queryByText('Alt')).not.toBeInTheDocument();
+  });
+
+  it('narrows the inbox and the coverage header to the selected month', () => {
+    store.collections.bankMovements = [
+      bankMovementFixture({ id: 'mov-mar', direction: 'out', amount: 10, description: 'Marzo', postedDate: '2026-03-10' }),
+      bankMovementFixture({ id: 'mov-abr', direction: 'out', amount: 10, description: 'Abril', postedDate: '2026-04-12' }),
+    ];
+
+    renderScreen(<Classifier user={USER} />);
+    expect(kpiValue('Pendientes 2026')).toHaveTextContent('2');
+
+    fireEvent.change(screen.getByLabelText('Mes'), { target: { value: '2026-03' } });
+
+    expect(kpiValue('Pendientes 2026')).toHaveTextContent('1');
+    expect(screen.getByText('Marzo')).toBeInTheDocument();
+    expect(screen.queryByText('Abril')).not.toBeInTheDocument();
+    expect(screen.getByText('Mar 2026 · 1 pendientes')).toBeInTheDocument();
+    expect(screen.getByText('Cobertura de clasificación · Mar 2026')).toBeInTheDocument();
+  });
+});
+
+describe('Classifier — Sin categoría', () => {
+  it('opens on the tab and lists every movement without a category, in either direction', () => {
+    renderScreen(<Classifier user={USER} />);
+
+    const panel = screen.getByText('Sin categoría', { selector: 'h3' }).closest('section');
     expect(within(panel).getByText('Überweisung Insyte')).toBeInTheDocument();
-    expect(within(panel).queryByText('Tankstelle Aral')).not.toBeInTheDocument();
-  });
-
-  it('switches to the suggested-CXP bucket and renders its match', () => {
-    renderScreen(<Classifier user={USER} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /Gastos con CXP sugerida/ }));
-
-    const panel = screen.getByText('Gastos con CXP sugerida', { selector: 'h3' }).closest('section');
     expect(within(panel).getByText('Lastschrift Kabel Service')).toBeInTheDocument();
-    expect(within(panel).queryByText('Überweisung Insyte')).not.toBeInTheDocument();
+    expect(within(panel).getByText('Tankstelle Aral')).toBeInTheDocument();
   });
 
-  it('switches to the spontaneous bucket for outflows with no CXP candidate', () => {
+  it('offers Vincular on the CXP suggestion card and Categorizar / Regla on every row', () => {
     renderScreen(<Classifier user={USER} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Gastos espontáneos/ }));
+    const matched = screen.getByText('Lastschrift Kabel Service').closest('div.px-5');
+    expect(within(matched).getByText(/CXP sugerida/)).toBeInTheDocument();
+    expect(within(matched).getByRole('button', { name: /Vincular/ })).toBeInTheDocument();
 
-    const panel = screen.getByText('Gastos espontáneos', { selector: 'h3' }).closest('section');
-    expect(within(panel).getByText('Tankstelle Aral')).toBeInTheDocument();
+    const loose = screen.getByText('Tankstelle Aral').closest('div.px-5');
+    expect(within(loose).queryByRole('button', { name: /Vincular/ })).not.toBeInTheDocument();
+    expect(within(loose).queryByRole('button', { name: /Buscar/ })).not.toBeInTheDocument();
+    expect(within(loose).getByRole('button', { name: /Categorizar/ })).toBeInTheDocument();
+    expect(within(loose).getByRole('button', { name: /Regla/ })).toBeInTheDocument();
+  });
+});
+
+describe('Classifier — Sin obra', () => {
+  beforeEach(() => {
+    store.collections.bankMovements = [
+      ...INBOX,
+      sinObra('mov-obra-1', 50, isoDaysFromNow(-5)),
+      sinObra('mov-obra-2', 87.4, isoDaysFromNow(-1)),
+    ];
+  });
+
+  it('groups the rows by counterparty with count and total in the header', () => {
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin obra/);
+
+    const group = screen.getByRole('region', { name: 'Aral AG' });
+    expect(within(group).getByText(/2 movimientos/)).toBeInTheDocument();
+    expect(within(group).getByText(/137,40/)).toBeInTheDocument();
+    expect(within(group).getByText('Tankstelle mov-obra-1')).toBeInTheDocument();
+    expect(within(group).getByText('Tankstelle mov-obra-2')).toBeInTheDocument();
+    expect(within(group).getByRole('button', { name: 'Asignar obra a los 2' })).toBeDisabled();
+  });
+
+  it('assigns the chosen project to every movement of the group in one batched write', async () => {
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin obra/);
+
+    const group = screen.getByRole('region', { name: 'Aral AG' });
+    fireEvent.change(within(group).getByLabelText('Obra para Aral AG'), { target: { value: 'proj-1' } });
+    const button = within(group).getByRole('button', { name: 'Asignar obra a los 2' });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+
+    await screen.findByText('2 movimiento(s) asignados a NE4 Rossdorf');
+
+    // One WriteBatch, one update per movement of the group, carrying the trio.
+    expect(writeBatch).toHaveBeenCalledTimes(1);
+    const batch = writeBatch.mock.results[0].value;
+    expect(batch.update).toHaveBeenCalledTimes(2);
+    const ids = batch.update.mock.calls.map(([ref]) => ref.path.split('/').pop()).sort();
+    expect(ids).toEqual(['mov-obra-1', 'mov-obra-2']);
+    batch.update.mock.calls.forEach(([, payload]) => {
+      expect(payload).toMatchObject({ projectId: 'proj-1', projectName: 'NE4 Rossdorf', costScope: 'project' });
+    });
+  });
+
+  it('lets one row take a different project than its group', async () => {
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin obra/);
+
+    fireEvent.change(screen.getByLabelText('Obra para Tankstelle mov-obra-2'), { target: { value: 'proj-1' } });
+    const row = screen.getByText('Tankstelle mov-obra-2').closest('div');
+    fireEvent.click(within(row.parentElement).getByRole('button', { name: 'Asignar' }));
+
+    await screen.findByText('1 movimiento(s) asignados a NE4 Rossdorf');
+
+    const batch = writeBatch.mock.results[0].value;
+    expect(batch.update).toHaveBeenCalledTimes(1);
+    expect(batch.update.mock.calls[0][0].path.endsWith('mov-obra-2')).toBe(true);
   });
 
   it('shows a per-bucket empty state, not a blank panel', () => {
     store.collections.bankMovements = [INCOME];
 
     renderScreen(<Classifier user={USER} />);
-    fireEvent.click(screen.getByRole('button', { name: /Gastos espontáneos/ }));
+    openTab(/Sin obra/);
 
-    expect(screen.getByText('[Sin gastos por categorizar]')).toBeInTheDocument();
-    expect(
-      screen.getByText('Todos los gastos están conciliados o categorizados.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Sin pendientes de obra')).toBeInTheDocument();
+  });
+});
+
+describe('Classifier — Sin conciliar', () => {
+  it('lists obra revenue without a CXC link with its match card, Vincular and Categorizar', () => {
+    store.collections.bankMovements = [
+      bankMovementFixture({
+        id: 'mov-rev',
+        direction: 'in',
+        amount: 10000,
+        description: 'Zahlung Insyte RE-2026-001',
+        counterpartyName: 'Insyte Deutschland',
+        categoryName: 'Facturación obra',
+        postedDate: isoDaysFromNow(-4),
+      }),
+    ];
+
+    renderScreen(<Classifier user={USER} />);
+    expect(kpiValue('Sin conciliar')).toHaveTextContent('1');
+    openTab(/Sin conciliar/);
+
+    const row = screen.getByText('Zahlung Insyte RE-2026-001').closest('div.px-5');
+    expect(within(row).getByText(/CXC sugerida/)).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /Vincular/ })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /Categorizar/ })).toBeInTheDocument();
+  });
+
+  it('does not ask for a CXC on an inflow filed under any other category', () => {
+    store.collections.bankMovements = [
+      bankMovementFixture({ id: 'mov-refund', direction: 'in', amount: 120, description: 'Rückerstattung', categoryName: 'Devoluciones', postedDate: isoDaysFromNow(-4) }),
+    ];
+
+    renderScreen(<Classifier user={USER} />);
+
+    expect(screen.getByText('✓ Bandeja al día')).toBeInTheDocument();
   });
 });
 
@@ -161,10 +309,11 @@ describe('Classifier — search', () => {
     fireEvent.change(screen.getByPlaceholderText('Buscar...'), { target: { value: 'Insyte' } });
 
     expect(screen.getByText('Überweisung Insyte')).toBeInTheDocument();
+    expect(screen.queryByText('Tankstelle Aral')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Buscar...'), { target: { value: 'zzz' } });
 
-    expect(screen.getByText('[Sin ingresos pendientes]')).toBeInTheDocument();
+    expect(screen.getByText('Sin pendientes de categoría')).toBeInTheDocument();
   });
 });
 
@@ -247,9 +396,6 @@ describe('Classifier — personas conocidas', () => {
     postedDate: isoDaysFromNow(-2),
   });
 
-  const openSpontaneous = () =>
-    fireEvent.click(screen.getByRole('button', { name: /Gastos espontáneos/ }));
-
   beforeEach(() => {
     store.collections.employees = [JEISSON, JORGE];
     store.collections.payables = [];
@@ -259,7 +405,6 @@ describe('Classifier — personas conocidas', () => {
     store.collections.bankMovements = [salaryMovement];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Überweisung Gehalt').closest('div.px-5');
     const badge = within(row).getByText('Nómina');
@@ -271,7 +416,6 @@ describe('Classifier — personas conocidas', () => {
     store.collections.bankMovements = [subMovement];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Überweisung').closest('div.px-5');
     expect(within(row).getByText('Subcontratista')).toBeInTheDocument();
@@ -281,7 +425,6 @@ describe('Classifier — personas conocidas', () => {
     store.collections.bankMovements = [salaryMovement];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Überweisung Gehalt').closest('div.px-5');
     expect(within(row).getByText(/Salarios/)).toBeInTheDocument();
@@ -293,7 +436,6 @@ describe('Classifier — personas conocidas', () => {
     store.collections.bankMovements = [subMovement];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Überweisung').closest('div.px-5');
     expect(within(row).getByText(/Subcontratas/)).toBeInTheDocument();
@@ -322,7 +464,6 @@ describe('Classifier — personas conocidas', () => {
     ];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Überweisung SEPA').closest('div.px-5');
     expect(within(row).getByText(/Sin confirmar/i)).toBeInTheDocument();
@@ -333,7 +474,6 @@ describe('Classifier — personas conocidas', () => {
     store.collections.bankMovements = [EXPENSE_SPONTANEOUS];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Tankstelle Aral').closest('div.px-5');
     expect(within(row).queryByText('Nómina')).not.toBeInTheDocument();
@@ -344,7 +484,6 @@ describe('Classifier — personas conocidas', () => {
     store.collections.bankMovements = [salaryMovement];
 
     renderScreen(<Classifier user={USER} />);
-    openSpontaneous();
 
     const row = screen.getByText('Überweisung Gehalt').closest('div.px-5');
     fireEvent.click(within(row).getByRole('button', { name: /Categorizar/ }));

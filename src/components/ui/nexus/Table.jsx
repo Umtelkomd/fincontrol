@@ -32,7 +32,7 @@ const Table = ({
   if (loading) {
     return (
       <div className="px-4 py-12 text-center">
-        <p className="label-mono text-[var(--color-fg-4)]">Cargando…</p>
+        <p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>
       </div>
     );
   }
@@ -40,7 +40,7 @@ const Table = ({
   if (!rows || rows.length === 0) {
     return empty || (
       <div className="px-4 py-12 text-center">
-        <p className="label-mono text-[var(--color-fg-4)]">Sin registros</p>
+        <p className="label-mono text-[var(--color-fg-3)]">Sin registros</p>
       </div>
     );
   }

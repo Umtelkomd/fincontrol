@@ -29,8 +29,14 @@ const { default: Resumen } = await import('./Resumen.jsx');
 
 const USER = { uid: 'test-uid', email: 'jromero@umtelkomd.com' };
 
-/** The "Caja actual" KPI card — cash also appears inside "Posición real". */
-const cashKpi = () => screen.getByText('Caja actual').closest('div').parentElement;
+/**
+ * The "Caja" tile of the shared LiquidityKpis inside "Caja y runway" — cash
+ * also appears as a tile inside "Posición neta", so the query is scoped.
+ */
+const cashKpi = () =>
+  within(screen.getByText('Caja y runway').closest('section'))
+    .getByText('Caja', { selector: 'p' })
+    .closest('div').parentElement;
 
 /**
  * LOCAL dates, never toISOString(): ages are computed against local midnight and
@@ -66,6 +72,24 @@ describe('Resumen — cockpit render', () => {
     expect(screen.getByText('Margen por proyecto')).toBeInTheDocument();
   });
 
+  it('renders exactly one h1 — the shell no longer adds a banner title', () => {
+    renderScreen(<Resumen user={USER} />);
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText('§ Resumen')).toBeInTheDocument();
+  });
+
+  it('shows the shared liquidity trio with the same labels as Tesorería', () => {
+    renderScreen(<Resumen user={USER} />);
+
+    const panel = screen.getByText('Caja y runway').closest('section');
+    expect(within(panel).getByText('Caja')).toBeInTheDocument();
+    expect(within(panel).getByText('Posición neta')).toBeInTheDocument();
+    expect(within(panel).getByText('Runway')).toBeInTheDocument();
+    // 52.000 caja + 10.000 por cobrar − 4.000 por pagar.
+    expect(within(panel).getByText('58.000,00')).toBeInTheDocument();
+  });
+
   it('reports the loading state instead of rendering €0 figures', () => {
     // A null user keeps every Firestore listener idle, which is exactly the
     // state the ledger is in before the first snapshot lands.
@@ -79,7 +103,7 @@ describe('Resumen — cockpit render', () => {
     renderScreen(<Resumen user={USER} />);
 
     // 25.000 anchor + 42.000 − 12.000 − 3.000 (all three movements post-date it).
-    // Scoped to the KPI: "Posición real" repeats cash as part of its arithmetic.
+    // Scoped to the KPI: "Posición neta" repeats cash as part of its arithmetic.
     expect(within(cashKpi()).getByText('52.000,00')).toBeInTheDocument();
     expect(screen.getByText(/Conciliado al/)).toBeInTheDocument();
   });
@@ -258,7 +282,7 @@ describe('Resumen — upcoming due lists', () => {
   });
 });
 
-describe('Resumen — posición real', () => {
+describe('Resumen — posición neta', () => {
   // Ledger fixture: cash 52.000, CXC abierta 10.000, CXP abierta 4.000.
   const WIP_DOC = {
     id: 'wip-1',
@@ -274,16 +298,21 @@ describe('Resumen — posición real', () => {
     createdAt: '2026-07-01T08:00:00.000Z',
   };
 
-  it('adds executed work to the position and shows the arithmetic', () => {
+  it('keeps the headline on the shared formula and states executed work as its own line', () => {
     store.collections.workInProgress = [WIP_DOC];
 
     renderScreen(<Resumen user={USER} />);
 
     const panel = screen.getByTestId('position-panel');
-    // 52.000 caja + 30.000 obra + 10.000 por cobrar − 4.000 por pagar
-    expect(within(panel).getByTestId('position-net')).toHaveTextContent('88.000,00');
+    // Headline = 52.000 caja + 10.000 por cobrar − 4.000 por pagar — the SAME
+    // number Tesorería and the executive summary print. WIP is not folded in.
+    expect(within(panel).getByTestId('position-net')).toHaveTextContent('58.000,00');
+    // The extra line: + 30.000 obra ejecutada sin facturar → 88.000.
+    const withWip = within(panel).getByTestId('position-with-wip');
+    expect(withWip).toHaveTextContent('Posición con obra ejecutada');
+    expect(withWip).toHaveTextContent('30.000,00');
+    expect(withWip).toHaveTextContent('88.000,00');
     expect(within(panel).getByText('Obra ejecutada')).toBeInTheDocument();
-    expect(within(panel).getByText('30.000,00')).toBeInTheDocument();
     expect(within(panel).getByText('52.000,00')).toBeInTheDocument();
   });
 
@@ -294,6 +323,7 @@ describe('Resumen — posición real', () => {
 
     const panel = screen.getByTestId('position-panel');
     expect(within(panel).getByTestId('position-net')).toHaveTextContent('58.000,00');
+    expect(within(panel).queryByTestId('position-with-wip')).not.toBeInTheDocument();
     expect(within(panel).getByText(/Sin obra ejecutada registrada/)).toBeInTheDocument();
   });
 
@@ -310,8 +340,8 @@ describe('Resumen — posición real', () => {
 
     renderScreen(<Resumen user={USER} />);
 
-    // "Caja actual" is still the anchor-derived 52.000, untouched by the 30.000.
-    const cash = screen.getByText('Caja actual').closest('div').parentElement;
+    // "Caja" is still the anchor-derived 52.000, untouched by the 30.000.
+    const cash = cashKpi();
     expect(within(cash).getByText('52.000,00')).toBeInTheDocument();
     expect(within(cash).queryByText('82.000,00')).not.toBeInTheDocument();
   });

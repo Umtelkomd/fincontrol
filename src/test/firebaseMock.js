@@ -138,6 +138,11 @@ export const createFirestoreModule = (store) => {
     arrayUnion: vi.fn((...items) => items),
     increment: vi.fn((value) => value),
     getFirestore: vi.fn(() => ({ __mockDb: true })),
+    // Persistent local cache (src/services/firebase.js). Inert here: the
+    // module double never opens IndexedDB.
+    initializeFirestore: vi.fn(() => ({ __mockDb: true })),
+    persistentLocalCache: vi.fn((settings) => ({ __cache: 'persistent', ...(settings || {}) })),
+    persistentMultipleTabManager: vi.fn(() => ({ __tabManager: 'multiple' })),
   };
 };
 

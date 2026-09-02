@@ -12,9 +12,11 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { commitInChunks } from '../utils/chunkedCommit';
 import {
   normalizeRuleApplyTo,
   RULE_DIRECTIONS,
@@ -25,6 +27,19 @@ import { buildClassificationPayload, findBestRule, matchRule } from '../finance/
 
 const RULES_COLLECTION = 'classificationRules';
 const MOVEMENTS_COLLECTION = 'bankMovements';
+
+/**
+ * Firestore caps a WriteBatch at 500 operations. 400 movements per chunk
+ * leaves room for the one hits++ per rule the chunk also carries — the same
+ * headroom `bulkClassify` keeps in useBankMovements.
+ */
+const RULE_BATCH_LIMIT = 400;
+
+const chunk = (items, size) => {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+};
 
 /**
  * useClassificationRules — CRUD for auto-classification rules + apply helpers.
@@ -238,28 +253,84 @@ export const useClassificationRules = (user) => {
 
   /**
    * applyRulesToMovements — bulk-apply over an iterable. Returns counts.
-   * The same rule gets one hits++ per movement.
+   *
+   * Plans every write first (best rule per movement, never overwriting a
+   * field the movement already has), then commits in WriteBatch chunks of
+   * RULE_BATCH_LIMIT: one update per movement plus ONE hits increment per
+   * rule per chunk — so the same rule still gets one hit per movement, in
+   * ceil(n/400) round trips instead of 2n. A failing chunk is reported per
+   * movement and the remaining chunks still run.
    */
   const applyRulesToMovements = useCallback(
     async (movements, opts = {}) => {
       const list = Array.isArray(movements) ? movements : [];
-      let applied = 0;
       let skipped = 0;
-      const errors = [];
-      for (const m of list) {
-        const r = findBestRule(m, rules);
-        if (!r) {
+      const plans = [];
+      for (const movement of list) {
+        const rule = findBestRule(movement, rules);
+        if (!rule) {
           skipped += 1;
           continue;
         }
-        const out = await applyRuleToMovement(m, r, opts);
-        if (out.success && out.applied) applied += 1;
-        else if (!out.success) errors.push({ movementId: m.id, error: out.error });
-        else skipped += 1;
+        const patch = buildClassificationPayload(rule, movement);
+        if (Object.keys(patch).length === 0) {
+          skipped += 1;
+          continue;
+        }
+        plans.push({ movement, rule, patch });
       }
+      if (plans.length === 0) return { applied: 0, skipped, errors: [] };
+      if (!user) {
+        return {
+          applied: 0,
+          skipped,
+          errors: plans.map(({ movement }) => ({ movementId: movement.id, error: 'No user' })),
+        };
+      }
+
+      const nowIso = new Date().toISOString();
+      const groups = chunk(plans, RULE_BATCH_LIMIT);
+      const errors = [];
+
+      const { applied } = await commitInChunks(
+        groups,
+        async (group) => {
+          const batch = writeBatch(db);
+          const hitsByRule = new Map();
+          group.forEach(({ movement, rule, patch }) => {
+            batch.update(doc(db, 'artifacts', appId, 'public', 'data', MOVEMENTS_COLLECTION, movement.id), {
+              ...patch,
+              updatedBy: user.email,
+              updatedAt: serverTimestamp(),
+              auditTrail: arrayUnion({
+                action: 'auto-classify',
+                user: user.email,
+                timestamp: nowIso,
+                detail: `Auto-clasificado por regla "${rule.name || rule.pattern}"`,
+              }),
+            });
+            hitsByRule.set(rule.id, (hitsByRule.get(rule.id) || 0) + 1);
+          });
+          if (!opts.skipHits) {
+            hitsByRule.forEach((hits, ruleId) => {
+              batch.update(doc(db, 'artifacts', appId, 'public', 'data', RULES_COLLECTION, ruleId), {
+                hits: increment(hits),
+                lastHitAt: nowIso,
+              });
+            });
+          }
+          await batch.commit();
+        },
+        ({ index, ok, error }) => {
+          if (ok) return;
+          logError('applyRulesToMovements chunk error:', error);
+          groups[index].forEach(({ movement }) => errors.push({ movementId: movement.id, error }));
+        },
+      );
+
       return { applied, skipped, errors };
     },
-    [rules, applyRuleToMovement],
+    [rules, user],
   );
 
   /**

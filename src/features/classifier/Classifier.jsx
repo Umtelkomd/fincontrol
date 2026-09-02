@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
  Inbox,
  Link2,
  Tag,
+ HardHat,
  ArrowDownRight,
  ArrowUpRight,
  CheckCircle2,
- AlertTriangle,
  Search,
  Wand2,
  PlayCircle,
@@ -20,28 +20,67 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency } from '../../utils/formatters';
 import { findBestRule } from '../../finance/ruleEngine';
-import { classificationCoverage, COST_SCOPE } from '../../finance/costScope';
+import { COST_SCOPE } from '../../finance/costScope';
+import { OPERATIONAL_DATA_START } from '../../finance/constants';
 import { COUNTERPARTY_KIND, suggestClassification } from '../../finance/counterpartyIdentity';
 import CategorizeModal from '../../components/ui/CategorizeModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
+import PageHeader from '../../components/layout/PageHeader';
 import ClassificationCoverage from './ClassificationCoverage';
+import { groupByCounterparty } from './lib/groupByCounterparty';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
 
+const OPERATIONAL_YEAR = OPERATIONAL_DATA_START.slice(0, 4);
+
 const TABS = [
- { key: 'income', label: 'Ingresos sin conciliar', icon: ArrowUpRight },
- { key: 'expense-suggested', label: 'Gastos con CXP sugerida', icon: Link2 },
- { key: 'expense-spontaneous', label: 'Gastos espontáneos', icon: Tag },
+ { key: 'sinCategoria', label: 'Sin categoría', icon: Tag },
+ { key: 'sinObra', label: 'Sin obra', icon: HardHat },
+ { key: 'sinConciliar', label: 'Sin conciliar', icon: Link2 },
 ];
 
+const EMPTY_COPY = {
+ sinCategoria: {
+ title: 'Sin pendientes de categoría',
+ description: 'Todos los movimientos del periodo tienen categoría.',
+ },
+ sinObra: {
+ title: 'Sin pendientes de obra',
+ description: 'Todos los gastos de obra del periodo tienen su proyecto asignado.',
+ },
+ sinConciliar: {
+ title: 'Sin pendientes de conciliación',
+ description: 'Todos los cobros de obra del periodo están vinculados a una CXC.',
+ },
+};
+
+const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** 'YYYY-MM' → 'Sep 2026'. */
+const monthLabel = (key) => {
+ const [year, month] = String(key || '').split('-');
+ const name = SHORT_MONTHS[Number(month) - 1];
+ return name ? `${name} ${year}` : key;
+};
+
+const matchesSearch = (movement, query) =>
+ (movement.description || '').toLowerCase().includes(query) ||
+ (movement.counterpartyName || '').toLowerCase().includes(query) ||
+ String(movement.amount || '').includes(query);
+
 const Classifier = ({ user }) => {
+ const [month, setMonth] = useState('all');
  const {
  inboxMovements,
- bankMovements,
+ pendingMovements,
+ availableMonths,
+ coverage,
+ loading,
  linkToReceivable,
  linkToPayable,
  categorize,
  suggestMatches,
- } = useClassifier(user);
+ bulkClassify,
+ } = useClassifier(user, { month });
 
  const { categoryOptions: allCategories } = useCategories(user);
  const { costCenters } = useCostCenters(user);
@@ -50,21 +89,24 @@ const Classifier = ({ user }) => {
  const { rules, createRule, applyRulesToMovements } = useClassificationRules(user);
  const { showToast } = useToast();
 
- const [activeTab, setActiveTab] = useState('income');
+ const [activeTab, setActiveTab] = useState('sinCategoria');
  const [searchQuery, setSearchQuery] = useState('');
  const [categorizingMovement, setCategorizingMovement] = useState(null);
  const [ruleSeedMovement, setRuleSeedMovement] = useState(null);
  const [busyId, setBusyId] = useState(null);
  const [applyingAll, setApplyingAll] = useState(false);
+ // Project chosen per counterparty group in the "Sin obra" tab.
+ const [groupProject, setGroupProject] = useState({});
 
  const ruleHitCount = useMemo(
- () => (inboxMovements || []).reduce((sum, m) => (findBestRule(m, rules) ? sum + 1 : sum), 0),
- [inboxMovements, rules],
+ () => pendingMovements.reduce((sum, m) => (findBestRule(m, rules) ? sum + 1 : sum), 0),
+ [pendingMovements, rules],
  );
 
- // Coverage is measured over the WHOLE ledger, not the inbox — the inbox is
- // unclassified by definition and would always read 0%.
- const coverage = useMemo(() => classificationCoverage(bankMovements), [bankMovements]);
+ const activeProjects = useMemo(
+ () => (projects || []).filter((p) => p.status !== 'inactive' && p.active !== false),
+ [projects],
+ );
 
  // "Jeisson, Juan de Dios son nómina de empresa no subcontratistas." The bank
  // only writes a free-text name; the employee master knows which is which. The
@@ -78,67 +120,33 @@ const Classifier = ({ user }) => {
  };
  }, [employees]);
 
- // Bucketize inbox by tab
- const buckets = useMemo(() => {
- const income = [];
- const expenseSuggested = [];
- const expenseSpontaneous = [];
+ const query = searchQuery.trim().toLowerCase();
+ const filterBySearch = (items) => (query ? items.filter((m) => matchesSearch(m, query)) : items);
 
- inboxMovements.forEach((m) => {
- if (m.direction === 'in') {
- income.push(m);
- } else {
- const matches = suggestMatches(m);
- if (matches.length > 0 && matches[0].score >= 100) {
- expenseSuggested.push({ movement: m, matches });
- } else {
- expenseSpontaneous.push({ movement: m, matches });
- }
- }
- });
-
- // Sort by date desc
- income.sort((a, b) => (b.postedDate || '').localeCompare(a.postedDate || ''));
- expenseSuggested.sort((a, b) => (b.movement.postedDate || '').localeCompare(a.movement.postedDate || ''));
- expenseSpontaneous.sort((a, b) => (b.movement.postedDate || '').localeCompare(a.movement.postedDate || ''));
-
- return { income, expenseSuggested, expenseSpontaneous };
- }, [inboxMovements, suggestMatches]);
-
- const filterBySearch = (items, getMovement = (x) => x) => {
- if (!searchQuery.trim()) return items;
- const q = searchQuery.toLowerCase();
- return items.filter((it) => {
- const m = getMovement(it);
- return (
- (m.description || '').toLowerCase().includes(q) ||
- (m.counterpartyName || '').toLowerCase().includes(q) ||
- String(m.amount || '').includes(q)
+ const sinCategoria = filterBySearch(inboxMovements.sinCategoria);
+ const sinConciliar = filterBySearch(inboxMovements.sinConciliar);
+ const sinObraGroups = useMemo(
+ () => groupByCounterparty(query ? inboxMovements.sinObra.filter((m) => matchesSearch(m, query)) : inboxMovements.sinObra),
+ [inboxMovements.sinObra, query],
  );
- });
+
+ const stats = {
+ total: pendingMovements.length,
+ sinCategoria: inboxMovements.sinCategoria.length,
+ sinObra: inboxMovements.sinObra.length,
+ sinConciliar: inboxMovements.sinConciliar.length,
  };
 
- const handleLinkReceivable = async (movement, receivable) => {
+ const handleLink = async (movement, item) => {
  setBusyId(movement.id);
- const r = await linkToReceivable(movement, receivable);
+ const r = movement.direction === 'in'
+ ? await linkToReceivable(movement, item)
+ : await linkToPayable(movement, item);
  setBusyId(null);
  if (r.success) {
+ const label = movement.direction === 'in' ? 'CXC' : 'CXP';
  showToast(
- r.status === 'settled' ? 'Conciliado y CXC liquidada' : 'Conciliación parcial registrada',
- 'success',
- );
- } else {
- showToast(r.error?.message || 'Error al conciliar', 'error');
- }
- };
-
- const handleLinkPayable = async (movement, payable) => {
- setBusyId(movement.id);
- const r = await linkToPayable(movement, payable);
- setBusyId(null);
- if (r.success) {
- showToast(
- r.status === 'settled' ? 'Conciliado y CXP liquidada' : 'Conciliación parcial registrada',
+ r.status === 'settled' ? `Conciliado y ${label} liquidada` : 'Conciliación parcial registrada',
  'success',
  );
  } else {
@@ -168,7 +176,7 @@ const Classifier = ({ user }) => {
  return;
  }
  setApplyingAll(true);
- const result = await applyRulesToMovements(inboxMovements);
+ const result = await applyRulesToMovements(pendingMovements);
  setApplyingAll(false);
  if (result.applied > 0) {
  showToast(`${result.applied} movimiento(s) clasificados automáticamente`, 'success');
@@ -179,33 +187,35 @@ const Classifier = ({ user }) => {
  }
  };
 
- const stats = {
- total: inboxMovements.length,
- income: buckets.income.length,
- expenseSuggested: buckets.expenseSuggested.length,
- expenseSpontaneous: buckets.expenseSpontaneous.length,
+ // The 30-minute job: one project for a whole counterparty group (or one row),
+ // written through the ledger's chunked bulkClassify — never one write per row.
+ const handleAssignProject = async (ids, projectId, busyKey) => {
+ const project = activeProjects.find((p) => p.id === projectId);
+ if (!project || !bulkClassify) return;
+ setBusyId(busyKey);
+ const r = await bulkClassify(ids, {
+ projectId: project.id,
+ projectName: project.name,
+ costScope: COST_SCOPE.PROJECT,
+ });
+ setBusyId(null);
+ if (r.success) showToast(`${r.updated} movimiento(s) asignados a ${project.name}`, 'success');
+ else showToast(r.error?.message || 'No se pudo asignar la obra', 'error');
  };
 
- const incomeFiltered = filterBySearch(buckets.income);
- const expenseSuggestedFiltered = filterBySearch(buckets.expenseSuggested, (it) => it.movement);
- const expenseSpontaneousFiltered = filterBySearch(buckets.expenseSpontaneous, (it) => it.movement);
+ const periodLabel = month === 'all' ? OPERATIONAL_YEAR : monthLabel(month);
 
  return (
  <div className="space-y-6 pb-12">
- <header className="flex items-end justify-between gap-4 flex-wrap">
- <div>
- <p className="label-mono text-[var(--color-fg-3)]">Bandeja semanal</p>
- <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
- Clasificar movimientos
- </h2>
- <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
- Cada viernes después del DATEV semanal, conciliá ingresos con CXC, vinculá gastos con CXP cuando corresponda
- y categorizá los gastos espontáneos.
- </p>
- </div>
- {ruleHitCount > 0 && (
+ <PageHeader
+ section="Bandeja"
+ title="Clasificar"
+ accent="movimientos"
+ subtitle={loading ? periodLabel : `${periodLabel} · ${stats.total} pendientes`}
+ actions={
+ !loading && ruleHitCount > 0 ? (
  <Button
- variant="secondary"
+ variant="primary"
  icon={PlayCircle}
  loading={applyingAll}
  disabled={applyingAll}
@@ -213,66 +223,84 @@ const Classifier = ({ user }) => {
  >
  Aplicar reglas ({ruleHitCount})
  </Button>
- )}
- </header>
+ ) : null
+ }
+ />
 
- <ClassificationCoverage coverage={coverage} />
+ {loading ? (
+ <div className="flex items-center justify-center py-28">
+ <p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>
+ </div>
+ ) : (
+ <>
+ <ClassificationCoverage coverage={coverage} title={`Cobertura de clasificación · ${periodLabel}`} />
 
  <KPIGrid cols={4}>
  <KPI
- label="Pendientes total"
+ label={`Pendientes ${OPERATIONAL_YEAR}`}
  value={stats.total}
  meta={stats.total === 0 ? '✓ Bandeja al día' : 'Necesitan acción'}
  tone={stats.total === 0 ? 'ok' : 'warn'}
  icon={Inbox}
  />
  <KPI
- label="Ingresos sin conciliar"
- value={stats.income}
- meta="Buscar match con CXC"
- tone={stats.income > 0 ? 'warn' : 'ok'}
- icon={ArrowUpRight}
- />
- <KPI
- label="Con CXP sugerida"
- value={stats.expenseSuggested}
- meta="Match exacto detectado"
- tone="info"
- icon={Link2}
- />
- <KPI
- label="Gastos espontáneos"
- value={stats.expenseSpontaneous}
- meta="Solo categorizar"
- tone={stats.expenseSpontaneous > 0 ? 'warn' : 'ok'}
+ label="Sin categoría"
+ value={stats.sinCategoria}
+ meta="Categorizar o vincular"
+ tone={stats.sinCategoria > 0 ? 'warn' : 'ok'}
  icon={Tag}
+ />
+ <KPI
+ label="Sin obra"
+ value={stats.sinObra}
+ meta="Gasto de obra sin proyecto"
+ tone={stats.sinObra > 0 ? 'warn' : 'ok'}
+ icon={HardHat}
+ />
+ <KPI
+ label="Sin conciliar"
+ value={stats.sinConciliar}
+ meta="Cobro de obra sin CXC"
+ tone={stats.sinConciliar > 0 ? 'warn' : 'ok'}
+ icon={Link2}
  />
  </KPIGrid>
 
  <div className="flex flex-wrap items-center justify-between gap-3">
- <div className="nx-tabs">
+ <div className="nx-tabs mb-0 overflow-x-auto" role="tablist">
  {TABS.map((t) => {
  const Icon = t.icon;
- const count =
- t.key === 'income' ? stats.income :
- t.key === 'expense-suggested' ? stats.expenseSuggested :
- stats.expenseSpontaneous;
  return (
  <button
  key={t.key}
  type="button"
+ role="tab"
+ aria-selected={activeTab === t.key}
  onClick={() => setActiveTab(t.key)}
  className={`nx-tab ${activeTab === t.key ? 'active' : ''}`}
  >
- <span className="inline-flex items-center gap-2">
  <Icon size={12} />
  {t.label}
- <Badge variant="neutral">{count}</Badge>
- </span>
+ <Badge variant="neutral">{stats[t.key]}</Badge>
  </button>
  );
  })}
  </div>
+ <div className="flex flex-wrap items-center gap-2">
+ <label className="flex items-center gap-2">
+ <span className="label-mono text-[var(--color-fg-3)]">Mes</span>
+ <select
+ aria-label="Mes"
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1.5 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+ value={month}
+ onChange={(e) => setMonth(e.target.value)}
+ >
+ <option value="all">Todos {OPERATIONAL_YEAR}</option>
+ {availableMonths.map((key) => (
+ <option key={key} value={key}>{monthLabel(key)}</option>
+ ))}
+ </select>
+ </label>
  <div className="relative">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
  <input
@@ -284,32 +312,88 @@ const Classifier = ({ user }) => {
  />
  </div>
  </div>
+ </div>
 
- {/* INCOME TAB */}
- {activeTab === 'income' && (
- <Panel title="Ingresos sin conciliar" meta={`${incomeFiltered.length} resultado(s)`} padding={false}>
- {incomeFiltered.length === 0 ? (
- <EmptyState
- icon={CheckCircle2}
- title="Sin ingresos pendientes"
- description="Todos los ingresos están conciliados con CXC."
- />
+ {/* SIN CATEGORÍA */}
+ {activeTab === 'sinCategoria' && (
+ <Panel title="Sin categoría" meta={`${sinCategoria.length} resultado(s)`} padding={false}>
+ {sinCategoria.length === 0 ? (
+ <EmptyState icon={CheckCircle2} {...EMPTY_COPY.sinCategoria} />
  ) : (
  <div className="divide-y divide-[var(--color-line)]">
- {incomeFiltered.map((m) => {
- const matches = suggestMatches(m);
- return (
+ {sinCategoria.map((m) => (
  <MovementRow
  key={m.id}
  movement={m}
- matches={matches}
+ matches={suggestMatches(m)}
  personnel={personnelOf(m)}
- direction="in"
  busy={busyId === m.id}
- onLink={(item) => handleLinkReceivable(m, item)}
+ onLink={(item) => handleLink(m, item)}
  onCategorize={() => setCategorizingMovement(m)}
  onCreateRule={() => setRuleSeedMovement(m)}
  />
+ ))}
+ </div>
+ )}
+ </Panel>
+ )}
+
+ {/* SIN OBRA — grouped by counterparty, one project per group */}
+ {activeTab === 'sinObra' && (
+ <Panel
+ title="Sin obra"
+ meta={`${sinObraGroups.length} contraparte(s) · ${sinObraGroups.reduce((n, g) => n + g.count, 0)} movimiento(s)`}
+ padding={false}
+ >
+ {sinObraGroups.length === 0 ? (
+ <EmptyState icon={CheckCircle2} {...EMPTY_COPY.sinObra} />
+ ) : (
+ <div className="divide-y divide-[var(--color-line)]">
+ {sinObraGroups.map((group) => {
+ const selected = groupProject[group.key] || '';
+ const groupBusy = busyId === `group:${group.key}`;
+ return (
+ <section key={group.key} className="px-5 py-4" aria-label={group.counterparty}>
+ <div className="flex flex-wrap items-center justify-between gap-3">
+ <p className="min-w-0 text-[14px] text-[var(--color-fg-1)]">
+ <span className="font-medium">{group.counterparty}</span>
+ <span className="ml-2 font-mono text-[11px] text-[var(--color-fg-3)]">
+ · {group.count} {group.count === 1 ? 'movimiento' : 'movimientos'} · {formatCurrency(group.total)}
+ </span>
+ </p>
+ <div className="flex flex-wrap items-center gap-2">
+ <ProjectSelect
+ label={`Obra para ${group.counterparty}`}
+ value={selected}
+ projects={activeProjects}
+ onChange={(value) => setGroupProject((current) => ({ ...current, [group.key]: value }))}
+ />
+ <Button
+ variant="primary"
+ size="sm"
+ icon={HardHat}
+ loading={groupBusy}
+ disabled={!selected || busyId != null}
+ onClick={() => handleAssignProject(group.ids, selected, `group:${group.key}`)}
+ >
+ Asignar obra a los {group.count}
+ </Button>
+ </div>
+ </div>
+ <div className="mt-3 divide-y divide-[var(--color-line)] border-t border-[var(--color-line)]">
+ {group.movements.map((m) => (
+ <SinObraRow
+ key={m.id}
+ movement={m}
+ projects={activeProjects}
+ busy={busyId === m.id}
+ disabled={busyId != null}
+ onAssign={(projectId) => handleAssignProject([m.id], projectId, m.id)}
+ onCategorize={() => setCategorizingMovement(m)}
+ />
+ ))}
+ </div>
+ </section>
  );
  })}
  </div>
@@ -317,62 +401,30 @@ const Classifier = ({ user }) => {
  </Panel>
  )}
 
- {/* EXPENSE SUGGESTED */}
- {activeTab === 'expense-suggested' && (
- <Panel title="Gastos con CXP sugerida" meta={`${expenseSuggestedFiltered.length} resultado(s)`} padding={false}>
- {expenseSuggestedFiltered.length === 0 ? (
- <EmptyState
- icon={CheckCircle2}
- title="Sin sugerencias"
- description="No hay gastos cuyo monto coincida exactamente con una CXP abierta."
- />
+ {/* SIN CONCILIAR — obra revenue without a CXC */}
+ {activeTab === 'sinConciliar' && (
+ <Panel title="Sin conciliar" meta={`${sinConciliar.length} resultado(s)`} padding={false}>
+ {sinConciliar.length === 0 ? (
+ <EmptyState icon={CheckCircle2} {...EMPTY_COPY.sinConciliar} />
  ) : (
  <div className="divide-y divide-[var(--color-line)]">
- {expenseSuggestedFiltered.map(({ movement, matches }) => (
+ {sinConciliar.map((m) => (
  <MovementRow
- key={movement.id}
- movement={movement}
- matches={matches}
- personnel={personnelOf(movement)}
- direction="out"
- busy={busyId === movement.id}
- onLink={(item) => handleLinkPayable(movement, item)}
- onCategorize={() => setCategorizingMovement(movement)}
- onCreateRule={() => setRuleSeedMovement(movement)}
+ key={m.id}
+ movement={m}
+ matches={suggestMatches(m)}
+ personnel={personnelOf(m)}
+ busy={busyId === m.id}
+ onLink={(item) => handleLink(m, item)}
+ onCategorize={() => setCategorizingMovement(m)}
+ onCreateRule={null}
  />
  ))}
  </div>
  )}
  </Panel>
  )}
-
- {/* EXPENSE SPONTANEOUS */}
- {activeTab === 'expense-spontaneous' && (
- <Panel title="Gastos espontáneos" meta={`${expenseSpontaneousFiltered.length} resultado(s)`} padding={false}>
- {expenseSpontaneousFiltered.length === 0 ? (
- <EmptyState
- icon={CheckCircle2}
- title="Sin gastos por categorizar"
- description="Todos los gastos están conciliados o categorizados."
- />
- ) : (
- <div className="divide-y divide-[var(--color-line)]">
- {expenseSpontaneousFiltered.map(({ movement, matches }) => (
- <MovementRow
- key={movement.id}
- movement={movement}
- matches={matches}
- personnel={personnelOf(movement)}
- direction="out"
- busy={busyId === movement.id}
- onLink={matches.length > 0 ? (item) => handleLinkPayable(movement, item) : null}
- onCategorize={() => setCategorizingMovement(movement)}
- onCreateRule={() => setRuleSeedMovement(movement)}
- />
- ))}
- </div>
- )}
- </Panel>
+ </>
  )}
 
  <CategorizeModal
@@ -394,8 +446,59 @@ const Classifier = ({ user }) => {
  categories={allCategories}
  costCenters={costCenters || []}
  projects={projects || []}
- pendingMovements={inboxMovements}
+ pendingMovements={pendingMovements}
  />
+ </div>
+ );
+};
+
+const ProjectSelect = ({ label, value, projects, onChange, disabled }) => (
+ <select
+ aria-label={label}
+ className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-1.5 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)] disabled:opacity-50"
+ value={value}
+ disabled={disabled}
+ onChange={(e) => onChange(e.target.value)}
+ >
+ <option value="">Elegir obra…</option>
+ {projects.map((p) => (
+ <option key={p.id} value={p.id}>{p.displayName || p.name}</option>
+ ))}
+ </select>
+);
+
+/** One "Sin obra" row: the exception to its group's project. */
+const SinObraRow = ({ movement, projects, busy, disabled, onAssign, onCategorize }) => {
+ const [projectId, setProjectId] = useState('');
+ return (
+ <div className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+ <div className="min-w-0 flex-1">
+ <p className="truncate text-[13px] text-[var(--color-fg-1)]">{movement.description || 'Sin descripción'}</p>
+ <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
+ {movement.postedDate} · {movement.categoryName || 'Sin categoría'} · -{formatCurrency(movement.amount)}
+ </p>
+ </div>
+ <div className="flex flex-wrap items-center gap-2">
+ <ProjectSelect
+ label={`Obra para ${movement.description || movement.id}`}
+ value={projectId}
+ projects={projects}
+ onChange={setProjectId}
+ disabled={disabled}
+ />
+ <Button
+ variant="secondary"
+ size="sm"
+ loading={busy}
+ disabled={!projectId || disabled}
+ onClick={() => onAssign(projectId)}
+ >
+ Asignar
+ </Button>
+ <Button variant="ghost" size="sm" icon={Tag} onClick={onCategorize} disabled={disabled}>
+ Categorizar
+ </Button>
+ </div>
  </div>
  );
 };
@@ -443,9 +546,10 @@ const PersonnelHint = ({ personnel }) => {
  );
 };
 
-const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, onCategorize, onCreateRule }) => {
- const ArrowIcon = direction === 'in' ? ArrowUpRight : ArrowDownRight;
- const colorClass = direction === 'in' ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]';
+const MovementRow = ({ movement, matches, personnel, busy, onLink, onCategorize, onCreateRule }) => {
+ const isInflow = movement.direction === 'in';
+ const ArrowIcon = isInflow ? ArrowUpRight : ArrowDownRight;
+ const colorClass = isInflow ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]';
  const top = matches?.[0];
  const tooLate = matches?.some?.((m) => m.daysDiff > 14);
 
@@ -456,11 +560,12 @@ const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, on
  <div className="flex items-center justify-between gap-3">
  <p className="text-[14px] text-[var(--color-fg-1)] truncate">{movement.description || 'Sin descripción'}</p>
  <span className={`font-mono text-[14px] tabular-nums flex-shrink-0 ${colorClass}`}>
- {direction === 'in' ? '+' : '-'}{formatCurrency(movement.amount)}
+ {isInflow ? '+' : '-'}{formatCurrency(movement.amount)}
  </span>
  </div>
  <p className="mt-1 font-mono text-[11px] text-[var(--color-fg-4)]">
  {movement.postedDate} · {movement.counterpartyName || 'Sin contraparte'}
+ {movement.categoryName ? ` · ${movement.categoryName}` : ''}
  </p>
 
  <PersonnelHint personnel={personnel} />
@@ -472,7 +577,7 @@ const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, on
  <div className="min-w-0 flex-1">
  <div className="flex items-center gap-2 flex-wrap">
  <Badge variant={top.score >= 130 ? 'ok' : top.score >= 100 ? 'info' : 'warn'} dot>
- {direction === 'in' ? 'CXC' : 'CXP'} sugerida · score {Math.round(top.score)}
+ {isInflow ? 'CXC' : 'CXP'} sugerida · score {Math.round(top.score)}
  </Badge>
  {top.item.payrollKind && <Badge variant="info">Nómina</Badge>}
  {tooLate && <Badge variant="warn">+14 días de diferencia</Badge>}
@@ -486,6 +591,7 @@ const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, on
  {top.daysDiff !== Infinity && ` · ${Math.round(top.daysDiff)}d de diferencia`}
  </p>
  </div>
+ {top.score >= 100 && (
  <Button
  variant="primary"
  size="sm"
@@ -496,6 +602,7 @@ const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, on
  >
  Vincular
  </Button>
+ )}
  </div>
  {matches.length > 1 && (
  <details className="mt-2">
@@ -525,17 +632,6 @@ const MovementRow = ({ movement, matches, personnel, direction, busy, onLink, on
  )}
  </div>
  <div className="flex flex-col gap-2 flex-shrink-0">
- {!top && onLink && (
- <Button
- variant="ghost"
- size="sm"
- icon={Link2}
- disabled={busy}
- onClick={() => onLink && onLink(matches[0]?.item)}
- >
- Buscar
- </Button>
- )}
  <Button variant="ghost" size="sm" icon={Tag} onClick={onCategorize} disabled={busy}>
  Categorizar
  </Button>

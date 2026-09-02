@@ -131,7 +131,7 @@ const BulkClassifyBar = ({
 
  <div className="mt-3 flex flex-wrap items-end gap-3">
  <label className="block min-w-[180px] flex-1">
- <span className="mb-1 block label-mono text-[var(--color-fg-4)]">Categoría *</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-3)]">Categoría *</span>
  <select
  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.categoryName}
@@ -146,7 +146,7 @@ const BulkClassifyBar = ({
 
  {isOutbound && (
  <div className="block">
- <span className="mb-1 block label-mono text-[var(--color-fg-4)]">Destino *</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-3)]">Destino *</span>
  <div className="flex gap-2">
  <Button
  size="sm"
@@ -174,7 +174,7 @@ const BulkClassifyBar = ({
 
  {!isOverhead && (
  <label className="block min-w-[180px] flex-1">
- <span className="mb-1 block label-mono text-[var(--color-fg-4)]">
+ <span className="mb-1 block label-mono text-[var(--color-fg-3)]">
  Proyecto {isOutbound ? '*' : ''}
  </span>
  <select
@@ -194,7 +194,7 @@ const BulkClassifyBar = ({
  )}
 
  <label className="block min-w-[160px] flex-1">
- <span className="mb-1 block label-mono text-[var(--color-fg-4)]">Centro de costo</span>
+ <span className="mb-1 block label-mono text-[var(--color-fg-3)]">Centro de costo</span>
  <select
  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.costCenterId}

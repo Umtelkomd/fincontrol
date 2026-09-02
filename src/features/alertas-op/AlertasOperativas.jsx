@@ -12,8 +12,6 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useReceivables } from '../../hooks/useReceivables';
-import { usePayables } from '../../hooks/usePayables';
 import { useAuth } from '../../hooks/useAuth';
 import { useClassifier } from '../../hooks/useClassifier';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
@@ -35,6 +33,7 @@ import { groupUnclassifiedByCounterparty, findBestRule } from '../../finance/rul
 import { ruleAppliesToPeriod, periodKey } from '../../finance/recurringGenerator';
 import { formatCollectionSlip, formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
+import PageHeader from '../../components/layout/PageHeader';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import GenerateMonthModal from '../../components/ui/GenerateMonthModal';
 import { useCategories } from '../../hooks/useCategories';
@@ -64,18 +63,18 @@ const AlertasOperativas = ({ user }) => {
   const { hasPermission } = useAuth();
   const canSeePayroll = hasPermission('cxp');
 
-  const { receivables } = useReceivables(user);
-  const { payables, createPayable, cancelPayable } = usePayables(user);
+  // Shared ledger: the receivables/payables every cockpit reads, plus the
+  // payable mutators the payroll tile hands to useNominas. Same forecast,
+  // same day zero (anchor-derived cash) as Resumen and /proyeccion.
+  const ledger = useFinanceLedgerContext();
+  const { receivables, payables } = ledger;
+  const { createPayable, cancelPayable } = ledger.actions.payables;
   const { recurringCosts } = useRecurringCosts(user);
   const { partners } = usePartners(user);
   const { vehicles } = useVehicles(user);
   const { properties } = useProperties(user);
-  const { inboxMovements } = useClassifier(user);
+  const { pendingMovements: inboxMovements } = useClassifier(user);
   const { rules, createRule } = useClassificationRules(user);
-  // Same forecast, same day zero (anchor-derived cash) as Resumen and
-  // /proyeccion. This view used to fall back to the stale static
-  // bankAccount.balance, so it warned about a different future than Resumen.
-  const ledger = useFinanceLedgerContext();
   const forecast = useCashForecast(user, { ledger });
 
   const { categoryOptions: allCategories } = useCategories(user);
@@ -289,18 +288,17 @@ const AlertasOperativas = ({ user }) => {
 
   return (
     <div className="space-y-6 pb-12">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <p className="label-mono text-[var(--color-fg-3)]">Operación · Alertas</p>
-          <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
-            Alertas operativas
-          </h2>
-          <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
-            Lo urgente para hoy: vencimientos, bandeja sin clasificar, proyección negativa,
-            y costos recurrentes que aún no se generaron este mes.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        section="Alertas"
+        title="Alertas"
+        accent="operativas"
+        subtitle="Lo urgente para hoy"
+      >
+        <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
+          Vencimientos, bandeja sin clasificar, proyección negativa y costos recurrentes que aún no
+          se generaron este mes.
+        </p>
+      </PageHeader>
 
       <KPIGrid cols={4}>
         <KPI
@@ -552,7 +550,7 @@ const AlertasOperativas = ({ user }) => {
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
-                <p className="label-mono text-[var(--color-fg-4)]">Obligaciones abiertas</p>
+                <p className="label-mono text-[var(--color-fg-3)]">Obligaciones abiertas</p>
                 <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
                   {payrollTile.openCount}
                 </p>
@@ -561,7 +559,7 @@ const AlertasOperativas = ({ user }) => {
                 </p>
               </div>
               <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
-                <p className="label-mono text-[var(--color-fg-4)]">Próximo SV / LSt</p>
+                <p className="label-mono text-[var(--color-fg-3)]">Próximo SV / LSt</p>
                 <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
                   {payrollTile.nextDue ? payrollTile.nextDue : '—'}
                 </p>
@@ -572,7 +570,7 @@ const AlertasOperativas = ({ user }) => {
                 </p>
               </div>
               <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
-                <p className="label-mono text-[var(--color-fg-4)]">Meses faltantes</p>
+                <p className="label-mono text-[var(--color-fg-3)]">Meses faltantes</p>
                 <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
                   {payrollTile.missing.length}
                 </p>

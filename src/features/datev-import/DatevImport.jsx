@@ -6,6 +6,7 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { classifyDatevImportFiles, parseDatevCSV } from '../../finance/datevParser';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
+import PageHeader from '../../components/layout/PageHeader';
 
 
 const createImportRunId = () => (
@@ -138,15 +139,22 @@ const DatevImport = ({ user }) => {
 
  return (
  <div className="space-y-6 pb-12">
- <header className="flex items-end justify-between gap-4 flex-wrap">
- <div>
- <p className="label-mono text-[var(--color-fg-3)]">DATEV · Importación</p>
- <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
- Importar movimientos bancarios
- </h2>
- <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
- Sube uno o varios CSVs de movimientos de cuenta (kontobewegungen_export). El sistema detecta duplicados
- contra los movimientos ya cargados (mismo fecha + monto + dirección + contraparte) y
+ <PageHeader
+ section="Configuración"
+ title="Importar"
+ accent="DATEV"
+ subtitle="Movimientos bancarios (kontobewegungen_export)"
+ actions={
+ filesPending ? (
+ <Button variant="primary" icon={Upload} onClick={importAll}>
+ Importar todos los pendientes
+ </Button>
+ ) : null
+ }
+ >
+ <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
+ Sube uno o varios CSVs de movimientos de cuenta. El sistema detecta duplicados
+ contra los movimientos ya cargados (misma fecha + monto + dirección + contraparte) y
  solo crea los nuevos.
  </p>
  {(rules || []).filter((r) => r.active).length > 0 && (
@@ -155,13 +163,7 @@ const DatevImport = ({ user }) => {
  {(rules || []).filter((r) => r.active).length} regla(s) activas — los movimientos coincidentes se clasificarán automáticamente al importar.
  </p>
  )}
- </div>
- {filesPending && (
- <Button variant="primary" icon={Upload} onClick={importAll}>
- Importar todos los pendientes
- </Button>
- )}
- </header>
+ </PageHeader>
 
  <KPIGrid cols={4}>
  <KPI label="Archivos" value={files.length} meta="En esta sesión" icon={FileText} />

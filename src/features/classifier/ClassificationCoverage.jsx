@@ -30,7 +30,7 @@ const ClassificationCoverage = ({ coverage, title = 'Cobertura de clasificación
  <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-5 py-4">
  <div className="flex flex-wrap items-start justify-between gap-3">
  <div className="min-w-0">
- <p className="label-mono text-[var(--color-fg-4)]">{title}</p>
+ <p className="label-mono text-[var(--color-fg-3)]">{title}</p>
  <p className={`mt-1.5 font-display text-[20px] font-light tracking-tight ${TONE_TEXT[tone]}`}>
  {formatCoverageSummary(coverage)}
  </p>
@@ -55,9 +55,11 @@ const ClassificationCoverage = ({ coverage, title = 'Cobertura de clasificación
  <div className="h-full rounded-full bg-[var(--color-accent)]" style={{ width }} />
  </div>
 
- <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-[var(--color-fg-4)]">
+ {/* The four buckets add up to `total` — see classificationCoverage. */}
+ <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-[var(--color-fg-3)]">
  <span>Obra {coverage?.byScope?.project || 0}</span>
  <span>Estructura {coverage?.byScope?.overhead || 0}</span>
+ <span>Transferencia {coverage?.byScope?.transfer || 0}</span>
  <span>Sin destino {coverage?.byScope?.unresolved || 0}</span>
  </div>
  </section>

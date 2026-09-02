@@ -87,9 +87,8 @@ const buildCashSeries = (ledger, referenceDate) => {
   return series;
 };
 
-// Labels that mean "no project". Kept in sync with UNKNOWN_PROJECT_LABELS in
-// src/finance/managementReport.js so the Resumen margin table and the
-// management report agree on what counts as an obra.
+// Labels that mean "no project" — the Resumen margin table ranks obras and
+// must not let the unassigned bucket win.
 const UNASSIGNED_PROJECT_LABELS = new Set(['', 'sin proyecto', 'sin asignar', 'n/a', 'unknown']);
 
 export const UNASSIGNED_PROJECT_NAME = 'Sin asignar';
@@ -201,19 +200,15 @@ export const useTreasuryMetrics = (options = {}) => {
         matchAccount(entry) &&
         isWithinRange(entry.postedDate, rangeFrom, rangeTo),
     );
+    // `from/to` scopes MOVEMENTS only. Open documents are never date-filtered:
+    // an invoice issued last year (or with no issueDate at all) is still money
+    // owed today, and dropping it made ExecutiveSummary's liquidity disagree
+    // with Resumen by exactly the open amount of those invoices.
     const filteredReceivables = ledger.receivables.filter(
-      (entry) =>
-        matchProject(entry) &&
-        matchAccount(entry) &&
-        (!rangeFrom || compareIsoDate(entry.issueDate, rangeFrom) >= 0) &&
-        (!rangeTo || compareIsoDate(entry.issueDate, rangeTo) <= 0),
+      (entry) => matchProject(entry) && matchAccount(entry),
     );
     const filteredPayables = ledger.payables.filter(
-      (entry) =>
-        matchProject(entry) &&
-        matchAccount(entry) &&
-        (!rangeFrom || compareIsoDate(entry.issueDate, rangeFrom) >= 0) &&
-        (!rangeTo || compareIsoDate(entry.issueDate, rangeTo) <= 0),
+      (entry) => matchProject(entry) && matchAccount(entry),
     );
 
     const openReceivables = filteredReceivables.filter(isOpenDocument);
@@ -268,7 +263,18 @@ export const useTreasuryMetrics = (options = {}) => {
     );
     const avgMonthlyOutflows = clampMoney(sumMoney(trailingOutflows, (entry) => entry.amount) / monthsCovered2026);
     const avgMonthlyInflows = clampMoney(sumMoney(trailingInflows, (entry) => entry.amount) / monthsCovered2026);
-    const runwayMonths = avgMonthlyOutflows > 0 ? clampMoney(currentCash / avgMonthlyOutflows) : null;
+    // Runway is a count of months the cash still covers. Below (or at) zero
+    // there is nothing left to cover, so the answer is 0 — never a negative
+    // figure ("-0.3 meses") and never null, which reads as "unknown".
+    const runwayMonths =
+      currentCash <= 0
+        ? 0
+        : avgMonthlyOutflows > 0
+          ? clampMoney(currentCash / avgMonthlyOutflows)
+          : null;
+    // ONE liquidity formula for every screen: cash + open receivables − open
+    // payables, over the unfiltered document sets above.
+    const netPosition = clampMoney(currentCash + pendingReceivables - pendingPayables);
 
     return {
       ...ledger,
@@ -281,7 +287,9 @@ export const useTreasuryMetrics = (options = {}) => {
       netMovement,
       pendingReceivables,
       pendingPayables,
-      projectedLiquidity: clampMoney(currentCash + pendingReceivables - pendingPayables),
+      netPosition,
+      // Alias kept for one release; new code reads `netPosition`.
+      projectedLiquidity: netPosition,
       overdueReceivables,
       overduePayables,
       upcomingReceivables,

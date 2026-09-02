@@ -8,6 +8,7 @@ import { employeeDataWarnings, findEmployeesWithoutProjects } from './lib/employ
 import EmployeeFormModal from '../../components/ui/EmployeeFormModal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState, Alert } from '@/components/ui/nexus';
+import PageHeader from '../../components/layout/PageHeader';
 
 const STATUS_LABELS = { active: 'Activo', 'on-leave': 'Permiso', inactive: 'Inactivo' };
 const STATUS_VARIANTS = { active: 'ok', 'on-leave': 'warn', inactive: 'neutral' };
@@ -141,22 +142,22 @@ const Employees = ({ user }) => {
 
  return (
  <div className="space-y-6 pb-12">
- <header className="flex items-end justify-between gap-4 flex-wrap">
- <div>
- <p className="label-mono text-[var(--color-fg-3)]">Assets · Empleados</p>
- <h2 className="mt-2 font-display text-[28px] font-light tracking-tight text-[var(--color-fg-1)]">
- Personal
- </h2>
- <p className="mt-1 text-sm text-[var(--color-fg-3)] max-w-2xl">
+ <PageHeader
+ section="Maestros"
+ title="Personal"
+ subtitle="Nómina de empresa y subcontratistas"
+ actions={
+ <Button variant="primary" icon={Plus} onClick={openCreate}>
+ Nuevo empleado
+ </Button>
+ }
+ >
+ <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
  Equipo de <span className="text-[var(--color-fg-1)]">nómina de empresa</span> (Brutto / Netto / SV
  alemana) y <span className="text-[var(--color-fg-1)]">subcontratistas</span>. Esta distinción decide
  cómo llega su coste a las obras.
  </p>
- </div>
- <Button variant="primary" icon={Plus} onClick={openCreate}>
- Nuevo empleado
- </Button>
- </header>
+ </PageHeader>
 
  <div className="grid gap-3 md:grid-cols-2">
  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-4 py-3">
@@ -251,7 +252,7 @@ const Employees = ({ user }) => {
  }
  >
  {loading ? (
- <div className="px-4 py-12 text-center"><p className="label-mono">Cargando...</p></div>
+ <div className="px-4 py-12 text-center"><p className="label-mono text-[var(--color-fg-3)]">Cargando…</p></div>
  ) : filtered.length === 0 ? (
  <EmptyState
  icon={HardHat}

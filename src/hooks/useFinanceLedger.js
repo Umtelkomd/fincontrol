@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { balances2025 } from '../data/balances2025';
 import { adaptPayableDoc, adaptReceivableDoc } from '../finance/adapters';
 import { resolveCashSource } from '../finance/cashSource';
@@ -12,6 +12,30 @@ import { usePayables } from './usePayables';
 import { useProjects } from './useProjects';
 import { useReceivables } from './useReceivables';
 import { useReconciliation } from './useReconciliation';
+
+/** The function members of a data hook's return value — its mutators. */
+const mutatorsOf = (hook) =>
+  Object.fromEntries(Object.entries(hook).filter(([, value]) => typeof value === 'function'));
+
+/**
+ * Wrap every mutator in a reference-stable function that forwards to the
+ * LATEST implementation. The data hooks recreate their closures on every
+ * render (they read `user` and the current arrays for audit snapshots), so
+ * exposing them directly would change `ledger.actions` on every snapshot and
+ * defeat every consumer's memoization.
+ */
+const bindStableActions = (latestRef, initial) =>
+  Object.fromEntries(
+    Object.entries(initial).map(([group, fns]) => [
+      group,
+      Object.fromEntries(
+        Object.keys(fns).map((name) => [
+          name,
+          (...args) => (latestRef.current ?? initial)[group][name](...args),
+        ]),
+      ),
+    ]),
+  );
 
 const sortByDueDate = (left, right) => {
   const dueComparison = compareIsoDate(left.dueDate, right.dueDate);
@@ -33,12 +57,35 @@ export const useFinanceLedger = (rawUser) => {
 
   const { allTransactions, loading: txLoading, error: txError } = useAllTransactions(user);
   const { bankAccount, loading: accountLoading, error: accountError } = useBankAccount(user);
-  const { bankMovements, loading: movementLoading, error: movementError } = useBankMovements(user);
-  const { receivables, loading: receivablesLoading, error: receivablesError } = useReceivables(user);
-  const { payables, loading: payablesLoading, error: payablesError } = usePayables(user);
+  const bankMovementsHook = useBankMovements(user);
+  const receivablesHook = useReceivables(user);
+  const payablesHook = usePayables(user);
+  const { bankMovements, loading: movementLoading, error: movementError } = bankMovementsHook;
+  const { receivables, loading: receivablesLoading, error: receivablesError } = receivablesHook;
+  const { payables, loading: payablesLoading, error: payablesError } = payablesHook;
   const { budgets, loading: budgetsLoading, error: budgetsError } = useBudgets(user);
   const { projects, loading: projectsLoading, error: projectsError } = useProjects(user);
   const { anchors, loading: anchorsLoading } = useReconciliation(user);
+
+  // Mutators ride along with the data so a screen reading the shared ledger
+  // can also write through it (`ledger.actions.bankMovements.bulkClassify`)
+  // instead of opening a private subscription just to get the function.
+  const currentActions = {
+    bankMovements: mutatorsOf(bankMovementsHook),
+    receivables: mutatorsOf(receivablesHook),
+    payables: mutatorsOf(payablesHook),
+  };
+  const latestActions = useRef(null);
+  useEffect(() => {
+    latestActions.current = currentActions;
+  });
+  const actions = useMemo(
+    () => bindStableActions(latestActions, currentActions),
+    // Bound once: the wrappers read `latestActions` at call time, so they
+    // never go stale and never change identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   return useMemo(() => {
     const loading =
@@ -136,6 +183,7 @@ export const useFinanceLedger = (rawUser) => {
       anchors,
       cashSource,
       cashMeta,
+      actions,
       summary: {
         currentCash: currentBalance,
         creditUsed,
@@ -147,6 +195,7 @@ export const useFinanceLedger = (rawUser) => {
   }, [
     accountError,
     accountLoading,
+    actions,
     bankAccount,
     bankMovements,
     anchors,

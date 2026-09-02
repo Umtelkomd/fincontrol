@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   COST_SCOPE,
+  PENDING_REASON,
+  PROJECT_REVENUE_CATEGORY,
   classificationCoverage,
   isClassified,
   normalizeCostScope,
+  pendingReasonOf,
   validateClassification,
 } from './costScope.js';
 
@@ -332,5 +335,96 @@ describe('internal-transfer category', () => {
     expect(coverage.classified).toBe(1);
     expect(coverage.byScope.transfer).toBe(1);
     expect(coverage.unclassifiedOutflow).toBe(0);
+  });
+});
+
+// ─── pendingReasonOf: the ONE definition of "still needs work" ───────────────
+// The Bandeja tabs, the Movimientos "Sin clasificar" filter and the coverage
+// header all read this so they can never disagree about what is pending.
+
+describe('pendingReasonOf', () => {
+  it('names the three reasons', () => {
+    expect(PENDING_REASON).toEqual({
+      SIN_CATEGORIA: 'sin-categoria',
+      SIN_OBRA: 'sin-obra',
+      SIN_CONCILIAR: 'sin-conciliar',
+    });
+    expect(PROJECT_REVENUE_CATEGORY).toBe('Facturación obra');
+  });
+
+  it('never flags a void movement or an own-account transfer', () => {
+    expect(pendingReasonOf(movement({ status: 'void' }))).toBeNull();
+    expect(pendingReasonOf(movement({ counterpartyName: 'UMTELKOMD GmbH' }))).toBeNull();
+    expect(pendingReasonOf(movement({ categoryName: 'Transferencia interna' }))).toBeNull();
+    expect(pendingReasonOf(null)).toBeNull();
+  });
+
+  it('asks for a category first, in either direction', () => {
+    expect(pendingReasonOf(movement({ direction: 'out' }))).toBe('sin-categoria');
+    expect(pendingReasonOf(movement({ direction: 'in' }))).toBe('sin-categoria');
+    expect(pendingReasonOf(movement({ direction: 'out', categoryName: '   ' }))).toBe('sin-categoria');
+  });
+
+  it('asks for the obra on an outflow scoped to a project without one', () => {
+    expect(pendingReasonOf(movement({ categoryName: 'Materiales', costScope: COST_SCOPE.PROJECT })))
+      .toBe('sin-obra');
+    expect(pendingReasonOf(movement({ categoryName: 'Materiales', costScope: COST_SCOPE.PROJECT, projectId: '  ' })))
+      .toBe('sin-obra');
+  });
+
+  it('also asks for the obra when a categorised outflow has no destination at all', () => {
+    // A legacy document with a category but neither costScope, "Overhead"
+    // nor a projectId: it is still not attributable, so it stays pending under
+    // "Sin obra" rather than silently counting as done.
+    expect(pendingReasonOf(movement({ categoryName: 'Materiales' }))).toBe('sin-obra');
+    expect(pendingReasonOf(movement({ categoryName: 'Materiales', costCenterId: 'cc-1' }))).toBe('sin-obra');
+  });
+
+  it('is satisfied by an overhead outflow or a project outflow with its project', () => {
+    expect(pendingReasonOf(movement({ categoryName: 'Impuestos', costScope: COST_SCOPE.OVERHEAD }))).toBeNull();
+    expect(pendingReasonOf(movement({ categoryName: 'Impuestos', projectName: 'Overhead' }))).toBeNull();
+    expect(pendingReasonOf(movement({ categoryName: 'Materiales', projectId: 'proj-1' }))).toBeNull();
+    expect(pendingReasonOf(movement({ categoryName: 'Materiales', costScope: COST_SCOPE.PROJECT, projectId: 'proj-1' })))
+      .toBeNull();
+  });
+
+  it('asks to reconcile an inflow filed as obra revenue that has no CXC link', () => {
+    const revenue = movement({ direction: 'in', categoryName: PROJECT_REVENUE_CATEGORY });
+    expect(pendingReasonOf(revenue)).toBe('sin-conciliar');
+    expect(pendingReasonOf({ ...revenue, receivableId: 'cxc-1' })).toBeNull();
+  });
+
+  it('leaves any other categorised inflow alone — refunds and partner contributions need no CXC', () => {
+    expect(pendingReasonOf(movement({ direction: 'in', categoryName: 'Devoluciones' }))).toBeNull();
+    expect(pendingReasonOf(movement({ direction: 'in', categoryName: 'Aportes de socios' }))).toBeNull();
+    expect(pendingReasonOf(movement({ direction: undefined, categoryName: 'Servicios particulares' }))).toBeNull();
+  });
+});
+
+describe('isClassified and classificationCoverage follow pendingReasonOf', () => {
+  it('does NOT count obra revenue without a CXC link as classified', () => {
+    const revenue = movement({ id: 'in-rev', direction: 'in', categoryName: PROJECT_REVENUE_CATEGORY, amount: 5000 });
+    expect(isClassified(revenue)).toBe(false);
+    expect(isClassified({ ...revenue, receivableId: 'cxc-1' })).toBe(true);
+
+    const coverage = classificationCoverage([revenue, { ...revenue, id: 'in-linked', receivableId: 'cxc-1' }]);
+    expect(coverage.total).toBe(2);
+    expect(coverage.classified).toBe(1);
+  });
+
+  it('agrees with pendingReasonOf on every sample', () => {
+    const samples = [
+      movement({ id: 'a' }),
+      movement({ id: 'b', categoryName: 'Materiales' }),
+      movement({ id: 'c', categoryName: 'Materiales', projectId: 'proj-1' }),
+      movement({ id: 'd', categoryName: 'Impuestos', costScope: COST_SCOPE.OVERHEAD }),
+      movement({ id: 'e', direction: 'in' }),
+      movement({ id: 'f', direction: 'in', categoryName: PROJECT_REVENUE_CATEGORY }),
+      movement({ id: 'g', direction: 'in', categoryName: 'Devoluciones' }),
+      movement({ id: 'h', counterpartyName: 'UMTELKOMD GmbH' }),
+    ];
+    samples.forEach((sample) => {
+      expect(isClassified(sample)).toBe(pendingReasonOf(sample) === null);
+    });
   });
 });

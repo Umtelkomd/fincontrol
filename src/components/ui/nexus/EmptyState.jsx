@@ -2,7 +2,8 @@
  * NEXUS.OS — EmptyState
  *
  * Standard empty placeholder for tables, lists, panels.
- * Bracketed mono header (Nexus signature) + sans body + optional CTA.
+ * Mono uppercase header + sans body + optional CTA. The title is rendered
+ * as-is: the old `[title]` brackets read as placeholder text.
  *
  * <EmptyState
  *   title="Sin transacciones"
@@ -18,7 +19,7 @@ const EmptyState = ({ title, description, action, icon: Icon, className = '' }) 
       </div>
     )}
     {title && (
-      <p className="label-mono text-[var(--color-fg-3)] mb-2">[{title}]</p>
+      <p className="label-mono text-[var(--color-fg-3)] mb-2">{title}</p>
     )}
     {description && (
       <p className="text-[13px] text-[var(--color-fg-4)] max-w-[400px] leading-relaxed">

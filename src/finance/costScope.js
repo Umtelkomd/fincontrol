@@ -7,6 +7,7 @@
  *
  *   normalizeCostScope(movement)            → 'project' | 'overhead' | ''
  *   validateClassification(movement, form)  → { valid, error }
+ *   pendingReasonOf(movement)               → null | 'sin-categoria' | 'sin-obra' | 'sin-conciliar'
  *   isClassified(movement)                  → boolean
  *   classificationCoverage(movements)       → coverage metrics
  *
@@ -97,9 +98,63 @@ export const validateClassification = (movement, form) => {
   return { valid: true, error: null };
 };
 
+/** The three things the weekly inbox can still ask of a movement. */
+export const PENDING_REASON = Object.freeze({
+  SIN_CATEGORIA: 'sin-categoria',
+  SIN_OBRA: 'sin-obra',
+  SIN_CONCILIAR: 'sin-conciliar',
+});
+
 /**
- * isClassified — a movement is done when it has a category and, for
- * outbound movements, a resolved destination.
+ * The income category whose movements are collections of an obra invoice —
+ * the only inflows that must be linked to a CXC to be complete. Refunds,
+ * private services or partner contributions carry another category and need
+ * no receivable behind them.
+ */
+export const PROJECT_REVENUE_CATEGORY = 'Facturación obra';
+
+/**
+ * pendingReasonOf — WHY a movement is still in the inbox, or null when it is
+ * done. The Bandeja tabs, the Movimientos "Sin clasificar" filter and the
+ * coverage header all read this single rule.
+ *
+ *   - void, or an own-account transfer         → null (nothing to ask)
+ *   - no category, any direction               → 'sin-categoria'
+ *   - outflow whose destination is not settled → 'sin-obra'
+ *       (scoped to a project without a projectId, OR no destination at all —
+ *        a categorised cost that is neither obra nor estructura is still not
+ *        attributable, so it stays visible instead of counting as done)
+ *   - obra-revenue inflow without a CXC link   → 'sin-conciliar'
+ *   - anything else                            → null
+ *
+ * Own-account transfers are resolved BY NATURE: they need no category and no
+ * destination. Note this is the company itself — `UMTELKOMD ESPAÑA S.L.` is a
+ * subcontractor and still has to be classified like any other supplier.
+ */
+export const pendingReasonOf = (movement) => {
+  if (!movement) return null;
+  if (movement.status === 'void') return null;
+  if (isInternalTransfer(movement)) return null;
+
+  const categoryName = text(movement.categoryName);
+  if (!categoryName) return PENDING_REASON.SIN_CATEGORIA;
+
+  if (movement.direction === 'out') {
+    const scope = normalizeCostScope(movement);
+    if (scope === COST_SCOPE.OVERHEAD) return null;
+    if (scope === COST_SCOPE.PROJECT && text(movement.projectId)) return null;
+    return PENDING_REASON.SIN_OBRA;
+  }
+
+  if (categoryName === PROJECT_REVENUE_CATEGORY && !movement.receivableId) {
+    return PENDING_REASON.SIN_CONCILIAR;
+  }
+  return null;
+};
+
+/**
+ * isClassified — a movement is done when `pendingReasonOf` has nothing left
+ * to ask. Void movements are never "done": they are cancelled.
  *
  * Deliberately stricter than the legacy
  * `categoryName || costCenterId || projectId` check, which over-counted
@@ -108,17 +163,7 @@ export const validateClassification = (movement, form) => {
 export const isClassified = (movement) => {
   if (!movement) return false;
   if (movement.status === 'void') return false;
-  // An own-account transfer is resolved BY NATURE: it needs no category and no
-  // destination, so it is never part of the backlog. Note this is the company
-  // itself — `UMTELKOMD ESPAÑA S.L.` is a subcontractor and still has to be
-  // classified like any other supplier.
-  if (isInternalTransfer(movement)) return true;
-  if (!text(movement.categoryName)) return false;
-  if (movement.direction !== 'out') return true;
-
-  const scope = normalizeCostScope(movement);
-  if (scope === COST_SCOPE.OVERHEAD) return true;
-  return scope === COST_SCOPE.PROJECT && !!text(movement.projectId);
+  return pendingReasonOf(movement) === null;
 };
 
 /**

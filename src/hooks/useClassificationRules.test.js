@@ -12,6 +12,7 @@ const firestoreMocks = vi.hoisted(() => ({
   query: vi.fn(),
   serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP'),
   updateDoc: vi.fn(),
+  writeBatch: vi.fn(),
 }));
 
 const reactState = vi.hoisted(() => ({ setters: [] }));

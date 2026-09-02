@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
-import { NAV_GROUPS } from './navItems';
+import { isItemActive, visibleNavGroups } from './navItems';
 
 const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTransaction }) => {
   const navigate = useNavigate();
@@ -25,12 +25,8 @@ const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTrans
     }
   };
 
-  const visibleGroups = NAV_GROUPS
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
-    }))
-    .filter((group) => group.items.length > 0);
+  // Same groups, same order and same permission filter as the desktop bar.
+  const visibleGroups = visibleNavGroups(hasPermission);
 
   return (
     <div className="fixed inset-0 z-[230] md:hidden">
@@ -79,15 +75,18 @@ const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTrans
         <div className="flex-1 overflow-y-auto">
           {visibleGroups.map((group) => (
             <div key={group.key} className="mb-3">
-              <p className="label-mono px-3 pb-1 pt-2 text-[9px] text-[var(--color-fg-4)]">{group.label}</p>
+              <p className="px-3 pb-1 pt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--color-fg-2)]">
+                {group.label}
+              </p>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = location.pathname === item.path;
+                const active = isItemActive(location.pathname, item);
                 return (
                   <button
                     key={item.path}
                     type="button"
                     onClick={() => { navigate(item.path); onClose(); }}
+                    aria-current={active ? 'page' : undefined}
                     className={`relative flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors ${
                       active
                         ? 'bg-[var(--color-bg-3)] text-[var(--color-fg-1)]'
