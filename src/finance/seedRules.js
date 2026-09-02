@@ -384,6 +384,7 @@ export const SEED_CLASSIFICATION_RULES = [
   description('Monteurwohnung — Alojamiento trabajadores', 'Monteurwohnung', 'Alojamiento trabajadores', 'Alojamiento de montadores.', { priority: SEED_RULE_PRIORITY }),
   description('Unterkunft — Alojamiento trabajadores', 'Unterkunft', 'Alojamiento trabajadores', 'Alojamiento de montadores (Unterkunft Takak…).', { priority: SEED_RULE_PRIORITY }),
   counterparty('Unterkunft (contraparte) — Alojamiento trabajadores', 'UNTERKUNFT', 'Alojamiento trabajadores', 'Alojamiento de montadores (Unterkunft Takak…).'),
+  counterparty('Osman Tekelioglu — Alojamiento trabajadores', 'TEKELIOGLU', 'Alojamiento trabajadores', 'Alojamiento de montadores, facturado por quincena (confirmado por Jarl 2026-09-02).'),
 
   // ── Personal: ropa de trabajo y manutención ───────────────────────────────
   counterparty('Engelbert Strauss — Otros de personal', 'ENGELBERT STRAUSS', 'Otros de personal', 'Ropa de trabajo.'),

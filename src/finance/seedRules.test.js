@@ -263,7 +263,7 @@ describe('seed rules through the engine — descriptions outrank counterparties'
   });
 
   it('routes lodging counterparties too — on the statement the word sits in the payee, not the purpose line', () => {
-    ['Unterkunft Takak', 'Ferienwohnung Burg Lindenfels', 'FeWo Seeblick GbR', 'Pension Sonnenhof'].forEach((counterpartyName) => {
+    ['Unterkunft Takak', 'Ferienwohnung Burg Lindenfels', 'FeWo Seeblick GbR', 'Pension Sonnenhof', 'Osman Tekelioglu'].forEach((counterpartyName) => {
       expect(classify(movementFrom(counterpartyName, { description: 'Rechnungsnr. 602021' })).payload, counterpartyName).toEqual({
         categoryName: 'Alojamiento trabajadores',
         costScope: COST_SCOPE.PROJECT,
