@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible defect in FinControl.
+title: "[Bug]: "
+labels:
+  - type:bug
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials, personal data, bank records, or private invoices. Use synthetic examples."
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem
+      description: Describe the observed behavior and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide safe reproduction steps or a synthetic regression scenario.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe the intended result and acceptance criteria.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification and scope
+      description: Include available test evidence, limitations, and excluded work.
+    validations:
+      required: false
