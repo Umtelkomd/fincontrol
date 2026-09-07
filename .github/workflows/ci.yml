@@ -68,6 +68,7 @@ jobs:
         run: |
           S="$RUNNER_TEMP/fincontrol-emulator"
           docker run --pull=never --network none --cap-drop=ALL --security-opt=no-new-privileges \
+            --user "$(id -u):$(id -g)" \
             --mount "type=bind,source=$S,target=/work" --workdir /work \
             --env HOME=/work/home --env XDG_CONFIG_HOME=/work/config --env JAVA_HOME=/work/java \
             --env CI=1 --env FIREBASE_CLI_DISABLE_UPDATE_CHECK=true \
