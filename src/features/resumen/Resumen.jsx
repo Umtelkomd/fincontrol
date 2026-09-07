@@ -17,608 +17,820 @@
  * margins WITHOUT labor instead of breaking. UI copy is Spanish; identifiers and
  * comments are English. NEXUS.OS tokens only; accent reserved for highlights.
  */
-import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
-  HardHat,
-  Scale,
-  Wallet,
-} from 'lucide-react';
-import { useTreasuryMetrics } from '../../hooks/useTreasuryMetrics';
-import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
-import { useCashForecast } from '../../hooks/useCashForecast';
-import { useAuth } from '../../hooks/useAuth';
-import { useEmployees } from '../../hooks/useEmployees';
-import { useProjects } from '../../hooks/useProjects';
-import { useTreasurySettings } from '../../hooks/useTreasurySettings';
-import { useWorkInProgress } from '../../hooks/useWorkInProgress';
-import { netPosition } from '../../finance/workInProgress';
-import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
-import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
-import { missingPayrollMonths } from '../nominas/lib/missingMonths';
-import { agingBuckets, isInternalTransfer } from '../../lib/finance';
-import { formatCollectionSlip, formatCurrency, formatDate } from '../../utils/formatters';
-import { KPI, KPIGrid, Panel, Badge, EmptyState } from '@/components/ui/nexus';
-import PageHeader from '../../components/layout/PageHeader';
-import LiquidityKpis from '../../components/finance/LiquidityKpis';
+	AlertTriangle,
+	ArrowDownRight,
+	ArrowUpRight,
+	HardHat,
+	Scale,
+	Wallet,
+} from "lucide-react";
+import { useTreasuryMetrics } from "../../hooks/useTreasuryMetrics";
+import { useFinanceLedgerContext } from "../../contexts/FinanceLedgerContext";
+import { useCashForecast } from "../../hooks/useCashForecast";
+import { useAuth } from "../../hooks/useAuth";
+import { useEmployees } from "../../hooks/useEmployees";
+import { useProjects } from "../../hooks/useProjects";
+import { useTreasurySettings } from "../../hooks/useTreasurySettings";
+import { useWorkInProgress } from "../../hooks/useWorkInProgress";
+import { netPosition } from "../../finance/workInProgress";
+import { usePayrollPeriods } from "../nominas/usePayrollPeriods";
+import { allocatePayrollCost } from "../nominas/lib/payrollAllocation";
+import { missingPayrollMonths } from "../nominas/lib/missingMonths";
+import { agingBuckets, isInternalTransfer } from "../../lib/finance";
 import {
-  computeMonthlyResult,
-  selectDueWithinDays,
-  selectUpcomingObligations,
-} from './lib/resumenMetrics';
-import { buildResumenAlerts } from './lib/alertsPanel';
+	formatCollectionSlip,
+	formatCurrency,
+	formatDate,
+} from "../../utils/formatters";
+import { KPI, KPIGrid, Panel, Badge, EmptyState } from "@/components/ui/nexus";
+import PageHeader from "../../components/layout/PageHeader";
+import LiquidityKpis from "../../components/finance/LiquidityKpis";
+import FinancialSourceStatus from "../../components/ui/FinancialSourceStatus";
+import {
+	computeMonthlyResult,
+	selectDueWithinDays,
+	selectUpcomingObligations,
+} from "./lib/resumenMetrics";
+import { buildResumenAlerts } from "./lib/alertsPanel";
 
+const SOURCE_LABELS = {
+	transactions: "transacciones",
+	bankAccount: "cuenta bancaria",
+	bankMovements: "movimientos bancarios",
+	receivables: "cuentas por cobrar",
+	payables: "cuentas por pagar",
+	budgets: "presupuestos",
+	projects: "proyectos",
+};
 const DUE_WINDOW_DAYS = 30;
 const UPCOMING_LIMIT = 6;
 
 // Maps a payroll-kind tag to a short Spanish badge label. Unknown / null kinds
 // produce no badge. Mirrors the labels used in payrollReminders.js.
 const PAYROLL_KIND_LABEL = {
-  krankenkasse: 'KK',
-  tax: 'Lohnsteuer',
-  wages: 'Nómina',
+	krankenkasse: "KK",
+	tax: "Lohnsteuer",
+	wages: "Nómina",
 };
 
 // First and last calendar day of the month containing `date`, as ISO strings.
 const currentMonthRange = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const first = new Date(Date.UTC(year, month, 1));
-  const last = new Date(Date.UTC(year, month + 1, 0));
-  return { from: first.toISOString().slice(0, 10), to: last.toISOString().slice(0, 10) };
+	const year = date.getFullYear();
+	const month = date.getMonth();
+	const first = new Date(Date.UTC(year, month, 1));
+	const last = new Date(Date.UTC(year, month + 1, 0));
+	return {
+		from: first.toISOString().slice(0, 10),
+		to: last.toISOString().slice(0, 10),
+	};
 };
 
 // 'YYYY-MM' key for the current month, to match payrollPeriods.period.
 const currentMonthKey = (date = new Date()) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+	`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
 const toneForResult = (isProfit, result) => {
-  if (result === 0) return 'default';
-  return isProfit ? 'ok' : 'err';
+	if (result === 0) return "default";
+	return isProfit ? "ok" : "err";
 };
 
 const Resumen = ({ user }) => {
-  const { hasPermission } = useAuth();
-  const canSeePayroll = hasPermission('cxp');
+	const { hasPermission } = useAuth();
+	const canSeePayroll = hasPermission("cxp");
 
-  // ── Payroll → project allocation (verbatim wiring from Dashboard.jsx) ───────
-  const { periods: payrollPeriods } = usePayrollPeriods(canSeePayroll ? user : null);
-  const { employees } = useEmployees(user);
-  const { projects } = useProjects(user);
+	// ── Payroll → project allocation (verbatim wiring from Dashboard.jsx) ───────
+	const { periods: payrollPeriods } = usePayrollPeriods(
+		canSeePayroll ? user : null,
+	);
+	const { employees } = useEmployees(user);
+	const { projects } = useProjects(user);
 
-  const payrollByProject = useMemo(() => {
-    if (!canSeePayroll) return {};
-    const employeesById = {};
-    employees.forEach((e) => {
-      employeesById[e.id] = e;
-    });
-    const projectNamesById = {};
-    projects.forEach((p) => {
-      projectNamesById[p.id] = p.name;
-    });
-    return allocatePayrollCost({ periods: payrollPeriods, employeesById, projectNamesById }).byProject;
-  }, [canSeePayroll, payrollPeriods, employees, projects]);
+	const payrollByProject = useMemo(() => {
+		if (!canSeePayroll) return {};
+		const employeesById = {};
+		employees.forEach((e) => {
+			employeesById[e.id] = e;
+		});
+		const projectNamesById = {};
+		projects.forEach((p) => {
+			projectNamesById[p.id] = p.name;
+		});
+		return allocatePayrollCost({
+			periods: payrollPeriods,
+			employeesById,
+			projectNamesById,
+		}).byProject;
+	}, [canSeePayroll, payrollPeriods, employees, projects]);
 
-  // Single treasury pass (ledger is memoized per user). Blocks 1/3/4 read the
-  // full-range metrics; block 2 filters postedMovements to the current month
-  // inline — cheaper and simpler than a second hook instance.
-  const ledger = useFinanceLedgerContext();
-  const metrics = useTreasuryMetrics({ user, payrollByProject, ledger });
-  // The single cash forecast. It starts from the anchor-derived cash on its
-  // own, so this view no longer injects a balance — every screen that reads
-  // this hook projects from the same day zero by construction.
-  const forecast = useCashForecast(user, { ledger });
-  const { alertBufferEur } = useTreasurySettings(user);
-  // Work executed but not yet invoiced. Its own collection, deliberately: it is
-  // neither cash nor a receivable until a real invoice exists.
-  const wip = useWorkInProgress(user);
+	// Single treasury pass (ledger is memoized per user). Blocks 1/3/4 read the
+	// full-range metrics; block 2 filters postedMovements to the current month
+	// inline — cheaper and simpler than a second hook instance.
+	const ledger = useFinanceLedgerContext();
+	const metrics = useTreasuryMetrics({ user, payrollByProject, ledger });
+	// The single cash forecast. It starts from the anchor-derived cash on its
+	// own, so this view no longer injects a balance — every screen that reads
+	// this hook projects from the same day zero by construction.
+	const forecast = useCashForecast(user, { ledger });
+	const cashUnavailable = ledger.cashSource === "unavailable";
+	const cashPlaceholder =
+		ledger.cashMeta?.status === "loading" ? "Cargando…" : "No disponible";
+	const { alertBufferEur } = useTreasurySettings(user);
+	// Work executed but not yet invoiced. Its own collection, deliberately: it is
+	// neither cash nor a receivable until a real invoice exists.
+	const wip = useWorkInProgress(user);
 
-  const now = useMemo(() => new Date(), []);
-  const monthRange = useMemo(() => currentMonthRange(now), [now]);
-  const monthKey = useMemo(() => currentMonthKey(now), [now]);
+	const now = useMemo(() => new Date(), []);
+	const monthRange = useMemo(() => currentMonthRange(now), [now]);
+	const monthKey = useMemo(() => currentMonthKey(now), [now]);
 
-  // ── Alerts: localized, action-routed, severity-sorted ──────────────────────
-  const alerts = useMemo(() => {
-    if (metrics.loading) return [];
-    const todayIso = now.toISOString().slice(0, 10);
-    const openReceivables = (metrics.receivables || []).filter(
-      (r) => (r.openAmount || 0) > 0.005 && r.status !== 'cancelled',
-    );
-    const openPayables = (metrics.payables || []).filter(
-      (p) => (p.openAmount || 0) > 0.005 && p.status !== 'cancelled',
-    );
-    return buildResumenAlerts({
-      position: { balance: metrics.currentCash ?? 0, anchor: metrics.cashMeta?.anchor ?? null },
-      forecast: forecast.weeks,
-      receivablesAging: agingBuckets({ docs: openReceivables, today: todayIso }),
-      payablesAging: agingBuckets({ docs: openPayables, today: todayIso }),
-      importGap: metrics.cashMeta?.importGap ?? { hasGap: false },
-      missingMonths: canSeePayroll
-        ? missingPayrollMonths(payrollPeriods, todayIso.slice(0, 7))
-        : [],
-      today: todayIso,
-      config: {
-        bufferEur: alertBufferEur,
-        creditFloorEur: metrics.bankAccount?.creditLineLimit ?? 0,
-      },
-    });
-  }, [alertBufferEur, canSeePayroll, forecast.weeks, metrics, now, payrollPeriods]);
+	// ── Alerts: localized, action-routed, severity-sorted ──────────────────────
+	const alerts = useMemo(() => {
+		if (metrics.loading && !cashUnavailable) return [];
+		const todayIso = now.toISOString().slice(0, 10);
+		const openReceivables = (metrics.receivables || []).filter(
+			(r) => (r.openAmount || 0) > 0.005 && r.status !== "cancelled",
+		);
+		const openPayables = (metrics.payables || []).filter(
+			(p) => (p.openAmount || 0) > 0.005 && p.status !== "cancelled",
+		);
+		return buildResumenAlerts({
+			position: {
+				balance: metrics.currentCash,
+				anchor: metrics.cashMeta?.anchor ?? null,
+			},
+			forecast: forecast.available === false ? [] : forecast.weeks,
+			receivablesAging: agingBuckets({
+				docs: openReceivables,
+				today: todayIso,
+			}),
+			payablesAging: agingBuckets({ docs: openPayables, today: todayIso }),
+			importGap: metrics.cashMeta?.importGap ?? { hasGap: false },
+			missingMonths: canSeePayroll
+				? missingPayrollMonths(payrollPeriods, todayIso.slice(0, 7))
+				: [],
+			today: todayIso,
+			config: {
+				bufferEur: alertBufferEur,
+				creditFloorEur: metrics.bankAccount?.creditLineLimit ?? 0,
+			},
+		}).filter(
+			(alert) =>
+				!cashUnavailable ||
+				![
+					"reconciliation-stale",
+					"projected-balance-below-buffer",
+					"import-gap",
+				].includes(alert.id),
+		);
+	}, [
+		alertBufferEur,
+		canSeePayroll,
+		cashUnavailable,
+		forecast.available,
+		forecast.weeks,
+		metrics,
+		now,
+		payrollPeriods,
+	]);
 
-  // ── Block 1: cash + runway ─────────────────────────────────────────────────
-  // Caja / Posición neta / Runway are rendered by <LiquidityKpis>, the same
-  // component Tesorería and the executive summary use, so the three screens
-  // cannot disagree on a label or a number.
-  const currentCash = metrics.currentCash ?? 0;
+	// ── Block 1: cash + runway ─────────────────────────────────────────────────
+	// Caja / Posición neta / Runway are rendered by <LiquidityKpis>, the same
+	// component Tesorería and the executive summary use, so the three screens
+	// cannot disagree on a label or a number.
+	const currentCash = metrics.currentCash;
 
-  // ── Block 2: monthly result WITH payroll ───────────────────────────────────
-  // Own-account transfers are dropped from BOTH sides: moving money between
-  // UMTELKOMD's own bank accounts is neither income nor expense, and counting
-  // both legs inflated the monthly result on each side. The cash KPIs above are
-  // untouched — that money really did leave and enter the account.
-  const monthIncome = useMemo(
-    () =>
-      (metrics.postedMovements || [])
-        .filter(
-          (m) =>
-            m.direction === 'in' &&
-            !isInternalTransfer(m) &&
-            m.postedDate >= monthRange.from &&
-            m.postedDate <= monthRange.to,
-        )
-        .reduce((sum, m) => sum + (Number(m.amount) || 0), 0),
-    [metrics.postedMovements, monthRange],
-  );
-  const monthExpenses = useMemo(
-    () =>
-      (metrics.postedMovements || [])
-        .filter(
-          (m) =>
-            m.direction === 'out' &&
-            !isInternalTransfer(m) &&
-            m.postedDate >= monthRange.from &&
-            m.postedDate <= monthRange.to,
-        )
-        .reduce((sum, m) => sum + (Number(m.amount) || 0), 0),
-    [metrics.postedMovements, monthRange],
-  );
+	// ── Block 2: monthly result WITH payroll ───────────────────────────────────
+	// Own-account transfers are dropped from BOTH sides: moving money between
+	// UMTELKOMD's own bank accounts is neither income nor expense, and counting
+	// both legs inflated the monthly result on each side. The cash KPIs above are
+	// untouched — that money really did leave and enter the account.
+	const monthIncome = useMemo(
+		() =>
+			(metrics.postedMovements || [])
+				.filter(
+					(m) =>
+						m.direction === "in" &&
+						!isInternalTransfer(m) &&
+						m.postedDate >= monthRange.from &&
+						m.postedDate <= monthRange.to,
+				)
+				.reduce((sum, m) => sum + (Number(m.amount) || 0), 0),
+		[metrics.postedMovements, monthRange],
+	);
+	const monthExpenses = useMemo(
+		() =>
+			(metrics.postedMovements || [])
+				.filter(
+					(m) =>
+						m.direction === "out" &&
+						!isInternalTransfer(m) &&
+						m.postedDate >= monthRange.from &&
+						m.postedDate <= monthRange.to,
+				)
+				.reduce((sum, m) => sum + (Number(m.amount) || 0), 0),
+		[metrics.postedMovements, monthRange],
+	);
 
-  // Payroll counted EXACTLY ONCE, no double-count: payroll already PAID this
-  // month is a cash 'out' already inside monthExpenses; we add only the still
-  // UNPAID obligations of this month's period (their openAmount). Consistent
-  // cash basis, no movement tagging needed.
-  const currentPayrollPeriod = useMemo(
-    () => (canSeePayroll ? payrollPeriods.find((p) => p.period === monthKey) : undefined),
-    [canSeePayroll, payrollPeriods, monthKey],
-  );
-  const payrollPending = useMemo(() => {
-    if (!currentPayrollPeriod) return 0;
-    return (metrics.payables || [])
-      .filter((p) => p.payrollPeriodId === currentPayrollPeriod.id)
-      .reduce((sum, p) => sum + (Number(p.openAmount) || 0), 0);
-  }, [metrics.payables, currentPayrollPeriod]);
+	// Payroll counted EXACTLY ONCE, no double-count: payroll already PAID this
+	// month is a cash 'out' already inside monthExpenses; we add only the still
+	// UNPAID obligations of this month's period (their openAmount). Consistent
+	// cash basis, no movement tagging needed.
+	const currentPayrollPeriod = useMemo(
+		() =>
+			canSeePayroll
+				? payrollPeriods.find((p) => p.period === monthKey)
+				: undefined,
+		[canSeePayroll, payrollPeriods, monthKey],
+	);
+	const payrollPending = useMemo(() => {
+		if (!currentPayrollPeriod) return 0;
+		return (metrics.payables || [])
+			.filter((p) => p.payrollPeriodId === currentPayrollPeriod.id)
+			.reduce((sum, p) => sum + (Number(p.openAmount) || 0), 0);
+	}, [metrics.payables, currentPayrollPeriod]);
 
-  const monthlyResult = useMemo(
-    () => computeMonthlyResult({ income: monthIncome, expenses: monthExpenses, payrollCost: payrollPending }),
-    [monthIncome, monthExpenses, payrollPending],
-  );
+	const monthlyResult = useMemo(
+		() =>
+			computeMonthlyResult({
+				income: monthIncome,
+				expenses: monthExpenses,
+				payrollCost: payrollPending,
+			}),
+		[monthIncome, monthExpenses, payrollPending],
+	);
 
-  const resultLabel = canSeePayroll ? 'Resultado del mes (nómina incluida)' : 'Resultado del mes';
+	const resultLabel = canSeePayroll
+		? "Resultado del mes (nómina incluida)"
+		: "Resultado del mes";
 
-  // ── Block 3: receivables / payables + next due ─────────────────────────────
-  const pendingReceivables = metrics.pendingReceivables ?? 0;
-  const pendingPayables = metrics.pendingPayables ?? 0;
-  const cxcMinusCxp = pendingReceivables - pendingPayables;
+	// ── Block 3: receivables / payables + next due ─────────────────────────────
+	const pendingReceivables = metrics.pendingReceivables ?? 0;
+	const pendingPayables = metrics.pendingPayables ?? 0;
+	const cxcMinusCxp = pendingReceivables - pendingPayables;
 
-  // ── Block 0: the net position ──────────────────────────────────────────────
-  // ONE formula, shared with Tesorería and the executive summary:
-  // cash + open receivables − open payables (`useTreasuryMetrics.netPosition`).
-  // Executed-but-uninvoiced work is real money this company is owed, but it is
-  // neither cash nor a receivable, so it is stated as its own line UNDER the
-  // headline instead of being folded into it — and it never touches the cash
-  // figure, the anchors, the forecast or the aging.
-  const position = useMemo(
-    () =>
-      netPosition({
-        cash: currentCash,
-        wip: wip.total,
-        receivablesOpen: pendingReceivables,
-        payablesOpen: pendingPayables,
-      }),
-    [currentCash, wip.total, pendingReceivables, pendingPayables],
-  );
-  const headlinePosition = metrics.netPosition ?? 0;
+	// ── Block 0: the net position ──────────────────────────────────────────────
+	// ONE formula, shared with Tesorería and the executive summary:
+	// cash + open receivables − open payables (`useTreasuryMetrics.netPosition`).
+	// Executed-but-uninvoiced work is real money this company is owed, but it is
+	// neither cash nor a receivable, so it is stated as its own line UNDER the
+	// headline instead of being folded into it — and it never touches the cash
+	// figure, the anchors, the forecast or the aging.
+	const position = useMemo(
+		() =>
+			cashUnavailable
+				? { wip: wip.total, net: null }
+				: netPosition({
+						cash: currentCash,
+						wip: wip.total,
+						receivablesOpen: pendingReceivables,
+						payablesOpen: pendingPayables,
+					}),
+		[
+			cashUnavailable,
+			currentCash,
+			wip.total,
+			pendingReceivables,
+			pendingPayables,
+		],
+	);
+	const headlinePosition = metrics.netPosition;
 
-  // Feed the FULL open document sets (NOT the 14-day-capped upcoming* arrays) so
-  // the 30-day window is real and payroll obligations due ~next month (Lohnsteuer
-  // on the 10th, month-end Krankenkassen) actually appear.
-  const upcomingPayables = useMemo(() => {
-    const documents = selectDueWithinDays(
-      (metrics.payables || []).filter((p) => (p.openAmount || 0) > 0 && p.status !== 'cancelled'),
-      DUE_WINDOW_DAYS,
-      now,
-    );
-    // Estimated fiscal obligations (IVA / SV / Lohnsteuer / nómina) that are
-    // not yet materialized as payables join the same list, flagged "estimado".
-    const estimated = selectUpcomingObligations(
-      forecast.obligations || [],
-      DUE_WINDOW_DAYS,
-      now,
-    );
-    return [...documents, ...estimated]
-      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
-      .slice(0, UPCOMING_LIMIT);
-  }, [forecast.obligations, metrics.payables, now]);
-  const upcomingReceivables = useMemo(
-    () =>
-      selectDueWithinDays(
-        (metrics.receivables || []).filter((r) => (r.openAmount || 0) > 0 && r.status !== 'cancelled'),
-        DUE_WINDOW_DAYS,
-        now,
-      ).slice(0, UPCOMING_LIMIT),
-    [metrics.receivables, now],
-  );
+	// Feed the FULL open document sets (NOT the 14-day-capped upcoming* arrays) so
+	// the 30-day window is real and payroll obligations due ~next month (Lohnsteuer
+	// on the 10th, month-end Krankenkassen) actually appear.
+	const upcomingPayables = useMemo(() => {
+		const documents = selectDueWithinDays(
+			(metrics.payables || []).filter(
+				(p) => (p.openAmount || 0) > 0 && p.status !== "cancelled",
+			),
+			DUE_WINDOW_DAYS,
+			now,
+		);
+		// Estimated fiscal obligations (IVA / SV / Lohnsteuer / nómina) that are
+		// not yet materialized as payables join the same list, flagged "estimado".
+		const estimated = selectUpcomingObligations(
+			forecast.obligations || [],
+			DUE_WINDOW_DAYS,
+			now,
+		);
+		return [...documents, ...estimated]
+			.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
+			.slice(0, UPCOMING_LIMIT);
+	}, [forecast.obligations, metrics.payables, now]);
+	const upcomingReceivables = useMemo(
+		() =>
+			selectDueWithinDays(
+				(metrics.receivables || []).filter(
+					(r) => (r.openAmount || 0) > 0 && r.status !== "cancelled",
+				),
+				DUE_WINDOW_DAYS,
+				now,
+			).slice(0, UPCOMING_LIMIT),
+		[metrics.receivables, now],
+	);
 
-  // ── Block 4: project margins (labor already folded by buildProjectMargins) ──
-  // The unassigned bucket is no longer ranked as a project (it used to top the
-  // table); it is shown as its own muted row so the cash stays visible.
-  const projectMargins = metrics.projectMargins || [];
-  const unassignedMargin = metrics.unassignedMargin || null;
+	// ── Block 4: project margins (labor already folded by buildProjectMargins) ──
+	// The unassigned bucket is no longer ranked as a project (it used to top the
+	// table); it is shown as its own muted row so the cash stays visible.
+	const projectMargins = metrics.projectMargins || [];
+	const unassignedMargin = metrics.unassignedMargin || null;
 
-  if (metrics.loading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>
-      </div>
-    );
-  }
+	if (metrics.loading && (!user || !cashUnavailable)) {
+		return (
+			<div className="flex items-center justify-center py-32">
+				<p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>
+			</div>
+		);
+	}
 
-  return (
-    <div className="space-y-6 pb-16">
-      {/* Partial-data guard: a failed Firestore source must never render as
-          authoritative €-figures. Every KPI below is suspect until it clears. */}
-      {ledger.error && (
-        <div className="flex items-start gap-3 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-2)] px-4 py-3">
-          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[var(--color-err)]" />
-          <div>
-            <p className="font-mono text-[12px] text-[var(--color-err)]">
-              Datos incompletos — no confíes en estas cifras
-            </p>
-            <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-              Falló la carga de: {Object.entries(ledger.sourceErrors || {})
-                .filter(([, err]) => err)
-                .map(([name]) => name)
-                .join(', ')}. Recargá la página; si persiste, revisá la conexión o los permisos de Firestore.
-            </p>
-          </div>
-        </div>
-      )}
+	return (
+		<div className="space-y-6 pb-16">
+			{/* Reconciliation has its own bounded guard; keep other source warnings. */}
+			{ledger.error &&
+				Object.entries(ledger.sourceErrors || {}).some(
+					([name, error]) => name !== "reconciliation" && error,
+				) && (
+					<div className="flex items-start gap-3 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-2)] px-4 py-3">
+						<AlertTriangle
+							size={16}
+							className="mt-0.5 flex-shrink-0 text-[var(--color-err)]"
+						/>
+						<div>
+							<p className="font-mono text-[12px] text-[var(--color-err)]">
+								Datos incompletos — no confíes en estas cifras
+							</p>
+							<p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+								No se pudieron cargar:{" "}
+								{Object.entries(ledger.sourceErrors || {})
+									.filter(([name, error]) => name !== "reconciliation" && error)
+									.map(([name]) => SOURCE_LABELS[name] || "datos financieros")
+									.join(", ")}
+								. Revisa la conexión y vuelve a cargar la página.
+							</p>
+						</div>
+					</div>
+				)}
 
-      <PageHeader
-        section="Resumen"
-        title="Cómo va la"
-        accent="empresa"
-        subtitle={now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-      />
+			<PageHeader
+				section="Resumen"
+				title="Cómo va la"
+				accent="empresa"
+				subtitle={now.toLocaleDateString("es-ES", {
+					weekday: "long",
+					day: "numeric",
+					month: "long",
+					year: "numeric",
+				})}
+			/>
 
-      {/* ───────────────────────── ALERTAS ────────────────────────────────────── */}
-      {alerts.length > 0 && (
-        <Panel title="Alertas" meta={`${alerts.length} activa${alerts.length === 1 ? '' : 's'}`}>
-          <ul className="divide-y divide-[var(--color-line)]">
-            {alerts.map((alert) => {
-              const severityColor =
-                alert.severity === 'critical'
-                  ? 'var(--color-err)'
-                  : alert.severity === 'serious'
-                    ? 'var(--color-warn)'
-                    : 'var(--color-fg-3)';
-              return (
-                <li key={alert.id} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full"
-                      style={{ backgroundColor: severityColor }}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium" style={{ color: severityColor }}>
-                        {alert.title}
-                      </p>
-                      <p className="mt-0.5 text-[12px] text-[var(--color-fg-4)]">{alert.detail}</p>
-                    </div>
-                  </div>
-                  <Link
-                    to={alert.href}
-                    className="label-mono flex-shrink-0 text-[var(--color-accent)] transition-opacity hover:opacity-80"
-                  >
-                    Ver →
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </Panel>
-      )}
+			{cashUnavailable && (
+				<FinancialSourceStatus
+					status={ledger.cashMeta.status}
+					onRetry={ledger.actions.reconciliation.retry}
+				/>
+			)}
 
-      {/* ───────────────────── BLOCK 0 — POSICIÓN NETA ───────────────────────── */}
-      {/* The arithmetic is shown, not hidden behind one number: the owner has to
+			{/* ───────────────────────── ALERTAS ────────────────────────────────────── */}
+			{alerts.length > 0 && (
+				<Panel
+					title="Alertas"
+					meta={`${alerts.length} activa${alerts.length === 1 ? "" : "s"}`}
+				>
+					<ul className="divide-y divide-[var(--color-line)]">
+						{alerts.map((alert) => {
+							const severityColor =
+								alert.severity === "critical"
+									? "var(--color-err)"
+									: alert.severity === "serious"
+										? "var(--color-warn)"
+										: "var(--color-fg-3)";
+							return (
+								<li
+									key={alert.id}
+									className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0"
+								>
+									<div className="flex min-w-0 items-start gap-3">
+										<span
+											aria-hidden="true"
+											className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full"
+											style={{ backgroundColor: severityColor }}
+										/>
+										<div className="min-w-0">
+											<p
+												className="text-[13px] font-medium"
+												style={{ color: severityColor }}
+											>
+												{alert.title}
+											</p>
+											<p className="mt-0.5 text-[12px] text-[var(--color-fg-4)]">
+												{alert.detail}
+											</p>
+										</div>
+									</div>
+									<Link
+										to={alert.href}
+										className="label-mono flex-shrink-0 text-[var(--color-accent)] transition-opacity hover:opacity-80"
+									>
+										Ver →
+									</Link>
+								</li>
+							);
+						})}
+					</ul>
+				</Panel>
+			)}
+
+			{/* ───────────────────── BLOCK 0 — POSICIÓN NETA ───────────────────────── */}
+			{/* The arithmetic is shown, not hidden behind one number: the owner has to
           SEE why this differs from his bank balance or he will not trust it. */}
-      <Panel title="Posición neta" meta="Caja + por cobrar − por pagar">
-        <div data-testid="position-panel">
-          <div className="mb-4">
-            <p className="label-mono mb-2 text-[var(--color-fg-3)]">
-              Lo que la empresa tiene en circulación
-            </p>
-            <p
-              data-testid="position-net"
-              className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
-              style={{ color: headlinePosition >= 0 ? 'var(--color-ok)' : 'var(--color-err)' }}
-            >
-              {formatCurrency(headlinePosition)}
-            </p>
-            {wip.total > 0 ? (
-              <p
-                data-testid="position-with-wip"
-                className="mt-2 font-mono text-[13px] tabular-nums text-[var(--color-fg-2)]"
-              >
-                <span className="label-mono text-[var(--color-fg-3)]">Posición con obra ejecutada</span>
-                <span className="mx-2 text-[var(--color-fg-4)]">·</span>
-                + {formatCurrency(position.wip)} de obra ejecutada sin facturar →{' '}
-                <span className="text-[var(--color-fg-1)]">{formatCurrency(position.net)}</span>
-              </p>
-            ) : (
-              <p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
-                El trabajo ya ejecutado y todavía sin facturar no aparece ni en el banco ni en
-                las cuentas por cobrar; cuando exista, se suma aquí como una línea aparte.
-              </p>
-            )}
-          </div>
+			<Panel title="Posición neta" meta="Caja + por cobrar − por pagar">
+				<div data-testid="position-panel">
+					<div className="mb-4">
+						<p className="label-mono mb-2 text-[var(--color-fg-3)]">
+							Lo que la empresa tiene en circulación
+						</p>
+						<p
+							data-testid="position-net"
+							className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
+							style={{
+								color: cashUnavailable
+									? "var(--color-fg-3)"
+									: headlinePosition >= 0
+										? "var(--color-ok)"
+										: "var(--color-err)",
+							}}
+						>
+							{cashUnavailable
+								? cashPlaceholder
+								: formatCurrency(headlinePosition)}
+						</p>
+						{!cashUnavailable &&
+							(wip.total > 0 ? (
+								<p
+									data-testid="position-with-wip"
+									className="mt-2 font-mono text-[13px] tabular-nums text-[var(--color-fg-2)]"
+								>
+									<span className="label-mono text-[var(--color-fg-3)]">
+										Posición con obra ejecutada
+									</span>
+									<span className="mx-2 text-[var(--color-fg-4)]">·</span>+{" "}
+									{formatCurrency(position.wip)} de obra ejecutada sin facturar
+									→{" "}
+									<span className="text-[var(--color-fg-1)]">
+										{formatCurrency(position.net)}
+									</span>
+								</p>
+							) : (
+								<p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
+									El trabajo ya ejecutado y todavía sin facturar no aparece ni
+									en el banco ni en las cuentas por cobrar; cuando exista, se
+									suma aquí como una línea aparte.
+								</p>
+							))}
+					</div>
 
-          <KPIGrid cols={4}>
-            <KPI
-              label="Caja"
-              value={formatCurrency(currentCash)}
-              tone={currentCash < 0 ? 'err' : 'default'}
-              icon={Wallet}
-              meta="Saldo bancario conciliado"
-            />
-            <KPI
-              label="Obra ejecutada"
-              value={formatCurrency(position.wip)}
-              tone={wip.summary.stale ? 'warn' : 'default'}
-              icon={HardHat}
-              meta={
-                wip.summary.total > 0
-                  ? `Ejecutado ${formatCurrency(wip.summary.byStage.executed)} · certificado ${formatCurrency(wip.summary.byStage.certified)}`
-                  : 'Sin obra ejecutada registrada'
-              }
-            />
-            <KPI label="Por cobrar" value={formatCurrency(pendingReceivables)} tone="ok" />
-            <KPI label="Por pagar" value={formatCurrency(pendingPayables)} tone="warn" icon={Scale} />
-          </KPIGrid>
+					<KPIGrid cols={4}>
+						<KPI
+							label="Caja"
+							value={
+								cashUnavailable ? cashPlaceholder : formatCurrency(currentCash)
+							}
+							tone={!cashUnavailable && currentCash < 0 ? "err" : "default"}
+							icon={Wallet}
+							meta={
+								cashUnavailable
+									? "Pendiente de conciliación verificada"
+									: "Saldo bancario conciliado"
+							}
+						/>
+						<KPI
+							label="Obra ejecutada"
+							value={formatCurrency(position.wip)}
+							tone={wip.summary.stale ? "warn" : "default"}
+							icon={HardHat}
+							meta={
+								wip.summary.total > 0
+									? `Ejecutado ${formatCurrency(wip.summary.byStage.executed)} · certificado ${formatCurrency(wip.summary.byStage.certified)}`
+									: "Sin obra ejecutada registrada"
+							}
+						/>
+						<KPI
+							label="Por cobrar"
+							value={formatCurrency(pendingReceivables)}
+							tone="ok"
+						/>
+						<KPI
+							label="Por pagar"
+							value={formatCurrency(pendingPayables)}
+							tone="warn"
+							icon={Scale}
+						/>
+					</KPIGrid>
 
-          {wip.summary.stale && (
-            <div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-warn)]/40 bg-[var(--color-bg-2)] px-4 py-3">
-              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[var(--color-warn)]" />
-              <div>
-                <p className="font-mono text-[12px] text-[var(--color-warn)]">
-                  Obra sin facturar desde hace {wip.summary.oldestDays} días
-                </p>
-                <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-                  Ese dinero está congelado por papeleo, no porque el cliente no pague. Certificar
-                  y facturar es la acción de más valor disponible ahora mismo.
-                </p>
-              </div>
-            </div>
-          )}
+					{wip.summary.stale && (
+						<div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-warn)]/40 bg-[var(--color-bg-2)] px-4 py-3">
+							<AlertTriangle
+								size={16}
+								className="mt-0.5 flex-shrink-0 text-[var(--color-warn)]"
+							/>
+							<div>
+								<p className="font-mono text-[12px] text-[var(--color-warn)]">
+									Obra sin facturar desde hace {wip.summary.oldestDays} días
+								</p>
+								<p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+									Ese dinero está congelado por papeleo, no porque el cliente no
+									pague. Certificar y facturar es la acción de más valor
+									disponible ahora mismo.
+								</p>
+							</div>
+						</div>
+					)}
 
-          <p className="mt-4 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
-            La obra ejecutada se registra por obra en{' '}
-            <Link to="/proyectos" className="text-[var(--color-accent)] hover:opacity-80">
-              Proyectos
-            </Link>
-            . No es caja ni cuenta por cobrar: no altera el saldo, el runway ni la antigüedad.
-          </p>
-        </div>
-      </Panel>
+					<p className="mt-4 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+						La obra ejecutada se registra por obra en{" "}
+						<Link
+							to="/proyectos"
+							className="text-[var(--color-accent)] hover:opacity-80"
+						>
+							Proyectos
+						</Link>
+						. No es caja ni cuenta por cobrar: no altera el saldo, el runway ni
+						la antigüedad.
+					</p>
+				</div>
+			</Panel>
 
-      {/* ───────────────────────── BLOCK 1 — CAJA Y RUNWAY ───────────────────── */}
-      <Panel title="Caja y runway" meta="¿Cuánto aguantamos?">
-        <LiquidityKpis metrics={metrics} forecast={forecast} size="lg" />
+			{/* ───────────────────────── BLOCK 1 — CAJA Y RUNWAY ───────────────────── */}
+			<Panel title="Caja y runway" meta="¿Cuánto aguantamos?">
+				<LiquidityKpis metrics={metrics} forecast={forecast} size="lg" />
 
-        {forecast.firstNegativeWeek && (
-          <div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-err)]/40 bg-[var(--color-bg-2)] px-4 py-3">
-            <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-[var(--color-err)]" />
-            <div>
-              <p className="font-mono text-[12px] text-[var(--color-err)]">
-                Caja en negativo la semana del {formatDate(forecast.firstNegativeWeek.weekStart)}
-              </p>
-              <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-                Saldo proyectado {formatCurrency(forecast.firstNegativeWeek.projectedBalance)}.
-              </p>
-            </div>
-          </div>
-        )}
+				{forecast.available !== false && forecast.firstNegativeWeek && (
+					<div className="mt-4 flex items-start gap-3 rounded-md border border-[var(--color-err)]/40 bg-[var(--color-bg-2)] px-4 py-3">
+						<AlertTriangle
+							size={16}
+							className="mt-0.5 flex-shrink-0 text-[var(--color-err)]"
+						/>
+						<div>
+							<p className="font-mono text-[12px] text-[var(--color-err)]">
+								Caja en negativo la semana del{" "}
+								{formatDate(forecast.firstNegativeWeek.weekStart)}
+							</p>
+							<p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+								Saldo proyectado{" "}
+								{formatCurrency(forecast.firstNegativeWeek.projectedBalance)}.
+							</p>
+						</div>
+					</div>
+				)}
 
-        {/* The runway above is only as good as this assumption — state it, always. */}
-        <p className="mt-4 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
-          {formatCollectionSlip(forecast.collectionSlip)}
-        </p>
-      </Panel>
+				{/* The runway above is only as good as this assumption — state it, always. */}
+				<p className="mt-4 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+					{forecast.available === false
+						? "Proyección no disponible: no se puede evaluar el riesgo de caja."
+						: formatCollectionSlip(forecast.collectionSlip)}
+				</p>
+			</Panel>
 
-      {/* ──────────────────────── BLOCK 2 — RESULTADO DEL MES ────────────────── */}
-      <Panel title="Resultado del mes" meta={now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}>
-        <div className="mb-4">
-          <p className="label-mono text-[var(--color-fg-3)] mb-2">{resultLabel}</p>
-          <p
-            className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
-            style={{ color: monthlyResult.isProfit ? 'var(--color-ok)' : monthlyResult.result === 0 ? 'var(--color-fg-1)' : 'var(--color-err)' }}
-          >
-            {monthlyResult.result >= 0 ? '+' : '−'}
-            {formatCurrency(Math.abs(monthlyResult.result))}
-          </p>
-          <p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
-            {monthlyResult.isProfit
-              ? 'La empresa ganó dinero este mes (nómina incluida).'
-              : monthlyResult.result === 0
-                ? 'Mes en equilibrio.'
-                : 'La empresa perdió dinero este mes.'}
-          </p>
-        </div>
+			{/* ──────────────────────── BLOCK 2 — RESULTADO DEL MES ────────────────── */}
+			<Panel
+				title="Resultado del mes"
+				meta={now.toLocaleDateString("es-ES", {
+					month: "long",
+					year: "numeric",
+				})}
+			>
+				<div className="mb-4">
+					<p className="label-mono text-[var(--color-fg-3)] mb-2">
+						{resultLabel}
+					</p>
+					<p
+						className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
+						style={{
+							color: monthlyResult.isProfit
+								? "var(--color-ok)"
+								: monthlyResult.result === 0
+									? "var(--color-fg-1)"
+									: "var(--color-err)",
+						}}
+					>
+						{monthlyResult.result >= 0 ? "+" : "−"}
+						{formatCurrency(Math.abs(monthlyResult.result))}
+					</p>
+					<p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
+						{monthlyResult.isProfit
+							? "La empresa ganó dinero este mes (nómina incluida)."
+							: monthlyResult.result === 0
+								? "Mes en equilibrio."
+								: "La empresa perdió dinero este mes."}
+					</p>
+				</div>
 
-        <KPIGrid cols={4}>
-          <KPI label="Ingresos" value={formatCurrency(monthlyResult.income)} tone="ok" icon={ArrowUpRight} />
-          <KPI
-            label="Gastos (caja)"
-            value={formatCurrency(monthlyResult.baseExpenses)}
-            icon={ArrowDownRight}
-            meta="Incluye nómina ya pagada"
-          />
-          <KPI
-            label="Nómina pendiente"
-            value={formatCurrency(monthlyResult.payrollCost)}
-            tone={monthlyResult.payrollCost > 0 ? 'warn' : 'default'}
-            meta={canSeePayroll ? 'Aún por pagar este mes' : 'Sin permiso'}
-          />
-          <KPI
-            label="Gasto total"
-            value={formatCurrency(monthlyResult.totalExpenses)}
-            tone={toneForResult(monthlyResult.isProfit, monthlyResult.result)}
-          />
-        </KPIGrid>
-      </Panel>
+				<KPIGrid cols={4}>
+					<KPI
+						label="Ingresos"
+						value={formatCurrency(monthlyResult.income)}
+						tone="ok"
+						icon={ArrowUpRight}
+					/>
+					<KPI
+						label="Gastos (caja)"
+						value={formatCurrency(monthlyResult.baseExpenses)}
+						icon={ArrowDownRight}
+						meta="Incluye nómina ya pagada"
+					/>
+					<KPI
+						label="Nómina pendiente"
+						value={formatCurrency(monthlyResult.payrollCost)}
+						tone={monthlyResult.payrollCost > 0 ? "warn" : "default"}
+						meta={canSeePayroll ? "Aún por pagar este mes" : "Sin permiso"}
+					/>
+					<KPI
+						label="Gasto total"
+						value={formatCurrency(monthlyResult.totalExpenses)}
+						tone={toneForResult(monthlyResult.isProfit, monthlyResult.result)}
+					/>
+				</KPIGrid>
+			</Panel>
 
-      {/* ────────────────── BLOCK 3 — POR COBRAR / POR PAGAR ─────────────────── */}
-      <Panel title="Por cobrar / por pagar" meta={`Próximos ${DUE_WINDOW_DAYS} días`}>
-        <KPIGrid cols={3}>
-          <KPI label="Por cobrar (CXC)" value={formatCurrency(pendingReceivables)} tone="ok" />
-          <KPI label="Por pagar (CXP)" value={formatCurrency(pendingPayables)} tone="warn" />
-          <KPI
-            label="CXC − CXP"
-            value={`${cxcMinusCxp >= 0 ? '+' : '−'}${formatCurrency(Math.abs(cxcMinusCxp))}`}
-            tone={cxcMinusCxp >= 0 ? 'ok' : 'err'}
-            meta="Saldo entre cobros y pagos abiertos"
-          />
-        </KPIGrid>
+			{/* ────────────────── BLOCK 3 — POR COBRAR / POR PAGAR ─────────────────── */}
+			<Panel
+				title="Por cobrar / por pagar"
+				meta={`Próximos ${DUE_WINDOW_DAYS} días`}
+			>
+				<KPIGrid cols={3}>
+					<KPI
+						label="Por cobrar (CXC)"
+						value={formatCurrency(pendingReceivables)}
+						tone="ok"
+					/>
+					<KPI
+						label="Por pagar (CXP)"
+						value={formatCurrency(pendingPayables)}
+						tone="warn"
+					/>
+					<KPI
+						label="CXC − CXP"
+						value={`${cxcMinusCxp >= 0 ? "+" : "−"}${formatCurrency(Math.abs(cxcMinusCxp))}`}
+						tone={cxcMinusCxp >= 0 ? "ok" : "err"}
+						meta="Saldo entre cobros y pagos abiertos"
+					/>
+				</KPIGrid>
 
-        <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <DueList
-            title="Próximos pagos"
-            items={upcomingPayables}
-            emptyText="Sin pagos en la ventana."
-            direction="out"
-          />
-          <DueList
-            title="Próximos cobros"
-            items={upcomingReceivables}
-            emptyText="Sin cobros en la ventana."
-            direction="in"
-          />
-        </div>
-      </Panel>
+				<div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+					<DueList
+						title="Próximos pagos"
+						items={upcomingPayables}
+						emptyText={
+							forecast.available === false
+								? "Sin pagos documentados en la ventana. Estimaciones no disponibles."
+								: "Sin pagos en la ventana."
+						}
+						direction="out"
+					/>
+					<DueList
+						title="Próximos cobros"
+						items={upcomingReceivables}
+						emptyText="Sin cobros en la ventana."
+						direction="in"
+					/>
+				</div>
+			</Panel>
 
-      {/* ──────────────────── BLOCK 4 — MARGEN POR PROYECTO ──────────────────── */}
-      <Panel
-        title="Margen por proyecto"
-        meta={canSeePayroll ? 'Mano de obra deducida' : 'Sin mano de obra (sin permiso)'}
-      >
-        {projectMargins.length === 0 && !unassignedMargin ? (
-          <EmptyState title="Sin proyectos" description="No hay movimientos por proyecto todavía." />
-        ) : (
-          <div className="divide-y divide-[var(--color-line)]">
-            {projectMargins.map((p) => (
-              <div key={p.name} className="flex items-center justify-between gap-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[14px] text-[var(--color-fg-1)]">{p.name}</p>
-                  <p className="label-mono text-[var(--color-fg-4)] mt-0.5">
-                    Ingresos {formatCurrency(p.inflows)} · Costes {formatCurrency(p.outflows)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="font-mono text-[11px] text-[var(--color-fg-4)] tabular-nums">
-                    {p.margin.toLocaleString('es-ES', { maximumFractionDigits: 1 })}%
-                  </span>
-                  <span
-                    className="font-mono text-[15px] tabular-nums tracking-tight"
-                    style={{ color: p.net >= 0 ? 'var(--color-ok)' : 'var(--color-err)' }}
-                  >
-                    {p.net >= 0 ? '+' : '−'}
-                    {formatCurrency(Math.abs(p.net))}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {unassignedMargin && (
-              <div className="flex items-center justify-between gap-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[14px] text-[var(--color-fg-3)]">Sin asignar</p>
-                  <p className="label-mono text-[var(--color-fg-4)] mt-0.5">
-                    Ingresos {formatCurrency(unassignedMargin.inflows)} · Costes {formatCurrency(unassignedMargin.outflows)}
-                  </p>
-                </div>
-                <span className="flex-shrink-0 font-mono text-[15px] tabular-nums tracking-tight text-[var(--color-fg-3)]">
-                  {unassignedMargin.net >= 0 ? '+' : '−'}
-                  {formatCurrency(Math.abs(unassignedMargin.net))}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </Panel>
-    </div>
-  );
+			{/* ──────────────────── BLOCK 4 — MARGEN POR PROYECTO ──────────────────── */}
+			<Panel
+				title="Margen por proyecto"
+				meta={
+					canSeePayroll
+						? "Mano de obra deducida"
+						: "Sin mano de obra (sin permiso)"
+				}
+			>
+				{projectMargins.length === 0 && !unassignedMargin ? (
+					<EmptyState
+						title="Sin proyectos"
+						description="No hay movimientos por proyecto todavía."
+					/>
+				) : (
+					<div className="divide-y divide-[var(--color-line)]">
+						{projectMargins.map((p) => (
+							<div
+								key={p.name}
+								className="flex items-center justify-between gap-4 py-3"
+							>
+								<div className="min-w-0">
+									<p className="truncate text-[14px] text-[var(--color-fg-1)]">
+										{p.name}
+									</p>
+									<p className="label-mono text-[var(--color-fg-4)] mt-0.5">
+										Ingresos {formatCurrency(p.inflows)} · Costes{" "}
+										{formatCurrency(p.outflows)}
+									</p>
+								</div>
+								<div className="flex items-center gap-3 flex-shrink-0">
+									<span className="font-mono text-[11px] text-[var(--color-fg-4)] tabular-nums">
+										{p.margin.toLocaleString("es-ES", {
+											maximumFractionDigits: 1,
+										})}
+										%
+									</span>
+									<span
+										className="font-mono text-[15px] tabular-nums tracking-tight"
+										style={{
+											color:
+												p.net >= 0 ? "var(--color-ok)" : "var(--color-err)",
+										}}
+									>
+										{p.net >= 0 ? "+" : "−"}
+										{formatCurrency(Math.abs(p.net))}
+									</span>
+								</div>
+							</div>
+						))}
+						{unassignedMargin && (
+							<div className="flex items-center justify-between gap-4 py-3">
+								<div className="min-w-0">
+									<p className="truncate text-[14px] text-[var(--color-fg-3)]">
+										Sin asignar
+									</p>
+									<p className="label-mono text-[var(--color-fg-4)] mt-0.5">
+										Ingresos {formatCurrency(unassignedMargin.inflows)} · Costes{" "}
+										{formatCurrency(unassignedMargin.outflows)}
+									</p>
+								</div>
+								<span className="flex-shrink-0 font-mono text-[15px] tabular-nums tracking-tight text-[var(--color-fg-3)]">
+									{unassignedMargin.net >= 0 ? "+" : "−"}
+									{formatCurrency(Math.abs(unassignedMargin.net))}
+								</span>
+							</div>
+						)}
+					</div>
+				)}
+			</Panel>
+		</div>
+	);
 };
 
 // Compact list of upcoming due documents (payables or receivables). Payroll-kind
 // rows get a small badge. Plain serializable item shape from selectDueWithinDays.
 const DueList = ({ title, items, emptyText, direction }) => {
-  const arrowColor = direction === 'in' ? 'var(--color-ok)' : 'var(--color-warn)';
-  return (
-    <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
-      <div className="border-b border-[var(--color-line)] px-4 py-2.5">
-        <p className="label-mono text-[var(--color-fg-3)]">{title}</p>
-      </div>
-      {items.length === 0 ? (
-        <p className="px-4 py-6 text-center text-[12px] text-[var(--color-fg-4)]">{emptyText}</p>
-      ) : (
-        <ul className="divide-y divide-[var(--color-line)]">
-          {items.map((item) => {
-            const kindLabel = item.payrollKind ? PAYROLL_KIND_LABEL[item.payrollKind] : null;
-            return (
-              <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-[13px] text-[var(--color-fg-1)]">
-                      {item.counterpartyName || item.description || 'Documento'}
-                    </p>
-                    {kindLabel && (
-                      <Badge variant="info" className="flex-shrink-0">
-                        {kindLabel}
-                      </Badge>
-                    )}
-                    {item.estimated && (
-                      <Badge variant="neutral" className="flex-shrink-0">
-                        estimado
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="label-mono text-[var(--color-fg-4)] mt-0.5">{formatDate(item.dueDate)}</p>
-                </div>
-                <span
-                  className="font-mono text-[13px] tabular-nums flex-shrink-0"
-                  style={{ color: arrowColor }}
-                >
-                  {formatCurrency(item.openAmount)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
+	const arrowColor =
+		direction === "in" ? "var(--color-ok)" : "var(--color-warn)";
+	return (
+		<div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)]">
+			<div className="border-b border-[var(--color-line)] px-4 py-2.5">
+				<p className="label-mono text-[var(--color-fg-3)]">{title}</p>
+			</div>
+			{items.length === 0 ? (
+				<p className="px-4 py-6 text-center text-[12px] text-[var(--color-fg-4)]">
+					{emptyText}
+				</p>
+			) : (
+				<ul className="divide-y divide-[var(--color-line)]">
+					{items.map((item) => {
+						const kindLabel = item.payrollKind
+							? PAYROLL_KIND_LABEL[item.payrollKind]
+							: null;
+						return (
+							<li
+								key={item.id}
+								className="flex items-center justify-between gap-3 px-4 py-2.5"
+							>
+								<div className="min-w-0">
+									<div className="flex items-center gap-2">
+										<p className="truncate text-[13px] text-[var(--color-fg-1)]">
+											{item.counterpartyName || item.description || "Documento"}
+										</p>
+										{kindLabel && (
+											<Badge variant="info" className="flex-shrink-0">
+												{kindLabel}
+											</Badge>
+										)}
+										{item.estimated && (
+											<Badge variant="neutral" className="flex-shrink-0">
+												estimado
+											</Badge>
+										)}
+									</div>
+									<p className="label-mono text-[var(--color-fg-4)] mt-0.5">
+										{formatDate(item.dueDate)}
+									</p>
+								</div>
+								<span
+									className="font-mono text-[13px] tabular-nums flex-shrink-0"
+									style={{ color: arrowColor }}
+								>
+									{formatCurrency(item.openAmount)}
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+			)}
+		</div>
+	);
 };
 
 export default Resumen;

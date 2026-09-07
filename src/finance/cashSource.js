@@ -13,7 +13,7 @@
  * stays byte-identical in useFinanceLedger).
  */
 
-import { deriveBalance, detectImportGap, roundEur } from '../lib/finance';
+import { deriveBalance, detectImportGap, roundEur } from "../lib/finance";
 
 /**
  * @param {{
@@ -21,11 +21,14 @@ import { deriveBalance, detectImportGap, roundEur } from '../lib/finance';
  *   movements: import('../lib/finance/movementAmount.js').BankMovement[],
  *   today: string,
  *   legacyBalance: number,
+ *   reconciliationLoading?: boolean,
+ *   reconciliationError?: Error|null,
  * }} params
  * @returns {{
- *   currentCash: number,
- *   source: 'anchors'|'legacy',
+ *   currentCash: number|null,
+ *   source: 'anchors'|'legacy'|'unavailable',
  *   cashMeta: {
+ *     status: 'loading'|'error'|'ready',
  *     anchor: object|null,
  *     lastMovementDate: string|null,
  *     staleDays: number|null,
@@ -33,23 +36,50 @@ import { deriveBalance, detectImportGap, roundEur } from '../lib/finance';
  *   },
  * }}
  */
-export const resolveCashSource = ({ anchors, movements, today, legacyBalance }) => {
-  const position = deriveBalance({ anchors: anchors || [], movements: movements || [], today });
-  const importGap = detectImportGap({ movements: movements || [], today });
+export const resolveCashSource = ({
+	anchors,
+	movements,
+	today,
+	legacyBalance,
+	reconciliationLoading = false,
+	reconciliationError = null,
+}) => {
+	const importGap = detectImportGap({ movements: movements || [], today });
+	// A failed/pending read is not evidence of an absent anchor. Retained anchors
+	// may aid diagnosis, but never supply an authoritative balance during retry.
+	if (reconciliationLoading || reconciliationError) {
+		return {
+			currentCash: null,
+			source: "unavailable",
+			cashMeta: {
+				status: reconciliationLoading ? "loading" : "error",
+				anchor: null,
+				lastMovementDate: importGap.lastMovementDate,
+				staleDays: null,
+				importGap,
+			},
+		};
+	}
+	const position = deriveBalance({
+		anchors: anchors || [],
+		movements: movements || [],
+		today,
+	});
 
-  // `balance === null` means no usable anchor covers `today` → legacy path.
-  const anchored = position.balance !== null;
+	// `balance === null` means no usable anchor covers `today` → legacy path.
+	const anchored = position.balance !== null;
 
-  return {
-    currentCash: roundEur(anchored ? position.balance : legacyBalance),
-    source: anchored ? 'anchors' : 'legacy',
-    cashMeta: {
-      anchor: anchored ? position.anchor : null,
-      lastMovementDate: position.lastMovementDate,
-      staleDays: position.staleDays,
-      importGap,
-    },
-  };
+	return {
+		currentCash: roundEur(anchored ? position.balance : legacyBalance),
+		source: anchored ? "anchors" : "legacy",
+		cashMeta: {
+			status: "ready",
+			anchor: anchored ? position.anchor : null,
+			lastMovementDate: position.lastMovementDate,
+			staleDays: position.staleDays,
+			importGap,
+		},
+	};
 };
 
 export default resolveCashSource;

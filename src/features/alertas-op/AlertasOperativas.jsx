@@ -1,733 +1,898 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState } from "react";
 import {
-  Bell,
-  AlertTriangle,
-  Clock,
-  Inbox,
-  Wand2,
-  TrendingDown,
-  CalendarClock,
-  ArrowRight,
-  Repeat,
-  CheckCircle2,
-} from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { useClassifier } from '../../hooks/useClassifier';
-import { useClassificationRules } from '../../hooks/useClassificationRules';
-import { useCashForecast } from '../../hooks/useCashForecast';
-import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
-import { useRecurringCosts } from '../../hooks/useRecurringCosts';
-import { usePartners } from '../../hooks/usePartners';
-import { useVehicles } from '../../hooks/useVehicles';
-import { useProperties } from '../../hooks/useProperties';
+	Bell,
+	AlertTriangle,
+	Clock,
+	Inbox,
+	Wand2,
+	TrendingDown,
+	CalendarClock,
+	ArrowRight,
+	Repeat,
+	CheckCircle2,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { useClassifier } from "../../hooks/useClassifier";
+import { useClassificationRules } from "../../hooks/useClassificationRules";
+import { useCashForecast } from "../../hooks/useCashForecast";
+import { useFinanceLedgerContext } from "../../contexts/FinanceLedgerContext";
+import { useRecurringCosts } from "../../hooks/useRecurringCosts";
+import { usePartners } from "../../hooks/usePartners";
+import { useVehicles } from "../../hooks/useVehicles";
+import { useProperties } from "../../hooks/useProperties";
 import {
-  assetsMissingProjectAssignment,
-  payableIsOpsCleared,
-  payableRequiresOpsClear,
-} from '../../finance/opsControl';
-import { useNominas } from '../nominas/useNominas';
-import { derivePeriodStatus, statusLabel, statusBadgeTone } from '../nominas/lib/payrollStatus';
-import { missingPayrollMonths } from '../nominas/lib/missingMonths';
-import { groupUnclassifiedByCounterparty, findBestRule } from '../../finance/ruleEngine';
-import { ruleAppliesToPeriod, periodKey } from '../../finance/recurringGenerator';
-import { formatCollectionSlip, formatCurrency } from '../../utils/formatters';
-import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
-import PageHeader from '../../components/layout/PageHeader';
-import RuleFormModal from '../../components/ui/RuleFormModal';
-import GenerateMonthModal from '../../components/ui/GenerateMonthModal';
-import { useCategories } from '../../hooks/useCategories';
-import { useCostCenters } from '../../hooks/useCostCenters';
-import { useProjects } from '../../hooks/useProjects';
-import { useToast } from '../../contexts/ToastContext';
+	assetsMissingProjectAssignment,
+	payableIsOpsCleared,
+	payableRequiresOpsClear,
+} from "../../finance/opsControl";
+import { useNominas } from "../nominas/useNominas";
+import {
+	derivePeriodStatus,
+	statusLabel,
+	statusBadgeTone,
+} from "../nominas/lib/payrollStatus";
+import { missingPayrollMonths } from "../nominas/lib/missingMonths";
+import {
+	groupUnclassifiedByCounterparty,
+	findBestRule,
+} from "../../finance/ruleEngine";
+import {
+	ruleAppliesToPeriod,
+	periodKey,
+} from "../../finance/recurringGenerator";
+import { formatCollectionSlip, formatCurrency } from "../../utils/formatters";
+import {
+	Button,
+	Badge,
+	KPIGrid,
+	KPI,
+	Panel,
+	EmptyState,
+} from "@/components/ui/nexus";
+import PageHeader from "../../components/layout/PageHeader";
+import FinancialSourceStatus from "../../components/ui/FinancialSourceStatus";
+import RuleFormModal from "../../components/ui/RuleFormModal";
+import GenerateMonthModal from "../../components/ui/GenerateMonthModal";
+import { useCategories } from "../../hooks/useCategories";
+import { useCostCenters } from "../../hooks/useCostCenters";
+import { useProjects } from "../../hooks/useProjects";
+import { useToast } from "../../contexts/ToastContext";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const daysBetween = (fromIso, toIso) => {
-  const f = new Date(fromIso);
-  const t = new Date(toIso);
-  if (Number.isNaN(f.getTime()) || Number.isNaN(t.getTime())) return Infinity;
-  return Math.round((t - f) / (1000 * 60 * 60 * 24));
+	const f = new Date(fromIso);
+	const t = new Date(toIso);
+	if (Number.isNaN(f.getTime()) || Number.isNaN(t.getTime())) return Infinity;
+	return Math.round((t - f) / (1000 * 60 * 60 * 24));
 };
 
 const isOpen = (doc) => {
-  const s = doc.status;
-  if (s === 'settled' || s === 'cancelled' || s === 'void' || s === 'paid') return false;
-  return Number(doc.openAmount || doc.grossAmount || doc.amount || 0) > 0.01;
+	const s = doc.status;
+	if (s === "settled" || s === "cancelled" || s === "void" || s === "paid")
+		return false;
+	return Number(doc.openAmount || doc.grossAmount || doc.amount || 0) > 0.01;
 };
 
 const AlertasOperativas = ({ user }) => {
-  const navigate = useNavigate();
-  const today = todayIso();
-  // Payroll holds salary data — only managers/admins (cxp permission) may see it.
-  const { hasPermission } = useAuth();
-  const canSeePayroll = hasPermission('cxp');
+	const navigate = useNavigate();
+	const today = todayIso();
+	// Payroll holds salary data — only managers/admins (cxp permission) may see it.
+	const { hasPermission } = useAuth();
+	const canSeePayroll = hasPermission("cxp");
 
-  // Shared ledger: the receivables/payables every cockpit reads, plus the
-  // payable mutators the payroll tile hands to useNominas. Same forecast,
-  // same day zero (anchor-derived cash) as Resumen and /proyeccion.
-  const ledger = useFinanceLedgerContext();
-  const { receivables, payables } = ledger;
-  const { createPayable, cancelPayable } = ledger.actions.payables;
-  const { recurringCosts } = useRecurringCosts(user);
-  const { partners } = usePartners(user);
-  const { vehicles } = useVehicles(user);
-  const { properties } = useProperties(user);
-  const { pendingMovements: inboxMovements } = useClassifier(user);
-  const { rules, createRule } = useClassificationRules(user);
-  const forecast = useCashForecast(user, { ledger });
+	// Shared ledger: the receivables/payables every cockpit reads, plus the
+	// payable mutators the payroll tile hands to useNominas. Same forecast,
+	// same day zero (anchor-derived cash) as Resumen and /proyeccion.
+	const ledger = useFinanceLedgerContext();
+	const { receivables, payables } = ledger;
+	const { createPayable, cancelPayable } = ledger.actions.payables;
+	const { recurringCosts } = useRecurringCosts(user);
+	const { partners } = usePartners(user);
+	const { vehicles } = useVehicles(user);
+	const { properties } = useProperties(user);
+	const { pendingMovements: inboxMovements } = useClassifier(user);
+	const { rules, createRule } = useClassificationRules(user);
+	const forecast = useCashForecast(user, { ledger });
+	const forecastAvailable =
+		forecast.available && ledger.cashSource !== "unavailable";
 
-  const { categoryOptions: allCategories } = useCategories(user);
-  const { costCenters } = useCostCenters(user);
-  const { projects } = useProjects(user);
-  const { showToast } = useToast();
+	const { categoryOptions: allCategories } = useCategories(user);
+	const { costCenters } = useCostCenters(user);
+	const { projects } = useProjects(user);
+	const { showToast } = useToast();
 
-  const [seedCounterparty, setSeedCounterparty] = useState(null);
-  // The dedicated recurring-costs screen is gone; the month generator lives here now.
-  const [isGenerateMonthOpen, setIsGenerateMonthOpen] = useState(false);
+	const [seedCounterparty, setSeedCounterparty] = useState(null);
+	// The dedicated recurring-costs screen is gone; the month generator lives here now.
+	const [isGenerateMonthOpen, setIsGenerateMonthOpen] = useState(false);
 
-  // ─── Payroll (Nóminas) tile data ───
-  // Read-only consumer: pass createPayable/cancelPayable so the hook is happy,
-  // but NOT createNotification — Nominas.jsx owns reminder emission to avoid
-  // duplicate notifications.
-  const { periods: payrollPeriods, payrollPayables } = useNominas({
-    // Skip the payrollPeriods subscription entirely for non-cxp users — firestore
-    // rules deny them the read anyway, so don't open a doomed listener.
-    user: canSeePayroll ? user : null,
-    costCenters,
-    createPayable,
-    cancelPayable,
-    payables,
-  });
+	// ─── Payroll (Nóminas) tile data ───
+	// Read-only consumer: pass createPayable/cancelPayable so the hook is happy,
+	// but NOT createNotification — Nominas.jsx owns reminder emission to avoid
+	// duplicate notifications.
+	const { periods: payrollPeriods, payrollPayables } = useNominas({
+		// Skip the payrollPeriods subscription entirely for non-cxp users — firestore
+		// rules deny them the read anyway, so don't open a doomed listener.
+		user: canSeePayroll ? user : null,
+		costCenters,
+		createPayable,
+		cancelPayable,
+		payables,
+	});
 
-  const payrollTile = useMemo(() => {
-    const latest = payrollPeriods?.[0] || null;
-    const open = (payrollPayables || []).filter(isOpen);
-    const openTotal = open.reduce(
-      (s, p) => s + Number(p.openAmount || p.grossAmount || p.amount || 0),
-      0,
-    );
-    // Next SV/LSt due date among open payroll obligations (exclude net wages).
-    const svLst = open
-      .filter((p) => p.payrollKind === 'krankenkasse' || p.payrollKind === 'tax')
-      .filter((p) => p.dueDate)
-      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-    const nextDue = svLst[0]?.dueDate || null;
-    const currentMonth = today.slice(0, 7);
-    const missing = missingPayrollMonths(payrollPeriods || [], currentMonth);
-    // Derive the latest period status from its obligation statuses joined live.
-    const status = latest
-      ? derivePeriodStatus(
-          (latest.obligations || []).map((ob) => {
-            const live = (payables || []).find((p) => p.id === ob.payableId);
-            return { liveStatus: live?.status || 'issued' };
-          }),
-        )
-      : null;
-    return {
-      latest,
-      status,
-      openCount: open.length,
-      openTotal,
-      nextDue,
-      missing,
-      hasData: Boolean(latest) || (payrollPeriods || []).length > 0,
-    };
-  }, [payrollPeriods, payrollPayables, payables, today]);
+	const payrollTile = useMemo(() => {
+		const latest = payrollPeriods?.[0] || null;
+		const open = (payrollPayables || []).filter(isOpen);
+		const openTotal = open.reduce(
+			(s, p) => s + Number(p.openAmount || p.grossAmount || p.amount || 0),
+			0,
+		);
+		// Next SV/LSt due date among open payroll obligations (exclude net wages).
+		const svLst = open
+			.filter(
+				(p) => p.payrollKind === "krankenkasse" || p.payrollKind === "tax",
+			)
+			.filter((p) => p.dueDate)
+			.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+		const nextDue = svLst[0]?.dueDate || null;
+		const currentMonth = today.slice(0, 7);
+		const missing = missingPayrollMonths(payrollPeriods || [], currentMonth);
+		// Derive the latest period status from its obligation statuses joined live.
+		const status = latest
+			? derivePeriodStatus(
+					(latest.obligations || []).map((ob) => {
+						const live = (payables || []).find((p) => p.id === ob.payableId);
+						return { liveStatus: live?.status || "issued" };
+					}),
+				)
+			: null;
+		return {
+			latest,
+			status,
+			openCount: open.length,
+			openTotal,
+			nextDue,
+			missing,
+			hasData: Boolean(latest) || (payrollPeriods || []).length > 0,
+		};
+	}, [payrollPeriods, payrollPayables, payables, today]);
 
-  // ─── CXP buckets ───
-  const cxpBuckets = useMemo(() => {
-    const overdue = [];
-    const due7 = [];
-    const due14 = [];
-    const due30 = [];
-    (payables || []).filter(isOpen).forEach((p) => {
-      if (!p.dueDate) return;
-      const days = daysBetween(today, p.dueDate);
-      if (days < 0) overdue.push({ ...p, daysOverdue: -days });
-      else if (days <= 7) due7.push({ ...p, daysToDue: days });
-      else if (days <= 14) due14.push({ ...p, daysToDue: days });
-      else if (days <= 30) due30.push({ ...p, daysToDue: days });
-    });
-    overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
-    due7.sort((a, b) => a.daysToDue - b.daysToDue);
-    due14.sort((a, b) => a.daysToDue - b.daysToDue);
-    due30.sort((a, b) => a.daysToDue - b.daysToDue);
-    const sum = (arr) => arr.reduce((s, x) => s + Number(x.openAmount || x.grossAmount || x.amount || 0), 0);
-    return {
-      overdue,
-      due7,
-      due14,
-      due30,
-      overdueTotal: sum(overdue),
-      due7Total: sum(due7),
-      due14Total: sum(due14),
-      due30Total: sum(due30),
-    };
-  }, [payables, today]);
+	// ─── CXP buckets ───
+	const cxpBuckets = useMemo(() => {
+		const overdue = [];
+		const due7 = [];
+		const due14 = [];
+		const due30 = [];
+		(payables || []).filter(isOpen).forEach((p) => {
+			if (!p.dueDate) return;
+			const days = daysBetween(today, p.dueDate);
+			if (days < 0) overdue.push({ ...p, daysOverdue: -days });
+			else if (days <= 7) due7.push({ ...p, daysToDue: days });
+			else if (days <= 14) due14.push({ ...p, daysToDue: days });
+			else if (days <= 30) due30.push({ ...p, daysToDue: days });
+		});
+		overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+		due7.sort((a, b) => a.daysToDue - b.daysToDue);
+		due14.sort((a, b) => a.daysToDue - b.daysToDue);
+		due30.sort((a, b) => a.daysToDue - b.daysToDue);
+		const sum = (arr) =>
+			arr.reduce(
+				(s, x) => s + Number(x.openAmount || x.grossAmount || x.amount || 0),
+				0,
+			);
+		return {
+			overdue,
+			due7,
+			due14,
+			due30,
+			overdueTotal: sum(overdue),
+			due7Total: sum(due7),
+			due14Total: sum(due14),
+			due30Total: sum(due30),
+		};
+	}, [payables, today]);
 
-  // ─── CXC buckets ───
-  const cxcBuckets = useMemo(() => {
-    const overdue = [];
-    const due14 = [];
-    (receivables || []).filter(isOpen).forEach((r) => {
-      if (!r.dueDate) return;
-      const days = daysBetween(today, r.dueDate);
-      if (days < 0) overdue.push({ ...r, daysOverdue: -days });
-      else if (days <= 14) due14.push({ ...r, daysToDue: days });
-    });
-    overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
-    due14.sort((a, b) => a.daysToDue - b.daysToDue);
-    const sum = (arr) => arr.reduce((s, x) => s + Number(x.openAmount || x.grossAmount || x.amount || 0), 0);
-    return {
-      overdue,
-      due14,
-      overdueTotal: sum(overdue),
-      due14Total: sum(due14),
-    };
-  }, [receivables, today]);
+	// ─── CXC buckets ───
+	const cxcBuckets = useMemo(() => {
+		const overdue = [];
+		const due14 = [];
+		(receivables || []).filter(isOpen).forEach((r) => {
+			if (!r.dueDate) return;
+			const days = daysBetween(today, r.dueDate);
+			if (days < 0) overdue.push({ ...r, daysOverdue: -days });
+			else if (days <= 14) due14.push({ ...r, daysToDue: days });
+		});
+		overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+		due14.sort((a, b) => a.daysToDue - b.daysToDue);
+		const sum = (arr) =>
+			arr.reduce(
+				(s, x) => s + Number(x.openAmount || x.grossAmount || x.amount || 0),
+				0,
+			);
+		return {
+			overdue,
+			due14,
+			overdueTotal: sum(overdue),
+			due14Total: sum(due14),
+		};
+	}, [receivables, today]);
 
-  // ─── Inbox classifications + rule suggestions ───
-  const ruleHits = useMemo(
-    () => (inboxMovements || []).filter((m) => findBestRule(m, rules || [])).length,
-    [inboxMovements, rules],
-  );
+	// ─── Inbox classifications + rule suggestions ───
+	const ruleHits = useMemo(
+		() =>
+			(inboxMovements || []).filter((m) => findBestRule(m, rules || [])).length,
+		[inboxMovements, rules],
+	);
 
-  const counterpartySuggestions = useMemo(
-    () => groupUnclassifiedByCounterparty(inboxMovements || [], 8),
-    [inboxMovements],
-  );
+	const counterpartySuggestions = useMemo(
+		() => groupUnclassifiedByCounterparty(inboxMovements || [], 8),
+		[inboxMovements],
+	);
 
-  // ─── Recurring costs not yet generated for current period ───
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  const currentPeriod = periodKey(currentYear, currentMonth);
-  const recurringPending = useMemo(() => {
-    const pending = (recurringCosts || []).filter(
-      (rule) => rule.active && ruleAppliesToPeriod(rule, currentYear, currentMonth),
-    );
-    const alreadyGenerated = new Set(
-      (payables || [])
-        .filter((p) => p.recurringPeriod === currentPeriod && p.recurringCostId)
-        .map((p) => p.recurringCostId),
-    );
-    return pending.filter((r) => !alreadyGenerated.has(r.id));
-  }, [recurringCosts, payables, currentPeriod, currentYear, currentMonth]);
+	// ─── Recurring costs not yet generated for current period ───
+	const now = new Date();
+	const currentYear = now.getFullYear();
+	const currentMonth = now.getMonth() + 1;
+	const currentPeriod = periodKey(currentYear, currentMonth);
+	const recurringPending = useMemo(() => {
+		const pending = (recurringCosts || []).filter(
+			(rule) =>
+				rule.active && ruleAppliesToPeriod(rule, currentYear, currentMonth),
+		);
+		const alreadyGenerated = new Set(
+			(payables || [])
+				.filter((p) => p.recurringPeriod === currentPeriod && p.recurringCostId)
+				.map((p) => p.recurringCostId),
+		);
+		return pending.filter((r) => !alreadyGenerated.has(r.id));
+	}, [recurringCosts, payables, currentPeriod, currentYear, currentMonth]);
 
-  const recurringPendingTotal = recurringPending.reduce(
-    (s, r) => s + (Number(r.amount) || 0),
-    0,
-  );
+	const recurringPendingTotal = recurringPending.reduce(
+		(s, r) => s + (Number(r.amount) || 0),
+		0,
+	);
 
-  // ─── Cash projection alert ───
-  const negativeAlert = useMemo(() => {
-    const negativeWeek = forecast.firstNegativeWeek;
-    if (!negativeWeek) return null;
-    return {
-      date: negativeWeek.weekStart,
-      weeksFromNow: forecast.weeksToNegative,
-      projectedBalance: negativeWeek.projectedBalance,
-      endBalance: forecast.endBalance,
-    };
-  }, [forecast.endBalance, forecast.firstNegativeWeek, forecast.weeksToNegative]);
+	// ─── Cash projection alert ───
+	const negativeAlert = useMemo(() => {
+		const negativeWeek = forecast.firstNegativeWeek;
+		if (!forecastAvailable || !negativeWeek) return null;
+		return {
+			date: negativeWeek.weekStart,
+			weeksFromNow: forecast.weeksToNegative,
+			projectedBalance: negativeWeek.projectedBalance,
+			endBalance: forecast.endBalance,
+		};
+	}, [
+		forecastAvailable,
+		forecast.endBalance,
+		forecast.firstNegativeWeek,
+		forecast.weeksToNegative,
+	]);
 
-  const handleCreateRule = async (data) => {
-    const r = await createRule(data);
-    if (r.success) showToast('Regla creada', 'success');
-    return r;
-  };
+	const handleCreateRule = async (data) => {
+		const r = await createRule(data);
+		if (r.success) showToast("Regla creada", "success");
+		return r;
+	};
 
-  // Build a synthetic "seed movement" from the counterparty bucket
-  const seedMovement = useMemo(() => {
-    if (!seedCounterparty) return null;
-    const sample = seedCounterparty.samples?.[0];
-    if (!sample) return null;
-    return {
-      ...sample,
-      counterpartyName: seedCounterparty.counterparty,
-    };
-  }, [seedCounterparty]);
+	// Build a synthetic "seed movement" from the counterparty bucket
+	const seedMovement = useMemo(() => {
+		if (!seedCounterparty) return null;
+		const sample = seedCounterparty.samples?.[0];
+		if (!sample) return null;
+		return {
+			...sample,
+			counterpartyName: seedCounterparty.counterparty,
+		};
+	}, [seedCounterparty]);
 
-  // ─── F0: compliance + logistics assignment ───
-  const complianceAlerts = useMemo(() => {
-    return (partners || [])
-      .filter((p) => p.status === 'active' && (p.type === 'vendor' || p.type === 'both'))
-      .map((p) => ({ partner: p, compliance: p.compliance }))
-      .filter(({ compliance }) => compliance && compliance.status !== 'ok');
-  }, [partners]);
+	// ─── F0: compliance + logistics assignment ───
+	const complianceAlerts = useMemo(() => {
+		return (partners || [])
+			.filter(
+				(p) =>
+					p.status === "active" && (p.type === "vendor" || p.type === "both"),
+			)
+			.map((p) => ({ partner: p, compliance: p.compliance }))
+			.filter(({ compliance }) => compliance && compliance.status !== "ok");
+	}, [partners]);
 
-  const fleetWithoutProject = useMemo(
-    () => assetsMissingProjectAssignment(vehicles, { todayIso: today, costTypes: ['rented', 'leased'] }),
-    [vehicles, today],
-  );
-  const housingWithoutProject = useMemo(
-    () => assetsMissingProjectAssignment(properties, { todayIso: today, costTypes: ['rented', 'mixed'] }),
-    [properties, today],
-  );
+	const fleetWithoutProject = useMemo(
+		() =>
+			assetsMissingProjectAssignment(vehicles, {
+				todayIso: today,
+				costTypes: ["rented", "leased"],
+			}),
+		[vehicles, today],
+	);
+	const housingWithoutProject = useMemo(
+		() =>
+			assetsMissingProjectAssignment(properties, {
+				todayIso: today,
+				costTypes: ["rented", "mixed"],
+			}),
+		[properties, today],
+	);
 
-  const cxpOpsPending = useMemo(() => {
-    return (payables || []).filter((p) => {
-      if (p.status === 'cancelled' || p.status === 'settled') return false;
-      if ((Number(p.openAmount) || 0) <= 0.01) return false;
-      return payableRequiresOpsClear(p) && !payableIsOpsCleared(p);
-    });
-  }, [payables]);
+	const cxpOpsPending = useMemo(() => {
+		return (payables || []).filter((p) => {
+			if (p.status === "cancelled" || p.status === "settled") return false;
+			if ((Number(p.openAmount) || 0) <= 0.01) return false;
+			return payableRequiresOpsClear(p) && !payableIsOpsCleared(p);
+		});
+	}, [payables]);
 
-  const totalUrgent =
-    cxpBuckets.overdue.length +
-    cxpBuckets.due7.length +
-    cxcBuckets.overdue.length +
-    (negativeAlert ? 1 : 0) +
-    recurringPending.length +
-    payrollTile.missing.length +
-    complianceAlerts.length +
-    fleetWithoutProject.length +
-    housingWithoutProject.length +
-    cxpOpsPending.length;
+	const totalUrgent =
+		cxpBuckets.overdue.length +
+		cxpBuckets.due7.length +
+		cxcBuckets.overdue.length +
+		(negativeAlert ? 1 : 0) +
+		recurringPending.length +
+		payrollTile.missing.length +
+		complianceAlerts.length +
+		fleetWithoutProject.length +
+		housingWithoutProject.length +
+		cxpOpsPending.length;
 
-  return (
-    <div className="space-y-6 pb-12">
-      <PageHeader
-        section="Alertas"
-        title="Alertas"
-        accent="operativas"
-        subtitle="Lo urgente para hoy"
-      >
-        <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
-          Vencimientos, bandeja sin clasificar, proyección negativa y costos recurrentes que aún no
-          se generaron este mes.
-        </p>
-      </PageHeader>
+	return (
+		<div className="space-y-6 pb-12">
+			<PageHeader
+				section="Alertas"
+				title="Alertas"
+				accent="operativas"
+				subtitle="Lo urgente para hoy"
+			>
+				<p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
+					Vencimientos, bandeja sin clasificar, proyección negativa y costos
+					recurrentes que aún no se generaron este mes.
+				</p>
+			</PageHeader>
 
-      <KPIGrid cols={4}>
-        <KPI
-          label="Acciones urgentes"
-          value={totalUrgent}
-          meta={totalUrgent === 0 ? '✓ Todo al día' : 'Necesitan atención hoy'}
-          tone={totalUrgent === 0 ? 'ok' : 'warn'}
-          icon={Bell}
-        />
-        <KPI
-          label="CXP vencidas"
-          value={cxpBuckets.overdue.length}
-          meta={formatCurrency(cxpBuckets.overdueTotal)}
-          tone={cxpBuckets.overdue.length > 0 ? 'err' : 'ok'}
-          icon={AlertTriangle}
-        />
-        <KPI
-          label="CXP venciendo 7d"
-          value={cxpBuckets.due7.length}
-          meta={formatCurrency(cxpBuckets.due7Total)}
-          tone={cxpBuckets.due7.length > 0 ? 'warn' : 'ok'}
-          icon={Clock}
-        />
-        <KPI
-          label="Bandeja sin clasificar"
-          value={(inboxMovements || []).length}
-          meta={ruleHits > 0 ? `${ruleHits} matchean reglas` : 'Sin reglas que apliquen'}
-          tone={(inboxMovements || []).length > 0 ? 'warn' : 'ok'}
-          icon={Inbox}
-        />
-      </KPIGrid>
+			{!forecastAvailable && (
+				<FinancialSourceStatus
+					status={forecast.status}
+					onRetry={ledger.actions.reconciliation.retry}
+					label="Proyección"
+				/>
+			)}
 
-      {/* CXP Vencidas */}
-      {cxpBuckets.overdue.length > 0 && (
-        <Panel
-          title="CXP vencidas"
-          meta={`${cxpBuckets.overdue.length} doc(s) · ${formatCurrency(cxpBuckets.overdueTotal)}`}
-          padding={false}
-          actions={
-            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/cxp')}>
-              Ir a CXP
-            </Button>
-          }
-        >
-          <DocList
-            docs={cxpBuckets.overdue.slice(0, 10)}
-            tone="err"
-            renderMeta={(d) => `Venció hace ${d.daysOverdue}d · ${d.dueDate}`}
-          />
-        </Panel>
-      )}
+			<KPIGrid cols={4}>
+				<KPI
+					label="Acciones urgentes"
+					value={totalUrgent}
+					meta={
+						!forecastAvailable
+							? "Conteo operativo parcial: falta evaluar la proyección"
+							: totalUrgent === 0
+								? "✓ Todo al día"
+								: "Necesitan atención hoy"
+					}
+					tone={totalUrgent === 0 && forecastAvailable ? "ok" : "warn"}
+					icon={Bell}
+				/>
+				<KPI
+					label="CXP vencidas"
+					value={cxpBuckets.overdue.length}
+					meta={formatCurrency(cxpBuckets.overdueTotal)}
+					tone={cxpBuckets.overdue.length > 0 ? "err" : "ok"}
+					icon={AlertTriangle}
+				/>
+				<KPI
+					label="CXP venciendo 7d"
+					value={cxpBuckets.due7.length}
+					meta={formatCurrency(cxpBuckets.due7Total)}
+					tone={cxpBuckets.due7.length > 0 ? "warn" : "ok"}
+					icon={Clock}
+				/>
+				<KPI
+					label="Bandeja sin clasificar"
+					value={(inboxMovements || []).length}
+					meta={
+						ruleHits > 0
+							? `${ruleHits} matchean reglas`
+							: "Sin reglas que apliquen"
+					}
+					tone={(inboxMovements || []).length > 0 ? "warn" : "ok"}
+					icon={Inbox}
+				/>
+			</KPIGrid>
 
-      {/* CXP próximos vencimientos */}
-      {(cxpBuckets.due7.length > 0 || cxpBuckets.due14.length > 0) && (
-        <Panel
-          title="CXP por vencer"
-          meta={`${cxpBuckets.due7.length} en 7d · ${cxpBuckets.due14.length} en 14d`}
-          padding={false}
-        >
-          <div className="px-5 py-2 label-mono text-[var(--color-fg-3)]">Próximos 7 días</div>
-          {cxpBuckets.due7.length === 0 ? (
-            <p className="px-5 pb-3 text-[12px] text-[var(--color-fg-4)]">Sin vencimientos en 7 días.</p>
-          ) : (
-            <DocList
-              docs={cxpBuckets.due7}
-              tone="warn"
-              renderMeta={(d) =>
-                d.daysToDue === 0 ? 'Vence hoy' : `Vence en ${d.daysToDue}d · ${d.dueDate}`
-              }
-            />
-          )}
-          {cxpBuckets.due14.length > 0 && (
-            <>
-              <div className="px-5 py-2 label-mono text-[var(--color-fg-3)] border-t border-[var(--color-line)]">
-                8–14 días
-              </div>
-              <DocList
-                docs={cxpBuckets.due14}
-                tone="info"
-                renderMeta={(d) => `Vence en ${d.daysToDue}d · ${d.dueDate}`}
-              />
-            </>
-          )}
-        </Panel>
-      )}
+			{/* CXP Vencidas */}
+			{cxpBuckets.overdue.length > 0 && (
+				<Panel
+					title="CXP vencidas"
+					meta={`${cxpBuckets.overdue.length} doc(s) · ${formatCurrency(cxpBuckets.overdueTotal)}`}
+					padding={false}
+					actions={
+						<Button
+							variant="ghost"
+							size="sm"
+							iconRight={ArrowRight}
+							onClick={() => navigate("/cxp")}
+						>
+							Ir a CXP
+						</Button>
+					}
+				>
+					<DocList
+						docs={cxpBuckets.overdue.slice(0, 10)}
+						tone="err"
+						renderMeta={(d) => `Venció hace ${d.daysOverdue}d · ${d.dueDate}`}
+					/>
+				</Panel>
+			)}
 
-      {/* CXC vencidas */}
-      {cxcBuckets.overdue.length > 0 && (
-        <Panel
-          title="CXC vencidas (cobranza)"
-          meta={`${cxcBuckets.overdue.length} factura(s) · ${formatCurrency(cxcBuckets.overdueTotal)}`}
-          padding={false}
-          actions={
-            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/cxc')}>
-              Ir a CXC
-            </Button>
-          }
-        >
-          <DocList
-            docs={cxcBuckets.overdue.slice(0, 10)}
-            tone="err"
-            renderMeta={(d) => `Cliente vencido hace ${d.daysOverdue}d · ${d.dueDate}`}
-          />
-        </Panel>
-      )}
+			{/* CXP próximos vencimientos */}
+			{(cxpBuckets.due7.length > 0 || cxpBuckets.due14.length > 0) && (
+				<Panel
+					title="CXP por vencer"
+					meta={`${cxpBuckets.due7.length} en 7d · ${cxpBuckets.due14.length} en 14d`}
+					padding={false}
+				>
+					<div className="px-5 py-2 label-mono text-[var(--color-fg-3)]">
+						Próximos 7 días
+					</div>
+					{cxpBuckets.due7.length === 0 ? (
+						<p className="px-5 pb-3 text-[12px] text-[var(--color-fg-4)]">
+							Sin vencimientos en 7 días.
+						</p>
+					) : (
+						<DocList
+							docs={cxpBuckets.due7}
+							tone="warn"
+							renderMeta={(d) =>
+								d.daysToDue === 0
+									? "Vence hoy"
+									: `Vence en ${d.daysToDue}d · ${d.dueDate}`
+							}
+						/>
+					)}
+					{cxpBuckets.due14.length > 0 && (
+						<>
+							<div className="px-5 py-2 label-mono text-[var(--color-fg-3)] border-t border-[var(--color-line)]">
+								8–14 días
+							</div>
+							<DocList
+								docs={cxpBuckets.due14}
+								tone="info"
+								renderMeta={(d) => `Vence en ${d.daysToDue}d · ${d.dueDate}`}
+							/>
+						</>
+					)}
+				</Panel>
+			)}
 
-      {/* F1: CXP sin producción validada */}
-      {cxpOpsPending.length > 0 && (
-        <Panel
-          title="CXP sin producción validada"
-          meta={`${cxpOpsPending.length} no se pueden conciliar/pagar hasta ops clear`}
-          padding={false}
-          actions={
-            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/cxp')}>
-              Ir a CXP
-            </Button>
-          }
-        >
-          <ul className="divide-y divide-[var(--color-line)]">
-            {cxpOpsPending.slice(0, 12).map((p) => (
-              <li key={p.id} className="px-5 py-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-fg-1)]">
-                    {p.counterpartyName || p.vendor}
-                  </p>
-                  <p className="text-[12px] text-[var(--color-fg-3)]">
-                    {p.projectName || 'Sin proyecto'} · {p.documentNumber || 'sin doc'}
-                  </p>
-                </div>
-                <span className="font-mono text-sm text-[var(--color-warn)]">
-                  {formatCurrency(p.openAmount)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
+			{/* CXC vencidas */}
+			{cxcBuckets.overdue.length > 0 && (
+				<Panel
+					title="CXC vencidas (cobranza)"
+					meta={`${cxcBuckets.overdue.length} factura(s) · ${formatCurrency(cxcBuckets.overdueTotal)}`}
+					padding={false}
+					actions={
+						<Button
+							variant="ghost"
+							size="sm"
+							iconRight={ArrowRight}
+							onClick={() => navigate("/cxc")}
+						>
+							Ir a CXC
+						</Button>
+					}
+				>
+					<DocList
+						docs={cxcBuckets.overdue.slice(0, 10)}
+						tone="err"
+						renderMeta={(d) =>
+							`Cliente vencido hace ${d.daysOverdue}d · ${d.dueDate}`
+						}
+					/>
+				</Panel>
+			)}
 
-      {/* Compliance subcontratas */}
-      {complianceAlerts.length > 0 && (
-        <Panel
-          title="Compliance de proveedores"
-          meta={`${complianceAlerts.length} partner(s) con doc vencido / faltante / por vencer`}
-          padding={false}
-        >
-          <ul className="divide-y divide-[var(--color-line)]">
-            {complianceAlerts.slice(0, 12).map(({ partner, compliance }) => (
-              <li key={partner.id} className="px-5 py-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-fg-1)]">{partner.name}</p>
-                  <p className="text-[12px] text-[var(--color-fg-3)]">{compliance.label}</p>
-                </div>
-                <Badge
-                  variant={
-                    compliance.status === 'warn' ? 'warn' : compliance.status === 'ok' ? 'ok' : 'err'
-                  }
-                >
-                  {compliance.status}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
+			{/* F1: CXP sin producción validada */}
+			{cxpOpsPending.length > 0 && (
+				<Panel
+					title="CXP sin producción validada"
+					meta={`${cxpOpsPending.length} no se pueden conciliar/pagar hasta ops clear`}
+					padding={false}
+					actions={
+						<Button
+							variant="ghost"
+							size="sm"
+							iconRight={ArrowRight}
+							onClick={() => navigate("/cxp")}
+						>
+							Ir a CXP
+						</Button>
+					}
+				>
+					<ul className="divide-y divide-[var(--color-line)]">
+						{cxpOpsPending.slice(0, 12).map((p) => (
+							<li
+								key={p.id}
+								className="px-5 py-3 flex items-center justify-between gap-3"
+							>
+								<div>
+									<p className="text-sm font-medium text-[var(--color-fg-1)]">
+										{p.counterpartyName || p.vendor}
+									</p>
+									<p className="text-[12px] text-[var(--color-fg-3)]">
+										{p.projectName || "Sin proyecto"} ·{" "}
+										{p.documentNumber || "sin doc"}
+									</p>
+								</div>
+								<span className="font-mono text-sm text-[var(--color-warn)]">
+									{formatCurrency(p.openAmount)}
+								</span>
+							</li>
+						))}
+					</ul>
+				</Panel>
+			)}
 
-      {/* Flota / vivienda sin proyecto */}
-      {(fleetWithoutProject.length > 0 || housingWithoutProject.length > 0) && (
-        <Panel
-          title="Logística sin proyecto"
-          meta={`${fleetWithoutProject.length} vehículo(s) · ${housingWithoutProject.length} vivienda(s)`}
-          padding={false}
-        >
-          <div className="px-5 py-3 space-y-2">
-            <p className="text-[12px] text-[var(--color-fg-3)]">
-              Alquileres/leasing sin asignación a obra no se pueden prorratear al costeo.
-            </p>
-            {fleetWithoutProject.slice(0, 6).map((v) => (
-              <div key={v.id} className="flex items-center justify-between text-sm">
-                <span className="text-[var(--color-fg-1)]">🚗 {v.name || v.plate}</span>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/vehiculos')}>
-                  Asignar
-                </Button>
-              </div>
-            ))}
-            {housingWithoutProject.slice(0, 6).map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm">
-                <span className="text-[var(--color-fg-1)]">🏠 {p.name}</span>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/viviendas')}>
-                  Asignar
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+			{/* Compliance subcontratas */}
+			{complianceAlerts.length > 0 && (
+				<Panel
+					title="Compliance de proveedores"
+					meta={`${complianceAlerts.length} partner(s) con doc vencido / faltante / por vencer`}
+					padding={false}
+				>
+					<ul className="divide-y divide-[var(--color-line)]">
+						{complianceAlerts.slice(0, 12).map(({ partner, compliance }) => (
+							<li
+								key={partner.id}
+								className="px-5 py-3 flex items-center justify-between gap-3"
+							>
+								<div>
+									<p className="text-sm font-medium text-[var(--color-fg-1)]">
+										{partner.name}
+									</p>
+									<p className="text-[12px] text-[var(--color-fg-3)]">
+										{compliance.label}
+									</p>
+								</div>
+								<Badge
+									variant={
+										compliance.status === "warn"
+											? "warn"
+											: compliance.status === "ok"
+												? "ok"
+												: "err"
+									}
+								>
+									{compliance.status}
+								</Badge>
+							</li>
+						))}
+					</ul>
+				</Panel>
+			)}
 
-      {/* Saldo negativo proyectado */}
-      {negativeAlert && (
-        <Panel
-          title="Saldo proyectado a negativo"
-          meta={`En ${negativeAlert.weeksFromNow} sem. (${negativeAlert.date})`}
-        >
-          <div className="flex items-start gap-4 p-4 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-1)]">
-            <TrendingDown className="text-[var(--color-err)] flex-shrink-0 mt-1" size={20} />
-            <div className="flex-1">
-              <p className="text-[14px] text-[var(--color-fg-1)]">
-                Si los CXP, recurrentes, nómina e IVA salen como están programados, la caja
-                queda en negativo en la semana del <strong>{negativeAlert.date}</strong>.
-              </p>
-              <p className="mt-2 font-mono text-[12px] text-[var(--color-fg-4)]">
-                Saldo proyectado fin de horizonte ({forecast.horizonWeeks} sem.):{' '}
-                {formatCurrency(negativeAlert.endBalance)}
-              </p>
-              {/* When this week arrives depends entirely on the slip — say it. */}
-              <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-                {formatCollectionSlip(forecast.collectionSlip)}.
-              </p>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/cashflow')}>
-              Ver tesorería
-            </Button>
-          </div>
-        </Panel>
-      )}
+			{/* Flota / vivienda sin proyecto */}
+			{(fleetWithoutProject.length > 0 || housingWithoutProject.length > 0) && (
+				<Panel
+					title="Logística sin proyecto"
+					meta={`${fleetWithoutProject.length} vehículo(s) · ${housingWithoutProject.length} vivienda(s)`}
+					padding={false}
+				>
+					<div className="px-5 py-3 space-y-2">
+						<p className="text-[12px] text-[var(--color-fg-3)]">
+							Alquileres/leasing sin asignación a obra no se pueden prorratear
+							al costeo.
+						</p>
+						{fleetWithoutProject.slice(0, 6).map((v) => (
+							<div
+								key={v.id}
+								className="flex items-center justify-between text-sm"
+							>
+								<span className="text-[var(--color-fg-1)]">
+									🚗 {v.name || v.plate}
+								</span>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => navigate("/vehiculos")}
+								>
+									Asignar
+								</Button>
+							</div>
+						))}
+						{housingWithoutProject.slice(0, 6).map((p) => (
+							<div
+								key={p.id}
+								className="flex items-center justify-between text-sm"
+							>
+								<span className="text-[var(--color-fg-1)]">🏠 {p.name}</span>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => navigate("/viviendas")}
+								>
+									Asignar
+								</Button>
+							</div>
+						))}
+					</div>
+				</Panel>
+			)}
 
-      {/* Nóminas — estado del período + próximos vencimientos SV/LSt */}
-      {canSeePayroll && payrollTile.hasData && (
-        <Panel
-          title="Nóminas"
-          meta={payrollTile.latest ? payrollTile.latest.label : 'Sin períodos cargados'}
-          actions={
-            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/nominas')}>
-              Ir a Nóminas
-            </Button>
-          }
-        >
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              {payrollTile.status && (
-                <Badge variant={statusBadgeTone(payrollTile.status)} dot>
-                  {statusLabel(payrollTile.status)}
-                </Badge>
-              )}
-              {payrollTile.missing.length > 0 && (
-                <Badge variant="warn">
-                  {payrollTile.missing.length} mes(es) sin cargar
-                </Badge>
-              )}
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
-                <p className="label-mono text-[var(--color-fg-3)]">Obligaciones abiertas</p>
-                <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
-                  {payrollTile.openCount}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
-                  {formatCurrency(payrollTile.openTotal)}
-                </p>
-              </div>
-              <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
-                <p className="label-mono text-[var(--color-fg-3)]">Próximo SV / LSt</p>
-                <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
-                  {payrollTile.nextDue ? payrollTile.nextDue : '—'}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
-                  {payrollTile.nextDue
-                    ? `en ${daysBetween(today, payrollTile.nextDue)}d`
-                    : 'sin vencimientos abiertos'}
-                </p>
-              </div>
-              <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
-                <p className="label-mono text-[var(--color-fg-3)]">Meses faltantes</p>
-                <p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
-                  {payrollTile.missing.length}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)] truncate">
-                  {payrollTile.missing.length > 0 ? payrollTile.missing.join(', ') : 'al día'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </Panel>
-      )}
+			{/* Saldo negativo proyectado */}
+			{negativeAlert && (
+				<Panel
+					title="Saldo proyectado a negativo"
+					meta={`En ${negativeAlert.weeksFromNow} sem. (${negativeAlert.date})`}
+				>
+					<div className="flex items-start gap-4 p-4 rounded-md border border-[var(--color-err)] bg-[var(--color-bg-1)]">
+						<TrendingDown
+							className="text-[var(--color-err)] flex-shrink-0 mt-1"
+							size={20}
+						/>
+						<div className="flex-1">
+							<p className="text-[14px] text-[var(--color-fg-1)]">
+								Si los CXP, recurrentes, nómina e IVA salen como están
+								programados, la caja queda en negativo en la semana del{" "}
+								<strong>{negativeAlert.date}</strong>.
+							</p>
+							<p className="mt-2 font-mono text-[12px] text-[var(--color-fg-4)]">
+								Saldo proyectado fin de horizonte ({forecast.horizonWeeks}{" "}
+								sem.): {formatCurrency(negativeAlert.endBalance)}
+							</p>
+							{/* When this week arrives depends entirely on the slip — say it. */}
+							<p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
+								{formatCollectionSlip(forecast.collectionSlip)}.
+							</p>
+						</div>
+						<Button
+							variant="secondary"
+							size="sm"
+							onClick={() => navigate("/cashflow")}
+						>
+							Ver tesorería
+						</Button>
+					</div>
+				</Panel>
+			)}
 
-      {/* Recurrentes pendientes */}
-      {recurringPending.length > 0 && (
-        <Panel
-          title={`Recurrentes pendientes — ${currentPeriod}`}
-          meta={`${recurringPending.length} regla(s) · ${formatCurrency(recurringPendingTotal)}`}
-          padding={false}
-          actions={
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Repeat}
-              onClick={() => setIsGenerateMonthOpen(true)}
-            >
-              Generar mes
-            </Button>
-          }
-        >
-          <div className="divide-y divide-[var(--color-line)]">
-            {recurringPending.slice(0, 12).map((r) => (
-              <div key={r.id} className="px-5 py-3 flex items-center gap-3">
-                <Repeat size={14} className="text-[var(--color-fg-4)] flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[var(--color-fg-1)] truncate">
-                    {r.concept || 'Sin concepto'}
-                  </p>
-                  <p className="font-mono text-[11px] text-[var(--color-fg-4)] truncate">
-                    {r.ownerName || '—'} · {r.counterpartyName || '—'} · día {r.dayOfMonth}
-                  </p>
-                </div>
-                <span className="font-mono tabular-nums text-[13px] text-[var(--color-accent)] flex-shrink-0">
-                  -{formatCurrency(r.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+			{/* Nóminas — estado del período + próximos vencimientos SV/LSt */}
+			{canSeePayroll && payrollTile.hasData && (
+				<Panel
+					title="Nóminas"
+					meta={
+						payrollTile.latest
+							? payrollTile.latest.label
+							: "Sin períodos cargados"
+					}
+					actions={
+						<Button
+							variant="ghost"
+							size="sm"
+							iconRight={ArrowRight}
+							onClick={() => navigate("/nominas")}
+						>
+							Ir a Nóminas
+						</Button>
+					}
+				>
+					<div className="flex flex-col gap-4">
+						<div className="flex flex-wrap items-center gap-3">
+							{payrollTile.status && (
+								<Badge variant={statusBadgeTone(payrollTile.status)} dot>
+									{statusLabel(payrollTile.status)}
+								</Badge>
+							)}
+							{payrollTile.missing.length > 0 && (
+								<Badge variant="warn">
+									{payrollTile.missing.length} mes(es) sin cargar
+								</Badge>
+							)}
+						</div>
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+							<div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+								<p className="label-mono text-[var(--color-fg-3)]">
+									Obligaciones abiertas
+								</p>
+								<p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
+									{payrollTile.openCount}
+								</p>
+								<p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
+									{formatCurrency(payrollTile.openTotal)}
+								</p>
+							</div>
+							<div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+								<p className="label-mono text-[var(--color-fg-3)]">
+									Próximo SV / LSt
+								</p>
+								<p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
+									{payrollTile.nextDue ? payrollTile.nextDue : "—"}
+								</p>
+								<p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
+									{payrollTile.nextDue
+										? `en ${daysBetween(today, payrollTile.nextDue)}d`
+										: "sin vencimientos abiertos"}
+								</p>
+							</div>
+							<div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
+								<p className="label-mono text-[var(--color-fg-3)]">
+									Meses faltantes
+								</p>
+								<p className="mt-1 font-mono text-[18px] tabular-nums text-[var(--color-fg-1)]">
+									{payrollTile.missing.length}
+								</p>
+								<p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)] truncate">
+									{payrollTile.missing.length > 0
+										? payrollTile.missing.join(", ")
+										: "al día"}
+								</p>
+							</div>
+						</div>
+					</div>
+				</Panel>
+			)}
 
-      {/* Sugerencias de reglas */}
-      {counterpartySuggestions.length > 0 && (
-        <Panel
-          title="Top contrapartes sin clasificar"
-          meta="Sugerencias para crear reglas"
-          padding={false}
-          actions={
-            <Button variant="ghost" size="sm" iconRight={ArrowRight} onClick={() => navigate('/clasificar')}>
-              Ir a Bandeja
-            </Button>
-          }
-        >
-          <div className="divide-y divide-[var(--color-line)]">
-            {counterpartySuggestions.map((cp) => (
-              <div key={cp.counterparty} className="px-5 py-3 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] text-[var(--color-fg-1)] truncate">
-                    {cp.counterparty}
-                  </p>
-                  <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
-                    {cp.count} movimiento(s) sin clasificar
-                    {cp.totalIn > 0 && ` · +${formatCurrency(cp.totalIn)}`}
-                    {cp.totalOut > 0 && ` · -${formatCurrency(cp.totalOut)}`}
-                  </p>
-                </div>
-                <Badge variant="warn">{cp.count}</Badge>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Wand2}
-                  onClick={() => setSeedCounterparty(cp)}
-                >
-                  Crear regla
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+			{/* Recurrentes pendientes */}
+			{recurringPending.length > 0 && (
+				<Panel
+					title={`Recurrentes pendientes — ${currentPeriod}`}
+					meta={`${recurringPending.length} regla(s) · ${formatCurrency(recurringPendingTotal)}`}
+					padding={false}
+					actions={
+						<Button
+							variant="primary"
+							size="sm"
+							icon={Repeat}
+							onClick={() => setIsGenerateMonthOpen(true)}
+						>
+							Generar mes
+						</Button>
+					}
+				>
+					<div className="divide-y divide-[var(--color-line)]">
+						{recurringPending.slice(0, 12).map((r) => (
+							<div key={r.id} className="px-5 py-3 flex items-center gap-3">
+								<Repeat
+									size={14}
+									className="text-[var(--color-fg-4)] flex-shrink-0"
+								/>
+								<div className="flex-1 min-w-0">
+									<p className="text-[13px] text-[var(--color-fg-1)] truncate">
+										{r.concept || "Sin concepto"}
+									</p>
+									<p className="font-mono text-[11px] text-[var(--color-fg-4)] truncate">
+										{r.ownerName || "—"} · {r.counterpartyName || "—"} · día{" "}
+										{r.dayOfMonth}
+									</p>
+								</div>
+								<span className="font-mono tabular-nums text-[13px] text-[var(--color-accent)] flex-shrink-0">
+									-{formatCurrency(r.amount)}
+								</span>
+							</div>
+						))}
+					</div>
+				</Panel>
+			)}
 
-      {totalUrgent === 0 && (
-        <Panel padding>
-          <EmptyState
-            icon={CheckCircle2}
-            title="Todo bajo control"
-            description="No hay CXP vencidas, ni vencimientos en 7 días, ni proyección negativa, ni recurrentes pendientes. Vení mañana — o el viernes después del DATEV."
-          />
-        </Panel>
-      )}
+			{/* Sugerencias de reglas */}
+			{counterpartySuggestions.length > 0 && (
+				<Panel
+					title="Top contrapartes sin clasificar"
+					meta="Sugerencias para crear reglas"
+					padding={false}
+					actions={
+						<Button
+							variant="ghost"
+							size="sm"
+							iconRight={ArrowRight}
+							onClick={() => navigate("/clasificar")}
+						>
+							Ir a Bandeja
+						</Button>
+					}
+				>
+					<div className="divide-y divide-[var(--color-line)]">
+						{counterpartySuggestions.map((cp) => (
+							<div
+								key={cp.counterparty}
+								className="px-5 py-3 flex items-center gap-4"
+							>
+								<div className="flex-1 min-w-0">
+									<p className="text-[13px] text-[var(--color-fg-1)] truncate">
+										{cp.counterparty}
+									</p>
+									<p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)]">
+										{cp.count} movimiento(s) sin clasificar
+										{cp.totalIn > 0 && ` · +${formatCurrency(cp.totalIn)}`}
+										{cp.totalOut > 0 && ` · -${formatCurrency(cp.totalOut)}`}
+									</p>
+								</div>
+								<Badge variant="warn">{cp.count}</Badge>
+								<Button
+									variant="primary"
+									size="sm"
+									icon={Wand2}
+									onClick={() => setSeedCounterparty(cp)}
+								>
+									Crear regla
+								</Button>
+							</div>
+						))}
+					</div>
+				</Panel>
+			)}
 
-      <RuleFormModal
-        isOpen={Boolean(seedMovement)}
-        onClose={() => setSeedCounterparty(null)}
-        onSubmit={handleCreateRule}
-        seedMovement={seedMovement}
-        categories={allCategories}
-        costCenters={costCenters || []}
-        projects={projects || []}
-        pendingMovements={inboxMovements}
-      />
+			{!forecastAvailable && totalUrgent === 0 && (
+				<p className="text-sm text-[var(--color-fg-3)]">
+					Sin alertas operativas detectadas. El riesgo de caja no se pudo
+					evaluar.
+				</p>
+			)}
+			{forecastAvailable && totalUrgent === 0 && (
+				<Panel padding>
+					<EmptyState
+						icon={CheckCircle2}
+						title="Todo bajo control"
+						description="No hay CXP vencidas, ni vencimientos en 7 días, ni proyección negativa, ni recurrentes pendientes. Vení mañana — o el viernes después del DATEV."
+					/>
+				</Panel>
+			)}
 
-      <GenerateMonthModal
-        isOpen={isGenerateMonthOpen}
-        onClose={() => setIsGenerateMonthOpen(false)}
-        user={user}
-      />
-    </div>
-  );
+			<RuleFormModal
+				isOpen={Boolean(seedMovement)}
+				onClose={() => setSeedCounterparty(null)}
+				onSubmit={handleCreateRule}
+				seedMovement={seedMovement}
+				categories={allCategories}
+				costCenters={costCenters || []}
+				projects={projects || []}
+				pendingMovements={inboxMovements}
+			/>
+
+			<GenerateMonthModal
+				isOpen={isGenerateMonthOpen}
+				onClose={() => setIsGenerateMonthOpen(false)}
+				user={user}
+			/>
+		</div>
+	);
 };
 
-const DocList = ({ docs, tone = 'warn', renderMeta }) => {
-  return (
-    <div className="divide-y divide-[var(--color-line)]">
-      {docs.map((d) => {
-        const open = Number(d.openAmount || d.grossAmount || d.amount || 0);
-        return (
-          <div key={d.id} className="px-5 py-3 flex items-center gap-4">
-            <CalendarClock
-              size={14}
-              className={`flex-shrink-0 ${
-                tone === 'err'
-                  ? 'text-[var(--color-err)]'
-                  : tone === 'warn'
-                  ? 'text-[var(--color-warn)]'
-                  : 'text-[var(--color-fg-4)]'
-              }`}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] text-[var(--color-fg-1)] truncate">
-                {d.description ||
-                  d.counterpartyName ||
-                  d.documentNumber ||
-                  d.id}
-              </p>
-              <p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)] truncate">
-                {renderMeta ? renderMeta(d) : d.dueDate}
-                {d.documentNumber && ` · ${d.documentNumber}`}
-              </p>
-            </div>
-            <span className="font-mono tabular-nums text-[13px] text-[var(--color-fg-1)] flex-shrink-0">
-              {formatCurrency(open)}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
+const DocList = ({ docs, tone = "warn", renderMeta }) => {
+	return (
+		<div className="divide-y divide-[var(--color-line)]">
+			{docs.map((d) => {
+				const open = Number(d.openAmount || d.grossAmount || d.amount || 0);
+				return (
+					<div key={d.id} className="px-5 py-3 flex items-center gap-4">
+						<CalendarClock
+							size={14}
+							className={`flex-shrink-0 ${
+								tone === "err"
+									? "text-[var(--color-err)]"
+									: tone === "warn"
+										? "text-[var(--color-warn)]"
+										: "text-[var(--color-fg-4)]"
+							}`}
+						/>
+						<div className="flex-1 min-w-0">
+							<p className="text-[13px] text-[var(--color-fg-1)] truncate">
+								{d.description ||
+									d.counterpartyName ||
+									d.documentNumber ||
+									d.id}
+							</p>
+							<p className="mt-0.5 font-mono text-[11px] text-[var(--color-fg-4)] truncate">
+								{renderMeta ? renderMeta(d) : d.dueDate}
+								{d.documentNumber && ` · ${d.documentNumber}`}
+							</p>
+						</div>
+						<span className="font-mono tabular-nums text-[13px] text-[var(--color-fg-1)] flex-shrink-0">
+							{formatCurrency(open)}
+						</span>
+					</div>
+				);
+			})}
+		</div>
+	);
 };
 
 export default AlertasOperativas;
