@@ -148,7 +148,7 @@ const Resumen = ({ user }) => {
 
 	// ── Alerts: localized, action-routed, severity-sorted ──────────────────────
 	const alerts = useMemo(() => {
-		if (metrics.loading && !cashUnavailable) return [];
+		if (metrics.independentLoading) return [];
 		const todayIso = now.toISOString().slice(0, 10);
 		const openReceivables = (metrics.receivables || []).filter(
 			(r) => (r.openAmount || 0) > 0.005 && r.status !== "cancelled",
@@ -338,7 +338,7 @@ const Resumen = ({ user }) => {
 	const projectMargins = metrics.projectMargins || [];
 	const unassignedMargin = metrics.unassignedMargin || null;
 
-	if (metrics.loading && (!user || !cashUnavailable)) {
+	if (metrics.independentLoading) {
 		return (
 			<div className="flex items-center justify-center py-32">
 				<p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>

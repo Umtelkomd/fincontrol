@@ -37,6 +37,38 @@ beforeEach(() => {
 });
 
 describe("ExecutiveSummary — shared liquidity trio", () => {
+	it.each([
+		["loading", ["bankMovements", "receivables", "payables"]],
+		["error", ["payables", "bankMovements", "receivables"]],
+		["ready", ["receivables", "payables", "bankMovements"]],
+	])("waits for independent snapshots with reconciliation %s", (status, order) => {
+		const pending = {};
+		onSnapshot.mockImplementation((ref, next, fail) => {
+			const source = ref.path.split("/").at(-1);
+			if (order.includes(source) || source === "reconciliation") {
+				pending[source] = { ref, next, fail };
+				return vi.fn();
+			}
+			return ordinarySubscribe(ref, next, fail);
+		});
+		renderScreen(<ExecutiveSummary user={USER} />);
+		if (status === "error") {
+			act(() => pending.reconciliation.fail(new Error("synthetic failure")));
+		} else if (status === "ready") {
+			const { ref, next, fail } = pending.reconciliation;
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		for (const source of order) {
+			expect(screen.getByText("Cargando…")).toBeInTheDocument();
+			expect(screen.queryByText("CXC vencida")).not.toBeInTheDocument();
+			expect(screen.queryByText("Riesgo de cobranza")).not.toBeInTheDocument();
+			const { ref, next, fail } = pending[source];
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		expect(screen.getByText("CXC vencida").parentElement.parentElement).toHaveTextContent("10.000,00");
+		fireEvent.click(screen.getByRole("button", { name: "Todos los años" }));
+		expect(screen.getByText("Riesgo de cobranza")).toBeInTheDocument();
+	});
 	it("does not print fabricated cash in its executive narrative, preserving independent priorities", () => {
 		store.errors.reconciliation = new Error("private backend detail");
 		renderScreen(<ExecutiveSummary user={USER} />);

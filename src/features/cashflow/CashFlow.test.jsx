@@ -99,6 +99,37 @@ beforeEach(() => {
 });
 
 describe("CashFlow — unavailable cash", () => {
+	it.each([
+		["loading", ["bankMovements", "receivables", "payables"]],
+		["error", ["payables", "bankMovements", "receivables"]],
+		["ready", ["receivables", "payables", "bankMovements"]],
+	])("waits for independent snapshots with reconciliation %s", (status, order) => {
+		const pending = {};
+		onSnapshot.mockImplementation((ref, next, fail) => {
+			const source = ref.path.split("/").at(-1);
+			if (order.includes(source) || source === "reconciliation") {
+				pending[source] = { ref, next, fail };
+				return vi.fn();
+			}
+			return ordinarySubscribe(ref, next, fail);
+		});
+		renderScreen(<CashFlow user={USER} />);
+		if (status === "error") {
+			act(() => pending.reconciliation.fail(new Error("synthetic failure")));
+		} else if (status === "ready") {
+			const { ref, next, fail } = pending.reconciliation;
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		for (const source of order) {
+			expect(screen.getByText("Cargando…")).toBeInTheDocument();
+			expect(screen.queryByText("Estado de Resultados")).not.toBeInTheDocument();
+			expect(screen.queryByTestId("movement-or-forecast-chart")).not.toBeInTheDocument();
+			const { ref, next, fail } = pending[source];
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		expect(screen.getByText("Estado de Resultados")).toBeInTheDocument();
+		expect(screen.getAllByText("Movimiento de prueba").length).toBeGreaterThan(0);
+	});
 	it("does not mistake skipped VAT/forecast for no obligations, and keeps posted movements", () => {
 		store.errors.reconciliation = new Error("private backend detail");
 		renderScreen(<CashFlow user={USER} />);

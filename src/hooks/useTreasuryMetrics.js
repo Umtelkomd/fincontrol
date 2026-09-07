@@ -355,6 +355,8 @@ export const useTreasuryMetrics = (options = {}) => {
 			: null;
 
 		return {
+			// Preserve independentLoading separately from aggregate loading so views
+			// can show loaded movement/document metrics while cash is unavailable.
 			...ledger,
 			filteredMovements,
 			filteredReceivables,

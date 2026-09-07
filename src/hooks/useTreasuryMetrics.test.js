@@ -94,6 +94,28 @@ const metricsFor = (ledger, options = {}) =>
 	).result.current;
 
 describe("useTreasuryMetrics — unavailable cash", () => {
+	it.each(["loading", "error", "ready"])(
+		"preserves independent loading and loaded zeroes with reconciliation %s",
+		(status) => {
+			const ledger = ledgerWith({ cash: status === "ready" ? 0 : null });
+			ledger.independentLoading = true;
+			ledger.loading = true;
+			ledger.cashMeta.status = status;
+			const { result, rerender } = renderHook(
+				({ ledger }) => useTreasuryMetrics({ ledger, referenceDate: REFERENCE_DATE }),
+				{ initialProps: { ledger } },
+			);
+			expect(result.current.independentLoading).toBe(true);
+			rerender({ ledger: { ...ledger, independentLoading: false, loading: status === "loading" } });
+			expect(result.current.independentLoading).toBe(false);
+			expect(result.current.loading).toBe(status === "loading");
+			expect(result.current.pendingReceivables).toBe(0);
+			expect(result.current.pendingPayables).toBe(0);
+			expect(result.current.netMovement).toBe(0);
+			expect(result.current.currentCash).toBe(status === "ready" ? 0 : null);
+		},
+	);
+
 	it.each([
 		null,
 		NaN,

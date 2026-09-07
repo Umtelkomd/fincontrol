@@ -366,10 +366,7 @@ const FinancialRatios = ({ user }) => {
 			: []),
 	];
 
-	if (
-		(globalMetrics.loading || periodMetrics.loading || ledger.loading) &&
-		!cashUnavailable
-	) {
+	if (globalMetrics.independentLoading) {
 		return (
 			<div className="flex items-center justify-center py-28">
 				<p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">

@@ -65,6 +65,61 @@ beforeEach(() => {
 });
 
 describe("Resumen — cockpit render", () => {
+	it.each([
+		["loading", ["bankMovements", "receivables", "payables"]],
+		["error", ["payables", "bankMovements", "receivables"]],
+		["ready", ["receivables", "payables", "bankMovements"]],
+	])("waits for independent snapshots with reconciliation %s", (status, order) => {
+		const pending = {};
+		onSnapshot.mockImplementation((ref, next, fail) => {
+			const source = ref.path.split("/").at(-1);
+			if (order.includes(source) || source === "reconciliation") {
+				pending[source] = { ref, next, fail };
+				return vi.fn();
+			}
+			return ordinarySubscribe(ref, next, fail);
+		});
+		renderScreen(<Resumen user={USER} />);
+		if (status === "error") {
+			act(() => pending.reconciliation.fail(new Error("synthetic failure")));
+		} else if (status === "ready") {
+			const { ref, next, fail } = pending.reconciliation;
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		for (const source of order) {
+			expect(screen.getByText("Cargando…")).toBeInTheDocument();
+			expect(screen.queryByText("Por cobrar / por pagar")).not.toBeInTheDocument();
+			expect(screen.queryByText(/Mes en equilibrio/)).not.toBeInTheDocument();
+			const { ref, next, fail } = pending[source];
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		const panel = screen.getByText("Por cobrar / por pagar").closest("section");
+		expect(within(panel).getByText("10.000,00")).toBeInTheDocument();
+		expect(within(panel).getByText("4.000,00")).toBeInTheDocument();
+		expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
+	});
+	it("shows genuine loaded zeroes and equilibrium while reconciliation is still loading", () => {
+		for (const source of ["bankMovements", "receivables", "payables"]) {
+			store.collections[source] = [];
+		}
+		let finishReceivables;
+		onSnapshot.mockImplementation((ref, next, fail) => {
+			if (ref.path.endsWith("/reconciliation")) return vi.fn();
+			if (ref.path.endsWith("/receivables")) {
+				finishReceivables = () => ordinarySubscribe(ref, next, fail);
+				return vi.fn();
+			}
+			return ordinarySubscribe(ref, next, fail);
+		});
+		renderScreen(<Resumen user={USER} />);
+		expect(screen.queryByText(/Mes en equilibrio/)).not.toBeInTheDocument();
+		act(() => finishReceivables());
+		expect(screen.getByText(/Mes en equilibrio/)).toBeInTheDocument();
+		const panel = screen.getByText("Por cobrar / por pagar").closest("section");
+		expect(within(panel).getAllByText("0,00")).toHaveLength(2);
+		expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
+	});
+
 	it("retains independent data through reconciliation loading, failure, retry and fresh recovery", () => {
 		const listeners = [];
 		onSnapshot.mockImplementation((ref, next, fail) => {

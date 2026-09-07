@@ -32,6 +32,38 @@ beforeEach(() => {
 });
 
 describe("FinancialRatios — unknown is not zero", () => {
+	it.each([
+		["loading", ["bankMovements", "receivables", "payables"]],
+		["error", ["payables", "bankMovements", "receivables"]],
+		["ready", ["receivables", "payables", "bankMovements"]],
+	])("waits for independent snapshots with reconciliation %s", (status, order) => {
+		const pending = {};
+		onSnapshot.mockImplementation((ref, next, fail) => {
+			const source = ref.path.split("/").at(-1);
+			if (order.includes(source) || source === "reconciliation") {
+				pending[source] = { ref, next, fail };
+				return vi.fn();
+			}
+			return ordinarySubscribe(ref, next, fail);
+		});
+		renderScreen(<FinancialRatios user={USER} />);
+		if (status === "error") {
+			act(() => pending.reconciliation.fail(new Error("synthetic failure")));
+		} else if (status === "ready") {
+			const { ref, next, fail } = pending.reconciliation;
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		for (const source of order) {
+			expect(screen.getByText("Cargando…")).toBeInTheDocument();
+			expect(screen.queryByText("Días de cobro")).not.toBeInTheDocument();
+			expect(screen.queryByTestId("comparison-chart")).not.toBeInTheDocument();
+			const { ref, next, fail } = pending[source];
+			act(() => ordinarySubscribe(ref, next, fail));
+		}
+		expect(ratioCard("Días de cobro")).not.toHaveTextContent("No disponible");
+		fireEvent.click(screen.getByRole("button", { name: "Todos los años" }));
+		expect(screen.getByTestId("comparison-chart")).toHaveTextContent("Margen caja");
+	});
 	it("does not rate unavailable cash, while independent ratios and chart rows remain", () => {
 		store.errors.reconciliation = new Error("private backend detail");
 		renderScreen(<FinancialRatios user={USER} />);

@@ -135,15 +135,17 @@ export const useFinanceLedger = (rawUser) => {
 	);
 
 	return useMemo(() => {
-		const loading =
+		// Independent sections must wait for their sources, not reconciliation.
+		// This tracks pending reads only; failures remain in error/sourceErrors.
+		const independentLoading =
 			txLoading ||
 			accountLoading ||
 			movementLoading ||
 			receivablesLoading ||
 			payablesLoading ||
 			budgetsLoading ||
-			projectsLoading ||
-			anchorsLoading;
+			projectsLoading;
+		const loading = independentLoading || anchorsLoading;
 
 		// A failed source must never render as "€0, everything fine". Consumers check
 		// `error` (first failure) or `sourceErrors` (per-collection detail) and show a
@@ -242,6 +244,7 @@ export const useFinanceLedger = (rawUser) => {
 
 		return {
 			loading,
+			independentLoading,
 			error,
 			sourceErrors,
 			// allTransactions (static 2025 P&L sheet) is exposed so consumers that need

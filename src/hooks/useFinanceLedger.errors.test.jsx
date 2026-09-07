@@ -28,6 +28,31 @@ beforeEach(() => {
 
 describe("useFinanceLedger reconciliation source errors", () => {
 	it.each([
+		"transactions", "bankAccount", "bankMovements", "receivables",
+		"payables", "budgets", "projects",
+	])("tracks %s loading independently of reconciliation", (source) => {
+		let pending;
+		const subscribe = onSnapshot.getMockImplementation();
+		onSnapshot.mockImplementation((ref, next, fail) => {
+			if (ref.path.split("/").at(-1) !== source) return subscribe(ref, next, fail);
+			pending = { ref, next, fail };
+			return vi.fn();
+		});
+		const { result } = renderHook(() => useFinanceLedger(user));
+		expect(result.current.independentLoading).toBe(true);
+		act(() => listeners[0].fail(new Error("synthetic failure")));
+		expect(result.current.independentLoading).toBe(true);
+		act(() => result.current.actions.reconciliation.retry());
+		expect(result.current.independentLoading).toBe(true);
+		act(() => ordinarySubscribe(pending.ref, pending.next, pending.fail));
+		expect(result.current.independentLoading).toBe(false);
+		expect(result.current.loading).toBe(true);
+		act(() => listeners[1].next(snapshot([])));
+		expect(result.current.independentLoading).toBe(false);
+		expect(result.current.loading).toBe(false);
+	});
+
+	it.each([
 		[null, "legacy", 800],
 		[[], "legacy", 800],
 		[[{ date: "2026-01-01", balance: 456 }], "anchors", 456],

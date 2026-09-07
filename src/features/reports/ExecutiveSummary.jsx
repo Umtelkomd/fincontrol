@@ -50,7 +50,7 @@ const ExecutiveSummary = ({ user }) => {
 	const cashLabel =
 		ledger.cashMeta?.status === "loading" ? "Cargando…" : "No disponible";
 
-	if (metrics.loading && !cashUnavailable) {
+	if (metrics.independentLoading) {
 		return (
 			<div className="flex items-center justify-center py-28">
 				<p className="font-mono text-xs text-[var(--color-fg-3)] tracking-[0.08em] uppercase">
