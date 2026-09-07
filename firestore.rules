@@ -8,19 +8,16 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────
     // User registry: stores role + appId per user
-    // Bootstrap: run scripts/bootstrap-users.js after
+    // Bootstrap: run scripts/bootstrap-users.cjs after
     // deploying these rules for the first time.
     // ─────────────────────────────────────────────
     match /users/{userId} {
       allow read: if request.auth != null
         && request.auth.uid == userId;
 
-      // Self-create: only permitted with non-privileged role.
-      // The app never writes users/{uid} from the client (bootstrap uses Admin SDK),
-      // but this rule prevents anyone from self-assigning role:'admin' or 'manager'.
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.role == 'editor';
+      // Membership (including appId) is trusted provisioning via the Admin SDK.
+      // No client, including an admin client, may create registry documents.
+      allow create: if false;
 
       // Self-update: user may update their own doc ONLY if role and appId are unchanged.
       // Admins may update any user document without restriction.
