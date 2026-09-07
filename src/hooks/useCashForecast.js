@@ -1,12 +1,12 @@
-import { useMemo } from 'react';
-import { buildCashForecast } from '../finance/cashForecast';
-import { TREASURY_PROJECTION_WEEKS } from '../finance/constants';
-import { usePayrollPeriods } from '../features/nominas/usePayrollPeriods';
-import { useAuth } from './useAuth';
-import { useFinanceLedger } from './useFinanceLedger';
-import { useRecurringCosts } from './useRecurringCosts';
-import { useTreasurySettings } from './useTreasurySettings';
-import { useVatRates } from './useVatRates';
+import { useMemo } from "react";
+import { buildCashForecast } from "../finance/cashForecast";
+import { TREASURY_PROJECTION_WEEKS } from "../finance/constants";
+import { usePayrollPeriods } from "../features/nominas/usePayrollPeriods";
+import { useAuth } from "./useAuth";
+import { useFinanceLedger } from "./useFinanceLedger";
+import { useRecurringCosts } from "./useRecurringCosts";
+import { useTreasurySettings } from "./useTreasurySettings";
+import { useVatRates } from "./useVatRates";
 
 /**
  * useCashForecast — the ONE cash-flow projection subscription.
@@ -43,58 +43,100 @@ import { useVatRates } from './useVatRates';
  * }} [options]
  */
 export const useCashForecast = (user, options = {}) => {
-  const { weeks = TREASURY_PROJECTION_WEEKS, today, collectionSlipDays } = options;
+	const {
+		weeks = TREASURY_PROJECTION_WEEKS,
+		today,
+		collectionSlipDays,
+	} = options;
 
-  const { hasPermission } = useAuth();
-  // firestore.rules confines payrollPeriods to manager/admin; editors must not
-  // even subscribe (same gating convention as Resumen's payroll allocation).
-  const canSeePayroll = hasPermission('cxp');
+	const { hasPermission } = useAuth();
+	// firestore.rules confines payrollPeriods to manager/admin; editors must not
+	// even subscribe (same gating convention as Resumen's payroll allocation).
+	const canSeePayroll = hasPermission("cxp");
 
-  // Accept a pre-fetched ledger from FinanceLedgerContext to avoid opening a
-  // duplicate set of Firestore listeners.
-  const localLedger = useFinanceLedger(options.ledger ? null : user);
-  const ledger = options.ledger ?? localLedger;
+	// Accept a pre-fetched ledger from FinanceLedgerContext to avoid opening a
+	// duplicate set of Firestore listeners.
+	const localLedger = useFinanceLedger(options.ledger ? null : user);
+	const ledger = options.ledger ?? localLedger;
 
-  const { recurringCosts } = useRecurringCosts(user);
-  const { periods: payrollPeriods } = usePayrollPeriods(canSeePayroll ? user : null);
-  const { vatEstimates } = useTreasurySettings(user);
-  // VAT per category (settings/vatRates) turns the posted movements into the
-  // derived Umsatzsteuer the manual estimates almost never cover.
-  const { categoryRates } = useVatRates(user);
+	const { recurringCosts } = useRecurringCosts(user);
+	const { periods: payrollPeriods } = usePayrollPeriods(
+		canSeePayroll ? user : null,
+	);
+	const { vatEstimates } = useTreasurySettings(user);
+	// VAT per category (settings/vatRates) turns the posted movements into the
+	// derived Umsatzsteuer the manual estimates almost never cover.
+	const { categoryRates } = useVatRates(user);
 
-  return useMemo(() => {
-    const todayIso = today || new Date().toISOString().slice(0, 10);
+	return useMemo(() => {
+		const todayIso = today || new Date().toISOString().slice(0, 10);
 
-    const forecast = buildCashForecast({
-      startBalance: ledger.summary?.currentCash ?? 0,
-      today: todayIso,
-      weeks,
-      receivables: ledger.receivables || [],
-      payables: ledger.payables || [],
-      recurringCosts: recurringCosts || [],
-      payrollPeriods: payrollPeriods || [],
-      vatEstimates: vatEstimates || [],
-      movements: ledger.postedMovements || [],
-      categoryRates: categoryRates || {},
-      ...(collectionSlipDays === undefined ? {} : { collectionSlipDays }),
-    });
+		const cashAvailable =
+			ledger.cashSource !== "unavailable" &&
+			!ledger.sourceErrors?.reconciliation &&
+			!["loading", "error"].includes(ledger.cashMeta?.status) &&
+			Number.isFinite(ledger.summary?.currentCash);
+		const status = cashAvailable
+			? "ready"
+			: ledger.cashMeta?.status === "loading"
+				? "loading"
+				: "error";
+		const sourceState = {
+			today: todayIso,
+			available: cashAvailable,
+			status,
+			loading: ledger.loading,
+			error: ledger.error,
+			sourceErrors: ledger.sourceErrors,
+		};
+		if (!cashAvailable) {
+			return {
+				...sourceState,
+				weeks: [],
+				obligations: [],
+				vatObligations: [],
+				startBalance: null,
+				totalInflow: null,
+				totalOutflow: null,
+				netHorizon: null,
+				endBalance: null,
+				firstNegativeWeek: null,
+				weeksToNegative: null,
+				lowestWeek: null,
+				collectionSlipDays: null,
+				collectionSlip: null,
+				horizonWeeks: weeks,
+				horizonEnd: null,
+			};
+		}
+		const forecast = buildCashForecast({
+			startBalance: ledger.summary.currentCash,
+			today: todayIso,
+			weeks,
+			receivables: ledger.receivables || [],
+			payables: ledger.payables || [],
+			recurringCosts: recurringCosts || [],
+			payrollPeriods: payrollPeriods || [],
+			vatEstimates: vatEstimates || [],
+			movements: ledger.postedMovements || [],
+			categoryRates: categoryRates || {},
+			...(collectionSlipDays === undefined ? {} : { collectionSlipDays }),
+		});
 
-    return {
-      ...forecast,
-      today: todayIso,
-      loading: ledger.loading,
-      error: ledger.error,
-    };
-  }, [
-    categoryRates,
-    collectionSlipDays,
-    ledger,
-    payrollPeriods,
-    recurringCosts,
-    today,
-    vatEstimates,
-    weeks,
-  ]);
+		return {
+			...forecast,
+			...sourceState,
+		};
+	}, [
+		categoryRates,
+		collectionSlipDays,
+		ledger,
+		payrollPeriods,
+		recurringCosts,
+		today,
+		vatEstimates,
+		weeks,
+	]);
 };
 
 export default useCashForecast;

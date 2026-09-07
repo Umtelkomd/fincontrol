@@ -35,3 +35,42 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  emulator:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      # Tool acquisition precedes the network-denied test runtime; no login or secrets.
+      - name: Prepare isolated runtime
+        shell: bash
+        run: |
+          S="$RUNNER_TEMP/fincontrol-emulator"
+          mkdir -p "$S/home" "$S/config" "$S/java" "$S/src/test" "$S/src/services"
+          cp package.json firebase.emulator.json firestore.rules vitest.emulator.config.js "$S/"
+          tar -c --exclude='__fixtures__' --exclude='datevRechnungFooter.test.js' src | tar -x -C "$S"
+          cp -a node_modules "$S/"
+          cp -a "$JAVA_HOME/." "$S/java/"
+          HOME="$S/home" XDG_CONFIG_HOME="$S/config" node_modules/.bin/firebase setup:emulators:firestore
+          docker pull node:22.22.0-bookworm@sha256:20a424ecd1d2064a44e12fe287bf3dae443aab31dc5e0c0cb6c74bef9c78911c
+      - name: Emulator regressions (no external network)
+        shell: bash
+        run: |
+          S="$RUNNER_TEMP/fincontrol-emulator"
+          docker run --pull=never --network none --cap-drop=ALL --security-opt=no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            --mount "type=bind,source=$S,target=/work" --workdir /work \
+            --env HOME=/work/home --env XDG_CONFIG_HOME=/work/config --env JAVA_HOME=/work/java \
+            --env CI=1 --env FIREBASE_CLI_DISABLE_UPDATE_CHECK=true \
+            node:22.22.0-bookworm@sha256:20a424ecd1d2064a44e12fe287bf3dae443aab31dc5e0c0cb6c74bef9c78911c \
+            sh -ec 'export PATH="/work/java/bin:$PATH"; npm run test:emulator'
