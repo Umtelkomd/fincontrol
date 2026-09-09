@@ -20,6 +20,19 @@
  *   - 12 columns: Automat, Sammlerauflösung, Buchungsdatum, Valutadatum,
  *     Empfängername/Auftraggeber, IBAN/Kontonummer, BIC/BLZ,
  *     Verwendungszweck, Betrag in EUR, Notiz, Anzahl Belege, Geprüft
+ *
+ * Optional running-balance column: some exports (e.g. a full-year pull) add
+ * a 13th column — any of "Saldo", "Saldo nach Buchung", "Kontostand",
+ * "Saldo in EUR", "Kontostand nach Buchung" — in ANY position. Every column,
+ * required or optional, is resolved by header NAME (`resolveColumnIndex` /
+ * `resolveBalanceColumnIndex`), never by a fixed index, so inserting that
+ * column anywhere never shifts the other 12. When present, each row gets a
+ * numeric `balanceAfter`; `deriveMonthEndBalances` turns those into one
+ * balance per calendar month. The balance column is deliberately excluded
+ * from `row.raw.columns` (reconstructed in canonical order, not a positional
+ * slice of the file's columns) because `raw.columns` feeds `rowHash` via
+ * buildBankRowIdentity — the invariant is: the same movement hashes the same
+ * whether or not the file carries a balance column.
  */
 
 /**
@@ -150,20 +163,66 @@ const parseGermanBool = (str) => String(str || '').trim().toLowerCase() === 'ja'
 
 const normalizeHeader = (header) => normalizeBankRowRawColumns(header).map((col) => col.toLowerCase());
 
+/**
+ * The 12 required kontobewegungen_export columns, keyed by the field they
+ * feed. Column order in the file is NOT assumed — every file we've seen
+ * matches this order, but a bank could ship an extra column (e.g. a running
+ * balance) anywhere, including in the middle. Row parsing resolves each
+ * column by its header NAME via `resolveColumnIndex`, never by a fixed
+ * position, so an inserted column shifts nothing.
+ */
+const REQUIRED_COLUMNS = [
+  { key: 'automat', name: 'automat' },
+  { key: 'sammler', name: 'sammlerauflösung' },
+  { key: 'postedDate', name: 'buchungsdatum' },
+  { key: 'valueDate', name: 'valutadatum' },
+  { key: 'counterpartyName', name: 'empfängername/auftraggeber' },
+  { key: 'counterpartyIban', name: 'iban/kontonummer' },
+  { key: 'counterpartyBic', name: 'bic/blz' },
+  { key: 'description', name: 'verwendungszweck' },
+  { key: 'amount', name: 'betrag in eur' },
+  { key: 'notes', name: 'notiz' },
+  { key: 'receiptCount', name: 'anzahl belege' },
+  { key: 'verified', name: 'geprüft' },
+];
+
+/**
+ * A bank statement may optionally carry a running balance column. Any of
+ * these names (case-insensitive, after the same header normalization used
+ * everywhere else) is recognized, wherever it sits in the file.
+ */
+const BALANCE_COLUMN_NAMES = new Set([
+  'saldo',
+  'saldo nach buchung',
+  'kontostand',
+  'saldo in eur',
+  'kontostand nach buchung',
+]);
+
+/** Map each REQUIRED_COLUMNS key to its column index in this file's header. */
+const resolveColumnIndex = (header) => {
+  const normalized = normalizeHeader(header);
+  const index = {};
+  for (const { key, name } of REQUIRED_COLUMNS) {
+    index[key] = normalized.indexOf(name);
+  }
+  return index;
+};
+
+/** Index of the optional balance column, or -1 when the file doesn't carry one. */
+const resolveBalanceColumnIndex = (header) => {
+  const normalized = normalizeHeader(header);
+  return normalized.findIndex((name) => BALANCE_COLUMN_NAMES.has(name));
+};
+
 const detectBankStatementFormat = (header) => {
   const normalized = normalizeHeader(header);
   const headerSet = new Set(normalized);
-  const hasKontobewegungenColumns = [
-    'buchungsdatum',
-    'valutadatum',
-    'empfängername/auftraggeber',
-    'iban/kontonummer',
-    'bic/blz',
-    'verwendungszweck',
-    'betrag in eur',
-  ].every((name) => headerSet.has(name));
+  const hasKontobewegungenColumns = REQUIRED_COLUMNS.every(({ name }) => headerSet.has(name));
   // These columns are the standard German kontobewegungen_export layout, shared
   // across banks — Volksbank files match it just as well as Sparkasse ones.
+  // An extra column (e.g. a running balance) anywhere in the header does not
+  // change this detection — only presence of the required names matters.
   //
   // The returned id is deliberately NOT renamed: buildBankRowIdentity folds it
   // into rowFingerprint and therefore into rowHash, the key that stops a
@@ -244,26 +303,88 @@ const unsupportedFormatError = (format, header) => ({
 });
 
 /**
+ * One entry per calendar month covered by `rows`: the balance right after
+ * the LATEST booking of that month, taken from each row's `balanceAfter`.
+ * Rows normally arrive newest-first (Volksbank exports descending by date),
+ * but order is detected rather than assumed: when the file is descending
+ * (first row's date > last row's date), a same-day tie is broken by the
+ * SMALLEST `lineNumber` (closest to the top = the day's latest booking in a
+ * newest-first file); when ascending, by the LARGEST `lineNumber`.
+ * Returns [] when no row carries a balance.
+ * @param {Array<{postedDate: string, lineNumber: number, balanceAfter: number|null}>} rows
+ * @returns {Array<{date: string, balance: number}>}
+ */
+export const deriveMonthEndBalances = (rows) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  const withBalance = rows.filter(
+    (row) => typeof row?.balanceAfter === 'number'
+      && Number.isFinite(row.balanceAfter)
+      && typeof row?.postedDate === 'string'
+      && row.postedDate,
+  );
+  if (withBalance.length === 0) return [];
+
+  const firstDate = rows[0]?.postedDate || '';
+  const lastDate = rows[rows.length - 1]?.postedDate || '';
+  const descending = firstDate > lastDate;
+
+  const bestByMonth = new Map();
+  for (const row of withBalance) {
+    const monthKey = row.postedDate.slice(0, 7);
+    const current = bestByMonth.get(monthKey);
+    if (!current) {
+      bestByMonth.set(monthKey, row);
+      continue;
+    }
+    if (row.postedDate > current.postedDate) {
+      bestByMonth.set(monthKey, row);
+    } else if (row.postedDate === current.postedDate) {
+      const rowLine = Number(row.lineNumber) || 0;
+      const currentLine = Number(current.lineNumber) || 0;
+      const rowWins = descending ? rowLine < currentLine : rowLine > currentLine;
+      if (rowWins) bestByMonth.set(monthKey, row);
+    }
+  }
+
+  return Array.from(bestByMonth.values())
+    .sort((a, b) => a.postedDate.localeCompare(b.postedDate))
+    .map((row) => ({ date: row.postedDate, balance: row.balanceAfter }));
+};
+
+/**
  * Parse a "Kontobewegungen" export CSV file content.
- * Returns { rows, errors, header, period }.
- *   rows:    array of normalized movement objects
- *   errors:  rows that couldn't be parsed (with line number + raw)
- *   header:  raw header line as array of column names
- *   period:  { minDate, maxDate, count }
+ * Returns { rows, errors, header, period, balances }.
+ *   rows:      array of normalized movement objects
+ *   errors:    rows that couldn't be parsed (with line number + raw)
+ *   header:    raw header line as array of column names
+ *   period:    { minDate, maxDate, count }
+ *   balances:  deriveMonthEndBalances(rows) \u2014 [] when the file has no balance column
  */
 export const parseBankStatementCSV = (text) => {
-  if (!text) return { rows: [], errors: [], header: [], period: null };
+  if (!text) return { rows: [], errors: [], header: [], period: null, balances: [] };
 
   // Strip BOM if present
   const cleaned = text.replace(/^\uFEFF/, '');
   const allRows = parseCSVText(cleaned, ';');
-  if (allRows.length === 0) return { rows: [], errors: [], header: [], period: null };
+  if (allRows.length === 0) return { rows: [], errors: [], header: [], period: null, balances: [] };
 
   const header = allRows[0];
   const sourceFormat = detectBankStatementFormat(header);
   if (sourceFormat !== 'sparkasse-kontobewegungen') {
-    return { rows: [], errors: [unsupportedFormatError(sourceFormat, header)], header, period: null };
+    return {
+      rows: [],
+      errors: [unsupportedFormatError(sourceFormat, header)],
+      header,
+      period: null,
+      balances: [],
+    };
   }
+  const columnIndex = resolveColumnIndex(header);
+  const balanceColumnIndex = resolveBalanceColumnIndex(header);
+  const requiredIndices = Object.values(columnIndex);
+  const maxRequiredIndex = Math.max(...requiredIndices, balanceColumnIndex);
+
   const rows = [];
   const errors = [];
 
@@ -272,42 +393,54 @@ export const parseBankStatementCSV = (text) => {
 
   for (let i = 1; i < allRows.length; i++) {
     const cols = allRows[i];
-    if (cols.length < 9) {
+    if (cols.length <= maxRequiredIndex) {
       errors.push({ lineNumber: i + 1, raw: cols.join(';') });
       continue;
     }
-    const postedDate = parseGermanDate(cols[2]);
-    const amountSigned = parseGermanAmount(cols[8]);
+    const postedDate = parseGermanDate(cols[columnIndex.postedDate]);
+    const amountSigned = parseGermanAmount(cols[columnIndex.amount]);
     if (!postedDate || amountSigned === 0) {
       errors.push({ lineNumber: i + 1, raw: cols.join(';') });
       continue;
     }
     const direction = amountSigned >= 0 ? 'in' : 'out';
-    const rawDescription = (cols[7] || '').trim();
+    const rawDescription = (cols[columnIndex.description] || '').trim();
     const sepa = parseSepaPurpose(rawDescription);
     const description = sepa.purpose || rawDescription;
     const signedAmount = amountSigned;
+    const balanceCell = balanceColumnIndex >= 0 ? cols[balanceColumnIndex] : null;
+    const balanceAfter = balanceCell != null && String(balanceCell).trim() !== ''
+      ? parseGermanAmount(balanceCell)
+      : null;
+    // raw.columns feeds buildBankRowIdentity \u2192 rowHash. It is reconstructed
+    // in the canonical REQUIRED_COLUMNS order (NOT a positional slice of
+    // `cols`) so a balance column added anywhere in the file \u2014 or absent
+    // entirely \u2014 never changes the hash of an otherwise-identical movement.
     const row = {
       sourceFormat,
       lineNumber: i + 1,
-      automat: parseGermanBool(cols[0]),
-      sammler: parseGermanBool(cols[1]),
+      automat: parseGermanBool(cols[columnIndex.automat]),
+      sammler: parseGermanBool(cols[columnIndex.sammler]),
       postedDate,
-      valueDate: parseGermanDate(cols[3]) || postedDate,
-      counterpartyName: (cols[4] || '').trim(),
-      counterpartyIban: normalizeBankRowIbanBic(cols[5]),
-      counterpartyBic: normalizeBankRowIbanBic(cols[6]),
+      valueDate: parseGermanDate(cols[columnIndex.valueDate]) || postedDate,
+      counterpartyName: (cols[columnIndex.counterpartyName] || '').trim(),
+      counterpartyIban: normalizeBankRowIbanBic(cols[columnIndex.counterpartyIban]),
+      counterpartyBic: normalizeBankRowIbanBic(cols[columnIndex.counterpartyBic]),
       description,
       rawDescription,
       sepa,
+      balanceAfter,
       amountSigned,
       signedAmount,
       direction,
       amount: Math.abs(amountSigned),
-      notes: (cols[9] || '').trim(),
-      receiptCount: parseInt(cols[10] || '0', 10) || 0,
-      verified: parseGermanBool(cols[11]),
-      raw: { columns: [...cols], line: i + 1 },
+      notes: (cols[columnIndex.notes] || '').trim(),
+      receiptCount: parseInt(cols[columnIndex.receiptCount] || '0', 10) || 0,
+      verified: parseGermanBool(cols[columnIndex.verified]),
+      raw: {
+        columns: REQUIRED_COLUMNS.map(({ key }) => cols[columnIndex[key]]),
+        line: i + 1,
+      },
     };
     Object.assign(row, buildBankRowIdentity(row));
     rows.push(row);
@@ -316,7 +449,7 @@ export const parseBankStatementCSV = (text) => {
   }
 
   const period = rows.length > 0 ? { minDate, maxDate, count: rows.length } : null;
-  return { rows, errors, header, period };
+  return { rows, errors, header, period, balances: deriveMonthEndBalances(rows) };
 };
 
 /**

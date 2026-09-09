@@ -1,12 +1,42 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileText, CheckCircle2, AlertCircle, X, Database, Wand2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, X, Database, Wand2, Anchor } from 'lucide-react';
 import { useBankMovements } from '../../hooks/useBankMovements';
 import { useBankImport } from '../../hooks/useBankImport';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
+import { useReconciliation } from '../../hooks/useReconciliation';
 import { useToast } from '../../contexts/ToastContext';
 import { classifyBankImportFiles, parseBankStatementCSV } from '../../finance/bankStatementParser';
+import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
 import PageHeader from '../../components/layout/PageHeader';
+
+/** "Mayo 2026" from an ISO date — capitalized, matching Spanish month-name style elsewhere. */
+const monthLabel = (isoDate) => {
+ const label = new Date(`${isoDate.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString('es-ES', {
+ month: 'long',
+ year: 'numeric',
+ timeZone: 'UTC',
+ });
+ return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+/**
+ * Merge parsed.balances from every loaded file into one entry per month.
+ * When two loaded files cover the same month, the file with the most recent
+ * `lastModified` wins — a fresher export supersedes an older one.
+ */
+const mergeMonthEndBalances = (files) => {
+ const byMonth = new Map();
+ const byRecency = [...(files || [])].sort(
+ (a, b) => (a.file?.lastModified || 0) - (b.file?.lastModified || 0),
+ );
+ for (const entry of byRecency) {
+ for (const balance of entry.parsed?.balances || []) {
+ byMonth.set(balance.date.slice(0, 7), { ...balance, fileName: entry.name });
+ }
+ }
+ return Array.from(byMonth.values()).sort((a, b) => a.date.localeCompare(b.date));
+};
 
 
 const createImportRunId = () => (
@@ -27,11 +57,13 @@ const BankImport = ({ user }) => {
  const { bankMovements } = useBankMovements(user);
  const { importRows } = useBankImport(user);
  const { rules } = useClassificationRules(user);
+ const { anchors, addAnchor } = useReconciliation(user);
  const { showToast } = useToast();
 
  // Each entry: { id, file, name, parsed, diff, status, importing, result }
  const [files, setFiles] = useState([]);
  const [isDragging, setIsDragging] = useState(false);
+ const [registeringAnchors, setRegisteringAnchors] = useState(false);
 
  const handleFiles = useCallback(
  async (fileList) => {
@@ -136,6 +168,35 @@ const BankImport = ({ user }) => {
  }, [files]);
 
  const filesPending = files.some((f) => f.status === 'ready' && f.diff.newRows.length > 0);
+
+ const detectedBalances = useMemo(() => mergeMonthEndBalances(files), [files]);
+ const anchorDateSet = useMemo(() => new Set((anchors || []).map((a) => a.date)), [anchors]);
+ const missingAnchorBalances = useMemo(
+ () => detectedBalances.filter((b) => !anchorDateSet.has(b.date)),
+ [detectedBalances, anchorDateSet],
+ );
+
+ const handleRegisterAnchors = async () => {
+ if (missingAnchorBalances.length === 0) return;
+ setRegisteringAnchors(true);
+ let created = 0;
+ let failed = 0;
+ for (const balance of missingAnchorBalances) {
+ const result = await addAnchor({
+ date: balance.date,
+ balance: balance.balance,
+ source: `Extracto Volksbank (import ${balance.fileName})`,
+ });
+ if (result.success) created += 1;
+ else failed += 1;
+ }
+ setRegisteringAnchors(false);
+ if (failed === 0) {
+ showToast(`${created} ancla(s) registrada(s)`, 'success');
+ } else {
+ showToast(`${created} registrada(s), ${failed} con error`, 'error');
+ }
+ };
 
  return (
  <div className="space-y-6 pb-12">
@@ -295,6 +356,57 @@ const BankImport = ({ user }) => {
  </td>
  </tr>
  ))}
+ </tbody>
+ </table>
+ </div>
+ </Panel>
+ )}
+
+ {detectedBalances.length > 0 && (
+ <Panel
+ title="Saldos de cierre detectados"
+ meta={`${detectedBalances.length} mes(es)`}
+ padding={false}
+ actions={
+ missingAnchorBalances.length > 0 ? (
+ <Button
+ variant="secondary"
+ size="sm"
+ icon={Anchor}
+ onClick={handleRegisterAnchors}
+ loading={registeringAnchors}
+ >
+ Registrar anclas ({missingAnchorBalances.length})
+ </Button>
+ ) : null
+ }
+ >
+ <div className="overflow-x-auto">
+ <table className="nx-table w-full">
+ <thead>
+ <tr>
+ <th>Mes</th>
+ <th className="text-right">Saldo detectado</th>
+ <th className="text-center">Ancla</th>
+ </tr>
+ </thead>
+ <tbody>
+ {detectedBalances.map((b) => {
+ const hasAnchor = anchorDateSet.has(b.date);
+ return (
+ <tr key={b.date}>
+ <td className="font-medium text-[var(--color-fg-1)]">{monthLabel(b.date)}</td>
+ <td className="text-right font-mono tabular-nums">{formatCurrency(b.balance)}</td>
+ <td className="text-center">
+ {hasAnchor ? (
+ <Badge variant="ok" dot>Ya registrada</Badge>
+ ) : (
+ <Badge variant="warn" dot>Pendiente</Badge>
+ )}
+ </td>
+ </tr>
+ );
+ })}
  </tbody>
  </table>
  </div>

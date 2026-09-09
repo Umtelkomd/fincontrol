@@ -5,6 +5,7 @@ import {
   buildBankRowIdentity,
   classifyBankImportFiles,
   bankRowToMovementPayload,
+  deriveMonthEndBalances,
   diffAgainstExisting,
   isBankImport,
   normalizeBankRowAmount,
@@ -54,6 +55,19 @@ const kontobewegungenRow = ({
   '0',
   'Ja',
 ].join(';');
+
+/** Insert a balance column header/value at an arbitrary position (0-12). */
+const withBalanceColumn = (line, value, position) => {
+  const cols = line.split(';');
+  cols.splice(position, 0, value);
+  return cols.join(';');
+};
+
+const balanceHeaderAt = (position, name = 'Saldo') =>
+  withBalanceColumn(kontobewegungenHeader, name, position);
+
+const balanceRowAt = (rowLine, balance, position) =>
+  withBalanceColumn(rowLine, balance, position);
 
 describe('bank statement parser identity normalization', () => {
   it('normalizes dates, amounts, counterparties, IBAN/BIC, descriptions, and raw columns for identity', () => {
@@ -375,6 +389,127 @@ describe('bank statement import dedupe classification', () => {
       newRows: [fresh],
       duplicateRows: [hashed, legacy],
     });
+  });
+});
+
+describe('optional running-balance column', () => {
+  it('parses a balance column appended at the end, recognizing every candidate header name', () => {
+    for (const name of ['Saldo', 'saldo nach buchung', 'KONTOSTAND', 'Saldo in EUR', 'Kontostand nach Buchung']) {
+      const header = balanceHeaderAt(12, name);
+      const csv = `${header}\n${balanceRowAt(kontobewegungenRow(), '2.500,00', 12)}`;
+      const parsed = parseBankStatementCSV(csv);
+      expect(parsed.errors).toEqual([]);
+      expect(parsed.rows[0].balanceAfter).toBe(2500);
+    }
+  });
+
+  it('resolves the balance column by name when inserted in the middle of the row', () => {
+    // Insert right after "Betrag in EUR" (index 8), before "Notiz".
+    const header = balanceHeaderAt(9, 'Saldo');
+    const csv = `${header}\n${balanceRowAt(kontobewegungenRow(), '999,50', 9)}`;
+    const parsed = parseBankStatementCSV(csv);
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]).toMatchObject({
+      signedAmount: 1234.56,
+      amount: 1234.56,
+      direction: 'in',
+      counterpartyIban: 'DE89370400440532013000',
+      counterpartyBic: 'COBADEFFXXX',
+      rawDescription: 'Rechnung 4711',
+      balanceAfter: 999.5,
+    });
+  });
+
+  it('sets balanceAfter to null and balances to [] when the file has no balance column', () => {
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
+    expect(parsed.rows[0].balanceAfter).toBeNull();
+    expect(parsed.balances).toEqual([]);
+  });
+
+  it('sets balanceAfter to null for a blank balance cell', () => {
+    const header = balanceHeaderAt(12, 'Saldo');
+    const csv = `${header}\n${balanceRowAt(kontobewegungenRow(), '', 12)}`;
+    const parsed = parseBankStatementCSV(csv);
+    expect(parsed.rows[0].balanceAfter).toBeNull();
+  });
+
+  it('keeps rowHash byte-identical whether or not the file carries a balance column, at any position', () => {
+    const withoutBalance = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
+
+    const header = balanceHeaderAt(9, 'Saldo');
+    const csv = `${header}\n${balanceRowAt(kontobewegungenRow(), '999,50', 9)}`;
+    const withBalance = parseBankStatementCSV(csv).rows[0];
+
+    expect(withBalance.rowHash).toBe(withoutBalance.rowHash);
+    expect(withBalance.rowFingerprint).toBe(withoutBalance.rowFingerprint);
+    expect(withBalance.raw.columns).toEqual(withoutBalance.raw.columns);
+  });
+
+  it('includes parsed.balances = deriveMonthEndBalances(rows) in the parse result', () => {
+    const header = balanceHeaderAt(12, 'Saldo');
+    const rows = [
+      balanceRowAt(kontobewegungenRow({ postedDate: '31.05.2026', valueDate: '31.05.2026' }), '1.214,20', 12),
+      balanceRowAt(kontobewegungenRow({ postedDate: '15.05.2026', valueDate: '15.05.2026' }), '900,00', 12),
+    ].join('\n');
+    const parsed = parseBankStatementCSV(`${header}\n${rows}`);
+
+    expect(parsed.balances).toEqual(deriveMonthEndBalances(parsed.rows));
+    expect(parsed.balances).toEqual([{ date: '2026-05-31', balance: 1214.20 }]);
+  });
+});
+
+describe('deriveMonthEndBalances', () => {
+  const row = (postedDate, lineNumber, balanceAfter) => ({ postedDate, lineNumber, balanceAfter });
+
+  it('returns [] when no row has a balance', () => {
+    expect(deriveMonthEndBalances([row('2026-05-08', 2, null), row('2026-05-09', 3, null)])).toEqual([]);
+    expect(deriveMonthEndBalances([])).toEqual([]);
+  });
+
+  it('picks the latest booking per month in a descending (newest-first) file', () => {
+    const rows = [
+      row('2026-06-30', 2, 5000),
+      row('2026-06-15', 3, 4000),
+      row('2026-05-31', 4, 1214.20),
+      row('2026-05-10', 5, 900),
+    ];
+    expect(deriveMonthEndBalances(rows)).toEqual([
+      { date: '2026-05-31', balance: 1214.20 },
+      { date: '2026-06-30', balance: 5000 },
+    ]);
+  });
+
+  it('picks the latest booking per month in an ascending (oldest-first) file', () => {
+    const rows = [
+      row('2026-05-10', 2, 900),
+      row('2026-05-31', 3, 1214.20),
+      row('2026-06-15', 4, 4000),
+      row('2026-06-30', 5, 5000),
+    ];
+    expect(deriveMonthEndBalances(rows)).toEqual([
+      { date: '2026-05-31', balance: 1214.20 },
+      { date: '2026-06-30', balance: 5000 },
+    ]);
+  });
+
+  it('breaks a same-day tie by the SMALLEST lineNumber in a descending file', () => {
+    const rows = [
+      row('2026-05-31', 2, 100), // top of file = latest booking of the day
+      row('2026-05-31', 3, 50),
+      row('2026-05-01', 4, 10),
+    ];
+    expect(deriveMonthEndBalances(rows)).toEqual([{ date: '2026-05-31', balance: 100 }]);
+  });
+
+  it('breaks a same-day tie by the LARGEST lineNumber in an ascending file', () => {
+    const rows = [
+      row('2026-05-01', 2, 10),
+      row('2026-05-31', 3, 50),
+      row('2026-05-31', 4, 100), // bottom of file = latest booking of the day
+    ];
+    expect(deriveMonthEndBalances(rows)).toEqual([{ date: '2026-05-31', balance: 100 }]);
   });
 });
 
