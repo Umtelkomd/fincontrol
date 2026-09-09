@@ -239,6 +239,25 @@ describe('finance adapters bank movement mapping', () => {
     expect(withoutSepa.sepa).toBeNull();
   });
 
+  it('passes through the Umsätze-only fields (bookingText, accountIban, balanceAfter), defaulting safely when absent', () => {
+    const umsaetze = adaptBankMovementDoc({
+      id: 'umsaetze-1',
+      direction: 'out',
+      amount: 25,
+      bookingText: 'Basislastschrift',
+      accountIban: 'DE76130910540001342860',
+      balanceAfter: -28752.98,
+    });
+    expect(umsaetze).toMatchObject({
+      bookingText: 'Basislastschrift',
+      accountIban: 'DE76130910540001342860',
+      balanceAfter: -28752.98,
+    });
+
+    const legacy = adaptBankMovementDoc({ id: 'legacy-1', direction: 'out', amount: 10 });
+    expect(legacy).toMatchObject({ bookingText: '', accountIban: '', balanceAfter: null });
+  });
+
   it('normalizes partial bank movement data to safe defaults', () => {
     const movement = adaptBankMovementDoc({ id: 'bank-partial', amount: '49.995', direction: 'sideways', taxRate: 0 });
 

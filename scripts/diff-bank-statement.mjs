@@ -1,24 +1,32 @@
 #!/usr/bin/env node
 /**
- * diff-bank-statement.mjs — read-only reconciliation diff between a fresh
- * Volksbank "kontobewegungen_export" CSV and the live bankMovements ledger.
+ * diff-bank-statement.mjs — read-only reconciliation diff between one or
+ * more fresh bank statement CSVs and the live bankMovements ledger. Each
+ * file is parsed independently through `parseBankStatementCSV` (one format
+ * per file, auto-detected — kontobewegungen_export or Umsätze, no ad-hoc
+ * mapping), then combined via `mergeParsedFiles` — the same union logic
+ * `BankImport.jsx` uses — so a month a single file left partial (e.g. an
+ * Abril-Mayo export's last booking 2026-05-29) correctly closes to its
+ * calendar month-end once a later file's rows cover that month too.
  *
  * Usage:
- *   node scripts/diff-bank-statement.mjs <csv path>
+ *   node scripts/diff-bank-statement.mjs <csv path> [<csv path> ...]
  *
- * Prints, for the period the CSV covers:
+ * Prints, for the union of every file's period:
  *   - row counts per month: CSV vs ledger (non-void bankMovements)
- *   - CSV rows not found in the ledger (via classifyBankImportFiles → newRows)
- *     — date, amount, counterparty
- *   - ledger rows (within the CSV's period) not found in the CSV — matched by
- *     rowHash first, then by movementFingerprint — same fields
- *   - if the CSV carries a running-balance column: for each month-end, the
- *     bank's own balance vs the balance this app's anchors + ledger would
- *     derive for that date, and the drift between them
+ *   - CSV rows not found in the ledger — date, amount, counterparty
+ *   - ledger rows (within the combined period) not found in the CSV —
+ *     matched by rowHash first, then by movementFingerprint — same fields
+ *   - if any file carries a balance column: a per-month "bank closing |
+ *     ledger-derived | drift" table. The ledger-derived figure is computed
+ *     from a SYNTHETIC opening balance implied by the oldest parsed row
+ *     (its own balanceAfter minus its own signed amount = the balance right
+ *     before it) plus every non-void ledger movement after that date —
+ *     this is self-contained (it does not read settings/reconciliation).
  *
- * Read-only: never writes to Firestore. Always exits 0 on a normal run
- * (including "nothing to report"); exits 1 only on a hard failure (bad path,
- * Firestore auth failure, etc).
+ * Read-only: never writes to Firestore. Exits 0 on a normal run (including
+ * "nothing to report"); exits 1 only on a hard failure (bad path, Firestore
+ * auth failure, etc).
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -28,10 +36,12 @@ import { fileURLToPath } from 'node:url';
 
 import {
   classifyBankImportFiles,
+  mergeParsedFiles,
   movementFingerprint,
   parseBankStatementCSV,
 } from '../src/finance/bankStatementParser.js';
 import { deriveBalance } from '../src/lib/finance/cashPosition.js';
+import { addDays } from '../src/lib/finance/dates.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,9 +54,9 @@ const fmtEur = (n) =>
 
 const signOf = (direction) => (direction === 'out' ? '-' : '+');
 
-const csvPath = process.argv[2];
-if (!csvPath) {
-  console.error('Usage: node scripts/diff-bank-statement.mjs <csv path>');
+const csvPaths = process.argv.slice(2);
+if (csvPaths.length === 0) {
+  console.error('Usage: node scripts/diff-bank-statement.mjs <csv path> [<csv path> ...]');
   process.exit(1);
 }
 
@@ -68,43 +78,54 @@ const listRows = (rows, formatOne) => {
 };
 
 const main = async () => {
-  const text = fs.readFileSync(csvPath, 'utf8');
-  const parsed = parseBankStatementCSV(text);
+  const parsedFiles = [];
+  for (const csvPath of csvPaths) {
+    const text = fs.readFileSync(csvPath, 'utf8');
+    const parsed = parseBankStatementCSV(text);
+    const name = path.basename(csvPath);
+    console.log(`File: ${csvPath}`);
+    if (parsed.errors.some((error) => error.type === 'unsupported-format')) {
+      console.log(`  Unsupported CSV format: ${parsed.errors[0].message}`);
+      continue;
+    }
+    console.log(`  Rows parsed: ${parsed.rows.length}  |  parse errors: ${parsed.errors.length}  |  format: ${parsed.rows[0]?.sourceFormat || 'n/a'}`);
+    if (parsed.period) {
+      console.log(`  Period: ${parsed.period.minDate} → ${parsed.period.maxDate}`);
+    } else {
+      console.log('  Period: (no valid rows)');
+    }
+    parsedFiles.push({ name, rows: parsed.rows, period: parsed.period });
+  }
+  console.log('');
 
-  console.log(`File: ${csvPath}`);
-  if (parsed.errors.some((error) => error.type === 'unsupported-format')) {
-    console.log(`Unsupported CSV format: ${parsed.errors[0].message}`);
+  const merged = mergeParsedFiles(parsedFiles);
+  if (merged.rows.length === 0) {
+    console.log('No usable rows across the given file(s) — nothing to diff.');
     process.exit(0);
     return;
   }
 
-  console.log(`Rows parsed: ${parsed.rows.length}  |  parse errors: ${parsed.errors.length}`);
-  if (parsed.period) {
-    console.log(`Period: ${parsed.period.minDate} → ${parsed.period.maxDate}`);
-  } else {
-    console.log('Period: (no valid rows)');
-    process.exit(0);
-    return;
-  }
+  const minDate = merged.rows.reduce((min, row) => (row.postedDate < min ? row.postedDate : min), merged.rows[0].postedDate);
+  const maxDate = merged.rows.reduce((max, row) => (row.postedDate > max ? row.postedDate : max), merged.rows[0].postedDate);
+  console.log(`Combined period: ${minDate} → ${maxDate}  (${merged.rows.length} rows across ${parsedFiles.length} file(s))`);
   console.log('');
 
   const movementsSnap = await db.collection(`artifacts/${APP_ID}/public/data/bankMovements`).get();
   const allMovements = movementsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   const nonVoidMovements = allMovements.filter((m) => m.status !== 'void');
 
-  const { minDate, maxDate } = parsed.period;
   const inPeriod = (date) => typeof date === 'string' && date >= minDate && date <= maxDate;
   const ledgerInPeriod = nonVoidMovements.filter((m) => inPeriod(String(m.postedDate || '')));
 
   // ── Per-month row counts: CSV vs ledger (non-void) ──────────────────────────
   const months = [...new Set([
-    ...parsed.rows.map((row) => row.postedDate.slice(0, 7)),
+    ...merged.rows.map((row) => row.postedDate.slice(0, 7)),
     ...ledgerInPeriod.map((m) => String(m.postedDate || '').slice(0, 7)),
   ])].sort();
 
   console.log('Rows per month — CSV vs ledger (non-void bankMovements):');
   for (const month of months) {
-    const csvCount = parsed.rows.filter((row) => row.postedDate.startsWith(month)).length;
+    const csvCount = merged.rows.filter((row) => row.postedDate.startsWith(month)).length;
     const ledgerCount = ledgerInPeriod.filter((m) => String(m.postedDate || '').startsWith(month)).length;
     const flag = csvCount !== ledgerCount ? '  <-- mismatch' : '';
     console.log(`  ${month}: csv=${csvCount} ledger=${ledgerCount}${flag}`);
@@ -112,8 +133,18 @@ const main = async () => {
   console.log('');
 
   // ── CSV rows not present in the ledger ───────────────────────────────────────
+  // Uses the SAME classifyBankImportFiles the real BankImport UI uses — one
+  // "existing" check for both, so this report and a real import agree. Two
+  // formats never share a rowHash by design (sourceFormat is part of the
+  // identity), so historical rows imported under the OLD kontobewegungen
+  // format only ever match a fresh Umsätze row through movementFingerprint,
+  // which itself tolerates real production quirks beyond plain "&"/"+"
+  // spelling: a blank old-format counterparty on fee/closing rows (this
+  // parser fills those with the account's bank name) and the old export's
+  // mid-word truncation of long counterparty names — see
+  // counterpartiesMatchForDedup in bankStatementParser.js.
   const classified = classifyBankImportFiles(
-    [{ file: { name: path.basename(csvPath) }, parsed: { rows: parsed.rows, errors: parsed.errors } }],
+    [{ file: { name: 'merged' }, parsed: { rows: merged.rows, errors: [] } }],
     nonVoidMovements,
   );
   const newRows = classified.files[0].diff.newRows;
@@ -121,12 +152,41 @@ const main = async () => {
   listRows(newRows, (row) => `${row.postedDate}  ${signOf(row.direction)}${fmtEur(row.amount)}  ${row.counterpartyName}`);
   console.log('');
 
-  // ── Ledger rows (within the CSV's period) not present in the CSV ────────────
-  const csvHashes = new Set(parsed.rows.map((row) => row.rowHash).filter(Boolean));
-  const csvFingerprints = new Set(parsed.rows.map(movementFingerprint));
+  // ── Ledger rows (within the combined period) not present in the CSV ─────────
+  // The reverse direction has no shared helper (classifyBankImportFiles only
+  // checks CSV → ledger), so this mirrors its same three-step rule — rowHash,
+  // then movementFingerprint, then a date+amount+direction match tolerating a
+  // blank-or-truncated counterparty — consuming each CSV row at most once so
+  // a single row can't silently "explain away" two different ledger entries.
+  const normalizeLoose = (value) =>
+    String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const counterpartiesLooselyMatch = (a, b) => {
+    const na = normalizeLoose(a);
+    const nb = normalizeLoose(b);
+    if (na === nb) return true;
+    if (!na || !nb) return true; // fee/closing row on one side
+    const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
+    return shorter.length >= 15 && longer.startsWith(shorter); // truncated export
+  };
+  const tripleKey = (date, amount, direction) =>
+    `${date}|${Math.abs(Number(amount) || 0).toFixed(2)}|${direction}`;
+
+  const csvHashes = new Set(merged.rows.map((row) => row.rowHash).filter(Boolean));
+  const csvFingerprints = new Set(merged.rows.map(movementFingerprint));
+  const csvByTriple = new Map();
+  for (const row of merged.rows) {
+    const key = tripleKey(row.postedDate, row.amount, row.direction);
+    if (!csvByTriple.has(key)) csvByTriple.set(key, []);
+    csvByTriple.get(key).push({ row, consumed: false });
+  }
+
   const orphanLedgerRows = ledgerInPeriod.filter((m) => {
     if (m.rowHash && csvHashes.has(m.rowHash)) return false;
-    return !csvFingerprints.has(movementFingerprint(m));
+    if (csvFingerprints.has(movementFingerprint(m))) return false;
+    const candidates = csvByTriple.get(tripleKey(m.postedDate, m.amount, m.direction)) || [];
+    const hit = candidates.find((c) => !c.consumed && counterpartiesLooselyMatch(m.counterpartyName, c.row.counterpartyName));
+    if (hit) { hit.consumed = true; return false; }
+    return true;
   });
   console.log(`Ledger rows in the CSV period not found in the CSV (${orphanLedgerRows.length}):`);
   listRows(
@@ -135,23 +195,45 @@ const main = async () => {
   );
   console.log('');
 
-  // ── Balance drift, only when the CSV carries a running-balance column ───────
-  if (parsed.balances.length > 0) {
-    const reconciliationSnap = await db
-      .doc(`artifacts/${APP_ID}/public/data/settings/reconciliation`)
-      .get();
-    const anchors = reconciliationSnap.exists ? (reconciliationSnap.data()?.anchors || []) : [];
-    console.log(`Month-end balances — CSV vs derived from ${anchors.length} anchor(s) + ledger:`);
-    for (const entry of parsed.balances) {
-      const derivedPosition = deriveBalance({ anchors, movements: nonVoidMovements, today: entry.date });
-      const derived = derivedPosition.balance;
-      const driftText = derived == null
-        ? 'n/a (no anchor covers this date)'
-        : `derived=${fmtEur(derived)}  drift=${fmtEur(derived - entry.balance)}`;
-      console.log(`  ${entry.date}: bank=${fmtEur(entry.balance)}  ${driftText}`);
+  // ── Balance drift, only when at least one file carries a balance column ─────
+  if (merged.balances.length > 0) {
+    // Self-contained: derive a synthetic opening anchor from the OLDEST
+    // parsed row's own balanceAfter, rather than reading settings/reconciliation.
+    // mergeParsedFiles orders rows newest-first across the union (files by
+    // recency, each file's own newest-first order preserved), so the last
+    // row is the globally oldest.
+    const oldestRow = merged.rows[merged.rows.length - 1];
+    if (typeof oldestRow.balanceAfter !== 'number') {
+      console.log('Oldest row has no balanceAfter — cannot derive an opening balance for the drift table.');
+    } else {
+      const openingBalance = oldestRow.balanceAfter - oldestRow.signedAmount;
+      // The anchor date is the day BEFORE the oldest row's own posted date —
+      // never the same date — because deriveBalance treats movements dated
+      // exactly on the anchor date as already inside its balance. Since
+      // openingBalance backs out only the OLDEST row's own effect (there can
+      // be same-day siblings, e.g. two 2026-01-02 rows), the anchor must sit
+      // one day earlier so every movement dated oldestRow.postedDate —
+      // oldestRow included — is counted going forward.
+      const syntheticAnchor = { date: addDays(oldestRow.postedDate, -1), balance: openingBalance };
+      console.log(`Month-end balances — bank closing | ledger-derived | drift (opening ${fmtEur(openingBalance)} on ${syntheticAnchor.date}, implied by the oldest row):`);
+      console.log('  date        bank closing      ledger-derived    drift');
+      for (const entry of merged.balances) {
+        const derived = deriveBalance({
+          anchors: [syntheticAnchor],
+          movements: nonVoidMovements,
+          today: entry.date,
+        }).balance;
+        const rawDrift = derived == null ? null : derived - entry.balance;
+        // Avoid a cosmetic "-0,00" from float rounding when the true drift is zero.
+        const drift = rawDrift == null ? null : (Math.abs(rawDrift) < 0.005 ? 0 : rawDrift);
+        const driftText = drift == null ? 'n/a' : fmtEur(drift);
+        console.log(
+          `  ${entry.date}  ${fmtEur(entry.balance).padStart(14)}  ${(derived == null ? 'n/a' : fmtEur(derived)).padStart(16)}  ${driftText.padStart(10)}`,
+        );
+      }
     }
   } else {
-    console.log('CSV carries no running-balance column — skipping balance drift check.');
+    console.log('No file carries a running-balance column — skipping the balance drift table.');
   }
 
   process.exit(0);

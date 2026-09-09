@@ -44,6 +44,13 @@ const buildImportMetadata = (row, base, fileName) => {
  rowFingerprint: row.rowFingerprint || base.rowFingerprint || '',
  counterpartyIban: row.counterpartyIban || base.counterpartyIban || '',
  counterpartyBic: row.counterpartyBic || base.counterpartyBic || '',
+ sepa: row.sepa || base.sepa || null,
+ // Umsätze-only fields — '' / null for kontobewegungen rows.
+ bookingText: row.bookingText || base.bookingText || '',
+ accountIban: row.accountIban || base.accountIban || '',
+ balanceAfter: typeof row.balanceAfter === 'number'
+ ? row.balanceAfter
+ : (typeof base.balanceAfter === 'number' ? base.balanceAfter : null),
  rawDatev: row.rawDatev || row.raw || base.rawDatev || null,
  };
 };
@@ -126,6 +133,10 @@ export const useBankImport = (user) => {
  signedAmount: importMetadata.signedAmount,
  counterpartyIban: importMetadata.counterpartyIban,
  counterpartyBic: importMetadata.counterpartyBic,
+ sepa: importMetadata.sepa,
+ bookingText: importMetadata.bookingText,
+ accountIban: importMetadata.accountIban,
+ balanceAfter: importMetadata.balanceAfter,
  rawDatev: importMetadata.rawDatev,
  // Auto-classification (overrides empty defaults above)
  ...ruleClassification,

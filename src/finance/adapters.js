@@ -188,6 +188,10 @@ export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
     counterpartyIban: raw.counterpartyIban || '',
     counterpartyBic: raw.counterpartyBic || '',
     sepa: raw.sepa || null,
+    // Umsätze-only fields — '' / null for kontobewegungen-imported movements.
+    bookingText: raw.bookingText || '',
+    accountIban: raw.accountIban || '',
+    balanceAfter: typeof raw.balanceAfter === 'number' ? raw.balanceAfter : null,
     rawDatev: raw.rawDatev || null,
     createdBy: raw.createdBy || '',
     createdAt: raw.createdAt || null,

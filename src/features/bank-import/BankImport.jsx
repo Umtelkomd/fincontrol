@@ -5,7 +5,11 @@ import { useBankImport } from '../../hooks/useBankImport';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useReconciliation } from '../../hooks/useReconciliation';
 import { useToast } from '../../contexts/ToastContext';
-import { classifyBankImportFiles, parseBankStatementCSV } from '../../finance/bankStatementParser';
+import {
+ classifyBankImportFiles,
+ mergeParsedFiles,
+ parseBankStatementCSV,
+} from '../../finance/bankStatementParser';
 import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
 import PageHeader from '../../components/layout/PageHeader';
@@ -21,21 +25,31 @@ const monthLabel = (isoDate) => {
 };
 
 /**
- * Merge parsed.balances from every loaded file into one entry per month.
- * When two loaded files cover the same month, the file with the most recent
- * `lastModified` wins — a fresher export supersedes an older one.
+ * Detected month-end balances across every loaded file, via the shared
+ * `mergeParsedFiles` (see its doc comment for why a union — not each file's
+ * own `.balances` — is what correctly closes a month a single file left
+ * partial, e.g. Abril-Mayo's 2026-05-29 → 2026-05-31 once June is loaded).
+ * Each balance is tagged with the `fileName` of the row that won it, for
+ * the "Registrar anclas" source string.
  */
-const mergeMonthEndBalances = (files) => {
- const byMonth = new Map();
- const byRecency = [...(files || [])].sort(
- (a, b) => (a.file?.lastModified || 0) - (b.file?.lastModified || 0),
+const mergeDetectedBalances = (files) => {
+ const parsedFiles = (files || []).map((entry) => ({
+ name: entry.name,
+ rows: entry.parsed?.rows || [],
+ period: entry.parsed?.period || null,
+ }));
+ const { rows, balances } = mergeParsedFiles(parsedFiles);
+
+ return balances.map((balance) => {
+ const monthKey = balance.date.slice(0, 7);
+ // Best-effort provenance: the row mergeParsedFiles/deriveMonthEndBalances
+ // actually picked for this month is the one whose month + balance match
+ // (both are already uniquely selected upstream).
+ const sourceRow = rows.find(
+ (row) => row.postedDate.slice(0, 7) === monthKey && row.balanceAfter === balance.balance,
  );
- for (const entry of byRecency) {
- for (const balance of entry.parsed?.balances || []) {
- byMonth.set(balance.date.slice(0, 7), { ...balance, fileName: entry.name });
- }
- }
- return Array.from(byMonth.values()).sort((a, b) => a.date.localeCompare(b.date));
+ return { ...balance, fileName: sourceRow?.sourceFileName || '' };
+ });
 };
 
 
@@ -169,33 +183,57 @@ const BankImport = ({ user }) => {
 
  const filesPending = files.some((f) => f.status === 'ready' && f.diff.newRows.length > 0);
 
- const detectedBalances = useMemo(() => mergeMonthEndBalances(files), [files]);
- const anchorDateSet = useMemo(() => new Set((anchors || []).map((a) => a.date)), [anchors]);
- const missingAnchorBalances = useMemo(
- () => detectedBalances.filter((b) => !anchorDateSet.has(b.date)),
- [detectedBalances, anchorDateSet],
+ const detectedBalances = useMemo(() => mergeDetectedBalances(files), [files]);
+ const anchorByDate = useMemo(() => {
+ const map = new Map();
+ for (const anchor of anchors || []) map.set(anchor.date, anchor);
+ return map;
+ }, [anchors]);
+
+ // 'ok' | 'missing' | 'discrepant' — an anchor on a date that isn't one of
+ // OUR detected month-end dates (e.g. 2026-07-27) never appears here at
+ // all, since we only ever look anchors up by a detected balance's own date.
+ const balanceStatus = (entry) => {
+ const anchor = anchorByDate.get(entry.date);
+ if (!anchor) return 'missing';
+ return Math.abs(Number(anchor.balance) - entry.balance) > 0.01 ? 'discrepant' : 'ok';
+ };
+
+ const pendingBalances = useMemo(
+ () => detectedBalances.filter((b) => balanceStatus(b) !== 'ok'),
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ [detectedBalances, anchorByDate],
  );
 
  const handleRegisterAnchors = async () => {
- if (missingAnchorBalances.length === 0) return;
+ if (pendingBalances.length === 0) return;
  setRegisteringAnchors(true);
  let created = 0;
+ let corrected = 0;
  let failed = 0;
- for (const balance of missingAnchorBalances) {
+ for (const balance of pendingBalances) {
+ const existing = anchorByDate.get(balance.date);
  const result = await addAnchor({
  date: balance.date,
  balance: balance.balance,
  source: `Extracto Volksbank (import ${balance.fileName})`,
+ note: existing
+ ? `Corrige ${formatCurrency(balance.balance)} € (antes ${formatCurrency(existing.balance)} €)`
+ : '',
  });
- if (result.success) created += 1;
- else failed += 1;
+ if (result.success) {
+ if (existing) corrected += 1;
+ else created += 1;
+ } else {
+ failed += 1;
+ }
  }
  setRegisteringAnchors(false);
- if (failed === 0) {
- showToast(`${created} ancla(s) registrada(s)`, 'success');
- } else {
- showToast(`${created} registrada(s), ${failed} con error`, 'error');
- }
+ const parts = [];
+ if (created > 0) parts.push(`${created} registrada(s)`);
+ if (corrected > 0) parts.push(`${corrected} corregida(s)`);
+ if (failed > 0) parts.push(`${failed} con error`);
+ showToast(parts.join(', ') || 'Sin cambios', failed === 0 ? 'success' : 'error');
  };
 
  return (
@@ -271,7 +309,7 @@ const BankImport = ({ user }) => {
  </label>
  </p>
  <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
- Export "Kontobewegungen" de la banca online · UTF-8 · separador ;
+ Export "Umsätze" o "Kontobewegungen" de la banca online · UTF-8 · separador ;
  </p>
  </div>
 
@@ -368,7 +406,7 @@ const BankImport = ({ user }) => {
  meta={`${detectedBalances.length} mes(es)`}
  padding={false}
  actions={
- missingAnchorBalances.length > 0 ? (
+ pendingBalances.length > 0 ? (
  <Button
  variant="secondary"
  size="sm"
@@ -376,7 +414,7 @@ const BankImport = ({ user }) => {
  onClick={handleRegisterAnchors}
  loading={registeringAnchors}
  >
- Registrar anclas ({missingAnchorBalances.length})
+ Registrar / corregir anclas ({pendingBalances.length})
  </Button>
  ) : null
  }
@@ -392,16 +430,22 @@ const BankImport = ({ user }) => {
  </thead>
  <tbody>
  {detectedBalances.map((b) => {
- const hasAnchor = anchorDateSet.has(b.date);
+ const status = balanceStatus(b);
+ const existing = anchorByDate.get(b.date);
  return (
  <tr key={b.date}>
  <td className="font-medium text-[var(--color-fg-1)]">{monthLabel(b.date)}</td>
  <td className="text-right font-mono tabular-nums">{formatCurrency(b.balance)}</td>
  <td className="text-center">
- {hasAnchor ? (
- <Badge variant="ok" dot>Ya registrada</Badge>
- ) : (
- <Badge variant="warn" dot>Pendiente</Badge>
+ {status === 'ok' && <Badge variant="ok" dot>Ya registrada</Badge>}
+ {status === 'missing' && <Badge variant="warn" dot>Pendiente</Badge>}
+ {status === 'discrepant' && (
+ <div className="flex flex-col items-center gap-0.5">
+ <Badge variant="err" dot>Discrepante</Badge>
+ <span className="font-mono text-[10px] text-[var(--color-fg-4)]">
+ {formatCurrency(existing?.balance)} → {formatCurrency(b.balance)}
+ </span>
+ </div>
  )}
  </td>
  </tr>

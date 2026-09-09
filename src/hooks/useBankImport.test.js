@@ -108,4 +108,58 @@ describe('useBankImport metadata persistence', () => {
       importLineNumber: 4,
     });
   });
+
+  it('persists sepa, bookingText, accountIban, and balanceAfter for an Umsätze-format row', async () => {
+    const { importRows } = useBankImport({ email: 'jarl@example.com' });
+    const sepa = {
+      endToEndRef: '', customerRef: '', mandateRef: 'T0010001B000006115585469',
+      creditorId: 'DE9700000000142462', debtorId: '', purposeCode: '',
+      purpose: 'Kd-Nr.: 6115585469', alternativeCounterparty: '', tan: '', iban: '', bic: '',
+    };
+    const row = {
+      direction: 'out',
+      amount: 25,
+      signedAmount: -25,
+      postedDate: '2026-09-07',
+      valueDate: '2026-09-07',
+      description: sepa.purpose,
+      counterpartyName: 'Telefonica Germany GmbH + Co. OHG',
+      sepa,
+      bookingText: 'Basislastschrift',
+      accountIban: 'DE76130910540001342860',
+      balanceAfter: -28752.98,
+      lineNumber: 5,
+    };
+
+    await importRows([row], 'umsaetze.csv');
+
+    expect(firestoreMocks.addDoc.mock.calls[0][1]).toMatchObject({
+      sepa,
+      bookingText: 'Basislastschrift',
+      accountIban: 'DE76130910540001342860',
+      balanceAfter: -28752.98,
+    });
+  });
+
+  it('defaults sepa to null, bookingText/accountIban to empty, and balanceAfter to null for a kontobewegungen row without those fields', async () => {
+    const { importRows } = useBankImport({ email: 'jarl@example.com' });
+
+    await importRows([
+      {
+        direction: 'in',
+        amount: 19.99,
+        postedDate: '2026-05-08',
+        description: 'Refund',
+        counterpartyName: 'Customer',
+        lineNumber: 4,
+      },
+    ], 'legacy.csv');
+
+    expect(firestoreMocks.addDoc.mock.calls[0][1]).toMatchObject({
+      sepa: null,
+      bookingText: '',
+      accountIban: '',
+      balanceAfter: null,
+    });
+  });
 });

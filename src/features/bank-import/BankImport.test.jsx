@@ -7,7 +7,7 @@
  * let an admin register the missing ones with one click — without ever
  * writing anything before that click.
  */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { installFirebaseMocks } from '@/test/firebaseMock';
 import { reconciliationDoc } from '@/test/fixtures';
@@ -25,7 +25,7 @@ const CSV_TEXT = [
   csvRow('30.06.2026', '500,00', '5.000,00'),
 ].join('\n');
 
-installFirebaseMocks({
+const store = installFirebaseMocks({
   documents: {
     reconciliation: reconciliationDoc([
       { date: '2026-05-31', balance: 1214.2, source: 'DATEV SuSa 1200' },
@@ -36,6 +36,10 @@ installFirebaseMocks({
 const firestore = await import('firebase/firestore');
 const { renderScreen } = await import('@/test/renderScreen.jsx');
 const { default: BankImport } = await import('./BankImport.jsx');
+
+beforeEach(() => {
+  firestore.setDoc.mockClear();
+});
 
 const uploadCsv = async (name = 'kontobewegungen_export.csv') => {
   const file = new File([CSV_TEXT], name, { type: 'text/csv' });
@@ -65,7 +69,7 @@ describe('BankImport — detected month-end balances', () => {
     renderScreen(<BankImport user={{ uid: 'u1', email: 'jromero@umtelkomd.com' }} />);
     await uploadCsv();
 
-    const button = screen.getByRole('button', { name: /Registrar anclas \(1\)/i });
+    const button = screen.getByRole('button', { name: /Registrar \/ corregir anclas \(1\)/i });
     expect(firestore.setDoc).not.toHaveBeenCalled();
 
     fireEvent.click(button);
@@ -83,6 +87,75 @@ describe('BankImport — detected month-end balances', () => {
       ]),
     );
     expect(payload.anchors).toHaveLength(2);
+  });
+});
+
+describe('BankImport — discrepant anchors', () => {
+  it('flags an existing anchor whose balance disagrees with the detected one, and the button corrects it', async () => {
+    // Seed a WRONG June anchor (real production shape: an anchor exists on
+    // the exact closing date but with a stale/incorrect balance).
+    store.documents.reconciliation = reconciliationDoc([
+      { date: '2026-05-31', balance: 1214.2, source: 'DATEV SuSa 1200' },
+      { date: '2026-06-30', balance: 4000, source: 'manual (wrong)' },
+    ]);
+
+    renderScreen(<BankImport user={{ uid: 'u1', email: 'jromero@umtelkomd.com' }} />);
+    await uploadCsv();
+
+    const rows = screen.getAllByRole('row');
+    const juneRow = rows.find((r) => /junio/i.test(r.textContent));
+    expect(juneRow.textContent).toMatch(/Discrepante/);
+    expect(juneRow.textContent).toContain('4.000,00');
+    expect(juneRow.textContent).toContain('5.000,00');
+
+    const button = screen.getByRole('button', { name: /Registrar \/ corregir anclas \(1\)/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(firestore.setDoc).toHaveBeenCalledTimes(1));
+    const [, payload] = firestore.setDoc.mock.calls[0];
+    expect(payload.anchors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ date: '2026-05-31', balance: 1214.2 }),
+        expect.objectContaining({
+          date: '2026-06-30',
+          balance: 5000,
+          source: 'Extracto Volksbank (import kontobewegungen_export.csv)',
+          note: 'Corrige 5.000,00 € (antes 4.000,00 €)',
+        }),
+      ]),
+    );
+    expect(payload.anchors).toHaveLength(2);
+
+    // Reset for any later test in this file.
+    store.documents.reconciliation = reconciliationDoc([
+      { date: '2026-05-31', balance: 1214.2, source: 'DATEV SuSa 1200' },
+    ]);
+  });
+
+  it('never touches an anchor on a non-month-end date (e.g. 2026-07-27)', async () => {
+    store.documents.reconciliation = reconciliationDoc([
+      { date: '2026-05-31', balance: 1214.2, source: 'DATEV SuSa 1200' },
+      { date: '2026-07-27', balance: -16395.13, source: 'bank statement' },
+    ]);
+
+    renderScreen(<BankImport user={{ uid: 'u1', email: 'jromero@umtelkomd.com' }} />);
+    await uploadCsv();
+
+    // Only May and June are detected month-end dates; 07-27 never appears.
+    expect(screen.queryByText(/27\.07/)).not.toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /Registrar \/ corregir anclas \(1\)/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(firestore.setDoc).toHaveBeenCalledTimes(1));
+    const [, payload] = firestore.setDoc.mock.calls[0];
+    // The 07-27 anchor survives untouched.
+    expect(payload.anchors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ date: '2026-07-27', balance: -16395.13 })]),
+    );
+
+    store.documents.reconciliation = reconciliationDoc([
+      { date: '2026-05-31', balance: 1214.2, source: 'DATEV SuSa 1200' },
+    ]);
   });
 });
 
