@@ -13,7 +13,7 @@
  * stays byte-identical in useFinanceLedger).
  */
 
-import { deriveBalance, detectImportGap, roundEur } from "../lib/finance";
+import { deriveBalance, detectAnchorDrift, detectImportGap, roundEur } from "../lib/finance";
 
 /**
  * @param {{
@@ -33,6 +33,7 @@ import { deriveBalance, detectImportGap, roundEur } from "../lib/finance";
  *     lastMovementDate: string|null,
  *     staleDays: number|null,
  *     importGap: { hasGap: boolean, lastMovementDate: string|null, quietBusinessDays: number|null },
+ *     anchorDrift: Array<{ fromDate: string, toDate: string, expected: number, derived: number, drift: number }>,
  *   },
  * }}
  */
@@ -45,6 +46,10 @@ export const resolveCashSource = ({
 	reconciliationError = null,
 }) => {
 	const importGap = detectImportGap({ movements: movements || [], today });
+	// Anchor drift only needs the anchors + movements themselves — it does not
+	// depend on `today` or on whether an anchor covers today, so it's computed
+	// unconditionally, the same way importGap is.
+	const anchorDrift = detectAnchorDrift({ anchors: anchors || [], movements: movements || [] });
 	// A failed/pending read is not evidence of an absent anchor. Retained anchors
 	// may aid diagnosis, but never supply an authoritative balance during retry.
 	if (reconciliationLoading || reconciliationError) {
@@ -57,6 +62,7 @@ export const resolveCashSource = ({
 				lastMovementDate: importGap.lastMovementDate,
 				staleDays: null,
 				importGap,
+				anchorDrift,
 			},
 		};
 	}
@@ -78,6 +84,7 @@ export const resolveCashSource = ({
 			lastMovementDate: position.lastMovementDate,
 			staleDays: position.staleDays,
 			importGap,
+			anchorDrift,
 		},
 	};
 };

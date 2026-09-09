@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyBalanceSeries, deriveBalance, detectImportGap } from '../cashPosition.js';
+import { dailyBalanceSeries, deriveBalance, detectAnchorDrift, detectImportGap } from '../cashPosition.js';
 
 const anchor = (date, balance, extra = {}) => ({ date, balance, source: 'datev', ...extra });
 
@@ -240,6 +240,90 @@ describe('detectImportGap', () => {
     });
     // Future-dated movements cannot prove imports are current either.
     expect(detectImportGap({ movements: [mv('2026-08-01', 'in', 1)], today: '2026-07-09' }).hasGap).toBe(true);
+  });
+});
+
+// ─── detectAnchorDrift — do consecutive anchors agree with the movements ──────
+
+describe('detectAnchorDrift', () => {
+  it('returns [] with fewer than two usable anchors', () => {
+    expect(detectAnchorDrift({ anchors: [], movements: [] })).toEqual([]);
+    expect(detectAnchorDrift({ anchors: [anchor('2026-05-31', 1214.2)], movements: [] })).toEqual([]);
+  });
+
+  it('returns [] when the anchors agree within tolerance', () => {
+    const result = detectAnchorDrift({
+      anchors: [anchor('2026-05-31', 1000), anchor('2026-06-30', 1500)],
+      movements: [mv('2026-06-15', 'in', 500)],
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('flags the real production contradiction between the 05-31 and 07-27 anchors', () => {
+    // Verified facts: anchor 2026-05-31 = +1,214.20; anchor 2026-07-27 = -16,395.13;
+    // movements between them (exclusive/inclusive) net +21,130.12. Derived balance
+    // at 07-27 is 1,214.20 + 21,130.12 = 22,344.32, ~38,739.45 away from the anchor.
+    const result = detectAnchorDrift({
+      anchors: [anchor('2026-05-31', 1214.20), anchor('2026-07-27', -16395.13)],
+      movements: [mv('2026-06-15', 'in', 21130.12)],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].fromDate).toBe('2026-05-31');
+    expect(result[0].toDate).toBe('2026-07-27');
+    expect(result[0].expected).toBeCloseTo(-16395.13, 2);
+    expect(result[0].derived).toBeCloseTo(22344.32, 2);
+    expect(result[0].drift).toBeCloseTo(38739.45, 2);
+  });
+
+  it('only flags the pairs whose drift exceeds tolerance, among three consecutive anchors', () => {
+    const result = detectAnchorDrift({
+      anchors: [
+        anchor('2026-01-31', 100),
+        anchor('2026-02-28', 100), // agrees: no movements, no drift
+        anchor('2026-03-31', 99999), // wildly disagrees
+      ],
+      movements: [],
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ fromDate: '2026-02-28', toDate: '2026-03-31' });
+  });
+
+  it('excludes movements on or before the earlier anchor and after the later anchor', () => {
+    const result = detectAnchorDrift({
+      anchors: [anchor('2026-05-31', 1000), anchor('2026-06-30', 1000)],
+      movements: [
+        mv('2026-05-31', 'in', 99999), // on the earlier anchor date → excluded
+        mv('2026-07-01', 'in', 99999), // after the later anchor date → excluded
+      ],
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('includes a movement exactly on the later anchor date', () => {
+    const result = detectAnchorDrift({
+      anchors: [anchor('2026-05-31', 1000), anchor('2026-06-30', 1050)],
+      movements: [mv('2026-06-30', 'in', 50)],
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('honors a custom tolerance', () => {
+    const anchors = [anchor('2026-05-31', 1000), anchor('2026-06-30', 1005)];
+    expect(detectAnchorDrift({ anchors, movements: [], tolerance: 10 })).toEqual([]);
+    expect(detectAnchorDrift({ anchors, movements: [], tolerance: 1 })).toHaveLength(1);
+  });
+
+  it('lets the later of two same-date anchors win, same rule as deriveBalance', () => {
+    const result = detectAnchorDrift({
+      anchors: [
+        anchor('2026-05-31', 1000),
+        anchor('2026-05-31', 2000), // later entry for the same date wins
+        anchor('2026-06-30', 2000),
+      ],
+      movements: [],
+    });
+    expect(result).toEqual([]);
   });
 });
 

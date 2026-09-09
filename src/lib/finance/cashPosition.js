@@ -123,6 +123,53 @@ export const dailyBalanceSeries = ({ anchors, movements, from, to }) => {
 };
 
 /**
+ * A pair of consecutive reconciliation anchors is trustworthy only when the
+ * bank movements between them explain the balance change. `detectAnchorDrift`
+ * checks every consecutive pair (sorted by date; same-date duplicates dedupe
+ * the same way `latestAnchorOnOrBefore` does — the later array entry wins):
+ * derive the later anchor's balance from the earlier anchor plus signed
+ * movements strictly after the earlier date up to and including the later
+ * date (the same window `deriveBalance` uses), and flag the pair when the
+ * derived balance disagrees with the anchor's own stated balance by more
+ * than `tolerance`. `deriveBalance`/`dailyBalanceSeries` never do this check
+ * themselves — they always jump straight to the newest anchor — so a
+ * contradiction between anchors is otherwise silent.
+ *
+ * @param {{ anchors: ReconciliationAnchor[], movements: import('./movementAmount.js').BankMovement[], tolerance?: number }} params
+ * @returns {Array<{ fromDate: string, toDate: string, expected: number, derived: number, drift: number }>}
+ */
+export const detectAnchorDrift = ({ anchors, movements, tolerance = 1 }) => {
+  const byDate = new Map();
+  for (const anchor of anchors || []) {
+    if (isUsableAnchor(anchor)) byDate.set(anchor.date, anchor);
+  }
+  const sorted = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return [];
+
+  const results = [];
+  for (let i = 0; i + 1 < sorted.length; i++) {
+    const earlier = sorted[i];
+    const later = sorted[i + 1];
+
+    let net = 0;
+    for (const movement of movements || []) {
+      const date = movement?.postedDate;
+      if (!isIsoDate(date)) continue;
+      if (date > earlier.date && date <= later.date) {
+        net += signedAmountOf(movement);
+      }
+    }
+
+    const derived = earlier.balance + net;
+    const drift = derived - later.balance;
+    if (Math.abs(drift) > tolerance) {
+      results.push({ fromDate: earlier.date, toDate: later.date, expected: later.balance, derived, drift });
+    }
+  }
+  return results;
+};
+
+/**
  * Detect a bank-import gap: how many bank business days have passed with no
  * imported movement. `today` itself counts as quiet when nothing is posted on
  * it, so with the default tolerance of 5 the alert fires on the 6th quiet

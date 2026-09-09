@@ -118,6 +118,45 @@ describe('buildResumenAlerts — localized engine alerts', () => {
   });
 });
 
+describe('buildResumenAlerts — anchor drift', () => {
+  it('raises a critical alert with the real production contradiction, routed to /configuracion', () => {
+    const alerts = buildResumenAlerts({
+      ...healthyBase,
+      anchorDrift: [{ fromDate: '2026-05-31', toDate: '2026-07-27', expected: -16395.13, derived: 22344.32, drift: 38739.45 }],
+    });
+    const alert = alerts.find((a) => a.id === 'anchor-drift:2026-07-27');
+    expect(alert.severity).toBe('critical');
+    expect(alert.title).toBe('Desfase entre anclas de conciliación');
+    expect(alert.detail).toBe(
+      'El ledger llega a 22.344,32 € el 27.07 pero el ancla dice -16.395,13 € (diferencia 38.739,45 €).',
+    );
+    expect(alert.href).toBe('/configuracion');
+  });
+
+  it('emits one alert per drifting pair, and none when the array is empty or absent', () => {
+    expect(buildResumenAlerts({ ...healthyBase, anchorDrift: [] })).toEqual([]);
+    expect(buildResumenAlerts(healthyBase)).toEqual([]);
+
+    const alerts = buildResumenAlerts({
+      ...healthyBase,
+      anchorDrift: [
+        { fromDate: '2026-01-31', toDate: '2026-02-28', expected: 100, derived: 5000, drift: 4900 },
+        { fromDate: '2026-02-28', toDate: '2026-03-31', expected: 200, derived: 9999, drift: 9799 },
+      ],
+    });
+    expect(alerts.filter((a) => a.id.startsWith('anchor-drift:'))).toHaveLength(2);
+  });
+
+  it('sorts a critical anchor-drift alert ahead of warning-level alerts', () => {
+    const alerts = buildResumenAlerts({
+      ...healthyBase,
+      importGap: { hasGap: true, lastMovementDate: '2026-06-20', quietBusinessDays: 14 },
+      anchorDrift: [{ fromDate: '2026-05-31', toDate: '2026-07-27', expected: -16395.13, derived: 22344.32, drift: 38739.45 }],
+    });
+    expect(alerts[0].id).toBe('anchor-drift:2026-07-27');
+  });
+});
+
 describe('buildResumenAlerts — missing payroll months', () => {
   it('adds one warning per missing month pointing at /nominas', () => {
     const alerts = buildResumenAlerts({ ...healthyBase, missingMonths: ['2026-06'] });
