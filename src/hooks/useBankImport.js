@@ -11,7 +11,7 @@ import {
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 import { logError } from '../utils/logger';
-import { datevRowToBankMovementPayload } from '../finance/datevParser';
+import { bankRowToMovementPayload } from '../finance/bankStatementParser';
 import { findBestRule, buildClassificationPayload } from '../finance/ruleEngine';
 
 const normalizeImportFile = (rowImportFile, fallbackName = '') => {
@@ -30,7 +30,7 @@ const normalizeImportFile = (rowImportFile, fallbackName = '') => {
  };
 };
 
-const buildDatevMetadata = (row, base, fileName) => {
+const buildImportMetadata = (row, base, fileName) => {
  const signedAmount = Number.isFinite(Number(row.signedAmount))
  ? Number(row.signedAmount)
  : (base.direction === 'out' ? -Math.abs(base.amount) : Math.abs(base.amount));
@@ -49,12 +49,12 @@ const buildDatevMetadata = (row, base, fileName) => {
 };
 
 /**
- * useDatevImport — bulk-create bank movements from parsed DATEV rows.
+ * useBankImport — bulk-create bank movements from parsed bank statement rows.
  *
  * Stateless hook: caller is responsible for parsing CSV and computing
  * the diff vs. existing movements. This hook just writes new rows.
  */
-export const useDatevImport = (user) => {
+export const useBankImport = (user) => {
  const movementsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bankMovements');
 
  /**
@@ -78,8 +78,8 @@ export const useDatevImport = (user) => {
  for (let i = 0; i < rows.length; i++) {
  const row = rows[i];
  try {
- const base = datevRowToBankMovementPayload(row, fileName);
- const datevMetadata = buildDatevMetadata(row, base, fileName);
+ const base = bankRowToMovementPayload(row, fileName);
+ const importMetadata = buildImportMetadata(row, base, fileName);
 
  // Try to find a matching rule BEFORE writing so we can include its
  // classification in the initial document (one Firestore write).
@@ -118,15 +118,15 @@ export const useDatevImport = (user) => {
  reconciledAt: null,
  // Trace fields
  importSource: base.importSource,
- importRunId: datevMetadata.importRunId,
- importFile: datevMetadata.importFile,
- importLineNumber: datevMetadata.importLineNumber,
- rowHash: datevMetadata.rowHash,
- rowFingerprint: datevMetadata.rowFingerprint,
- signedAmount: datevMetadata.signedAmount,
- counterpartyIban: datevMetadata.counterpartyIban,
- counterpartyBic: datevMetadata.counterpartyBic,
- rawDatev: datevMetadata.rawDatev,
+ importRunId: importMetadata.importRunId,
+ importFile: importMetadata.importFile,
+ importLineNumber: importMetadata.importLineNumber,
+ rowHash: importMetadata.rowHash,
+ rowFingerprint: importMetadata.rowFingerprint,
+ signedAmount: importMetadata.signedAmount,
+ counterpartyIban: importMetadata.counterpartyIban,
+ counterpartyBic: importMetadata.counterpartyBic,
+ rawDatev: importMetadata.rawDatev,
  // Auto-classification (overrides empty defaults above)
  ...ruleClassification,
  appliedRuleId: matchedRule ? matchedRule.id : null,
@@ -139,7 +139,7 @@ export const useDatevImport = (user) => {
  action: 'create',
  user: user.email,
  timestamp: new Date().toISOString(),
- detail: `Importado desde DATEV — ${fileName} línea ${row.lineNumber}`,
+ detail: `Importado desde extracto bancario — ${fileName} línea ${row.lineNumber}`,
  },
  ...(matchedRule
  ? [{
@@ -158,7 +158,7 @@ export const useDatevImport = (user) => {
  ruleHitsLocal.set(matchedRule.id, (ruleHitsLocal.get(matchedRule.id) || 0) + 1);
  }
  } catch (err) {
- logError('Error importing DATEV row:', err);
+ logError('Error importing bank statement row:', err);
  errors.push({ row, error: err.message || String(err) });
  }
  if (onProgress) onProgress(i + 1, rows.length);
@@ -183,8 +183,8 @@ export const useDatevImport = (user) => {
  await writeAuditLogEntry({
  action: 'bulk-import',
  entityType: 'bankMovement',
- entityId: fileName || 'datev-bulk',
- description: `DATEV import — ${fileName}: ${imported} creados (${autoClassified} autoclasificados), ${errors.length} errores`,
+ entityId: fileName || 'bank-import',
+ description: `Importación bancaria — ${fileName}: ${imported} creados (${autoClassified} autoclasificados), ${errors.length} errores`,
  userEmail: user.email,
  metadata: { fileName, imported, autoClassified, errorCount: errors.length },
  });
@@ -197,4 +197,4 @@ export const useDatevImport = (user) => {
  return { importRows };
 };
 
-export default useDatevImport;
+export default useBankImport;

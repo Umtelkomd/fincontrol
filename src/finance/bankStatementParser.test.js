@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildDatevIdentity,
-  classifyDatevImportFiles,
-  datevRowToBankMovementPayload,
+  BANK_IMPORT_SOURCES,
+  buildBankRowIdentity,
+  classifyBankImportFiles,
+  bankRowToMovementPayload,
   diffAgainstExisting,
-  normalizeDatevAmount,
-  normalizeDatevCounterparty,
-  normalizeDatevDate,
-  normalizeDatevDescription,
-  normalizeDatevIbanBic,
-  normalizeDatevRawColumns,
-  parseDatevCSV,
-} from './datevParser.js';
+  isBankImport,
+  normalizeBankRowAmount,
+  normalizeBankRowCounterparty,
+  normalizeBankRowDate,
+  normalizeBankRowDescription,
+  normalizeBankRowIbanBic,
+  normalizeBankRowRawColumns,
+  parseBankStatementCSV,
+  parseSepaPurpose,
+} from './bankStatementParser.js';
 
 const kontobewegungenHeader = [
   'Automat',
@@ -52,16 +55,16 @@ const kontobewegungenRow = ({
   'Ja',
 ].join(';');
 
-describe('DATEV parser identity normalization', () => {
+describe('bank statement parser identity normalization', () => {
   it('normalizes dates, amounts, counterparties, IBAN/BIC, descriptions, and raw columns for identity', () => {
-    expect(normalizeDatevDate('8.5.2026')).toBe('2026-05-08');
-    expect(normalizeDatevAmount('1.234,50')).toBe('1234.50');
-    expect(normalizeDatevAmount('-12,9')).toBe('-12.90');
-    expect(normalizeDatevAmount(1234.5)).toBe('1234.50');
-    expect(normalizeDatevCounterparty('  ACME   GmbH  ')).toBe('acme gmbh');
-    expect(normalizeDatevIbanBic(' de89 3704 0044 0532 0130 00 ')).toBe('DE89370400440532013000');
-    expect(normalizeDatevDescription(' Rechnung   4711\nFinal ')).toBe('rechnung 4711 final');
-    expect(normalizeDatevRawColumns([' A  ', 'B\nC', null])).toEqual(['A', 'B C', '']);
+    expect(normalizeBankRowDate('8.5.2026')).toBe('2026-05-08');
+    expect(normalizeBankRowAmount('1.234,50')).toBe('1234.50');
+    expect(normalizeBankRowAmount('-12,9')).toBe('-12.90');
+    expect(normalizeBankRowAmount(1234.5)).toBe('1234.50');
+    expect(normalizeBankRowCounterparty('  ACME   GmbH  ')).toBe('acme gmbh');
+    expect(normalizeBankRowIbanBic(' de89 3704 0044 0532 0130 00 ')).toBe('DE89370400440532013000');
+    expect(normalizeBankRowDescription(' Rechnung   4711\nFinal ')).toBe('rechnung 4711 final');
+    expect(normalizeBankRowRawColumns([' A  ', 'B\nC', null])).toEqual(['A', 'B C', '']);
   });
 
   it('builds stable row identity independent of file order or import run metadata', () => {
@@ -87,7 +90,7 @@ describe('DATEV parser identity normalization', () => {
       raw: { columns: [' ACME   GmbH ', ' 1.234,56 '], line: 42 },
     };
 
-    expect(buildDatevIdentity(baseRow)).toEqual(buildDatevIdentity(sameLogicalRow));
+    expect(buildBankRowIdentity(baseRow)).toEqual(buildBankRowIdentity(sameLogicalRow));
   });
 
   it('keeps similar rows distinct when identity-relevant bank fields differ', () => {
@@ -109,14 +112,14 @@ describe('DATEV parser identity normalization', () => {
       raw: { columns: ['ACME GmbH', 'Invoice B'], line: 3 },
     };
 
-    expect(buildDatevIdentity(base).rowHash).not.toBe(buildDatevIdentity(changedReference).rowHash);
-    expect(buildDatevIdentity(base).rowFingerprint).not.toBe(buildDatevIdentity(changedReference).rowFingerprint);
+    expect(buildBankRowIdentity(base).rowHash).not.toBe(buildBankRowIdentity(changedReference).rowHash);
+    expect(buildBankRowIdentity(base).rowFingerprint).not.toBe(buildBankRowIdentity(changedReference).rowFingerprint);
   });
 });
 
-describe('DATEV parser row identity fields', () => {
+describe('bank statement parser row identity fields', () => {
   it('parses signed inbound rows while keeping compatible absolute amount and direction', () => {
-    const parsed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
 
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows).toHaveLength(1);
@@ -130,7 +133,7 @@ describe('DATEV parser row identity fields', () => {
       lineNumber: 2,
       sourceFormat: 'sparkasse-kontobewegungen',
     });
-    expect(parsed.rows[0].rowHash).toBe(buildDatevIdentity(parsed.rows[0]).rowHash);
+    expect(parsed.rows[0].rowHash).toBe(buildBankRowIdentity(parsed.rows[0]).rowHash);
     expect(parsed.rows[0].raw).toEqual({
       columns: kontobewegungenRow().split(';'),
       line: 2,
@@ -138,7 +141,7 @@ describe('DATEV parser row identity fields', () => {
   });
 
   it('parses signed outbound rows while preserving absolute amount compatibility', () => {
-    const parsed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ amount: '-987,65', description: 'Miete Mai' })}`);
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ amount: '-987,65', description: 'Miete Mai' })}`);
 
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows).toHaveLength(1);
@@ -151,30 +154,30 @@ describe('DATEV parser row identity fields', () => {
   });
 });
 
-describe('DATEV row identity stability', () => {
+describe('bank statement row identity stability', () => {
   // rowHash is what stops a re-imported statement from creating duplicates, and
-  // buildDatevIdentity folds sourceFormat into the fingerprint. The label reads
+  // buildBankRowIdentity folds sourceFormat into the fingerprint. The label reads
   // "sparkasse-" for historical reasons — the format is the generic German
   // kontobewegungen_export, and this app is fed Volksbank files — but renaming
   // it would change every hash and make all 1576 stored movements look new on
   // the next import. If this test fails, the dedupe key moved: either revert,
   // or ship a migration that rewrites rowHash on the existing documents.
   it('keeps the stored dedupe key byte-stable', () => {
-    const parsed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`);
 
     expect(parsed.rows[0].sourceFormat).toBe('sparkasse-kontobewegungen');
     expect(parsed.rows[0].rowHash).toBe('datev-155358786fd928');
   });
 });
 
-describe('DATEV parser unsupported format handling', () => {
+describe('bank statement parser unsupported format handling', () => {
   it('rejects DATEV classic headers with a file-level unsupported error and zero rows', () => {
     const classic = [
       'Umsatz (ohne Soll/Haben-Kz);Soll/Haben-Kennzeichen;WKZ Umsatz;Konto;Gegenkonto;Belegdatum;Buchungstext',
       '100,00;S;EUR;1200;8400;0805;DATEV classic',
     ].join('\n');
 
-    const parsed = parseDatevCSV(classic);
+    const parsed = parseBankStatementCSV(classic);
 
     expect(parsed.rows).toEqual([]);
     expect(parsed.errors).toEqual([
@@ -188,7 +191,7 @@ describe('DATEV parser unsupported format handling', () => {
   });
 
   it('rejects unknown headers with a file-level unsupported error and zero rows', () => {
-    const parsed = parseDatevCSV('Date;Amount;Name\n2026-05-08;12.34;ACME');
+    const parsed = parseBankStatementCSV('Date;Amount;Name\n2026-05-08;12.34;ACME');
 
     expect(parsed.rows).toEqual([]);
     expect(parsed.errors).toEqual([
@@ -202,21 +205,21 @@ describe('DATEV parser unsupported format handling', () => {
   });
 });
 
-describe('DATEV bank movement payload mapping', () => {
+describe('bank movement payload mapping', () => {
   it('emits full identity metadata while preserving legacy amount and direction compatibility', () => {
     const row = {
-      ...parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ amount: '-42,13' })}`).rows[0],
+      ...parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ amount: '-42,13' })}`).rows[0],
       importRunId: 'datev-run-1',
       importFile: { name: 'may.csv', size: 1234, lastModified: 1778306400000 },
       importLineNumber: 7,
     };
 
-    expect(datevRowToBankMovementPayload(row, 'fallback.csv')).toMatchObject({
+    expect(bankRowToMovementPayload(row, 'fallback.csv')).toMatchObject({
       kind: 'payment',
       direction: 'out',
       amount: 42.13,
       signedAmount: -42.13,
-      importSource: 'datev',
+      importSource: 'bank-csv',
       importRunId: 'datev-run-1',
       importFile: { name: 'may.csv', size: 1234, lastModified: 1778306400000 },
       importLineNumber: 7,
@@ -224,15 +227,102 @@ describe('DATEV bank movement payload mapping', () => {
       rowFingerprint: row.rowFingerprint,
       counterpartyIban: 'DE89370400440532013000',
       counterpartyBic: 'COBADEFFXXX',
+      sepa: row.sepa,
       rawDatev: row.raw,
     });
   });
 });
 
-describe('DATEV import dedupe classification', () => {
+describe('bank import source compatibility', () => {
+  it('recognizes both the legacy and current importSource values as a bank import', () => {
+    expect(BANK_IMPORT_SOURCES).toEqual(['datev', 'bank-csv']);
+    expect(isBankImport({ importSource: 'datev' })).toBe(true);
+    expect(isBankImport({ importSource: 'bank-csv' })).toBe(true);
+    expect(isBankImport({ importSource: 'manual' })).toBe(false);
+    expect(isBankImport({ importSource: null })).toBe(false);
+    expect(isBankImport({})).toBe(false);
+    expect(isBankImport(null)).toBe(false);
+    expect(isBankImport(undefined)).toBe(false);
+  });
+});
+
+describe('SEPA purpose parsing', () => {
+  it('parses a compact structured Verwendungszweck with EREF/MREF/CRED/SVWZ', () => {
+    const parsed = parseSepaPurpose('EREF+85744504MREF+175323001CRED+DE06UTA00000010046SVWZ+58654564-1');
+
+    expect(parsed).toEqual({
+      endToEndRef: '85744504',
+      customerRef: '',
+      mandateRef: '175323001',
+      creditorId: 'DE06UTA00000010046',
+      debtorId: '',
+      purposeCode: '',
+      purpose: '58654564-1',
+      alternativeCounterparty: '',
+    });
+  });
+
+  it('parses a longer structured Verwendungszweck with PURP and a trailing ABWA alternative counterparty', () => {
+    const raw = 'EREF+2005849747 OB-83531045MREF+2811875354000002CRED+DE05ZZZ00000018503PURP+OTHRSVWZ+2005849747 OB-83531045 EUR 2.756,40. BEITRAG 0826 - 0826ABWA+AOK Rheinland/Hamburg - Die Gesundheitskasse';
+    const parsed = parseSepaPurpose(raw);
+
+    expect(parsed).toEqual({
+      endToEndRef: '2005849747 OB-83531045',
+      customerRef: '',
+      mandateRef: '2811875354000002',
+      creditorId: 'DE05ZZZ00000018503',
+      debtorId: '',
+      purposeCode: 'OTHR',
+      purpose: '2005849747 OB-83531045 EUR 2.756,40. BEITRAG 0826 - 0826',
+      alternativeCounterparty: 'AOK Rheinland/Hamburg - Die Gesundheitskasse',
+    });
+  });
+
+  it('returns the whole text as purpose when no SEPA tags are present', () => {
+    expect(parseSepaPurpose('Miete Mai 2026')).toEqual({
+      endToEndRef: '',
+      customerRef: '',
+      mandateRef: '',
+      creditorId: '',
+      debtorId: '',
+      purposeCode: '',
+      purpose: 'Miete Mai 2026',
+      alternativeCounterparty: '',
+    });
+  });
+
+  it('returns all-empty fields for an empty string', () => {
+    expect(parseSepaPurpose('')).toEqual({
+      endToEndRef: '',
+      customerRef: '',
+      mandateRef: '',
+      creditorId: '',
+      debtorId: '',
+      purposeCode: '',
+      purpose: '',
+      alternativeCounterparty: '',
+    });
+  });
+});
+
+describe('SEPA-aware description does not affect the frozen dedupe hash', () => {
+  it('keeps rowHash identical whether or not description was rewritten from a structured SEPA purpose', () => {
+    const structuredDescription = 'EREF+85744504MREF+175323001CRED+DE06UTA00000010046SVWZ+Miete Mai';
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: structuredDescription })}`);
+    const row = parsed.rows[0];
+
+    // description was rewritten to the extracted SVWZ purpose, but rawDescription
+    // (which feeds the identity hash) is untouched.
+    expect(row.description).toBe('Miete Mai');
+    expect(row.rawDescription).toBe(structuredDescription);
+    expect(row.rowHash).toBe(buildBankRowIdentity({ ...row, description: 'anything else entirely' }).rowHash);
+  });
+});
+
+describe('bank statement import dedupe classification', () => {
   it('dedupes within one file by rowHash while attaching run and file metadata to importable rows', () => {
-    const row = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
-    const result = classifyDatevImportFiles(
+    const row = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
+    const result = classifyBankImportFiles(
       [{ file: { name: 'may.csv', size: 128, lastModified: 1778306400000 }, parsed: { rows: [row, { ...row, lineNumber: 3 }], errors: [] } }],
       [],
       'datev-run-1',
@@ -252,11 +342,11 @@ describe('DATEV import dedupe classification', () => {
   });
 
   it('dedupes across selected files before writes using a run-level rowHash set', () => {
-    const first = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ counterparty: 'ACME GmbH' })}`).rows[0];
+    const first = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ counterparty: 'ACME GmbH' })}`).rows[0];
     const second = { ...first, lineNumber: 2 };
-    const distinct = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Rechnung 4712' })}`).rows[0];
+    const distinct = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Rechnung 4712' })}`).rows[0];
 
-    const result = classifyDatevImportFiles(
+    const result = classifyBankImportFiles(
       [
         { file: { name: 'a.csv', size: 1, lastModified: 1 }, parsed: { rows: [first], errors: [] } },
         { file: { name: 'b.csv', size: 1, lastModified: 2 }, parsed: { rows: [second, distinct], errors: [] } },
@@ -274,9 +364,9 @@ describe('DATEV import dedupe classification', () => {
   });
 
   it('dedupes retries against existing rowHash and falls back to legacy movement fingerprint', () => {
-    const hashed = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Hash hit' })}`).rows[0];
-    const legacy = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Legacy hit', amount: '-10,00' })}`).rows[0];
-    const fresh = parseDatevCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Fresh row', amount: '20,00' })}`).rows[0];
+    const hashed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Hash hit' })}`).rows[0];
+    const legacy = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Legacy hit', amount: '-10,00' })}`).rows[0];
+    const fresh = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: 'Fresh row', amount: '20,00' })}`).rows[0];
 
     expect(diffAgainstExisting([hashed, legacy, fresh], [
       { rowHash: hashed.rowHash, postedDate: 'nope', amount: 0, direction: 'out', counterpartyName: 'wrong' },

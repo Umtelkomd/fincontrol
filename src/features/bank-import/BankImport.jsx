@@ -1,10 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Upload, FileText, CheckCircle2, AlertCircle, X, Database, Wand2 } from 'lucide-react';
 import { useBankMovements } from '../../hooks/useBankMovements';
-import { useDatevImport } from '../../hooks/useDatevImport';
+import { useBankImport } from '../../hooks/useBankImport';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
-import { classifyDatevImportFiles, parseDatevCSV } from '../../finance/datevParser';
+import { classifyBankImportFiles, parseBankStatementCSV } from '../../finance/bankStatementParser';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
 import PageHeader from '../../components/layout/PageHeader';
 
@@ -12,7 +12,7 @@ import PageHeader from '../../components/layout/PageHeader';
 const createImportRunId = () => (
  typeof crypto !== 'undefined' && crypto.randomUUID
  ? crypto.randomUUID()
- : `datev-${Date.now()}-${Math.random().toString(36).slice(2)}`
+ : `bank-${Date.now()}-${Math.random().toString(36).slice(2)}`
 );
 
 const readFileAsText = (file) =>
@@ -23,9 +23,9 @@ const readFileAsText = (file) =>
  reader.readAsText(file, 'UTF-8');
  });
 
-const DatevImport = ({ user }) => {
+const BankImport = ({ user }) => {
  const { bankMovements } = useBankMovements(user);
- const { importRows } = useDatevImport(user);
+ const { importRows } = useBankImport(user);
  const { rules } = useClassificationRules(user);
  const { showToast } = useToast();
 
@@ -48,7 +48,7 @@ const DatevImport = ({ user }) => {
  const newEntries = await Promise.all(
  incoming.map(async (f, idx) => {
  const text = await readFileAsText(f);
- const parsed = parseDatevCSV(text);
+ const parsed = parseBankStatementCSV(text);
  return {
  id: `${Date.now()}-${idx}-${f.name}`,
  importRunId,
@@ -63,7 +63,7 @@ const DatevImport = ({ user }) => {
  }),
  );
 
- setFiles((prev) => classifyDatevImportFiles([...prev, ...newEntries], bankMovements, importRunId).files);
+ setFiles((prev) => classifyBankImportFiles([...prev, ...newEntries], bankMovements, importRunId).files);
  },
  [bankMovements, showToast],
  );
@@ -85,7 +85,7 @@ const DatevImport = ({ user }) => {
  const removeFile = (id) => {
  setFiles((prev) => {
  const remaining = prev.filter((f) => f.id !== id);
- return classifyDatevImportFiles(remaining, bankMovements).files;
+ return classifyBankImportFiles(remaining, bankMovements).files;
  });
  };
 
@@ -142,8 +142,8 @@ const DatevImport = ({ user }) => {
  <PageHeader
  section="Configuración"
  title="Importar"
- accent="DATEV"
- subtitle="Movimientos bancarios (kontobewegungen_export)"
+ accent="Banco"
+ subtitle="Extracto de cuenta (kontobewegungen_export)"
  actions={
  filesPending ? (
  <Button variant="primary" icon={Upload} onClick={importAll}>
@@ -332,4 +332,4 @@ const DatevImport = ({ user }) => {
  );
 };
 
-export default DatevImport;
+export default BankImport;

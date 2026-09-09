@@ -206,6 +206,39 @@ describe('finance adapters bank movement mapping', () => {
     });
   });
 
+  it('passes the parsed SEPA purpose breakdown through, defaulting to null when absent', () => {
+    const withSepa = adaptBankMovementDoc({
+      id: 'bank-csv-1',
+      direction: 'out',
+      amount: 42.13,
+      importSource: 'bank-csv',
+      sepa: {
+        endToEndRef: '85744504',
+        customerRef: '',
+        mandateRef: '175323001',
+        creditorId: 'DE06UTA00000010046',
+        debtorId: '',
+        purposeCode: '',
+        purpose: '58654564-1',
+        alternativeCounterparty: '',
+      },
+    });
+
+    expect(withSepa.sepa).toEqual({
+      endToEndRef: '85744504',
+      customerRef: '',
+      mandateRef: '175323001',
+      creditorId: 'DE06UTA00000010046',
+      debtorId: '',
+      purposeCode: '',
+      purpose: '58654564-1',
+      alternativeCounterparty: '',
+    });
+
+    const withoutSepa = adaptBankMovementDoc({ id: 'bank-csv-2', direction: 'out', amount: 10 });
+    expect(withoutSepa.sepa).toBeNull();
+  });
+
   it('normalizes partial bank movement data to safe defaults', () => {
     const movement = adaptBankMovementDoc({ id: 'bank-partial', amount: '49.995', direction: 'sideways', taxRate: 0 });
 

@@ -21,7 +21,7 @@ npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predepl
 - **Project:** umtelkomd-finance
 - **App ID:** `1:597712756560:web:ad12cd9794f11992641655`
 - **Firestore path:** `artifacts/{APP_ID}/public/data/{collection}`
-- **Collections:** bankMovements (canonical cash ledger, DATEV-fed), receivables (CXC),
+- **Collections:** bankMovements (canonical cash ledger, fed by the bank statement CSV import at /banco), receivables (CXC),
   payables (CXP), payrollPeriods, employees, projects, projectControl, costCenters,
   categories, classificationRules, recurringCosts, budgets, notifications, auditLog,
   settings (singletons: bankAccount, categories, overhead, reconciliation, treasury).

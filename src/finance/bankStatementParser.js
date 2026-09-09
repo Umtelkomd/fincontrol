@@ -1,10 +1,15 @@
 /**
- * Kontobewegungen CSV parser (RFC 4180-ish, quoted multiline tolerant)
+ * Bank statement CSV parser (RFC 4180-ish, quoted multiline tolerant)
  *
- * This is the generic German online-banking "kontobewegungen_export" layout,
- * not a bank-specific one — UMTELKOMD's files come from Volksbank. The internal
- * format id still reads "sparkasse-kontobewegungen"; see detectDatevFormat for
- * why that string must not be renamed.
+ * The bank statement, not DATEV, is the reconciliation source. This module
+ * parses the generic German online-banking "kontobewegungen_export" layout,
+ * not a bank-specific one — UMTELKOMD's files come from Volksbank. The
+ * internal format id still reads "sparkasse-kontobewegungen" and every
+ * dedupe hash still carries the "datev-" prefix; see detectBankStatementFormat
+ * for why those strings must not be renamed — they are frozen identity
+ * fields folded into rowHash, the key that stops a re-imported statement
+ * from duplicating rows. Renaming either would make every already-stored
+ * movement look new on the next import.
  *
  * Format observed:
  *   - Encoding: UTF-8
@@ -16,6 +21,16 @@
  *     Empfängername/Auftraggeber, IBAN/Kontonummer, BIC/BLZ,
  *     Verwendungszweck, Betrag in EUR, Notiz, Anzahl Belege, Geprüft
  */
+
+/**
+ * `importSource` on a bankMovement is 'datev' for the 720 documents written
+ * before this parser was renamed, and 'bank-csv' for every import since.
+ * Both mean the same thing: imported from the bank statement CSV. Readers
+ * must accept either — never gate logic on a single literal value.
+ */
+export const BANK_IMPORT_SOURCES = ['datev', 'bank-csv'];
+
+export const isBankImport = (movement) => BANK_IMPORT_SOURCES.includes(movement?.importSource);
 
 /** RFC 4180-style CSV parser that respects quoted multiline fields. */
 export const parseCSVText = (text, separator = ';') => {
@@ -73,7 +88,7 @@ export const parseGermanAmount = (str) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export const normalizeDatevAmount = (value) => parseGermanAmount(value).toFixed(2);
+export const normalizeBankRowAmount = (value) => parseGermanAmount(value).toFixed(2);
 
 /** Convert German date "DD.MM.YYYY" → ISO "YYYY-MM-DD". */
 export const parseGermanDate = (str) => {
@@ -83,17 +98,17 @@ export const parseGermanDate = (str) => {
   return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 };
 
-export const normalizeDatevDate = parseGermanDate;
+export const normalizeBankRowDate = parseGermanDate;
 
 const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
-export const normalizeDatevCounterparty = (value) => normalizeText(value).toLowerCase();
+export const normalizeBankRowCounterparty = (value) => normalizeText(value).toLowerCase();
 
-export const normalizeDatevIbanBic = (value) => normalizeText(value).replace(/\s+/g, '').toUpperCase();
+export const normalizeBankRowIbanBic = (value) => normalizeText(value).replace(/\s+/g, '').toUpperCase();
 
-export const normalizeDatevDescription = (value) => normalizeText(value).toLowerCase();
+export const normalizeBankRowDescription = (value) => normalizeText(value).toLowerCase();
 
-export const normalizeDatevRawColumns = (columns) => (columns || []).map(normalizeText);
+export const normalizeBankRowRawColumns = (columns) => (columns || []).map(normalizeText);
 
 const stableHash = (value) => {
   let h1 = 0xdeadbeef;
@@ -110,18 +125,18 @@ const stableHash = (value) => {
   return combined.toString(16).padStart(14, '0');
 };
 
-export const buildDatevIdentity = (row) => {
-  const normalizedColumns = normalizeDatevRawColumns(row.raw?.columns);
+export const buildBankRowIdentity = (row) => {
+  const normalizedColumns = normalizeBankRowRawColumns(row.raw?.columns);
   const parts = [
     row.sourceFormat || 'sparkasse-kontobewegungen',
     row.accountId || row.sourceAccountIban || '',
-    normalizeDatevDate(row.postedDate) || row.postedDate || '',
-    normalizeDatevDate(row.valueDate) || row.valueDate || row.postedDate || '',
+    normalizeBankRowDate(row.postedDate) || row.postedDate || '',
+    normalizeBankRowDate(row.valueDate) || row.valueDate || row.postedDate || '',
     Number(row.signedAmount ?? row.amountSigned ?? row.amount ?? 0).toFixed(2),
-    normalizeDatevCounterparty(row.counterpartyName),
-    normalizeDatevIbanBic(row.counterpartyIban),
-    normalizeDatevIbanBic(row.counterpartyBic),
-    normalizeDatevDescription(row.rawDescription || row.description),
+    normalizeBankRowCounterparty(row.counterpartyName),
+    normalizeBankRowIbanBic(row.counterpartyIban),
+    normalizeBankRowIbanBic(row.counterpartyBic),
+    normalizeBankRowDescription(row.rawDescription || row.description),
     normalizedColumns.join('|').toLowerCase(),
   ];
   const rowFingerprint = parts.join('||');
@@ -133,9 +148,9 @@ export const buildDatevIdentity = (row) => {
 
 const parseGermanBool = (str) => String(str || '').trim().toLowerCase() === 'ja';
 
-const normalizeHeader = (header) => normalizeDatevRawColumns(header).map((col) => col.toLowerCase());
+const normalizeHeader = (header) => normalizeBankRowRawColumns(header).map((col) => col.toLowerCase());
 
-const detectDatevFormat = (header) => {
+const detectBankStatementFormat = (header) => {
   const normalized = normalizeHeader(header);
   const headerSet = new Set(normalized);
   const hasKontobewegungenColumns = [
@@ -150,11 +165,11 @@ const detectDatevFormat = (header) => {
   // These columns are the standard German kontobewegungen_export layout, shared
   // across banks — Volksbank files match it just as well as Sparkasse ones.
   //
-  // The returned id is deliberately NOT renamed: buildDatevIdentity folds it
+  // The returned id is deliberately NOT renamed: buildBankRowIdentity folds it
   // into rowFingerprint and therefore into rowHash, the key that stops a
   // re-imported statement from duplicating rows. Changing this string would
   // make every already-stored movement look new. See the stability test in
-  // datevParser.test.js.
+  // bankStatementParser.test.js.
   if (hasKontobewegungenColumns) return 'sparkasse-kontobewegungen';
 
   const hasClassicColumns = normalized.some((name) => (
@@ -163,6 +178,59 @@ const detectDatevFormat = (header) => {
     || name === 'gegenkonto'
   ));
   return hasClassicColumns ? 'datev-classic' : 'unknown';
+};
+
+const SEPA_TAG_FIELD = {
+  EREF: 'endToEndRef',
+  KREF: 'customerRef',
+  MREF: 'mandateRef',
+  CRED: 'creditorId',
+  DEBT: 'debtorId',
+  PURP: 'purposeCode',
+  SVWZ: 'purpose',
+  ABWA: 'alternativeCounterparty',
+  ABWE: 'alternativeCounterparty',
+};
+
+const SEPA_TAG_PATTERN = /(EREF|KREF|MREF|CRED|DEBT|PURP|SVWZ|ABWA|ABWE)\+/g;
+
+const emptySepaPurpose = () => ({
+  endToEndRef: '',
+  customerRef: '',
+  mandateRef: '',
+  creditorId: '',
+  debtorId: '',
+  purposeCode: '',
+  purpose: '',
+  alternativeCounterparty: '',
+});
+
+/**
+ * Parse a SEPA-structured Verwendungszweck (purpose) blob into its tagged
+ * fields — EREF+/KREF+/MREF+/CRED+/DEBT+/PURP+/SVWZ+/ABWA+/ABWE+. Tags can
+ * appear in any order; a tag's value runs from right after its `+` to the
+ * start of the next recognized tag (or the end of the string), trimmed.
+ * A field whose tag is absent comes back as ''. Plain text with no
+ * recognized tags is returned whole as `purpose`.
+ */
+export const parseSepaPurpose = (raw) => {
+  const text = String(raw || '');
+  if (!text.trim()) return emptySepaPurpose();
+
+  const matches = [...text.matchAll(SEPA_TAG_PATTERN)];
+  if (matches.length === 0) {
+    return { ...emptySepaPurpose(), purpose: text.trim() };
+  }
+
+  const result = emptySepaPurpose();
+  matches.forEach((match, index) => {
+    const tag = match[1];
+    const valueStart = match.index + match[0].length;
+    const valueEnd = index + 1 < matches.length ? matches[index + 1].index : text.length;
+    const field = SEPA_TAG_FIELD[tag];
+    if (field) result[field] = text.slice(valueStart, valueEnd).trim();
+  });
+  return result;
 };
 
 const unsupportedFormatError = (format, header) => ({
@@ -183,7 +251,7 @@ const unsupportedFormatError = (format, header) => ({
  *   header:  raw header line as array of column names
  *   period:  { minDate, maxDate, count }
  */
-export const parseDatevCSV = (text) => {
+export const parseBankStatementCSV = (text) => {
   if (!text) return { rows: [], errors: [], header: [], period: null };
 
   // Strip BOM if present
@@ -192,7 +260,7 @@ export const parseDatevCSV = (text) => {
   if (allRows.length === 0) return { rows: [], errors: [], header: [], period: null };
 
   const header = allRows[0];
-  const sourceFormat = detectDatevFormat(header);
+  const sourceFormat = detectBankStatementFormat(header);
   if (sourceFormat !== 'sparkasse-kontobewegungen') {
     return { rows: [], errors: [unsupportedFormatError(sourceFormat, header)], header, period: null };
   }
@@ -216,6 +284,8 @@ export const parseDatevCSV = (text) => {
     }
     const direction = amountSigned >= 0 ? 'in' : 'out';
     const rawDescription = (cols[7] || '').trim();
+    const sepa = parseSepaPurpose(rawDescription);
+    const description = sepa.purpose || rawDescription;
     const signedAmount = amountSigned;
     const row = {
       sourceFormat,
@@ -225,10 +295,11 @@ export const parseDatevCSV = (text) => {
       postedDate,
       valueDate: parseGermanDate(cols[3]) || postedDate,
       counterpartyName: (cols[4] || '').trim(),
-      counterpartyIban: normalizeDatevIbanBic(cols[5]),
-      counterpartyBic: normalizeDatevIbanBic(cols[6]),
-      description: rawDescription,
+      counterpartyIban: normalizeBankRowIbanBic(cols[5]),
+      counterpartyBic: normalizeBankRowIbanBic(cols[6]),
+      description,
       rawDescription,
+      sepa,
       amountSigned,
       signedAmount,
       direction,
@@ -238,7 +309,7 @@ export const parseDatevCSV = (text) => {
       verified: parseGermanBool(cols[11]),
       raw: { columns: [...cols], line: i + 1 },
     };
-    Object.assign(row, buildDatevIdentity(row));
+    Object.assign(row, buildBankRowIdentity(row));
     rows.push(row);
     if (postedDate < minDate) minDate = postedDate;
     if (postedDate > maxDate) maxDate = postedDate;
@@ -266,7 +337,7 @@ export const movementFingerprint = (m) => {
 /**
  * Build the same fingerprint for a parsed DATEV row.
  */
-export const datevRowFingerprint = (row) => {
+export const bankRowFingerprint = (row) => {
   const date = row.postedDate || '';
   const amount = Math.abs(Number(row.amount) || 0).toFixed(2);
   const direction = row.direction || 'in';
@@ -284,7 +355,7 @@ export const movementIdentityKey = (movement) => movement?.rowHash || movementFi
 
 const rowMatchesExistingMovement = (row, existingHashes, existingFingerprints) => {
   if (row?.rowHash && existingHashes.has(row.rowHash)) return true;
-  return existingFingerprints.has(datevRowFingerprint(row));
+  return existingFingerprints.has(bankRowFingerprint(row));
 };
 
 /**
@@ -336,7 +407,7 @@ const withImportMetadata = (row, importRunId, file) => {
 
 const markDuplicate = (row, duplicateReason) => ({ ...row, duplicateReason });
 
-export const classifyDatevImportFiles = (fileEntries, existingMovements = [], importRunId = '') => {
+export const classifyBankImportFiles = (fileEntries, existingMovements = [], importRunId = '') => {
   const existingHashes = new Set(
     (existingMovements || []).map((m) => m?.rowHash).filter(Boolean),
   );
@@ -363,7 +434,7 @@ export const classifyDatevImportFiles = (fileEntries, existingMovements = [], im
     for (const row of parsed.rows || []) {
       const rowWithMetadata = withImportMetadata(row, entryImportRunId, entry.file);
       const rowHash = rowWithMetadata.rowHash;
-      const legacyFingerprint = datevRowFingerprint(rowWithMetadata);
+      const legacyFingerprint = bankRowFingerprint(rowWithMetadata);
       let duplicateReason = null;
 
       if (rowMatchesExistingMovement(rowWithMetadata, existingHashes, existingFingerprints)) {
@@ -394,8 +465,8 @@ export const classifyDatevImportFiles = (fileEntries, existingMovements = [], im
   return { files, summary: { newRows, duplicates, errors, unsupportedFiles } };
 };
 
-/** Build the Firestore payload for a parsed DATEV row. */
-export const datevRowToBankMovementPayload = (row, fileName = '') => {
+/** Build the Firestore payload for a parsed bank statement row. */
+export const bankRowToMovementPayload = (row, fileName = '') => {
   const direction = row.direction;
   const amount = Math.abs(Number(row.amount) || 0);
   const signedAmount = Number.isFinite(Number(row.signedAmount))
@@ -415,7 +486,7 @@ export const datevRowToBankMovementPayload = (row, fileName = '') => {
     documentNumber: '',
     // Source tracing — these fields make it easy to re-derive what came from
     // each import run.
-    importSource: 'datev',
+    importSource: 'bank-csv',
     importRunId: row.importRunId || '',
     importFile,
     importLineNumber,
@@ -424,6 +495,7 @@ export const datevRowToBankMovementPayload = (row, fileName = '') => {
     signedAmount,
     counterpartyIban: row.counterpartyIban || '',
     counterpartyBic: row.counterpartyBic || '',
+    sepa: row.sepa || null,
     rawDatev: row.rawDatev || row.raw || null,
   };
 };

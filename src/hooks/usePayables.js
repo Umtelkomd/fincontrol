@@ -289,7 +289,7 @@ export const usePayables = (user) => {
     }
 
     // POLICY GUARD: every status change must reference a real bankMovement
-    // (typically imported from DATEV). The Bandeja flow uses linkToPayable
+    // (typically imported from the bank statement). The Bandeja flow uses linkToPayable
     // (in useClassifier) which is the canonical path. registerPayment is a
     // legacy entry point — only honor it when the caller provides
     // paymentData.bankMovementId.
@@ -297,7 +297,7 @@ export const usePayables = (user) => {
       return {
         success: false,
         error: new Error(
-          'Política UMTELKOMD: todo pago debe vincularse a un movimiento bancario (DATEV). ' +
+          'Política UMTELKOMD: todo pago debe vincularse a un movimiento bancario. ' +
           'Usá la página de CXP para conciliar con el extracto importado.',
         ),
       };

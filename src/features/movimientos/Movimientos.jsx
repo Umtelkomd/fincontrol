@@ -263,7 +263,7 @@ const Movimientos = ({ user }) => {
  section="Movimientos"
  title="Revisión de"
  accent="movimientos"
- subtitle="Banco · DATEV, recurrentes y manuales"
+ subtitle="Banco · extracto, recurrentes y manuales"
  />
 
  <ClassificationCoverage

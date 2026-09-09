@@ -59,7 +59,7 @@ const ANCHOR_STALE_DAYS = 45;
  * fails a test instead of dead-ending the user at the catch-all redirect.
  * Keep in sync with the `href` values assigned below.
  */
-export const ALERT_HREFS = ['/movimientos', '/configuracion', '/datev', '/nominas'];
+export const ALERT_HREFS = ['/movimientos', '/configuracion', '/banco', '/nominas'];
 
 /**
  * @param {{
@@ -172,7 +172,7 @@ export const buildResumenAlerts = ({
       severity: 'warning',
       title: 'Extracto bancario sin importar',
       detail: `Sin movimientos desde el ${fmtDayMonth(importGap.lastMovementDate ?? '')}: ${importGap.quietBusinessDays} días hábiles.`,
-      href: '/datev',
+      href: '/banco',
     });
   }
 

@@ -36,9 +36,9 @@ vi.mock('../finance/ruleEngine', () => ({
   buildClassificationPayload: vi.fn(() => ({})),
 }));
 
-const { useDatevImport } = await import('./useDatevImport.js');
+const { useBankImport } = await import('./useBankImport.js');
 
-describe('useDatevImport metadata persistence', () => {
+describe('useBankImport metadata persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     firestoreMocks.addDoc.mockResolvedValue({ id: 'movement-1' });
@@ -46,8 +46,8 @@ describe('useDatevImport metadata persistence', () => {
     auditMocks.writeAuditLogEntry.mockResolvedValue(undefined);
   });
 
-  it('persists DATEV identity, run, file, raw, and signed amount metadata while keeping amount/direction compatibility', async () => {
-    const { importRows } = useDatevImport({ email: 'jarl@example.com' });
+  it('persists bank statement identity, run, file, raw, and signed amount metadata while keeping amount/direction compatibility', async () => {
+    const { importRows } = useBankImport({ email: 'jarl@example.com' });
     const row = {
       direction: 'out',
       amount: 42.13,
@@ -74,7 +74,7 @@ describe('useDatevImport metadata persistence', () => {
       amount: 42.13,
       signedAmount: -42.13,
       direction: 'out',
-      importSource: 'datev',
+      importSource: 'bank-csv',
       importRunId: 'datev-run-1',
       importFile: { name: 'may.csv', size: 1234, lastModified: 1778306400000 },
       importLineNumber: 7,
@@ -87,7 +87,7 @@ describe('useDatevImport metadata persistence', () => {
   });
 
   it('falls back to legacy filename and row line number when parser metadata is absent', async () => {
-    const { importRows } = useDatevImport({ email: 'jarl@example.com' });
+    const { importRows } = useBankImport({ email: 'jarl@example.com' });
 
     await importRows([
       {

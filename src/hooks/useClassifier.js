@@ -56,9 +56,9 @@ const normalizeDocuments = (documents) =>
 	(Array.isArray(documents) ? documents : [documents]).filter(Boolean);
 
 /**
- * useClassifier — operations to handle the weekly DATEV inbox flow.
+ * useClassifier — operations to handle the weekly bank-statement inbox flow.
  *
- * After a Friday DATEV import, every imported bankMovement is "raw":
+ * After a Friday bank-statement import, every imported bankMovement is "raw":
  *   - direction in/out + amount + postedDate + counterparty + description
  *   - no categoryName / projectId / costCenterId / receivableId / payableId
  *
@@ -138,7 +138,7 @@ export const useClassifier = (user, options = {}) => {
 				return {
 					success: false,
 					error: new Error(
-						"Indicá el motivo para forzar la conciliación sin DATEV",
+						"Indicá el motivo para forzar la conciliación sin movimiento bancario",
 					),
 				};
 			}
@@ -201,7 +201,7 @@ export const useClassifier = (user, options = {}) => {
 							amount: openAmount,
 							method: "Manual",
 							reference: "",
-							note: `Conciliación forzada sin DATEV: ${trimmedReason}`,
+							note: `Conciliación forzada sin movimiento bancario: ${trimmedReason}`,
 							bankMovementId: null,
 							reconciliationMode: "manual-force",
 							registeredBy: user.email,
@@ -213,7 +213,7 @@ export const useClassifier = (user, options = {}) => {
 							action: "force-reconcile",
 							user: user.email,
 							timestamp: nowIso,
-							detail: `Conciliación forzada sin DATEV por ${openAmount.toFixed(2)}. Motivo: ${trimmedReason}`,
+							detail: `Conciliación forzada sin movimiento bancario por ${openAmount.toFixed(2)}. Motivo: ${trimmedReason}`,
 						}),
 					});
 				});
@@ -226,7 +226,7 @@ export const useClassifier = (user, options = {}) => {
 							action: "force-reconcile",
 							entityType: ENTITY_TYPE_BY_KIND[kind],
 							entityId: document.id,
-							description: `${label} conciliada sin DATEV (forzada por admin): ${getDocumentLabel(document)}`,
+							description: `${label} conciliada sin movimiento bancario (forzada por admin): ${getDocumentLabel(document)}`,
 							userEmail: user.email,
 							metadata: {
 								amount: openAmount,

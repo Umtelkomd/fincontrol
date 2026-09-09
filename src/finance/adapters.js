@@ -187,6 +187,7 @@ export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
       : (raw.direction === 'out' ? -grossAmount : grossAmount),
     counterpartyIban: raw.counterpartyIban || '',
     counterpartyBic: raw.counterpartyBic || '',
+    sepa: raw.sepa || null,
     rawDatev: raw.rawDatev || null,
     createdBy: raw.createdBy || '',
     createdAt: raw.createdAt || null,

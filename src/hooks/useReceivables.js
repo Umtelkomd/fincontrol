@@ -399,7 +399,7 @@ export const useReceivables = (user) => {
     if (!user) return { success: false };
 
     // POLICY GUARD: every status change must reference a real bankMovement
-    // (typically imported from DATEV). The Bandeja flow uses linkToReceivable
+    // (typically imported from the bank statement). The Bandeja flow uses linkToReceivable
     // (in useClassifier) which is the canonical path. registerPayment is a
     // legacy entry point — only honor it when the caller provides
     // paymentData.bankMovementId.
@@ -407,7 +407,7 @@ export const useReceivables = (user) => {
       return {
         success: false,
         error: new Error(
-          'Política UMTELKOMD: todo cobro debe vincularse a un movimiento bancario (DATEV). ' +
+          'Política UMTELKOMD: todo cobro debe vincularse a un movimiento bancario. ' +
           'Usá la página de CXC para conciliar con el extracto importado.',
         ),
       };

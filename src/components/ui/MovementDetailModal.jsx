@@ -3,6 +3,7 @@ import { X, ArrowDownRight, ArrowUpRight, Pencil } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge } from '@/components/ui/nexus';
 import { getImportFileLabel } from '../../finance/importMetadata';
+import { isBankImport } from '../../finance/bankStatementParser';
 
 /**
  * MovementDetailModal — read-only detail view of a bankMovement
@@ -63,7 +64,7 @@ const MovementDetailModal = ({
  {isVoid && <Badge variant="err" dot>Anulado</Badge>}
  {isReconciled && !isVoid && <Badge variant="ok" dot>Conciliado</Badge>}
  {!isReconciled && !isVoid && <Badge variant="warn" dot>Sin conciliar</Badge>}
- {movement.importSource === 'datev' && <Badge variant="info">DATEV</Badge>}
+ {isBankImport(movement) && <Badge variant="info">Banco</Badge>}
  </div>
  </div>
 
@@ -107,7 +108,7 @@ const MovementDetailModal = ({
  )}
 
  {/* Import meta */}
- {movement.importSource === 'datev' && (
+ {isBankImport(movement) && (
  <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] px-4 py-3">
  <p className="label-mono text-[var(--color-fg-3)] mb-1">Fuente del import</p>
  <p className="text-[12px] text-[var(--color-fg-4)] font-mono break-all">

@@ -106,7 +106,7 @@ describe('buildResumenAlerts — localized engine alerts', () => {
     expect(alert.detail).toContain('100 días'); // 2026-04-01 → 2026-07-10
   });
 
-  it('routes the import gap toward /datev', () => {
+  it('routes the import gap toward /banco', () => {
     const alerts = buildResumenAlerts({
       ...healthyBase,
       importGap: { hasGap: true, lastMovementDate: '2026-06-20', quietBusinessDays: 14 },
@@ -114,7 +114,7 @@ describe('buildResumenAlerts — localized engine alerts', () => {
     const alert = alerts.find((a) => a.id === 'import-gap');
     expect(alert.severity).toBe('warning');
     expect(alert.detail).toContain('14 días hábiles');
-    expect(alert.href).toBe('/datev');
+    expect(alert.href).toBe('/banco');
   });
 });
 
