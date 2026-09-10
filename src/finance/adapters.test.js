@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { bankMovementMatchRank } from './bankStatementParser.js';
 
 import {
   adaptBankMovementDoc,
@@ -125,6 +126,50 @@ describe('finance adapters document mapping', () => {
 });
 
 describe('finance adapters bank movement mapping', () => {
+  const assertion = { sourceFormat: 'sparkasse-kontobewegungen', rowHash: 'datev-synthetic', postedDate: '2026-05-08', signedCents: -10000, balanceState: 'valid', balanceCents: 0 };
+
+  it('retains validated flat evidence and excludes malformed versions/records', () => {
+    const valid = adaptBankMovementDoc({ postedDate: assertion.postedDate, signedAmount: -100, bankEvidenceVersion: 1, bankEvidence: [assertion] });
+    expect(valid.bankEvidenceVersion).toBe(1);
+    expect(valid.bankEvidence).toEqual([assertion]);
+    for (const metadata of [
+      { bankEvidenceVersion: 2, bankEvidence: [assertion] },
+      { bankEvidenceVersion: 1, bankEvidence: [{ ...assertion, balanceCents: null }] },
+      { bankEvidenceVersion: 1, bankEvidence: [{ ...assertion, tan: 'unwanted' }] },
+    ]) expect(adaptBankMovementDoc(metadata)).not.toHaveProperty('bankEvidence');
+  });
+
+  it('gives unknown or malformed metadata no contradiction authority over legacy observations', () => {
+    const actual = { postedDate: '2026-05-08', amount: 100, direction: 'out', counterpartyName: 'ACME', counterpartyIban: 'DE111' };
+    const contrary = { ...assertion, counterpartyIban: 'DE222' };
+    for (const metadata of [
+      { bankEvidenceVersion: 99, bankEvidence: [contrary] },
+      { bankEvidenceVersion: '1', bankEvidence: [contrary] },
+      { bankEvidenceVersion: 1, bankEvidence: [{ ...contrary, signedCents: '10000' }] },
+    ]) {
+      const adapted = adaptBankMovementDoc({ ...actual, ...metadata });
+      expect(adapted).not.toHaveProperty('bankEvidence');
+      expect(bankMovementMatchRank(actual, adapted)).toBeGreaterThan(0);
+      expect(bankMovementMatchRank({ ...actual, counterpartyIban: 'DE222' }, adapted)).toBe(0);
+    }
+  });
+
+  it('does not let sparse durable metadata hide actual bank fields or known currency', () => {
+    const raw = { postedDate: '2026-05-08', amount: 100, direction: 'out', counterpartyName: 'ACME', counterpartyIban: 'DE111', currency: 'USD', bankEvidenceVersion: 1, bankEvidence: [assertion] };
+    const adapted = adaptBankMovementDoc(raw);
+    expect(bankMovementMatchRank({ ...raw, bankEvidenceVersion: undefined, counterpartyIban: 'DE222' }, adapted)).toBe(0);
+    expect(bankMovementMatchRank({ ...raw, bankEvidenceVersion: undefined, currency: 'EUR' }, adapted)).toBe(0);
+  });
+
+  it('uses only actually present legacy fields, never display defaults as observations', () => {
+    const raw = { id: 'legacy', importSource: 'datev', postedDate: '2026-05-08', amount: 100, direction: 'out', counterpartyName: 'ACME', counterpartyIban: 'DE111' };
+    const adapted = adaptBankMovementDoc(raw);
+    expect(adapted).toMatchObject({ id: 'legacy', importSource: 'datev', currency: 'EUR', accountId: 'main' });
+    expect(adapted).not.toHaveProperty('bankEvidence');
+    expect(bankMovementMatchRank({ ...raw, currency: 'USD' }, adapted)).toBeGreaterThan(0);
+    expect(bankMovementMatchRank({ ...raw, counterpartyIban: 'DE222' }, adapted)).toBe(0);
+    expect(raw).not.toHaveProperty('currency');
+  });
   it('maps posted outbound bank movements with project, category, VAT, and reconciliation fields', () => {
     const movement = adaptBankMovementDoc({
       id: 'bank-1',

@@ -11,7 +11,7 @@ import {
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
 import { logError } from '../utils/logger';
-import { bankRowToMovementPayload } from '../finance/bankStatementParser';
+import { bankRowToMovementPayload, readBankEvidence } from '../finance/bankStatementParser';
 import { findBestRule, buildClassificationPayload } from '../finance/ruleEngine';
 
 const normalizeImportFile = (rowImportFile, fallbackName = '') => {
@@ -59,7 +59,7 @@ const buildImportMetadata = (row, base, fileName) => {
  * useBankImport — bulk-create bank movements from parsed bank statement rows.
  *
  * Stateless hook: caller is responsible for parsing CSV and computing
- * the diff vs. existing movements. This hook just writes new rows.
+ * the diff vs. existing movements. Unresolved matching rows are never writable.
  */
 export const useBankImport = (user) => {
  const movementsRef = collection(db, 'artifacts', appId, 'public', 'data', 'bankMovements');
@@ -85,6 +85,7 @@ export const useBankImport = (user) => {
  for (let i = 0; i < rows.length; i++) {
  const row = rows[i];
  try {
+ if (row.matchingIssue) throw new Error('Movimiento retenido para revisión; no se puede importar.');
  const base = bankRowToMovementPayload(row, fileName);
  const importMetadata = buildImportMetadata(row, base, fileName);
 
@@ -103,7 +104,7 @@ export const useBankImport = (user) => {
 
  const payload = {
  accountId: 'main',
- currency: 'EUR',
+ currency: base.currency,
  kind: base.kind,
  status: 'posted',
  direction: base.direction,
@@ -130,6 +131,7 @@ export const useBankImport = (user) => {
  importLineNumber: importMetadata.importLineNumber,
  rowHash: importMetadata.rowHash,
  rowFingerprint: importMetadata.rowFingerprint,
+ ...readBankEvidence(base),
  signedAmount: importMetadata.signedAmount,
  counterpartyIban: importMetadata.counterpartyIban,
  counterpartyBic: importMetadata.counterpartyBic,

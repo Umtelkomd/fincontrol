@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { diffBankStatementFiles } from './bankStatementDiff.js';
 
 import {
   BANK_IMPORT_SOURCES,
+  authoritativeBankEvidence,
   bankRowFingerprint,
   buildBankRowIdentity,
   classifyBankImportFiles,
@@ -10,6 +12,7 @@ import {
   diffAgainstExisting,
   isBankImport,
   mergeParsedFiles,
+  matchBookingOccurrences,
   movementFingerprint,
   normalizeBankRowAmount,
   normalizeBankRowCounterparty,
@@ -134,6 +137,20 @@ const umsaetzeRow = ({
 ].join(';');
 
 describe('bank statement parser identity normalization', () => {
+  it.each([['100', 100], ['100,0', 100], ['100,00', 100], [' +1.234,5 ', 1234.5], [' -1.234,56 ', -1234.56], ['-0,01', -0.01], ['1234567,89', 1234567.89]]
+    .flatMap(([amount, expected]) => [false, true].map((umsaetze) => [amount, expected, umsaetze])))('accepts observed German amount %s unchanged (value=%s, umsaetze=%s)', (amount, expected, umsaetze) => {
+    const header = umsaetze ? umsaetzeHeader : kontobewegungenHeader;
+    const line = umsaetze ? umsaetzeRow({ amount }) : kontobewegungenRow({ amount });
+    const parsed = parseBankStatementCSV(`${header}\n${line}`);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0].signedAmount).toBe(expected);
+    expect(parsed.rows[0].raw.columns).toContain(amount);
+    expect(normalizeBankRowAmount(amount)).toBe(expected.toFixed(2));
+  });
+  it('keeps legacy amount identity normalization permissive', () => {
+    expect(normalizeBankRowAmount('100,00garbage')).toBe('100.00');
+  });
+
   it('normalizes dates, amounts, counterparties, IBAN/BIC, descriptions, and raw columns for identity', () => {
     expect(normalizeBankRowDate('8.5.2026')).toBe('2026-05-08');
     expect(normalizeBankRowAmount('1.234,50')).toBe('1234.50');
@@ -409,8 +426,346 @@ describe('SEPA-aware description does not affect the frozen dedupe hash', () => 
   });
 });
 
+const permutations = (items) => items.length === 0 ? [[]] : items.flatMap((item, index) =>
+  permutations(items.filter((_, i) => i !== index)).map((rest) => [item, ...rest]));
+
+const repeatedPaymentFiles = () => {
+  const common = { postedDate: '08.05.2026', valueDate: '08.05.2026', amount: '-100,00' };
+  const konto = (balances) => parseBankStatementCSV([balanceHeaderAt(12), ...balances.map((balance) =>
+    balanceRowAt(kontobewegungenRow(common), balance, 12))].join('\n'));
+  const umsaetze = parseBankStatementCSV([umsaetzeHeader, ...['800,00', '900,00'].map((balance) =>
+    umsaetzeRow({ ...common, balance, counterpartyIban: 'DE89370400440532013000' }))].join('\n'));
+  return [konto(['']), umsaetze, konto(['900,00', '800,00'])];
+};
+
+// Review pass 2: conservation must hold across every representation and ledger.
+describe('booking occurrence conservation', () => {
+  it('does not use a note/hash difference or absent party and purpose as multiplicity proof', () => {
+    const line = kontobewegungenRow({ counterparty: '', description: '', iban: '', bic: '', amount: '-100,00' });
+    const changedNote = line.split(';').map((value, i) => i === 9 ? 'Copied representation' : value).join(';');
+    const parsed = parseBankStatementCSV([kontobewegungenHeader, line, changedNote].join('\n'));
+    expect(parsed.rows[0].rowHash).not.toBe(parsed.rows[1].rowHash);
+    expect(classifyBankImportFiles([{ parsed }]).summary).toMatchObject({ newRows: 0, duplicates: 0, unresolved: 2 });
+  });
+
+  it.each(['complete', 'reversed', 'gap', 'missing', 'invalid', 'mixed-account', 'declared-only'])('requires real contiguous source evidence for a returning balance (%s)', (kind) => {
+    let lines = [umsaetzeRow({ balance: '900,00' }),
+      umsaetzeRow({ amount: '100,00', balance: kind === 'missing' ? '' : kind === 'invalid' ? 'bad' : '1000,00',
+        accountIban: kind === 'mixed-account' ? 'DEOTHER' : undefined }),
+      umsaetzeRow({ balance: '900,00' }), umsaetzeRow({ amount: '-50,00', balance: '850,00' })];
+    if (kind === 'gap') lines.splice(1, 0, 'invalid skipped row');
+    if (kind === 'declared-only') lines.splice(1, 1);
+    if (kind === 'reversed') lines.reverse();
+    const parsed = parseBankStatementCSV([umsaetzeHeader, ...lines].join('\n'));
+    const proven = ['complete', 'reversed', 'missing'].includes(kind);
+    if (kind === 'declared-only') parsed.rows.forEach((row) => { row.statementOrder = 'ascending'; });
+    const result = classifyBankImportFiles([{ parsed }]);
+    expect(result.summary).toMatchObject({ newRows: proven ? 4 : parsed.rows.length - 2, duplicates: 0 });
+    expect(result.summary.unresolved || 0).toBe(proven ? 0 : 2);
+  });
+
+  it.each([1, 2])('consumes stored occurrences with balance evidence in format %s', (format) => {
+    const parsed = repeatedPaymentFiles()[format];
+    for (const storedRow of parsed.rows) {
+      const ledger = [bankRowToMovementPayload(storedRow)];
+      expect(diffAgainstExisting(parsed.rows, ledger).newRows).toHaveLength(1);
+      expect(classifyBankImportFiles([{ parsed }], ledger).summary).toMatchObject({ newRows: 1, duplicates: 1 });
+      expect(classifyBankImportFiles([{ parsed }], parsed.rows.map(bankRowToMovementPayload)).summary)
+        .toMatchObject({ newRows: 0, duplicates: 2 });
+    }
+  });
+
+  it('conserves two occurrences across all six three-file permutations and partial ledger states', () => {
+    const files = repeatedPaymentFiles();
+    for (const order of permutations(files)) {
+      for (const ledger of [[], [bankRowToMovementPayload(files[1].rows[0])], files[1].rows.map(bankRowToMovementPayload)]) {
+        const result = classifyBankImportFiles(order.map((parsed) => ({ parsed })), ledger);
+        expect(result.summary).toMatchObject({ newRows: 2 - ledger.length, duplicates: 3 + ledger.length });
+      }
+    }
+  });
+
+  it.each([
+    ['counterpartyIban', 'DE111', 'DE222'],
+    ['counterpartyBic', 'BANKDE11', 'OTHERDE2'],
+    ['accountIban', 'DE111', 'DE222'],
+    ['creditorId', 'CREDITOR1', 'CREDITOR2'],
+    ['mandateRef', 'MANDATE1', 'MANDATE2'],
+    ['endToEndRef', 'REF1', 'REF2'],
+  ])('rejects contradictory known %s despite the same blank name and purpose', (field, a, b) => {
+    const base = { postedDate: '2026-05-08', amount: 100, direction: 'out', counterpartyName: '', description: 'Payment' };
+    const withEvidence = (value) => ['creditorId', 'mandateRef', 'endToEndRef'].includes(field)
+      ? { ...base, sepa: { [field]: value } } : { ...base, [field]: value };
+    expect(diffAgainstExisting([withEvidence(a)], [withEvidence(b)]).newRows).toHaveLength(1);
+    expect(diffAgainstExisting([withEvidence(a)], [withEvidence(a)]).duplicateRows).toHaveLength(1);
+    expect(diffAgainstExisting([{ ...withEvidence(a), rowHash: 'datev-same' }], [{ ...withEvidence(b), rowHash: 'datev-same' }]).newRows).toHaveLength(1);
+    for (const rows of permutations([withEvidence(a), withEvidence(b), base])) {
+      expect(classifyBankImportFiles(rows.map((row) => ({ parsed: { rows: [row] } }))).summary)
+        .toMatchObject({ newRows: 2, duplicates: 1 });
+    }
+  });
+});
+
+describe('bounded occurrence decisions', () => {
+  it('shares the nonlinear context budget with multiplicity checks and preserves an independent group', () => {
+    const rows = Array.from({ length: 2400 }, (_, i) => ({ postedDate: '2026-05-08', amount: 100 + Math.floor(i / 200),
+      direction: 'out', counterpartyName: 'Synthetic', description: 'Payment', customerRef: `REF-${i}` }));
+    rows.push({ ...rows[0], amount: 42 });
+    const result = classifyBankImportFiles([{ parsed: { rows } }]);
+    expect(result.summary).toMatchObject({ newRows: 1, unresolved: 2400, duplicates: 0 });
+    const issues = [...new Set(result.files[0].diff.unresolvedRows.map((row) => row.matchingIssue))];
+    expect(issues).toHaveLength(12);
+    expect(issues.every((issue) => issue.reason === 'matching-work-budget-exceeded' && issue.work <= 25000)).toBe(true);
+    expect(issues.reduce((sum, issue) => sum + issue.work, 0)).toBe(250000);
+  });
+
+  const dense = (reference, i) => ({ postedDate: '2026-05-08', amount: 100, direction: 'out',
+    counterpartyName: 'Synthetic', description: 'Payment', customerRef: reference, lineNumber: i + 2 });
+
+  it.each([false, true])('rolls back a dense component without losing an independent exact match (member exact=%s)', (exact) => {
+    const left = Array.from({ length: 120 }, (_, i) => [dense(i % 2 ? 'A' : '', i)]);
+    const right = Array.from({ length: 120 }, (_, i) => [dense(i % 2 ? 'B' : 'A', i)]);
+    if (exact) {
+      left[0][0] = { ...left[0][0], postedDate: '2026-05-09', rowHash: 'member-exact' };
+      right[0][0].rowHash = 'member-exact';
+    }
+    left.push([{ ...dense('SAFE', 120), amount: 42, rowHash: 'safe' }]);
+    right.push([{ ...left[120][0] }]);
+    const stats = {};
+    const result = matchBookingOccurrences(left, right, false, stats);
+    expect([...result]).toEqual([[120, 120]]);
+    expect(result.unresolved).toHaveLength(1);
+    expect(result.unresolved[0]).toMatchObject({ reason: 'matching-work-budget-exceeded', sourceRows: 120, ledgerRows: 120 });
+    expect(result.unresolved[0].discardedMatches).toBeGreaterThan(0);
+    expect(result.unresolved[0].phase).toBe('assignment');
+    expect(result.unresolved[0].sources).toHaveLength(120);
+    expect(stats.searchWork).toBeLessThanOrEqual(250001);
+    expect([...matchBookingOccurrences(left, right)]).toEqual([[120, 120]]);
+  });
+
+  it.each([[45, 45, 23555], [46, 0, 25000]])('stops at the work boundary for %s rows', (count, matched, work) => {
+    const stats = {};
+    const result = matchBookingOccurrences(
+      Array.from({ length: count }, (_, i) => [dense(i % 2 ? 'A' : '', i)]),
+      Array.from({ length: count }, (_, i) => [dense(i % 2 ? 'B' : 'A', i)]), false, stats);
+    expect(result.size).toBe(matched);
+    expect(stats.workUnits).toBe(work);
+    expect(result.unresolved?.length || 0).toBe(count === matched ? 0 : 1);
+  });
+
+  it.each(['uniform', 'empty'])('caps total search work while retaining a later %s group', (kind) => {
+    const left = [], right = [];
+    for (let group = 0; group < 12; group += 1) for (let i = 0; i < 120; i += 1) {
+      left.push([{ ...dense(i % 2 ? 'A' : '', i), amount: 100 + group }]);
+      right.push([{ ...dense(i % 2 ? 'B' : 'A', i), amount: 100 + group }]);
+    }
+    const safe = { ...dense('SAFE', 0), amount: 42, rowHash: 'safe' };
+    left.push([safe]); right.push([{ ...safe }]);
+    for (let i = 0; i < (kind === 'uniform' ? 1000 : 1); i += 1) {
+      left.push([{ ...safe, amount: 43, rowHash: '' }]);
+      if (kind === 'uniform') right.push([{ ...safe, amount: 43, rowHash: '' }]);
+    }
+    const stats = {};
+    const result = matchBookingOccurrences(left, right, false, stats);
+    expect(result.unresolved.length).toBe(12);
+    expect(result.size).toBe(kind === 'uniform' ? 1001 : 1);
+    expect(result.get(1440)).toBe(1440);
+    if (kind === 'uniform') expect([result.get(1441), result.get(2440)]).toEqual([2440, 1441]);
+    expect(result.unresolved).toHaveLength(12);
+    expect(stats.searchWork).toBe(250000);
+    expect(result.unresolved.every((issue) => issue.work <= 25000)).toBe(true);
+  });
+
+  it.each([false, true])('conserves withheld source rows across files (reverse=%s)', (reverse) => {
+    const files = [
+      { name: 'a.csv', rows: Array.from({ length: 120 }, (_, i) => dense(i % 2 ? 'A' : '', i)) },
+      { name: 'b.csv', rows: Array.from({ length: 120 }, (_, i) => dense(i % 2 ? 'B' : 'A', i)) },
+      { name: 'safe.csv', rows: [{ ...dense('SAFE', 0), postedDate: '2026-06-30', amount: 42, balanceAfter: 42 }] },
+    ];
+    if (reverse) files.reverse();
+    const result = classifyBankImportFiles(files.map((parsed) => ({ name: parsed.name, parsed })));
+    expect(result.summary).toMatchObject({ newRows: 1, duplicates: 0, unresolved: 240 });
+    const withheld = result.files.flatMap((file) => file.diff.unresolvedRows || []);
+    expect(withheld).toHaveLength(240);
+    expect(withheld.every((row) => row.matchingIssue?.reason === 'matching-work-budget-exceeded')).toBe(true);
+    expect(mergeParsedFiles(files, withheld).balances).toEqual([]);
+    expect(mergeParsedFiles(result.files.map((file) => file.parsed)).balances).toEqual([]);
+    expect(files.flatMap((file) => file.rows).some((row) => row.matchingIssue)).toBe(false);
+    const retained = result.files.find((file) => file.name === 'a.csv');
+    expect(classifyBankImportFiles([retained]).summary).toMatchObject({ newRows: 0, duplicates: 0, unresolved: 120 });
+    expect(mergeParsedFiles([retained.parsed]).balances).toEqual([]);
+    expect(result.files.reduce((sum, file) => sum + Object.values(file.diff).reduce((n, rows) => n + rows.length, 0), 0)).toBe(241);
+  });
+});
+
+// These low-level matcher fixtures supply slots, not proof of source cardinality.
+// collectBankStatementOccurrences separately withholds unproven uniform source lines.
+describe('indexed occurrence matching', () => {
+  const row = (i, extra = {}) => ({ postedDate: '2026-05-08', amount: 100 + i, direction: 'out',
+    counterpartyName: 'Synthetic', description: 'Payment', ...extra });
+
+  it('compares only indexed candidates and prepares shared aliases once', () => {
+    const rows = Array.from({ length: 200 }, (_, i) => row(i));
+    const ledger = rows.map((entry) => ({ ...entry }));
+    const stats = {};
+    const result = matchBookingOccurrences(rows.map((entry) => [entry, entry]), ledger.map((entry) => [entry]), false, stats);
+    expect([...result]).toEqual(rows.map((_, i) => [i, i]));
+    expect(stats.candidateComparisons).toBe(200);
+    expect(stats.normalizedFacts).toBe(400);
+  });
+
+  it('bounds comparisons for sparse non-equivalent buckets too', () => {
+    const rows = Array.from({ length: 200 }, (_, i) => row(Math.floor(i / 2), { customerRef: i % 2 ? 'A' : 'B' }));
+    const stats = {};
+    const result = matchBookingOccurrences(rows.map((entry) => [entry]), rows.map((entry) => [{ ...entry }]), false, stats);
+    expect([...result]).toEqual(rows.map((_, i) => [i, i]));
+    expect(stats.candidateComparisons).toBe(400);
+    expect(stats.normalizedFacts).toBe(400);
+  });
+
+  it.each([false, true])('handles an equivalent capacity group without a dense graph (exact=%s)', (exact) => {
+    const left = Array.from({ length: 120 }, () => [row(0, { rowHash: exact ? 'same' : '' })]);
+    const right = Array.from({ length: 80 }, () => [row(0, { rowHash: exact ? 'same' : '' })]);
+    const stats = {};
+    const result = matchBookingOccurrences(left, right, false, stats);
+    expect([...result]).toEqual(Array.from({ length: 80 }, (_, i) => [i, 79 - i]));
+    expect(stats.candidateComparisons).toBe(1);
+    expect(stats.normalizedFacts).toBe(200);
+  });
+
+  it('reroutes a long overlapping-alias path with linear candidate work', () => {
+    const slots = Array.from({ length: 2001 }, (_, i) => row(0, { rowHash: `alias-${i}` }));
+    const left = slots.slice(0, -1).map((entry, i) => [entry, slots[i + 1]]);
+    left.push([slots[0]]);
+    const stats = {};
+    const result = matchBookingOccurrences(left, slots.map((entry) => [{ ...entry }]), false, stats);
+    expect([...result]).toEqual([...slots.slice(0, -1).map((_, i) => [i, i + 1]), [2000, 0]]);
+    expect(stats.candidateComparisons).toBe(4001);
+    expect(stats.normalizedFacts).toBe(4002);
+  });
+
+  it('unions hash candidates with triples, keeps exact priority and refreshes mutated inputs', () => {
+    const left = [[row(0, { rowHash: 'exact' })], [row(0)]];
+    const right = [[row(0)], [row(9, { postedDate: '2026-06-01', rowHash: 'exact' })]];
+    expect([...matchBookingOccurrences(left, right)]).toEqual([[0, 1], [1, 0]]);
+    right[1][0].currency = 'USD';
+    left[0][0].currency = 'EUR';
+    expect([...matchBookingOccurrences(left, right)]).toEqual([[0, 0]]);
+  });
+
+  it('reroutes equal-rank fuzzy matches without consuming an exact owner', () => {
+    const left = [[row(0)], [row(0, { customerRef: 'A' })], [row(1, { rowHash: 'exact' })]];
+    const right = [[row(0, { customerRef: 'A' })], [row(0, { customerRef: 'B' })], [row(1, { rowHash: 'exact' })]];
+    expect(new Map(matchBookingOccurrences(left, right))).toEqual(new Map([[2, 2], [1, 0], [0, 1]]));
+  });
+});
+
+describe('decision-relevant bank references and purpose', () => {
+  const payment = { postedDate: '2026-05-08', amount: 100, direction: 'out', counterpartyName: 'ACME', rowHash: 'datev-frozen' };
+
+  it.each([
+    [{ sepa: { customerRef: 'REF-A' } }, { sepa: { customerRef: 'REF-B' } }],
+    [{ customerRef: 'REF-A' }, { customerRef: 'REF-B' }],
+    [{ description: 'KREF+REF-ASVWZ+Payment' }, { description: 'KREF+REF-BSVWZ+Payment' }],
+    [{ description: 'Invoice A' }, { description: 'Invoice B' }],
+    [{ sepa: { purpose: 'Invoice A' } }, { purpose: 'Invoice B' }],
+  ])('known conflicts veto even frozen hashes: %j versus %j', (first, second) => {
+    const row = { ...payment, ...first }, ledger = { ...payment, ...second };
+    expect(diffAgainstExisting([row], [ledger])).toEqual({ newRows: [row], duplicateRows: [] });
+  });
+
+  it.each(['description', 'rawDescription'].flatMap((field) =>
+    [['customerRef', 'KREF'], ['endToEndRef', 'EREF'], ['creditorId', 'CRED'], ['mandateRef', 'MREF']].map(([key, tag]) => [field, key, tag])))('resolves %s tagged %s without preferring contradictory fields', (field, key, tag) => {
+    const tagged = `${tag}+REF-ASVWZ+Payment`;
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: tagged })}`).rows[0];
+    const row = { ...parsed, sepa: {}, description: '', rawDescription: '', [field]: tagged };
+    expect(authoritativeBankEvidence(row).bankEvidence).toHaveLength(1);
+    const contrary = { ...row, bankEvidence: row.bankEvidence.map((record) => ({ ...record, [key]: 'REF-B' })) };
+    expect(authoritativeBankEvidence(contrary)).toEqual({});
+    for (const conflict of [{ ...contrary, sepa: { [key]: 'REF-B' } }, { ...contrary, [key]: 'REF-B' }]) {
+      expect(authoritativeBankEvidence(conflict)).toEqual({});
+      expect(diffAgainstExisting([row], [conflict]).newRows).toHaveLength(1);
+      expect(diffAgainstExisting([conflict], [row]).newRows).toHaveLength(1);
+    }
+    const placeholder = { ...row, sepa: { [key]: 'NOTPROVIDED' } };
+    expect(authoritativeBankEvidence(placeholder).bankEvidence).toHaveLength(1);
+    expect(diffAgainstExisting([row], [placeholder]).newRows).toEqual([]);
+    const other = { ...parsed, sepa: { [key]: 'ref-a' }, description: 'Payment', rawDescription: '', bankEvidence: undefined };
+    expect(diffAgainstExisting([placeholder], [other]).newRows).toHaveLength(1);
+  });
+
+  it.each(['Invoice: 4711', 'Überweisungsauftrag Invoice 4711'])('compares raw, structured and asserted purpose consistently: %s', (purpose) => {
+    const parsed = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ description: `KREF+REF-4711SVWZ+${purpose}` })}`).rows[0];
+    const row = { ...parsed, description: 'Invoice 4711', sepa: { ...parsed.sepa, purpose: 'Invoice 4711' } };
+    expect(authoritativeBankEvidence(row).bankEvidence).toHaveLength(1);
+    const contrary = { ...row, sepa: { ...row.sepa, purpose: 'Invoice B' },
+      bankEvidence: row.bankEvidence.map((record) => ({ ...record, purpose: 'invoice b' })) };
+    expect(authoritativeBankEvidence(contrary)).toEqual({});
+    expect(diffAgainstExisting([row], [contrary]).newRows).toHaveLength(1);
+    expect(diffAgainstExisting([contrary], [row]).newRows).toHaveLength(1);
+  });
+
+  it.each(['Invoice B', 'Invoice 4712', 'Invoice 4711 suffix', 'Invoice 4711 2026-05-08', 'Überweisungsauftrag 2026-05-08 Invoice 4711', 'Invoice 4711 Überweisungsauftrag'])('retains meaningful purpose distinction %j even with equal references/hashes', (purpose) => {
+    const row = { ...payment, customerRef: 'REF-4711', purpose: 'Invoice 4711' };
+    expect(diffAgainstExisting([row], [{ ...row, purpose }]).newRows).toHaveLength(1);
+  });
+
+  it.each(['', 'Payment', 'Überweisungsauftrag', 'SEPA-Überweisung', 'Entgelt/Auslagen', 'Abschluss'])('generic or missing purpose %j is not contradictory evidence', (description) => {
+    const row = { ...payment, description: 'Invoice A' };
+    expect(diffAgainstExisting([row], [{ ...payment, description }]).newRows).toEqual([]);
+  });
+
+  it.each(['', 'NOTPROVIDED', 'NONREF'])('treats reference placeholder %j as unknown', (customerRef) => {
+    const row = { ...payment, sepa: { customerRef: 'REF-A' }, description: 'Invoice A' };
+    expect(diffAgainstExisting([row], [{ ...payment, customerRef, description: ' invoice   A ' }]).newRows).toEqual([]);
+  });
+});
+
 describe('bank statement import dedupe classification', () => {
-  it('dedupes within one file by rowHash while attaching run and file metadata to importable rows', () => {
+  it.each([false, true])('matches cross-format bookings one-to-one before import (reverse=%s)', (reverse) => {
+    const common = { postedDate: '08.05.2026', valueDate: '08.05.2026', amount: '-100,00', description: 'Invoice 123' };
+    const konto = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow(common)}`);
+    const umsaetze = parseBankStatementCSV([
+      umsaetzeHeader,
+      umsaetzeRow({ ...common, counterpartyIban: 'DE89370400440532013000', balance: '800,00' }),
+      umsaetzeRow({ ...common, counterpartyIban: 'DE89370400440532013000', balance: '900,00' }),
+    ].join('\n'));
+    const entries = [{ parsed: konto }, { parsed: umsaetze }];
+    if (reverse) entries.reverse();
+    const result = classifyBankImportFiles(entries);
+    expect(result.summary).toMatchObject({ newRows: 2, duplicates: 1 });
+    expect(result.files.flatMap((file) => file.diff.newRows).reduce((sum, row) => sum + row.signedAmount, 0)).toBe(-200);
+    expect(result.files[1].diff.duplicateRows[0].duplicateReason).toBe('run');
+    expect(konto.rows[0].rowHash).not.toBe(umsaetze.rows[0].rowHash);
+    // A third overlapping export cannot reintroduce either occurrence.
+    expect(classifyBankImportFiles([...entries, { parsed: umsaetze }]).summary).toMatchObject({ newRows: 2, duplicates: 3 });
+  });
+
+  it('retains repeated Kontobewegungen bookings with distinct balances without changing legacy hashes', () => {
+    const common = { postedDate: '08.05.2026', valueDate: '08.05.2026', amount: '-100,00' };
+    const balances = ['900,00', '800,00'];
+    const konto = parseBankStatementCSV([balanceHeaderAt(12), ...balances.map((balance) =>
+      balanceRowAt(kontobewegungenRow(common), balance, 12))].join('\n'));
+    const umsaetze = parseBankStatementCSV([umsaetzeHeader, ...balances.map((balance) =>
+      umsaetzeRow({ ...common, counterpartyIban: 'DE89370400440532013000', balance }))].join('\n'));
+    expect(konto.rows[0].rowHash).toBe(konto.rows[1].rowHash);
+    expect(classifyBankImportFiles([{ parsed: konto }]).summary).toMatchObject({ newRows: 2, duplicates: 0 });
+    for (const files of [[konto, umsaetze], [umsaetze, konto]]) {
+      expect(classifyBankImportFiles(files.map((parsed) => ({ parsed }))).summary).toMatchObject({ newRows: 2, duplicates: 2 });
+    }
+    expect(classifyBankImportFiles([{ parsed: { rows: [konto.rows[0]] } }, { parsed: { rows: [umsaetze.rows[0]] } }]).summary)
+      .toMatchObject({ newRows: 1, duplicates: 1 });
+  });
+
+  it('does not batch-match unrelated purposes or different known IBANs across formats', () => {
+    const common = { postedDate: '08.05.2026', valueDate: '08.05.2026', amount: '-100,00' };
+    const konto = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow(common)}`);
+    for (const change of [{ description: 'Another invoice' }, { counterpartyIban: 'DE00000000000000000000' }]) {
+      const umsaetze = parseBankStatementCSV(`${umsaetzeHeader}\n${umsaetzeRow({ ...common, counterpartyIban: 'DE89370400440532013000', ...change })}`);
+      expect(classifyBankImportFiles([{ parsed: konto }, { parsed: umsaetze }]).summary).toMatchObject({ newRows: 2, duplicates: 0 });
+    }
+  });
+  it('withholds unproven identical lines without losing run/file metadata', () => {
     const row = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
     const result = classifyBankImportFiles(
       [{ file: { name: 'may.csv', size: 128, lastModified: 1778306400000 }, parsed: { rows: [row, { ...row, lineNumber: 3 }], errors: [] } }],
@@ -418,17 +773,21 @@ describe('bank statement import dedupe classification', () => {
       'datev-run-1',
     );
 
-    expect(result.files[0].diff.newRows).toHaveLength(1);
-    expect(result.files[0].diff.newRows[0]).toMatchObject({
+    expect(result.files[0].diff.newRows).toEqual([]);
+    expect(result.files[0].diff.unresolvedRows).toHaveLength(2);
+    expect(result.files[0].diff.unresolvedRows[0]).toMatchObject({
       importRunId: 'datev-run-1',
       importFile: { name: 'may.csv', size: 128, lastModified: 1778306400000 },
       importLineNumber: 2,
       rowHash: row.rowHash,
     });
-    expect(result.files[0].diff.duplicateRows).toEqual([
-      expect.objectContaining({ rowHash: row.rowHash, duplicateReason: 'intra-file' }),
-    ]);
-    expect(result.summary).toMatchObject({ newRows: 1, duplicates: 1, unsupportedFiles: 0 });
+    expect(result.files[0].diff.duplicateRows).toEqual([]);
+    expect(result.summary).toMatchObject({ newRows: 0, duplicates: 0, unresolved: 2, unsupportedFiles: 0 });
+    const stored = bankRowToMovementPayload(row);
+    for (const ledger of [[], [stored], [stored, { ...stored }]]) {
+      expect(diffAgainstExisting([row, { ...row }], ledger)).toMatchObject({ newRows: [], duplicateRows: [],
+        unresolvedRows: [expect.objectContaining({ rowHash: row.rowHash }), expect.objectContaining({ rowHash: row.rowHash })] });
+    }
   });
 
   it('dedupes across selected files before writes using a run-level rowHash set', () => {
@@ -473,9 +832,16 @@ describe('bank statement import dedupe classification', () => {
   // (the old export cuts long names mid-word). Both are read-only matching
   // rules for existing-ledger comparison only — never part of rowHash.
 
-  it('treats a blank existing counterparty as matching a filled-in bank-name counterparty for the same date/amount/direction', () => {
-    const row = { postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: 'Volksbank Vorpommern eG' };
-    const existing = [{ postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: '' }];
+  it('does not let a blank-counterparty fee suppress an unrelated payment', () => {
+    const row = { postedDate: '2026-07-31', amount: 100, direction: 'out', counterpartyName: 'ACME', description: 'Invoice 123', rowHash: 'datev-payment' };
+    const fee = { ...row, counterpartyName: '', description: 'Account fee', rowHash: 'datev-fee' };
+    expect(diffAgainstExisting([row], [fee])).toEqual({ newRows: [row], duplicateRows: [] });
+    expect(diffAgainstExisting([{ ...fee, rowHash: 'datev-other', description: 'Another fee' }], [fee]).newRows).toHaveLength(1);
+  });
+
+  it('requires corroborating purpose for a blank existing fee counterparty', () => {
+    const row = { postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: 'Volksbank Vorpommern eG', description: 'Account fee July' };
+    const existing = [{ postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: '', description: 'Account fee July' }];
 
     expect(diffAgainstExisting([row], existing)).toMatchObject({ newRows: [], duplicateRows: [row] });
   });
@@ -506,8 +872,8 @@ describe('bank statement import dedupe classification', () => {
   });
 
   it('classifyBankImportFiles reports fee-row/truncated-name matches against the ledger as duplicates, not new', () => {
-    const feeRow = { postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: 'Volksbank Vorpommern eG', lineNumber: 2 };
-    const existing = [{ postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: '' }];
+    const feeRow = { postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: 'Volksbank Vorpommern eG', description: 'Account fee July', lineNumber: 2 };
+    const existing = [{ postedDate: '2026-07-31', amount: 312.98, direction: 'out', counterpartyName: '', description: 'Account fee July' }];
 
     const result = classifyBankImportFiles(
       [{ file: { name: 'jul.csv' }, parsed: { rows: [feeRow], errors: [] } }],
@@ -518,10 +884,9 @@ describe('bank statement import dedupe classification', () => {
     expect(result.files[0].diff.duplicateRows[0].duplicateReason).toBe('existing');
   });
 
-  it('does NOT apply the loose blank/prefix tolerance to intra-file or intra-run dedup — only to matching the existing ledger', () => {
-    // Two rows in the SAME batch, one blank one filled, same date/amount/direction:
-    // intra-batch dedup must stay strict (this scenario should not occur from a
-    // single real file, but the rule must not silently merge unrelated rows).
+  it('withholds a blank/filled party ambiguity without silently merging the source rows', () => {
+    // Neither a blank party nor a different representation hash proves a second
+    // payment. Retain both rows for review, not as confirmed run duplicates.
     const blank = { postedDate: '2026-07-31', amount: 10, direction: 'out', counterpartyName: '', lineNumber: 2, rowHash: 'x-1' };
     const filled = { postedDate: '2026-07-31', amount: 10, direction: 'out', counterpartyName: 'Volksbank Vorpommern eG', lineNumber: 3, rowHash: 'x-2' };
 
@@ -530,11 +895,116 @@ describe('bank statement import dedupe classification', () => {
       [],
     );
 
-    expect(result.summary).toMatchObject({ newRows: 2, duplicates: 0 });
+    expect(result.summary).toMatchObject({ newRows: 0, duplicates: 0, unresolved: 2 });
+  });
+});
+
+describe('durable bank evidence contract', () => {
+  it.each(['0,00', '', 'N/A'])('records observed balance validity without manufacturing values: %s', (balance) => {
+    const row = parseBankStatementCSV(`${umsaetzeHeader}\n${umsaetzeRow({ balance, currency: '', valueDate: '', description: 'KREF+REF1SVWZ+PaymentTAN: 123456' })}`).rows[0];
+    const [evidence] = row.bankEvidence;
+    expect(row.bankEvidenceVersion).toBe(1);
+    expect(evidence).toMatchObject({ signedCents: -10000, customerRef: 'REF1', purpose: 'payment', balanceState: balance === '0,00' ? 'valid' : balance ? 'invalid' : 'missing' });
+    expect(evidence).not.toHaveProperty('currency');
+    expect(evidence).not.toHaveProperty('valueDate');
+    expect(evidence).not.toHaveProperty('tan');
+    expect(Object.values(evidence).every((value) => typeof value === 'string' || Number.isSafeInteger(value))).toBe(true);
+    if (balance === '0,00') expect(evidence.balanceCents).toBe(0);
+    else expect(evidence).not.toHaveProperty('balanceCents');
+  });
+
+  it.each([['counterparty', 4097], ['description', 4097], ['creditorId', 257]])('blocks unsafe %s (%s characters) instead of importing without evidence', (field, length) => {
+    const parsed = parseBankStatementCSV(`${umsaetzeHeader}\n${umsaetzeRow({ [field]: 'X'.repeat(length) })}`);
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.errors).toEqual([expect.objectContaining({ type: 'invalid-bank-evidence' })]);
+    expect(classifyBankImportFiles([{ parsed }]).summary.newRows).toBe(0);
+  });
+
+  it.each([['counterparty', 256], ['counterparty', 257], ['counterparty', 4096], ['description', 4096], ['creditorId', 256]])('retains safe %s at %s characters without truncation', (field, length) => {
+    const parsed = parseBankStatementCSV(`${umsaetzeHeader}\n${umsaetzeRow({ [field]: 'X'.repeat(length) })}`);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0].raw.columns).toContain('X'.repeat(length));
+    expect(bankRowToMovementPayload(parsed.rows[0]).bankEvidence).toEqual(parsed.rows[0].bankEvidence);
+  });
+
+  it('blocks fields whose canonical value exceeds the evidence bound', () => {
+    const parsed = parseBankStatementCSV(`${umsaetzeHeader}\n${umsaetzeRow({ currency: 'ß'.repeat(129) })}`);
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.errors).toEqual([expect.objectContaining({ type: 'invalid-bank-evidence' })]);
+  });
+
+  it('canonicalizes and deduplicates flat assertions independent of key and alias order', () => {
+    const row = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
+    const evidence = row.bankEvidence[0];
+    const reordered = { ...Object.fromEntries(Object.entries(evidence).reverse()), counterpartyIban: ' de89 3704 0044 0532 0130 00 ', currency: 'eur' };
+    const payload = bankRowToMovementPayload({ ...row, bankEvidence: [evidence, reordered] });
+    expect(payload.bankEvidence).toEqual([evidence]);
+    expect(JSON.parse(JSON.stringify(payload)).bankEvidence).toEqual(payload.bankEvidence);
+  });
+
+  it('unions complementary observations in either file order without duplicating raw or TAN data', () => {
+    const common = { postedDate: '08.05.2026', valueDate: '08.05.2026', amount: '-100,00' };
+    const konto = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow({ ...common, iban: '', bic: '', description: 'KREF+CUSTOMER1SVWZ+PaymentTAN: 123456' })}`);
+    const ums = parseBankStatementCSV(`${umsaetzeHeader}\n${umsaetzeRow({ ...common, description: 'Payment', mandateRef: 'MANDATE1' })}`);
+    const evidence = [[konto, ums], [ums, konto]].map((files) =>
+      classifyBankImportFiles(files.map((parsed) => ({ parsed }))).files.flatMap((file) => file.diff.newRows)[0].bankEvidence);
+    expect(evidence[0]).toEqual(evidence[1]);
+    expect(evidence[0]).toHaveLength(2);
+    expect(evidence[0].some((entry) => entry.customerRef === 'CUSTOMER1')).toBe(true);
+    expect(evidence[0].some((entry) => entry.mandateRef === 'MANDATE1')).toBe(true);
+    expect(JSON.stringify(evidence)).not.toMatch(/123456|rawDatev|columns/);
+  });
+
+  it('rejects inherited fields and mixed valid/malformed envelopes without partial authority', () => {
+    const row = parseBankStatementCSV(`${kontobewegungenHeader}\n${kontobewegungenRow()}`).rows[0];
+    const record = row.bankEvidence[0];
+    for (const bankEvidence of [[Object.create(record)], [record, { ...record, balanceState: 'valid' }], [{ ...record, postedDate: '2026-02-30' }]]) {
+      expect(bankRowToMovementPayload({ ...row, bankEvidence })).not.toHaveProperty('bankEvidence');
+    }
+    const zero = { ...record, balanceState: 'valid', balanceCents: 0 };
+    expect(bankRowToMovementPayload({ ...row, bankEvidence: [record, zero, record] }).bankEvidence).toHaveLength(2);
+  });
+
+  it.each([
+    [2, []], ['1', []], [1, null], [1, [{}]],
+    [1, [{ signedCents: Infinity }]], [1, [{ nested: {} }]],
+  ])('rejects malformed or unsupported metadata without serializing assertions: %j', (bankEvidenceVersion, bankEvidence) => {
+    const payload = bankRowToMovementPayload({ direction: 'out', amount: 100, bankEvidenceVersion, bankEvidence });
+    expect(payload).not.toHaveProperty('bankEvidenceVersion');
+    expect(payload).not.toHaveProperty('bankEvidence');
   });
 });
 
 describe('optional running-balance column', () => {
+  it.each(['N/A', '123,45junk', '1.23,45', 'Infinity', '0,00', '', '-1.234,56'])('distinguishes invalid, missing and valid balances: %s', (balance) => {
+    const valid = { '0,00': 0, '-1.234,56': -1234.56 };
+    for (const csv of [
+      `${balanceHeaderAt(12)}\n${balanceRowAt(kontobewegungenRow(), balance, 12)}`,
+      `${umsaetzeHeader}\n${umsaetzeRow({ balance })}`,
+    ]) {
+      const parsed = parseBankStatementCSV(csv);
+      expect(parsed.rows).toHaveLength(1);
+      expect(parsed.rows[0].balanceAfter).toBe(valid[balance] ?? null);
+      if (balance && !(balance in valid)) {
+        expect(parsed.errors).toEqual([expect.objectContaining({ type: 'invalid-balance', lineNumber: 2 })]);
+        expect(parsed.balances).toEqual([]);
+      } else {
+        expect(parsed.errors).toEqual([]);
+        expect(parsed.balances).toHaveLength(balance ? 1 : 0);
+      }
+    }
+  });
+
+  it('does not promote an earlier balance when the closing booking has an invalid saldo', () => {
+    const parsed = parseBankStatementCSV([umsaetzeHeader,
+      umsaetzeRow({ postedDate: '31.05.2026', balance: 'N/A' }),
+      umsaetzeRow({ postedDate: '30.05.2026', balance: '900,00' }),
+    ].join('\n'));
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.balances).toEqual([]);
+    expect(parsed.errors).toHaveLength(1);
+  });
   it('parses a balance column appended at the end, recognizing every candidate header name', () => {
     for (const name of ['Saldo', 'saldo nach buchung', 'KONTOSTAND', 'Saldo in EUR', 'Kontostand nach Buchung']) {
       const header = balanceHeaderAt(12, name);
@@ -592,7 +1062,7 @@ describe('optional running-balance column', () => {
   it('includes parsed.balances = deriveMonthEndBalances(rows) in the parse result', () => {
     const header = balanceHeaderAt(12, 'Saldo');
     const rows = [
-      balanceRowAt(kontobewegungenRow({ postedDate: '31.05.2026', valueDate: '31.05.2026' }), '1.214,20', 12),
+      balanceRowAt(kontobewegungenRow({ postedDate: '31.05.2026', valueDate: '31.05.2026', amount: '314,20' }), '1.214,20', 12),
       balanceRowAt(kontobewegungenRow({ postedDate: '15.05.2026', valueDate: '15.05.2026' }), '900,00', 12),
     ].join('\n');
     const parsed = parseBankStatementCSV(`${header}\n${rows}`);
@@ -603,7 +1073,7 @@ describe('optional running-balance column', () => {
 });
 
 describe('deriveMonthEndBalances', () => {
-  const row = (postedDate, lineNumber, balanceAfter) => ({ postedDate, lineNumber, balanceAfter });
+  const row = (postedDate, lineNumber, balanceAfter, signedAmount = 0) => ({ postedDate, lineNumber, balanceAfter, signedAmount, currency: 'EUR' });
 
   it('returns [] when no row has a balance', () => {
     expect(deriveMonthEndBalances([row('2026-05-08', 2, null), row('2026-05-09', 3, null)])).toEqual([]);
@@ -612,9 +1082,9 @@ describe('deriveMonthEndBalances', () => {
 
   it('picks the latest booking per month in a descending (newest-first) file', () => {
     const rows = [
-      row('2026-06-30', 2, 5000),
-      row('2026-06-15', 3, 4000),
-      row('2026-05-31', 4, 1214.20),
+      row('2026-06-30', 2, 5000, 1000),
+      row('2026-06-15', 3, 4000, 2785.80),
+      row('2026-05-31', 4, 1214.20, 314.20),
       row('2026-05-10', 5, 900),
     ];
     expect(deriveMonthEndBalances(rows)).toEqual([
@@ -626,9 +1096,9 @@ describe('deriveMonthEndBalances', () => {
   it('picks the latest booking per month in an ascending (oldest-first) file', () => {
     const rows = [
       row('2026-05-10', 2, 900),
-      row('2026-05-31', 3, 1214.20),
-      row('2026-06-15', 4, 4000),
-      row('2026-06-30', 5, 5000),
+      row('2026-05-31', 3, 1214.20, 314.20),
+      row('2026-06-15', 4, 4000, 2785.80),
+      row('2026-06-30', 5, 5000, 1000),
     ];
     expect(deriveMonthEndBalances(rows)).toEqual([
       { date: '2026-05-31', balance: 1214.20 },
@@ -638,8 +1108,8 @@ describe('deriveMonthEndBalances', () => {
 
   it('breaks a same-day tie by the SMALLEST lineNumber in a descending file', () => {
     const rows = [
-      row('2026-05-31', 2, 100), // top of file = latest booking of the day
-      row('2026-05-31', 3, 50),
+      row('2026-05-31', 2, 100, 50), // top of file = latest booking of the day
+      row('2026-05-31', 3, 50, 40),
       row('2026-05-01', 4, 10),
     ];
     expect(deriveMonthEndBalances(rows)).toEqual([{ date: '2026-05-31', balance: 100 }]);
@@ -648,26 +1118,20 @@ describe('deriveMonthEndBalances', () => {
   it('breaks a same-day tie by the LARGEST lineNumber in an ascending file', () => {
     const rows = [
       row('2026-05-01', 2, 10),
-      row('2026-05-31', 3, 50),
-      row('2026-05-31', 4, 100), // bottom of file = latest booking of the day
+      row('2026-05-31', 3, 50, 40),
+      row('2026-05-31', 4, 100, 50), // bottom of file = latest booking of the day
     ];
     expect(deriveMonthEndBalances(rows)).toEqual([{ date: '2026-05-31', balance: 100 }]);
   });
 
-  // ── Closing-date rounding: the reported date is normally the LAST CALENDAR
-  // DAY of the month, since a bank's month-end closing booking can land a day
-  // or two before it — EXCEPT for the newest month in the array, which stays
-  // open (see the real Volksbank facts this locks in: a 2026-05-29 closing
-  // booking means "balance as of 2026-05-31" once we know June happened, but
-  // 2026-09-08 stays 2026-09-08 while it's genuinely the latest data seen).
-
-  it("closes a non-newest month's date to the last calendar day even when its winning row lands earlier", () => {
+  // A verified booking is evidence at its actual date, not at an unseen month end.
+  it('keeps the observed date of a non-newest month', () => {
     const rows = [
-      row('2026-09-08', 2, -36044.51), // newest month → partial
-      row('2026-08-27', 3, -31737.38), // not newest → closes to 08-31
+      row('2026-09-08', 2, -36044.51, -4307.13),
+      row('2026-08-27', 3, -31737.38),
     ];
     expect(deriveMonthEndBalances(rows)).toEqual([
-      { date: '2026-08-31', balance: -31737.38 },
+      { date: '2026-08-27', balance: -31737.38 },
       { date: '2026-09-08', balance: -36044.51 },
     ]);
   });
@@ -679,33 +1143,32 @@ describe('deriveMonthEndBalances', () => {
     expect(deriveMonthEndBalances(rows)).toEqual([{ date: '2026-05-29', balance: -37525.25 }]);
   });
 
-  it('resolves a formerly-newest month to its calendar month-end once later rows are unioned in', () => {
+  it('does not extend a partial month when later rows are unioned in', () => {
     const mayOnly = [row('2026-05-29', 2, -37525.25)];
     expect(deriveMonthEndBalances(mayOnly)[0].date).toBe('2026-05-29');
 
-    // Once a caller merges in the rows of later files/periods (June onward),
-    // May is no longer the array's newest month and correctly closes.
+    // Later balanced movements still do not extend May's observed date.
     const merged = [
-      row('2026-09-08', 2, -36044.51),
-      row('2026-08-31', 3, -31737.38),
-      row('2026-07-31', 4, -6680.53),
-      row('2026-06-30', 5, -40142.55),
-      row('2026-05-29', 6, -37525.25),
+      row('2026-09-08', 2, -36044.51, -4307.13),
+      row('2026-08-31', 3, -31737.38, -25056.85),
+      row('2026-07-31', 4, -6680.53, 33462.02),
+      row('2026-06-30', 5, -40142.55, -2617.30),
+      row('2026-05-29', 6, -37525.25, -4539.91),
       row('2026-04-30', 7, -32985.34),
     ];
     const mayEntry = deriveMonthEndBalances(merged).find((b) => b.date.startsWith('2026-05'));
-    expect(mayEntry).toEqual({ date: '2026-05-31', balance: -37525.25 });
+    expect(mayEntry).toEqual({ date: '2026-05-29', balance: -37525.25 });
   });
 
   it('handles February (28 days, 2026 is not a leap year) and January correctly', () => {
     const rows = [
-      row('2026-03-31', 2, -33948.55), // newest
-      row('2026-02-27', 3, -32796.33), // closes to 02-28
-      row('2026-01-30', 4, 16235.41), // closes to 01-31
+      row('2026-03-31', 2, -33948.55, -1152.22),
+      row('2026-02-27', 3, -32796.33, -49031.74),
+      row('2026-01-30', 4, 16235.41),
     ];
     expect(deriveMonthEndBalances(rows)).toEqual([
-      { date: '2026-01-31', balance: 16235.41 },
-      { date: '2026-02-28', balance: -32796.33 },
+      { date: '2026-01-30', balance: 16235.41 },
+      { date: '2026-02-27', balance: -32796.33 },
       { date: '2026-03-31', balance: -33948.55 },
     ]);
   });
@@ -753,9 +1216,9 @@ describe('volksbank-umsaetze format', () => {
     expect(row.counterpartyName).toBe('Volksbank Vorpommern eG');
   });
 
-  it('defaults currency to EUR when the Waehrung cell is blank', () => {
+  it('preserves missing currency when the Waehrung cell is blank', () => {
     const csv = `${umsaetzeHeader}\n${umsaetzeRow({ currency: '' })}`;
-    expect(parseBankStatementCSV(csv).rows[0].currency).toBe('EUR');
+    expect(parseBankStatementCSV(csv).rows[0].currency).toBe('');
   });
 
   it('falls back sepa creditorId/mandateRef to the Glaeubiger ID / Mandatsreferenz columns when the purpose text carries neither', () => {
@@ -906,8 +1369,106 @@ describe('movementFingerprint / bankRowFingerprint — punctuation-insensitive c
   });
 });
 
+describe('multidate arithmetic evidence', () => {
+  it.each(['valid', 'inconsistent', 'malformed-last', 'missing-last', 'missing-interior', 'invalid-interior', 'unproved', 'skipped'])('validates %s in both source directions and overlapping file orders', (kind) => {
+    const balances = [kind === 'unproved' ? '' : '1000,00',
+      ['missing-interior', 'unproved'].includes(kind) ? '' : kind === 'invalid-interior' ? 'N/A' : '900,00',
+      kind === 'inconsistent' ? '750,00' : kind === 'malformed-last' ? 'N/A' : kind === 'missing-last' ? '' : '800,00'];
+    const valid = ['valid', 'missing-interior'].includes(kind);
+    for (const reverse of [false, true]) {
+      const lines = balances.map((balance, i) => umsaetzeRow({ postedDate: i ? '08.05.2026' : '07.05.2026', balance }));
+      if (kind === 'skipped') lines.splice(1, 0, 'unparsed movement');
+      if (reverse) lines.reverse();
+      const parsed = parseBankStatementCSV([umsaetzeHeader, ...lines].join('\n'));
+      expect(parsed.balances).toEqual(valid ? [{ date: '2026-05-08', balance: 800 }] : []);
+      if (!valid) expect(parsed.balanceIssues.length).toBeGreaterThan(0);
+      const subset = parseBankStatementCSV([umsaetzeHeader, lines.at(-1)].join('\n'));
+      for (const files of [[parsed, subset], [subset, parsed]]) {
+        const report = diffBankStatementFiles(files, []);
+        expect(report.balances).toEqual(valid ? [{ date: '2026-05-08', balance: 800 }] : []);
+        expect(report.openingAnchor).toEqual(valid ? { date: '2026-05-06', balance: 1100 } : null);
+        if (!valid) expect(report.balanceIssues.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe('incomplete single-day balance sequences', () => {
+  it.each([
+    ['900,00', 'N/A'], ['N/A', '900,00'],
+    ['900,00', 'N/A', '700,00'], ['700,00', 'N/A', '900,00'],
+    ['900,00', '750,00'],
+  ])('withholds an ambiguous closing for %j', (...balances) => {
+    const parsed = parseBankStatementCSV([umsaetzeHeader, ...balances.map((balance) => umsaetzeRow({ balance }))].join('\n'));
+    expect(parsed.rows).toHaveLength(balances.length);
+    expect(parsed.balances).toEqual([]);
+    expect(mergeParsedFiles([parsed]).balances).toEqual([]);
+  });
+
+  it('does not let declared order override malformed interior or terminal balances', () => {
+    const parsed = parseBankStatementCSV([umsaetzeHeader,
+      ...['900,00', 'N/A', '700,00'].map((balance) => umsaetzeRow({ balance })),
+    ].join('\n'));
+    const knownAscending = parsed.rows.map((row) => ({ ...row, statementOrder: 'ascending' }));
+    expect(deriveMonthEndBalances(knownAscending)).toEqual([]);
+    expect(deriveMonthEndBalances(knownAscending.slice(0, 2))).toEqual([]);
+    const knownDescending = [...knownAscending].reverse().map((row, i) => ({ ...row, lineNumber: i + 2, statementOrder: 'descending' }));
+    expect(deriveMonthEndBalances(knownDescending)).toEqual([]);
+    expect(deriveMonthEndBalances(knownDescending.slice(1))).toEqual([]);
+  });
+
+  it('bridges an absent interior balance only with corroborating arithmetic and order', () => {
+    const parsed = parseBankStatementCSV([umsaetzeHeader,
+      umsaetzeRow({ postedDate: '07.09.2026', balance: '1000,00' }),
+      umsaetzeRow({ balance: '' }), umsaetzeRow({ balance: '800,00' }),
+    ].join('\n'));
+    expect(parsed.balances).toEqual([{ date: '2026-09-08', balance: 800 }]);
+  });
+});
+
+describe('closing balance order regressions', () => {
+  it.each(['konto', 'umsaetze'])('infers single-day booking order from running balances in %s', (format) => {
+    for (const descending of [true, false]) {
+      const balances = descending ? ['800,00', '900,00'] : ['900,00', '800,00'];
+      const csv = format === 'konto'
+        ? [balanceHeaderAt(12), ...balances.map((balance) => balanceRowAt(kontobewegungenRow({ amount: '-100,00' }), balance, 12))]
+        : [umsaetzeHeader, ...balances.map((balance) => umsaetzeRow({ balance }))];
+      expect(parseBankStatementCSV(csv.join('\n')).balances[0].balance).toBe(800);
+    }
+  });
+
+  it('keeps each file’s ascending/descending evidence and observed closing dates', () => {
+    const may = parseBankStatementCSV([
+      balanceHeaderAt(12),
+      balanceRowAt(kontobewegungenRow({ postedDate: '01.05.2026', amount: '10,00' }), '10,00', 12),
+      balanceRowAt(kontobewegungenRow({ postedDate: '29.05.2026', amount: '40,00' }), '50,00', 12),
+      balanceRowAt(kontobewegungenRow({ postedDate: '29.05.2026', amount: '50,00' }), '100,00', 12),
+    ].join('\n'));
+    const june = parseBankStatementCSV([umsaetzeHeader,
+      umsaetzeRow({ postedDate: '30.06.2026', balance: '800,00' }),
+      umsaetzeRow({ postedDate: '30.06.2026', balance: '900,00' }),
+    ].join('\n'));
+    expect(may.balances).toEqual([{ date: '2026-05-29', balance: 100 }]);
+    for (const files of [[may, june], [june, may]]) {
+      const merged = mergeParsedFiles(files);
+      expect(merged.balances).toEqual([{ date: '2026-05-29', balance: 100 }, { date: '2026-06-30', balance: 800 }]);
+      expect(merged.rows.at(-1).balanceAfter).toBe(10);
+      expect(merged.rows.find((row) => row.balanceAfter === 100).lineNumber).toBe(4);
+    }
+  });
+
+  it('omits a truly ambiguous same-day closing instead of guessing from line number', () => {
+    const parsed = parseBankStatementCSV([balanceHeaderAt(12),
+      balanceRowAt(kontobewegungenRow({ amount: '100,00' }), '800,00', 12),
+      balanceRowAt(kontobewegungenRow({ amount: '-100,00' }), '900,00', 12),
+    ].join('\n'));
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.balances).toEqual([]);
+  });
+});
+
 describe('mergeParsedFiles', () => {
-  it('closes a month a single file left partial once a later file is unioned in', () => {
+  it('preserves partial closing dates when later files are unioned in', () => {
     const april = parseBankStatementCSV([
       umsaetzeHeader,
       umsaetzeRow({ postedDate: '30.04.2026', description: 'Abschluss per 30.04.2026', bookingText: 'Abschluss', amount: '-10,00', balance: '-32985,34', counterparty: '' }),
@@ -932,7 +1493,7 @@ describe('mergeParsedFiles', () => {
 
     expect(merged.balances).toEqual([
       { date: '2026-04-30', balance: -32985.34 },
-      { date: '2026-05-31', balance: -37525.25 }, // closed now that June exists
+      { date: '2026-05-29', balance: -37525.25 }, // June does not establish May 31 coverage
       { date: '2026-06-30', balance: -40142.55 }, // newest month → stays as its own last day (already month-end here)
     ]);
     expect(merged.rows).toHaveLength(3);

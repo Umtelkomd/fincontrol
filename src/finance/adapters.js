@@ -1,5 +1,6 @@
 import { MOVEMENT_KIND, MOVEMENT_STATUS } from './constants';
 import { isCostScope } from './costScope';
+import { authoritativeBankEvidence } from './bankStatementParser';
 import {
   clampMoney,
   deriveDocumentStage,
@@ -182,6 +183,7 @@ export const adaptBankMovementDoc = (raw, source = 'bankMovement') => {
     importLineNumber: raw.importLineNumber || null,
     rowHash: raw.rowHash || '',
     rowFingerprint: raw.rowFingerprint || '',
+    ...authoritativeBankEvidence(raw),
     signedAmount: Number.isFinite(Number(raw.signedAmount))
       ? clampMoney(raw.signedAmount)
       : (raw.direction === 'out' ? -grossAmount : grossAmount),

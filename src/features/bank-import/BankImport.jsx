@@ -27,8 +27,8 @@ const monthLabel = (isoDate) => {
 /**
  * Detected month-end balances across every loaded file, via the shared
  * `mergeParsedFiles` (see its doc comment for why a union — not each file's
- * own `.balances` — is what correctly closes a month a single file left
- * partial, e.g. Abril-Mayo's 2026-05-29 → 2026-05-31 once June is loaded).
+ * own `.balances` — compares independently verified closing observations).
+ * Dates are observed booking dates, never rounded to unobserved month ends.
  * Each balance is tagged with the `fileName` of the row that won it, for
  * the "Registrar anclas" source string.
  */
@@ -38,9 +38,10 @@ const mergeDetectedBalances = (files) => {
  rows: entry.parsed?.rows || [],
  period: entry.parsed?.period || null,
  }));
- const { rows, balances } = mergeParsedFiles(parsedFiles);
+ const withheld = (files || []).flatMap((entry) => entry.diff?.unresolvedRows || []);
+ const { rows, balances, balanceIssues = [] } = mergeParsedFiles(parsedFiles, withheld);
 
- return balances.map((balance) => {
+ return { balanceIssues, balances: balances.map((balance) => {
  const monthKey = balance.date.slice(0, 7);
  // Best-effort provenance: the row mergeParsedFiles/deriveMonthEndBalances
  // actually picked for this month is the one whose month + balance match
@@ -49,7 +50,7 @@ const mergeDetectedBalances = (files) => {
  (row) => row.postedDate.slice(0, 7) === monthKey && row.balanceAfter === balance.balance,
  );
  return { ...balance, fileName: sourceRow?.sourceFileName || '' };
- });
+ }) };
 };
 
 
@@ -71,7 +72,7 @@ const BankImport = ({ user }) => {
  const { bankMovements } = useBankMovements(user);
  const { importRows } = useBankImport(user);
  const { rules } = useClassificationRules(user);
- const { anchors, addAnchor } = useReconciliation(user);
+ const { anchors, addAnchors } = useReconciliation(user);
  const { showToast } = useToast();
 
  // Each entry: { id, file, name, parsed, diff, status, importing, result }
@@ -171,19 +172,21 @@ const BankImport = ({ user }) => {
  let totalDup = 0;
  let totalErrors = 0;
  let totalImported = 0;
+ let totalUnresolved = 0;
  files.forEach((f) => {
  totalRows += f.parsed.rows.length;
  totalNew += f.diff.newRows.length;
  totalDup += f.diff.duplicateRows.length;
+ totalUnresolved += f.diff.unresolvedRows?.length || 0;
  totalErrors += f.parsed.errors.length;
  if (f.result) totalImported += f.result.imported;
  });
- return { totalRows, totalNew, totalDup, totalErrors, totalImported };
+ return { totalRows, totalNew, totalDup, totalErrors, totalImported, totalUnresolved };
  }, [files]);
 
  const filesPending = files.some((f) => f.status === 'ready' && f.diff.newRows.length > 0);
 
- const detectedBalances = useMemo(() => mergeDetectedBalances(files), [files]);
+ const { balances: detectedBalances, balanceIssues } = useMemo(() => mergeDetectedBalances(files), [files]);
  const anchorByDate = useMemo(() => {
  const map = new Map();
  for (const anchor of anchors || []) map.set(anchor.date, anchor);
@@ -211,24 +214,29 @@ const BankImport = ({ user }) => {
  let created = 0;
  let corrected = 0;
  let failed = 0;
- for (const balance of pendingBalances) {
+ try {
+ const result = await addAnchors(pendingBalances.map((balance) => {
  const existing = anchorByDate.get(balance.date);
- const result = await addAnchor({
+ return {
  date: balance.date,
  balance: balance.balance,
  source: `Extracto Volksbank (import ${balance.fileName})`,
  note: existing
  ? `Corrige ${formatCurrency(balance.balance)} € (antes ${formatCurrency(existing.balance)} €)`
  : '',
- });
+ };
+ }));
  if (result.success) {
- if (existing) corrected += 1;
- else created += 1;
+ corrected = pendingBalances.filter((balance) => anchorByDate.has(balance.date)).length;
+ created = pendingBalances.length - corrected;
  } else {
- failed += 1;
+ failed = pendingBalances.length;
  }
- }
+ } catch {
+ failed = pendingBalances.length;
+ } finally {
  setRegisteringAnchors(false);
+ }
  const parts = [];
  if (created > 0) parts.push(`${created} registrada(s)`);
  if (corrected > 0) parts.push(`${corrected} corregida(s)`);
@@ -264,6 +272,17 @@ const BankImport = ({ user }) => {
  )}
  </PageHeader>
 
+ {balanceIssues.length > 0 && <div role="alert" className="text-sm text-[var(--color-warn)]">
+ Saldos no verificables: secuencia incompleta, ambigua o inconsistente. No se registrarán sus anclas; la desviación es desconocida.
+ </div>}
+ {totals.totalUnresolved > 0 && (
+ <div role="alert" className="rounded-md border border-[var(--color-warn)] p-4 text-sm text-[var(--color-warn)]">
+ {totals.totalUnresolved} movimientos retenidos para revisión: {files.some((file) => file.diff.unresolvedRows?.some((row) => row.matchingIssue?.reason === 'unproven-booking-multiplicity'))
+ ? 'hay repeticiones sin prueba de pagos distintos.' : 'el cruce excede el límite seguro.'}
+ {' '}No se importarán ni se contarán como duplicados. Las anclas quedan retenidas.
+ {' '}Solo puedes importar los movimientos independientes confirmados; reintentar sin nuevos datos no resuelve el grupo.
+ </div>
+ )}
  <KPIGrid cols={4}>
  <KPI label="Archivos" value={files.length} meta="En esta sesión" icon={FileText} />
  <KPI
@@ -281,7 +300,7 @@ const BankImport = ({ user }) => {
  <KPI
  label="Importados"
  value={totals.totalImported}
- meta={totals.totalErrors ? `${totals.totalErrors} errores parseo` : 'OK'}
+ meta={totals.totalUnresolved ? `${totals.totalUnresolved} retenidos para revisión` : totals.totalErrors ? `${totals.totalErrors} errores parseo` : 'OK'}
  tone={totals.totalImported > 0 ? 'ok' : 'default'}
  icon={Database}
  />
@@ -324,6 +343,7 @@ const BankImport = ({ user }) => {
  <th className="text-right">Total filas</th>
  <th className="text-right">Nuevos</th>
  <th className="text-right">Duplicados</th>
+ <th className="text-right">Retenidos</th>
  <th className="text-right">Errores parseo</th>
  <th className="text-center">Estado</th>
  <th className="text-right">Acciones</th>
@@ -345,6 +365,7 @@ const BankImport = ({ user }) => {
  <td className="text-right font-mono tabular-nums text-[var(--color-fg-4)]">
  {f.diff.duplicateRows.length}
  </td>
+ <td className="text-right font-mono tabular-nums text-[var(--color-warn)]">{f.diff.unresolvedRows?.length || 0}</td>
  <td className="text-right font-mono tabular-nums">
  {f.parsed.errors.length > 0 ? (
  <span className="text-[var(--color-err)]">{f.parsed.errors.length}</span>
@@ -353,7 +374,8 @@ const BankImport = ({ user }) => {
  )}
  </td>
  <td className="text-center">
- {f.status === 'ready' && f.diff.newRows.length === 0 && (
+ {(f.diff.unresolvedRows?.length || 0) > 0 && <Badge variant="warn">Revisión pendiente</Badge>}
+ {f.status === 'ready' && f.diff.newRows.length === 0 && !f.diff.unresolvedRows?.length && (
  <Badge variant="neutral">Nada nuevo</Badge>
  )}
  {f.status === 'ready' && f.diff.newRows.length > 0 && (
@@ -369,7 +391,7 @@ const BankImport = ({ user }) => {
  >
  {f.result?.errors?.length > 0
  ? `${f.result.imported}/${f.diff.newRows.length} OK`
- : 'Importado'}
+ : f.diff.unresolvedRows?.length ? 'Importación parcial' : 'Importado'}
  </Badge>
  )}
  </td>
