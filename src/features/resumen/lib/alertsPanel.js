@@ -59,7 +59,7 @@ const ANCHOR_STALE_DAYS = 45;
  * fails a test instead of dead-ending the user at the catch-all redirect.
  * Keep in sync with the `href` values assigned below.
  */
-export const ALERT_HREFS = ['/movimientos', '/configuracion', '/datev', '/nominas'];
+export const ALERT_HREFS = ['/movimientos', '/configuracion', '/banco', '/nominas'];
 
 /**
  * @param {{
@@ -68,6 +68,7 @@ export const ALERT_HREFS = ['/movimientos', '/configuracion', '/datev', '/nomina
  *   receivablesAging: object,
  *   payablesAging: object,
  *   importGap: { hasGap: boolean, lastMovementDate: string|null, quietBusinessDays: number|null },
+ *   anchorDrift: Array<{ fromDate: string, toDate: string, expected: number, derived: number, drift: number }>,
  *   missingMonths: string[],
  *   today: string,
  *   config: { bufferEur: number, creditFloorEur?: number },
@@ -80,6 +81,7 @@ export const buildResumenAlerts = ({
   receivablesAging,
   payablesAging,
   importGap,
+  anchorDrift,
   missingMonths,
   today,
   config,
@@ -172,11 +174,23 @@ export const buildResumenAlerts = ({
       severity: 'warning',
       title: 'Extracto bancario sin importar',
       detail: `Sin movimientos desde el ${fmtDayMonth(importGap.lastMovementDate ?? '')}: ${importGap.quietBusinessDays} días hábiles.`,
-      href: '/datev',
+      href: '/banco',
     });
   }
 
-  // 7. Missing payroll months.
+  // 7. Reconciliation anchors contradict each other — the bank movements
+  // between two anchors don't explain the balance change the later one states.
+  for (const drift of anchorDrift ?? []) {
+    alerts.push({
+      id: `anchor-drift:${drift.toDate}`,
+      severity: 'critical',
+      title: 'Desfase entre anclas de conciliación',
+      detail: `El ledger llega a ${fmtEur(drift.derived)} el ${fmtDayMonth(drift.toDate)} pero el ancla dice ${fmtEur(drift.expected)} (diferencia ${fmtEur(drift.drift)}).`,
+      href: '/configuracion',
+    });
+  }
+
+  // 8. Missing payroll months.
   for (const month of missingMonths ?? []) {
     const name = monthNameEs(month);
     alerts.push({

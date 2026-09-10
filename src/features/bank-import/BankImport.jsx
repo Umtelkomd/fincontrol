@@ -1,18 +1,63 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileText, CheckCircle2, AlertCircle, X, Database, Wand2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, X, Database, Wand2, Anchor } from 'lucide-react';
 import { useBankMovements } from '../../hooks/useBankMovements';
-import { useDatevImport } from '../../hooks/useDatevImport';
+import { useBankImport } from '../../hooks/useBankImport';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
+import { useReconciliation } from '../../hooks/useReconciliation';
 import { useToast } from '../../contexts/ToastContext';
-import { classifyDatevImportFiles, parseDatevCSV } from '../../finance/datevParser';
+import {
+ classifyBankImportFiles,
+ mergeParsedFiles,
+ parseBankStatementCSV,
+} from '../../finance/bankStatementParser';
+import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
 import PageHeader from '../../components/layout/PageHeader';
+
+/** "Mayo 2026" from an ISO date — capitalized, matching Spanish month-name style elsewhere. */
+const monthLabel = (isoDate) => {
+ const label = new Date(`${isoDate.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString('es-ES', {
+ month: 'long',
+ year: 'numeric',
+ timeZone: 'UTC',
+ });
+ return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+/**
+ * Detected month-end balances across every loaded file, via the shared
+ * `mergeParsedFiles` (see its doc comment for why a union — not each file's
+ * own `.balances` — compares independently verified closing observations).
+ * Dates are observed booking dates, never rounded to unobserved month ends.
+ * Each balance is tagged with the `fileName` of the row that won it, for
+ * the "Registrar anclas" source string.
+ */
+const mergeDetectedBalances = (files) => {
+ const parsedFiles = (files || []).map((entry) => ({
+ name: entry.name,
+ rows: entry.parsed?.rows || [],
+ period: entry.parsed?.period || null,
+ }));
+ const withheld = (files || []).flatMap((entry) => entry.diff?.unresolvedRows || []);
+ const { rows, balances, balanceIssues = [] } = mergeParsedFiles(parsedFiles, withheld);
+
+ return { balanceIssues, balances: balances.map((balance) => {
+ const monthKey = balance.date.slice(0, 7);
+ // Best-effort provenance: the row mergeParsedFiles/deriveMonthEndBalances
+ // actually picked for this month is the one whose month + balance match
+ // (both are already uniquely selected upstream).
+ const sourceRow = rows.find(
+ (row) => row.postedDate.slice(0, 7) === monthKey && row.balanceAfter === balance.balance,
+ );
+ return { ...balance, fileName: sourceRow?.sourceFileName || '' };
+ }) };
+};
 
 
 const createImportRunId = () => (
  typeof crypto !== 'undefined' && crypto.randomUUID
  ? crypto.randomUUID()
- : `datev-${Date.now()}-${Math.random().toString(36).slice(2)}`
+ : `bank-${Date.now()}-${Math.random().toString(36).slice(2)}`
 );
 
 const readFileAsText = (file) =>
@@ -23,15 +68,17 @@ const readFileAsText = (file) =>
  reader.readAsText(file, 'UTF-8');
  });
 
-const DatevImport = ({ user }) => {
+const BankImport = ({ user }) => {
  const { bankMovements } = useBankMovements(user);
- const { importRows } = useDatevImport(user);
+ const { importRows } = useBankImport(user);
  const { rules } = useClassificationRules(user);
+ const { anchors, addAnchors } = useReconciliation(user);
  const { showToast } = useToast();
 
  // Each entry: { id, file, name, parsed, diff, status, importing, result }
  const [files, setFiles] = useState([]);
  const [isDragging, setIsDragging] = useState(false);
+ const [registeringAnchors, setRegisteringAnchors] = useState(false);
 
  const handleFiles = useCallback(
  async (fileList) => {
@@ -48,7 +95,7 @@ const DatevImport = ({ user }) => {
  const newEntries = await Promise.all(
  incoming.map(async (f, idx) => {
  const text = await readFileAsText(f);
- const parsed = parseDatevCSV(text);
+ const parsed = parseBankStatementCSV(text);
  return {
  id: `${Date.now()}-${idx}-${f.name}`,
  importRunId,
@@ -63,7 +110,7 @@ const DatevImport = ({ user }) => {
  }),
  );
 
- setFiles((prev) => classifyDatevImportFiles([...prev, ...newEntries], bankMovements, importRunId).files);
+ setFiles((prev) => classifyBankImportFiles([...prev, ...newEntries], bankMovements, importRunId).files);
  },
  [bankMovements, showToast],
  );
@@ -85,7 +132,7 @@ const DatevImport = ({ user }) => {
  const removeFile = (id) => {
  setFiles((prev) => {
  const remaining = prev.filter((f) => f.id !== id);
- return classifyDatevImportFiles(remaining, bankMovements).files;
+ return classifyBankImportFiles(remaining, bankMovements).files;
  });
  };
 
@@ -125,25 +172,85 @@ const DatevImport = ({ user }) => {
  let totalDup = 0;
  let totalErrors = 0;
  let totalImported = 0;
+ let totalUnresolved = 0;
  files.forEach((f) => {
  totalRows += f.parsed.rows.length;
  totalNew += f.diff.newRows.length;
  totalDup += f.diff.duplicateRows.length;
+ totalUnresolved += f.diff.unresolvedRows?.length || 0;
  totalErrors += f.parsed.errors.length;
  if (f.result) totalImported += f.result.imported;
  });
- return { totalRows, totalNew, totalDup, totalErrors, totalImported };
+ return { totalRows, totalNew, totalDup, totalErrors, totalImported, totalUnresolved };
  }, [files]);
 
  const filesPending = files.some((f) => f.status === 'ready' && f.diff.newRows.length > 0);
+
+ const { balances: detectedBalances, balanceIssues } = useMemo(() => mergeDetectedBalances(files), [files]);
+ const anchorByDate = useMemo(() => {
+ const map = new Map();
+ for (const anchor of anchors || []) map.set(anchor.date, anchor);
+ return map;
+ }, [anchors]);
+
+ // 'ok' | 'missing' | 'discrepant' — an anchor on a date that isn't one of
+ // OUR detected month-end dates (e.g. 2026-07-27) never appears here at
+ // all, since we only ever look anchors up by a detected balance's own date.
+ const balanceStatus = (entry) => {
+ const anchor = anchorByDate.get(entry.date);
+ if (!anchor) return 'missing';
+ return Math.abs(Number(anchor.balance) - entry.balance) > 0.01 ? 'discrepant' : 'ok';
+ };
+
+ const pendingBalances = useMemo(
+ () => detectedBalances.filter((b) => balanceStatus(b) !== 'ok'),
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ [detectedBalances, anchorByDate],
+ );
+
+ const handleRegisterAnchors = async () => {
+ if (pendingBalances.length === 0) return;
+ setRegisteringAnchors(true);
+ let created = 0;
+ let corrected = 0;
+ let failed = 0;
+ try {
+ const result = await addAnchors(pendingBalances.map((balance) => {
+ const existing = anchorByDate.get(balance.date);
+ return {
+ date: balance.date,
+ balance: balance.balance,
+ source: `Extracto Volksbank (import ${balance.fileName})`,
+ note: existing
+ ? `Corrige ${formatCurrency(balance.balance)} € (antes ${formatCurrency(existing.balance)} €)`
+ : '',
+ };
+ }));
+ if (result.success) {
+ corrected = pendingBalances.filter((balance) => anchorByDate.has(balance.date)).length;
+ created = pendingBalances.length - corrected;
+ } else {
+ failed = pendingBalances.length;
+ }
+ } catch {
+ failed = pendingBalances.length;
+ } finally {
+ setRegisteringAnchors(false);
+ }
+ const parts = [];
+ if (created > 0) parts.push(`${created} registrada(s)`);
+ if (corrected > 0) parts.push(`${corrected} corregida(s)`);
+ if (failed > 0) parts.push(`${failed} con error`);
+ showToast(parts.join(', ') || 'Sin cambios', failed === 0 ? 'success' : 'error');
+ };
 
  return (
  <div className="space-y-6 pb-12">
  <PageHeader
  section="Configuración"
  title="Importar"
- accent="DATEV"
- subtitle="Movimientos bancarios (kontobewegungen_export)"
+ accent="Banco"
+ subtitle="Extracto de cuenta (kontobewegungen_export)"
  actions={
  filesPending ? (
  <Button variant="primary" icon={Upload} onClick={importAll}>
@@ -165,6 +272,17 @@ const DatevImport = ({ user }) => {
  )}
  </PageHeader>
 
+ {balanceIssues.length > 0 && <div role="alert" className="text-sm text-[var(--color-warn)]">
+ Saldos no verificables: secuencia incompleta, ambigua o inconsistente. No se registrarán sus anclas; la desviación es desconocida.
+ </div>}
+ {totals.totalUnresolved > 0 && (
+ <div role="alert" className="rounded-md border border-[var(--color-warn)] p-4 text-sm text-[var(--color-warn)]">
+ {totals.totalUnresolved} movimientos retenidos para revisión: {files.some((file) => file.diff.unresolvedRows?.some((row) => row.matchingIssue?.reason === 'unproven-booking-multiplicity'))
+ ? 'hay repeticiones sin prueba de pagos distintos.' : 'el cruce excede el límite seguro.'}
+ {' '}No se importarán ni se contarán como duplicados. Las anclas quedan retenidas.
+ {' '}Solo puedes importar los movimientos independientes confirmados; reintentar sin nuevos datos no resuelve el grupo.
+ </div>
+ )}
  <KPIGrid cols={4}>
  <KPI label="Archivos" value={files.length} meta="En esta sesión" icon={FileText} />
  <KPI
@@ -182,7 +300,7 @@ const DatevImport = ({ user }) => {
  <KPI
  label="Importados"
  value={totals.totalImported}
- meta={totals.totalErrors ? `${totals.totalErrors} errores parseo` : 'OK'}
+ meta={totals.totalUnresolved ? `${totals.totalUnresolved} retenidos para revisión` : totals.totalErrors ? `${totals.totalErrors} errores parseo` : 'OK'}
  tone={totals.totalImported > 0 ? 'ok' : 'default'}
  icon={Database}
  />
@@ -210,7 +328,7 @@ const DatevImport = ({ user }) => {
  </label>
  </p>
  <p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
- Export "Kontobewegungen" de la banca online · UTF-8 · separador ;
+ Export "Umsätze" o "Kontobewegungen" de la banca online · UTF-8 · separador ;
  </p>
  </div>
 
@@ -225,6 +343,7 @@ const DatevImport = ({ user }) => {
  <th className="text-right">Total filas</th>
  <th className="text-right">Nuevos</th>
  <th className="text-right">Duplicados</th>
+ <th className="text-right">Retenidos</th>
  <th className="text-right">Errores parseo</th>
  <th className="text-center">Estado</th>
  <th className="text-right">Acciones</th>
@@ -246,6 +365,7 @@ const DatevImport = ({ user }) => {
  <td className="text-right font-mono tabular-nums text-[var(--color-fg-4)]">
  {f.diff.duplicateRows.length}
  </td>
+ <td className="text-right font-mono tabular-nums text-[var(--color-warn)]">{f.diff.unresolvedRows?.length || 0}</td>
  <td className="text-right font-mono tabular-nums">
  {f.parsed.errors.length > 0 ? (
  <span className="text-[var(--color-err)]">{f.parsed.errors.length}</span>
@@ -254,7 +374,8 @@ const DatevImport = ({ user }) => {
  )}
  </td>
  <td className="text-center">
- {f.status === 'ready' && f.diff.newRows.length === 0 && (
+ {(f.diff.unresolvedRows?.length || 0) > 0 && <Badge variant="warn">Revisión pendiente</Badge>}
+ {f.status === 'ready' && f.diff.newRows.length === 0 && !f.diff.unresolvedRows?.length && (
  <Badge variant="neutral">Nada nuevo</Badge>
  )}
  {f.status === 'ready' && f.diff.newRows.length > 0 && (
@@ -270,7 +391,7 @@ const DatevImport = ({ user }) => {
  >
  {f.result?.errors?.length > 0
  ? `${f.result.imported}/${f.diff.newRows.length} OK`
- : 'Importado'}
+ : f.diff.unresolvedRows?.length ? 'Importación parcial' : 'Importado'}
  </Badge>
  )}
  </td>
@@ -295,6 +416,63 @@ const DatevImport = ({ user }) => {
  </td>
  </tr>
  ))}
+ </tbody>
+ </table>
+ </div>
+ </Panel>
+ )}
+
+ {detectedBalances.length > 0 && (
+ <Panel
+ title="Saldos de cierre detectados"
+ meta={`${detectedBalances.length} mes(es)`}
+ padding={false}
+ actions={
+ pendingBalances.length > 0 ? (
+ <Button
+ variant="secondary"
+ size="sm"
+ icon={Anchor}
+ onClick={handleRegisterAnchors}
+ loading={registeringAnchors}
+ >
+ Registrar / corregir anclas ({pendingBalances.length})
+ </Button>
+ ) : null
+ }
+ >
+ <div className="overflow-x-auto">
+ <table className="nx-table w-full">
+ <thead>
+ <tr>
+ <th>Mes</th>
+ <th className="text-right">Saldo detectado</th>
+ <th className="text-center">Ancla</th>
+ </tr>
+ </thead>
+ <tbody>
+ {detectedBalances.map((b) => {
+ const status = balanceStatus(b);
+ const existing = anchorByDate.get(b.date);
+ return (
+ <tr key={b.date}>
+ <td className="font-medium text-[var(--color-fg-1)]">{monthLabel(b.date)}</td>
+ <td className="text-right font-mono tabular-nums">{formatCurrency(b.balance)}</td>
+ <td className="text-center">
+ {status === 'ok' && <Badge variant="ok" dot>Ya registrada</Badge>}
+ {status === 'missing' && <Badge variant="warn" dot>Pendiente</Badge>}
+ {status === 'discrepant' && (
+ <div className="flex flex-col items-center gap-0.5">
+ <Badge variant="err" dot>Discrepante</Badge>
+ <span className="font-mono text-[10px] text-[var(--color-fg-4)]">
+ {formatCurrency(existing?.balance)} → {formatCurrency(b.balance)}
+ </span>
+ </div>
+ )}
+ </td>
+ </tr>
+ );
+ })}
  </tbody>
  </table>
  </div>
@@ -332,4 +510,4 @@ const DatevImport = ({ user }) => {
  );
 };
 
-export default DatevImport;
+export default BankImport;

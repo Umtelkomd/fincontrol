@@ -108,32 +108,40 @@ export const useReconciliation = (user) => {
 		}
 	};
 
-	const addAnchor = async ({ date, balance, source, note = "" }) => {
-		if (!ISO_DATE_RE.test(date || ""))
-			return { success: false, error: "invalid-date" };
-		const numericBalance = Number(balance);
-		if (!Number.isFinite(numericBalance))
-			return { success: false, error: "invalid-balance" };
-		if (!source || !source.trim())
-			return { success: false, error: "missing-source" };
+	const addAnchors = async (entries) => {
+		if (!entries.length) return { success: false, error: "empty-anchors" };
+		const replacements = new Map();
+		// Validate the whole batch before writing: no partially saved imports.
+		for (const { date, balance, source, note = "" } of entries) {
+			if (!ISO_DATE_RE.test(date || ""))
+				return { success: false, error: "invalid-date" };
+			const numericBalance = Number(balance);
+			if (!Number.isFinite(numericBalance))
+				return { success: false, error: "invalid-balance" };
+			if (!source || !source.trim())
+				return { success: false, error: "missing-source" };
 
-		const anchor = {
-			date,
-			balance: Math.round(numericBalance * 100) / 100,
-			source: source.trim(),
-			note: note.trim(),
-			confirmedBy: user?.email || "",
-			confirmedAt: new Date().toISOString(),
-		};
+			const anchor = {
+				date,
+				balance: Math.round(numericBalance * 100) / 100,
+				source: source.trim(),
+				note: note.trim(),
+				confirmedBy: user?.email || "",
+				confirmedAt: new Date().toISOString(),
+			};
+			replacements.set(date, anchor);
+		}
 		const next = [
-			...anchors.filter((entry) => entry.date !== date),
-			anchor,
+			...anchors.filter((entry) => !replacements.has(entry.date)),
+			...replacements.values(),
 		].sort(sortByDateDesc);
 		return persist(
 			next,
-			`Ancla de conciliación registrada: ${date} → ${anchor.balance} €`,
+			`Anclas de conciliación registradas: ${[...replacements.keys()].join(", ")}`,
 		);
 	};
+
+	const addAnchor = (entry) => addAnchors([entry]);
 
 	const removeAnchor = async (date) => {
 		const next = anchors.filter((entry) => entry.date !== date);
@@ -142,7 +150,7 @@ export const useReconciliation = (user) => {
 		return persist(next, `Ancla de conciliación eliminada: ${date}`);
 	};
 
-	return { anchors, loading, error, retry, addAnchor, removeAnchor };
+	return { anchors, loading, error, retry, addAnchor, addAnchors, removeAnchor };
 };
 
 export default useReconciliation;

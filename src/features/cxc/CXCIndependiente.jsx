@@ -281,7 +281,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  };
 
  // Política UMTELKOMD: cambiar status de una CXC SIEMPRE requiere
- // vincular un bankMovement existente (importado de DATEV). Por eso
+ // vincular un bankMovement existente (imported from the bank statement). Por eso
  // no hay handler para "liquidar manual" — solo "vincular movimiento".
  const handleLinkMovement = async (movement, selectedDocuments = [selectedRow]) => {
  if (!selectedRow) return { success: false, error: 'Sin CXC seleccionada' };
@@ -301,10 +301,10 @@ const CXCIndependiente = ({ user, userRole }) => {
  if (result.success) {
  showToast(
  result.count > 1
- ? `${result.count} CXC conciliadas con una entrada DATEV`
+ ? `${result.count} CXC conciliadas con un movimiento bancario`
  : result.status === 'settled'
- ? 'CXC liquidada y conciliada con DATEV'
- : 'Cobro parcial conciliado con DATEV',
+ ? 'CXC liquidada y conciliada con el banco'
+ : 'Cobro parcial conciliado con el banco',
  'success',
  );
  } else {
@@ -326,8 +326,8 @@ const CXCIndependiente = ({ user, userRole }) => {
  if (result.success) {
  showToast(
  result.count > 1
- ? `${result.count} CXC liquidadas sin DATEV (forzado)`
- : 'CXC liquidada sin DATEV (forzado)',
+ ? `${result.count} CXC liquidadas sin movimiento bancario (forzado)`
+ : 'CXC liquidada sin movimiento bancario (forzado)',
  'success',
  );
  } else {
@@ -616,7 +616,7 @@ const CXCIndependiente = ({ user, userRole }) => {
  onClick={() => setSelectedRow(row)}
  title={
  isLegacy
- ? 'Pago legacy — vinculá el movimiento DATEV correspondiente'
+ ? 'Pago legacy — vinculá el movimiento bancario correspondiente'
  : 'Vincular con movimiento bancario'
  }
  >

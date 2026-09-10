@@ -65,7 +65,7 @@ export const NAV_GROUPS = [
     label: 'Configuración',
     items: [
       { path: '/reglas', label: 'Reglas', icon: Wand2, permission: 'settings' },
-      { path: '/datev', label: 'DATEV', icon: Database, permission: 'settings' },
+      { path: '/banco', label: 'Banco', icon: Database, permission: 'settings' },
       { path: '/configuracion', label: 'Config', icon: Settings, permission: 'settings' },
     ],
   },

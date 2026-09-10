@@ -254,7 +254,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  };
 
  // Política UMTELKOMD: cambiar status de una CXP SIEMPRE requiere
- // vincular un bankMovement existente (importado de DATEV).
+ // vincular un bankMovement existente (imported from the bank statement).
  const handleLinkMovement = async (movement, selectedDocuments = [selectedRow]) => {
  if (!selectedRow) return { success: false, error: 'Sin CXP seleccionada' };
  if (selectedRow.source !== 'payable') {
@@ -280,10 +280,10 @@ const CXPIndependiente = ({ user, userRole }) => {
  if (result.success) {
  showToast(
  result.count > 1
- ? `${result.count} CXP conciliadas con una entrada DATEV`
+ ? `${result.count} CXP conciliadas con un movimiento bancario`
  : result.status === 'settled'
- ? 'CXP liquidada y conciliada con DATEV'
- : 'Pago parcial conciliado con DATEV',
+ ? 'CXP liquidada y conciliada con el banco'
+ : 'Pago parcial conciliado con el banco',
  'success',
  );
  } else {
@@ -305,8 +305,8 @@ const CXPIndependiente = ({ user, userRole }) => {
  if (result.success) {
  showToast(
  result.count > 1
- ? `${result.count} CXP liquidadas sin DATEV (forzado)`
- : 'CXP liquidada sin DATEV (forzado)',
+ ? `${result.count} CXP liquidadas sin movimiento bancario (forzado)`
+ : 'CXP liquidada sin movimiento bancario (forzado)',
  'success',
  );
  } else {
@@ -528,7 +528,7 @@ const CXPIndependiente = ({ user, userRole }) => {
  !opsOk && needsOps
  ? 'Bloqueado: falta validar producción'
  : isLegacy
- ? 'Pago legacy — vinculá el movimiento DATEV correspondiente'
+ ? 'Pago legacy — vinculá el movimiento bancario correspondiente'
  : 'Vincular con movimiento bancario'
  }
  >

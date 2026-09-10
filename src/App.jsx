@@ -46,7 +46,7 @@ const Employees = lazy(() => import("./features/employees/Employees"));
 const Properties = lazy(() => import("./features/properties/Properties"));
 const Vehicles = lazy(() => import("./features/vehicles/Vehicles"));
 const Insurances = lazy(() => import("./features/insurances/Insurances"));
-const DatevImport = lazy(() => import("./features/datev-import/DatevImport"));
+const BankImport = lazy(() => import("./features/bank-import/BankImport"));
 const Classifier = lazy(() => import("./features/classifier/Classifier"));
 const Movimientos = lazy(() => import("./features/movimientos/Movimientos"));
 const Rules = lazy(() => import("./features/classification-rules/Rules"));
@@ -363,15 +363,19 @@ function AppContent({ user, userRole, hasPermission }) {
 								}
 							/>
 							<Route
-								path="/datev"
+								path="/banco"
 								element={
 									<ProtectedRoute
 										hasPermission={hasPermission}
 										permission="settings"
 									>
-										<DatevImport user={user} userRole={userRole} />
+										<BankImport user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
+							/>
+							<Route
+								path="/datev"
+								element={<Navigate to="/banco" replace />}
 							/>
 							<Route
 								path="/clasificar"

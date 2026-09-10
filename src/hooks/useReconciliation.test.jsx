@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installFirebaseMocks } from "../test/firebaseMock.js";
 
 installFirebaseMocks();
-const { onSnapshot } = await import("firebase/firestore");
+const { onSnapshot, setDoc } = await import("firebase/firestore");
 const { useReconciliation } = await import("./useReconciliation.js");
 const user = { uid: "synthetic-a", email: "a@example.invalid" };
 const anchor = { date: "2026-01-01", balance: 123, source: "synthetic" };
@@ -14,10 +14,24 @@ const snapshot = (anchors) => ({
 let listeners;
 beforeEach(() => {
 	listeners = [];
+	setDoc.mockReset().mockResolvedValue(undefined);
 	onSnapshot.mockImplementation((ref, next, fail) => {
 		const listener = { next, fail, unsubscribe: vi.fn() };
 		listeners.push(listener);
 		return listener.unsubscribe;
+	});
+});
+
+describe("useReconciliation persistence", () => {
+	it("validates the entire batch before writing and retains the single-anchor API", async () => {
+		const { result } = renderHook(() => useReconciliation(user));
+		act(() => listeners[0].next(snapshot([anchor])));
+		const may = { date: "2026-05-31", balance: 100, source: "bank" };
+		const invalid = { ...may, date: "invalid" };
+		expect(await result.current.addAnchors([may, invalid])).toMatchObject({ success: false });
+		expect(setDoc).not.toHaveBeenCalled();
+		expect(await result.current.addAnchor(may)).toEqual({ success: true });
+		expect(setDoc.mock.calls[0][1].anchors).toEqual([expect.objectContaining(may), anchor]);
 	});
 });
 

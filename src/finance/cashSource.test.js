@@ -189,3 +189,44 @@ describe("resolveCashSource — legacy fallback", () => {
 		expect(result.cashMeta.importGap.hasGap).toBe(true);
 	});
 });
+
+describe("resolveCashSource — anchor drift", () => {
+	it("surfaces the real production contradiction between the 05-31 and 07-27 anchors", () => {
+		const result = resolveCashSource({
+			anchors: [PROD_ANCHOR, anchor("2026-07-27", -16395.13)],
+			movements: [mv("2026-06-15", "in", 21130.12)], // nets to the verified +21,130.12
+			today: "2026-07-27",
+			legacyBalance: 0,
+		});
+
+		expect(result.cashMeta.anchorDrift).toHaveLength(1);
+		expect(result.cashMeta.anchorDrift[0]).toMatchObject({
+			fromDate: "2026-05-31",
+			toDate: "2026-07-27",
+			expected: -16395.13,
+		});
+		expect(result.cashMeta.anchorDrift[0].drift).toBeCloseTo(38739.45, 2);
+	});
+
+	it("reports no drift with a single anchor", () => {
+		const result = resolveCashSource({
+			anchors: [PROD_ANCHOR],
+			movements: PROD_MOVEMENTS,
+			today: TODAY,
+			legacyBalance: 0,
+		});
+		expect(result.cashMeta.anchorDrift).toEqual([]);
+	});
+
+	it("still reports anchorDrift while loading/error, alongside importGap", () => {
+		const result = resolveCashSource({
+			anchors: [PROD_ANCHOR, anchor("2026-07-27", -16395.13)],
+			movements: [mv("2026-06-15", "in", 21130.12)],
+			today: TODAY,
+			legacyBalance: 987,
+			reconciliationLoading: true,
+		});
+		expect(result.cashMeta.status).toBe("loading");
+		expect(result.cashMeta.anchorDrift).toHaveLength(1);
+	});
+});

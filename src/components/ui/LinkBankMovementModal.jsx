@@ -16,6 +16,7 @@ import {
   getDocumentOpenAmount,
   sumDocumentOpenAmount,
 } from '../../finance/reconciliation';
+import { isBankImport } from '../../finance/bankStatementParser';
 
 const getDocumentLabel = (document) =>
   document?.documentNumber || document?.counterpartyName || document?.description || document?.id;
@@ -36,9 +37,9 @@ const getLinkedIds = (movement, docKind) => {
 };
 
 /**
- * LinkBankMovementModal — pick one bankMovement (DATEV) to reconcile one or
- * more CXC/CXP documents. Admins can also create an audited manual
- * reconciliation when DATEV data is not available.
+ * LinkBankMovementModal — pick one bankMovement (the bank statement movement)
+ * to reconcile one or more CXC/CXP documents. Admins can also create an
+ * audited manual reconciliation when bank movement data is not available.
  */
 const LinkBankMovementModal = ({
   isOpen,
@@ -162,7 +163,7 @@ const LinkBankMovementModal = ({
       return;
     }
     if (chosen.amount > selectedOpen + RECONCILIATION_EPSILON) {
-      setError(`El DATEV tiene ${formatCurrency(chosen.amount)} y las órdenes seleccionadas explican ${formatCurrency(selectedOpen)}. Seleccioná más órdenes.`);
+      setError(`El movimiento bancario tiene ${formatCurrency(chosen.amount)} y las órdenes seleccionadas explican ${formatCurrency(selectedOpen)}. Seleccioná más órdenes.`);
       return;
     }
     setSubmitting(true);
@@ -228,7 +229,7 @@ const LinkBankMovementModal = ({
           <p className="text-[12px] text-[var(--color-fg-3)] flex items-start gap-2">
             <AlertTriangle size={12} className="text-[var(--color-warn)] flex-shrink-0 mt-0.5" />
             <span>
-              Un solo movimiento DATEV puede aplicarse a varias órdenes. Si el movimiento es menor que el total
+              Un solo movimiento bancario puede aplicarse a varias órdenes. Si el movimiento es menor que el total
               seleccionado, la última orden queda parcial. Si es mayor, falta explicar saldo.
             </span>
           </p>
@@ -285,7 +286,7 @@ const LinkBankMovementModal = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-4)]" size={14} />
             <input
               type="text"
-              placeholder="Filtrar DATEV por contraparte, descripción o monto..."
+              placeholder="Filtrar movimientos por contraparte, descripción o monto..."
               className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] py-1.5 pl-8 pr-3 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -304,7 +305,7 @@ const LinkBankMovementModal = ({
             <EmptyState
               icon={Database}
               title="No hay movimientos bancarios disponibles"
-              description={`Subí el último DATEV para que aparezcan los ${
+              description={`Importá el último extracto bancario para que aparezcan los ${
                 direction === 'in' ? 'ingresos' : 'gastos'
               } correspondientes. Un admin puede forzar la conciliación si hace falta.`}
             />
@@ -330,7 +331,7 @@ const LinkBankMovementModal = ({
                         <Badge variant={tone} dot>
                           score {Math.round(score)}
                         </Badge>
-                        {movement.importSource === 'datev' && <Badge variant="info">DATEV</Badge>}
+                        {isBankImport(movement) && <Badge variant="info">Banco</Badge>}
                         {amountDiff < 0.01 && <Badge variant="ok">monto exacto</Badge>}
                         {amount <= selectedOpen + RECONCILIATION_EPSILON && amountDiff >= 0.01 && (
                           <Badge variant="info">deja parcial</Badge>
@@ -369,13 +370,13 @@ const LinkBankMovementModal = ({
             <label className="block">
               <span className="mb-1.5 flex items-center gap-2 label-mono text-[var(--color-fg-4)]">
                 <ShieldAlert size={13} />
-                Motivo para forzar sin DATEV
+                Motivo para forzar sin movimiento bancario
               </span>
               <input
                 type="text"
                 value={manualReason}
                 onChange={(event) => setManualReason(event.target.value)}
-                placeholder="Ej: pago confirmado por banco, DATEV pendiente"
+                placeholder="Ej: pago confirmado por banco, extracto pendiente"
                 className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-[12px] text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
               />
             </label>
@@ -406,7 +407,7 @@ const LinkBankMovementModal = ({
                 loading={forceSubmitting}
                 onClick={handleForceSubmit}
               >
-                Forzar sin DATEV
+                Forzar sin movimiento bancario
               </Button>
             )}
           </div>

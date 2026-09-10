@@ -174,7 +174,7 @@ const Rules = ({ user }) => {
         section="Configuración"
         title="Reglas de"
         accent="clasificación"
-        subtitle="Categoría, destino y proyecto automáticos tras cada importación DATEV"
+        subtitle="Categoría, destino y proyecto automáticos tras cada importación bancaria"
         actions={
           <>
           <Button
@@ -204,7 +204,7 @@ const Rules = ({ user }) => {
         }
       >
         <p className="mt-2 max-w-2xl text-sm text-[var(--color-fg-3)]">
-          Cuando importás DATEV, las reglas asignan categoría / centro de costo / proyecto
+          Cuando importás el extracto bancario, las reglas asignan categoría / centro de costo / proyecto
           automáticamente según contraparte o descripción. Tu bandeja queda más chica cada semana.
         </p>
       </PageHeader>

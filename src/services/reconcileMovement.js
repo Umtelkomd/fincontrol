@@ -386,7 +386,7 @@ export async function reconcileMovement(
 				audit(
 					"bankMovement",
 					movementId,
-					`Movimiento DATEV conciliado con ${ids.length} ${label}: ${bank.description || movementId}`,
+					`Movimiento bancario conciliado con ${ids.length} ${label}: ${bank.description || movementId}`,
 					{
 						documentIds: ids,
 						reconciliationMode: mode,
@@ -410,8 +410,8 @@ export async function reconcileMovement(
 						reference: bank.description || "",
 						note:
 							documents.length > 1
-								? "Conciliado en pago agrupado desde DATEV"
-								: "Conciliado desde DATEV",
+								? "Conciliado en pago agrupado desde el banco"
+								: "Conciliado desde el banco",
 						bankMovementId: movementId,
 						reconciliationMode: mode,
 						registeredBy: user,

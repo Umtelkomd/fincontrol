@@ -168,6 +168,7 @@ const Resumen = ({ user }) => {
 			}),
 			payablesAging: agingBuckets({ docs: openPayables, today: todayIso }),
 			importGap: metrics.cashMeta?.importGap ?? { hasGap: false },
+			anchorDrift: metrics.cashMeta?.anchorDrift ?? [],
 			missingMonths: canSeePayroll
 				? missingPayrollMonths(payrollPeriods, todayIso.slice(0, 7))
 				: [],
@@ -179,11 +180,12 @@ const Resumen = ({ user }) => {
 		}).filter(
 			(alert) =>
 				!cashUnavailable ||
-				![
+				(![
 					"reconciliation-stale",
 					"projected-balance-below-buffer",
 					"import-gap",
-				].includes(alert.id),
+				].includes(alert.id) &&
+					!alert.id.startsWith("anchor-drift:")),
 		);
 	}, [
 		alertBufferEur,
