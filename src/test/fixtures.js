@@ -89,6 +89,43 @@ export const payableFixture = (overrides = {}) => ({
   ...overrides,
 });
 
+/** Deterministic 64-char hex id — realistic sha256-shaped doc id for invoiceDocuments. */
+const nextSha256 = () => `${String((sequence += 1)).padStart(4, '0')}${'a'.repeat(60)}`;
+
+/**
+ * Raw `invoiceDocuments` doc — see buildInvoiceDocument in
+ * src/features/facturas/lib/intake.js for the exact shape this mirrors.
+ * `id` is the file's sha256, matching the real doc-id-equals-hash contract.
+ */
+export const invoiceDocumentFixture = (overrides = {}) => {
+  const id = nextSha256();
+  return {
+    id,
+    sha256: id,
+    sizeBytes: 51200,
+    mimeType: 'application/pdf',
+    originalName: 'factura.pdf',
+    direction: 'incoming',
+    family: 'payable',
+    sourceSystem: 'ordinary',
+    counterpartyName: 'Kabel Service GmbH',
+    counterpartyId: 'kabel-service-gmbh',
+    invoiceNumber: 'RE-2026-100',
+    issueDate: isoDaysFromNow(-10),
+    currency: 'EUR',
+    netAmount: 1000,
+    taxAmount: 190,
+    grossAmount: 1190,
+    identity: JSON.stringify(['invoice-v2', 'incoming', 'kabel-service-gmbh', 'RE-2026-100']),
+    linkMode: 'create-ordinary',
+    links: [{ family: 'payable', recordId: 'cxp-1' }],
+    createdBy: 'jromero@umtelkomd.com',
+    createdAt: isoDaysFromNow(-10),
+    updatedAt: isoDaysFromNow(-10),
+    ...overrides,
+  };
+};
+
 /** Raw `projects` doc. */
 export const projectFixture = (overrides = {}) => ({
   id: nextId('proj'),
