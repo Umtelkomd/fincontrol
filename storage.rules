@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Invoice bytes are backend-private: all direct Firebase clients are denied.
+    // Future servers must authorize delivery and upload token-free via GCS APIs,
+    // never Firebase upload APIs/getDownloadURL. IAM/Admin access bypasses rules.
+    // These rules neither revoke existing bearer tokens nor prove IAM privacy.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

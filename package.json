@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test:reconciliation": "firebase emulators:exec --project demo-fincontrol --only firestore --config firebase.emulator.json \"vitest run --config vitest.emulator.config.js src/test/reconciliation.integration.test.js\"",
     "test:rules": "firebase emulators:exec --project demo-fincontrol --only firestore --config firebase.emulator.json \"vitest run --config vitest.emulator.config.js src/test/firestore.rules.integration.test.js\"",
-    "test:emulator": "firebase emulators:exec --project demo-fincontrol --only firestore --config firebase.emulator.json \"vitest run --config vitest.emulator.config.js\""
+    "test:storage": "firebase emulators:exec --project demo-fincontrol --only firestore,storage --config firebase.emulator.json \"vitest run --config vitest.emulator.config.js src/test/storage.rules.integration.test.js\"",
+    "test:emulator": "firebase emulators:exec --project demo-fincontrol --only firestore,storage --config firebase.emulator.json \"vitest run --config vitest.emulator.config.js\""
   },
   "dependencies": {
     "firebase": "^12.7.0",

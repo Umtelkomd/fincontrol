@@ -1,5 +1,11 @@
 // Validate before importing/initializing any Firebase SDK. Never echo environment values.
-export async function withEmulatorSafety(env, initialize) {
+// Storage suites must pass { requireStorage: true } as the third argument.
+// Import SDKs inside initialize; its Firestore connection arguments stay unchanged.
+export async function withEmulatorSafety(
+	env,
+	initialize,
+	{ requireStorage = false } = {},
+) {
 	const projectId = "demo-fincontrol";
 	const unsafe = () => {
 		throw new Error("Unsafe emulator environment");
@@ -8,6 +14,8 @@ export async function withEmulatorSafety(env, initialize) {
 		env.GCLOUD_PROJECT !== projectId ||
 		env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080"
 	)
+		unsafe();
+	if (requireStorage && env.FIREBASE_STORAGE_EMULATOR_HOST !== "127.0.0.1:9199")
 		unsafe();
 	for (const key of Object.keys(env)) {
 		if (
@@ -37,10 +45,9 @@ export async function withEmulatorSafety(env, initialize) {
 			unsafe();
 		if (
 			config.storageBucket &&
-			![
-				`${projectId}.appspot.com`,
-				`${projectId}.firebasestorage.app`,
-			].includes(config.storageBucket)
+			![`${projectId}.appspot.com`, `${projectId}.firebasestorage.app`].includes(
+				config.storageBucket,
+			)
 		)
 			unsafe();
 	}

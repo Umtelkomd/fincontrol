@@ -8,6 +8,39 @@ const safe = {
 
 describe("emulator initialization gate", () => {
 	it.each([
+		undefined,
+		"localhost:9199",
+		"192.0.2.1:9199",
+		"127.0.0.1:9200",
+		"https://127.0.0.1:9199",
+	])(
+		"rejects Storage endpoint %s before SDK initialization",
+		async (endpoint) => {
+			const initialize = vi.fn();
+			await expect(
+				withEmulatorSafety(
+					{ ...safe, FIREBASE_STORAGE_EMULATOR_HOST: endpoint },
+					initialize,
+					{ requireStorage: true },
+				),
+			).rejects.toThrow(/Unsafe emulator/);
+			expect(initialize).not.toHaveBeenCalled();
+		},
+	);
+
+	it("allows Storage initialization only at the exact loopback endpoint", async () => {
+		const initialize = vi.fn(() => "ready");
+		await expect(
+			withEmulatorSafety(
+				{ ...safe, FIREBASE_STORAGE_EMULATOR_HOST: "127.0.0.1:9199" },
+				initialize,
+				{ requireStorage: true },
+			),
+		).resolves.toBe("ready");
+		expect(initialize).toHaveBeenCalledOnce();
+	});
+
+	it.each([
 		{ FIRESTORE_EMULATOR_HOST: undefined },
 		{ FIRESTORE_EMULATOR_HOST: "localhost:8080" },
 		{ FIRESTORE_EMULATOR_HOST: "192.0.2.1:8080" },
@@ -22,13 +55,26 @@ describe("emulator initialization gate", () => {
 		{ VITE_FIREBASE_PROJECT_ID: "demo-fincontrol" },
 		{ FIREBASE_CONFIG: '{"projectId":"live-project"}' },
 		{ FIREBASE_CONFIG: "not-json" },
-	])("rejects unsafe environment %j before SDK initialization", async (override) => {
-		const initialize = vi.fn();
-		await expect(
-			withEmulatorSafety({ ...safe, ...override }, initialize),
-		).rejects.toThrow(/Unsafe emulator/);
-		expect(initialize).not.toHaveBeenCalled();
-	});
+	])(
+		"rejects unsafe environment %j before SDK initialization",
+		async (override) => {
+			for (const requireStorage of [false, true]) {
+				const initialize = vi.fn();
+				await expect(
+					withEmulatorSafety(
+						{
+							...safe,
+							FIREBASE_STORAGE_EMULATOR_HOST: "127.0.0.1:9199",
+							...override,
+						},
+						initialize,
+						{ requireStorage },
+					),
+				).rejects.toThrow(/Unsafe emulator/);
+				expect(initialize).not.toHaveBeenCalled();
+			}
+		},
+	);
 
 	it("allows only the exact demo/loopback boundary", async () => {
 		const initialize = vi.fn(() => "ready");
