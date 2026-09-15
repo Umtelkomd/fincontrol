@@ -22,16 +22,23 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
+
+      # The invoice archive runtime is its own package (functions/); its native
+      # tests need no emulator, credentials or network.
+      - run: npm ci --prefix functions
 
       - name: Lint
         run: npm run lint
 
       - name: Test
         run: npx vitest run
+
+      - name: Test (invoice archive backend)
+        run: npm run test:archive
 
       - name: Build
         run: npm run build
@@ -57,11 +64,12 @@ jobs:
         run: |
           S="$RUNNER_TEMP/fincontrol-emulator"
           mkdir -p "$S/home" "$S/config" "$S/java" "$S/src/test" "$S/src/services"
-          cp package.json firebase.emulator.json firestore.rules vitest.emulator.config.js "$S/"
+          cp package.json firebase.emulator.json firestore.rules storage.rules vitest.emulator.config.js "$S/"
           tar -c --exclude='__fixtures__' --exclude='datevRechnungFooter.test.js' src | tar -x -C "$S"
           cp -a node_modules "$S/"
           cp -a "$JAVA_HOME/." "$S/java/"
           HOME="$S/home" XDG_CONFIG_HOME="$S/config" node_modules/.bin/firebase setup:emulators:firestore
+          HOME="$S/home" XDG_CONFIG_HOME="$S/config" node_modules/.bin/firebase setup:emulators:storage
           docker pull node:22.22.0-bookworm@sha256:20a424ecd1d2064a44e12fe287bf3dae443aab31dc5e0c0cb6c74bef9c78911c
       - name: Emulator regressions (no external network)
         shell: bash
