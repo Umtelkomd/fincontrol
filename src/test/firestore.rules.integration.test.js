@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import process from "node:process";
 import { withEmulatorSafety } from "./emulatorSafety.js";
 
-let environment, assertFails, assertSucceeds, doc, getDoc, setDoc, updateDoc;
+let environment, assertFails, assertSucceeds, doc, getDoc, setDoc, updateDoc, Bytes;
 const tenantPath = (tenant = "tenant-a", collection = "invoices") =>
 	`artifacts/${tenant}/public/data/${collection}/synthetic-record`;
 const dbFor = (uid) => environment.authenticatedContext(uid).firestore();
@@ -14,7 +14,7 @@ beforeAll(async () => {
 		async ({ projectId, host, port }) => {
 			const testing = await import("@firebase/rules-unit-testing");
 			({ assertFails, assertSucceeds } = testing);
-			({ doc, getDoc, setDoc, updateDoc } = await import("firebase/firestore"));
+			({ doc, getDoc, setDoc, updateDoc, Bytes } = await import("firebase/firestore"));
 			return testing.initializeTestEnvironment({
 				projectId,
 				firestore: {
@@ -45,6 +45,13 @@ beforeEach(async () => {
 				}),
 			),
 		);
+		// A manager provisioned under tenant-b, used only by the invoiceDocuments
+		// cross-tenant isolation tests below.
+		await setDoc(doc(db, "users/manager-b"), {
+			role: "manager",
+			appId: "tenant-b",
+			name: "Synthetic user",
+		});
 		for (const tenant of ["tenant-a", "tenant-b"]) {
 			for (const collection of ["invoices", "payrollPeriods"]) {
 				await setDoc(doc(db, tenantPath(tenant, collection)), {
@@ -141,5 +148,111 @@ describe("provisioned role and tenant boundaries", () => {
 					"Unsafe emulator: application Firebase initialization is forbidden",
 			},
 		});
+	});
+});
+
+// ─────────────────────────────────────────────
+// invoiceDocuments — Firestore-chunk PDF archive (Spark plan has no Storage
+// bucket, so bytes live in Firestore itself; see firestore.rules and
+// src/features/facturas/lib/invoiceArchiveStore.js).
+// ─────────────────────────────────────────────
+describe("invoiceDocuments — Firestore-chunk archive rules", () => {
+	const SHA = "a".repeat(64);
+	const invoiceMetaPath = (tenant, sha256 = SHA) =>
+		`artifacts/${tenant}/public/data/invoiceDocuments/${sha256}`;
+	const invoiceChunkPath = (tenant, chunkId, sha256 = SHA) =>
+		`artifacts/${tenant}/public/data/invoiceDocuments/${sha256}/chunks/${chunkId}`;
+
+	const validMetadata = (overrides = {}) => ({
+		sha256: SHA,
+		sizeBytes: 1000,
+		chunkBytes: 786432,
+		chunkCount: 1,
+		storage: "firestore-chunks-v1",
+		...overrides,
+	});
+
+	const validChunk = (overrides = {}) => ({
+		index: 0,
+		sha256: SHA,
+		bytes: Bytes.fromUint8Array(new Uint8Array(10)),
+		...overrides,
+	});
+
+	it("denies editor read and write on both metadata and chunks", async () => {
+		const db = dbFor("editor");
+		await assertFails(getDoc(doc(db, invoiceMetaPath("tenant-a"))));
+		await assertFails(setDoc(doc(db, invoiceMetaPath("tenant-a")), validMetadata()));
+		await assertFails(getDoc(doc(db, invoiceChunkPath("tenant-a", "000"))));
+		await assertFails(setDoc(doc(db, invoiceChunkPath("tenant-a", "000")), validChunk()));
+	});
+
+	it("lets a manager of the owning tenant create and read valid metadata and a chunk", async () => {
+		const db = dbFor("manager");
+		await assertSucceeds(setDoc(doc(db, invoiceMetaPath("tenant-a")), validMetadata()));
+		await assertSucceeds(setDoc(doc(db, invoiceChunkPath("tenant-a", "000")), validChunk()));
+		await assertSucceeds(getDoc(doc(db, invoiceMetaPath("tenant-a"))));
+		await assertSucceeds(getDoc(doc(db, invoiceChunkPath("tenant-a", "000"))));
+	});
+
+	it("denies a manager of another tenant", async () => {
+		const dbB = dbFor("manager-b");
+		await assertFails(getDoc(doc(dbB, invoiceMetaPath("tenant-a"))));
+		await assertFails(setDoc(doc(dbB, invoiceMetaPath("tenant-a")), validMetadata()));
+	});
+
+	it("denies a chunk over 786432 bytes", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(
+				doc(db, invoiceChunkPath("tenant-a", "000")),
+				validChunk({ bytes: Bytes.fromUint8Array(new Uint8Array(786433)) }),
+			),
+		);
+	});
+
+	it("denies metadata with sizeBytes over 2 MiB", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(
+				doc(db, invoiceMetaPath("tenant-a")),
+				validMetadata({ sizeBytes: 2 * 1024 * 1024 + 1 }),
+			),
+		);
+	});
+
+	it("denies metadata whose sha256 field differs from its document id", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(doc(db, invoiceMetaPath("tenant-a")), validMetadata({ sha256: "b".repeat(64) })),
+		);
+	});
+
+	it("denies metadata with the wrong storage tag", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(doc(db, invoiceMetaPath("tenant-a")), validMetadata({ storage: "legacy-http" })),
+		);
+	});
+
+	it("denies a chunk whose sha256 does not match its parent document id", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(doc(db, invoiceChunkPath("tenant-a", "000")), validChunk({ sha256: "b".repeat(64) })),
+		);
+	});
+
+	it("denies chunk index 3 (out of the 0-2 range for a 2 MiB cap)", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(doc(db, invoiceChunkPath("tenant-a", "003")), validChunk({ index: 3 })),
+		);
+	});
+
+	it("denies the generic tenant-write grant from bypassing invoiceDocuments validation", async () => {
+		const db = dbFor("manager");
+		await assertFails(
+			setDoc(doc(db, invoiceMetaPath("tenant-a")), { anything: "goes", no: "validation" }),
+		);
 	});
 });

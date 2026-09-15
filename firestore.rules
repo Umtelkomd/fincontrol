@@ -55,6 +55,76 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────
+    // invoiceDocuments — archived invoice PDF metadata + Firestore-chunk bytes.
+    // The Firebase project stays on the Spark plan (no Cloud Functions, no
+    // Storage bucket), so PDF bytes live in Firestore itself, split under the
+    // 1 MiB per-document limit (see src/finance/invoiceChunks.js and
+    // src/features/facturas/lib/invoiceArchiveStore.js).
+    //
+    // Grants are OR-unioned, so — exactly like payrollPeriods above — this
+    // dedicated match restricts read/write to manager/admin of the owning
+    // tenant AND validates every field on write, AND the generic data block
+    // below explicitly EXCLUDES invoiceDocuments from both its read and write
+    // grants (a bare exclusion from read is not enough here: the generic
+    // WRITE grant has no field validation at all, so leaving it un-excluded
+    // would let any manager bypass every check below via a plain update).
+    // Functions are redeclared locally because rules functions are block-scoped.
+    // ─────────────────────────────────────────────
+    match /artifacts/{appId}/public/data/invoiceDocuments/{sha256} {
+      function iUserRole() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      }
+      function iOwnTenant() {
+        return request.auth != null
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
+      }
+      function iManagerOrAbove() {
+        return request.auth != null && (iUserRole() == 'admin' || iUserRole() == 'manager');
+      }
+      function iAuthorized() {
+        return request.auth != null && iOwnTenant() && iManagerOrAbove();
+      }
+      function validInvoiceMetadata() {
+        let data = request.resource.data;
+        return sha256.matches('^[a-f0-9]{64}$')
+          && data.sha256 == sha256
+          && data.sizeBytes is int && data.sizeBytes > 0 && data.sizeBytes <= 2097152
+          && data.chunkCount is int && data.chunkCount >= 1 && data.chunkCount <= 3
+          && data.storage == 'firestore-chunks-v1';
+      }
+
+      allow read: if iAuthorized();
+      allow create, update: if iAuthorized() && validInvoiceMetadata();
+      allow delete: if iAuthorized();
+
+      match /chunks/{chunkId} {
+        function cUserRole() {
+          return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+        }
+        function cOwnTenant() {
+          return request.auth != null
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
+        }
+        function cManagerOrAbove() {
+          return request.auth != null && (cUserRole() == 'admin' || cUserRole() == 'manager');
+        }
+        function cAuthorized() {
+          return request.auth != null && cOwnTenant() && cManagerOrAbove();
+        }
+        function validInvoiceChunk() {
+          let data = request.resource.data;
+          return data.bytes is bytes && data.bytes.size() <= 786432
+            && data.index is int && data.index >= 0 && data.index < 3
+            && data.sha256 == sha256;
+        }
+
+        allow read: if cAuthorized();
+        allow create, update: if cAuthorized() && validInvoiceChunk();
+        allow delete: if cAuthorized();
+      }
+    }
+
+    // ─────────────────────────────────────────────
     // Tenant-scoped FinControl data
     // appId acts as tenant key for multi-app isolation
     // ─────────────────────────────────────────────
@@ -69,16 +139,23 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.appId == appId;
       }
 
-      // Read: any authenticated tenant user — EXCEPT payrollPeriods, which is
-      // confined to manager/admin by its own dedicated match above (grants are
-      // OR-unioned, so this exclusion is what actually restricts editors).
-      allow read: if request.auth != null && isOwnTenant() && collection != 'payrollPeriods';
+      // Read: any authenticated tenant user — EXCEPT payrollPeriods (manager/admin
+      // only, dedicated match above) and invoiceDocuments (manager/admin only,
+      // dedicated match above, with field validation on write).
+      allow read: if request.auth != null && isOwnTenant()
+        && collection != 'payrollPeriods' && collection != 'invoiceDocuments';
 
-      // Write: admins and managers of this tenant
+      // Write: admins and managers of this tenant — EXCEPT invoiceDocuments,
+      // whose dedicated match above is the only path that validates chunk/
+      // metadata shape; this generic grant carries no such validation and
+      // would otherwise let any manager write an invalid document straight
+      // through it (grants are OR-unioned, so exclusion here is what makes
+      // the dedicated block's validation actually binding).
       function isManagerOrAbove() {
         return request.auth != null && (userRole() == 'admin' || userRole() == 'manager');
       }
-      allow write: if request.auth != null && isManagerOrAbove() && isOwnTenant();
+      allow write: if request.auth != null && isManagerOrAbove() && isOwnTenant()
+        && collection != 'invoiceDocuments';
     }
   }
 }

@@ -143,6 +143,20 @@ export const createFirestoreModule = (store) => {
     initializeFirestore: vi.fn(() => ({ __mockDb: true })),
     persistentLocalCache: vi.fn((settings) => ({ __cache: 'persistent', ...(settings || {}) })),
     persistentMultipleTabManager: vi.fn(() => ({ __tabManager: 'multiple' })),
+    // Minimal stand-in for the real firebase/firestore `Bytes` value type
+    // (src/features/facturas/lib/invoiceArchiveStore.js) — enough to round-trip
+    // a Uint8Array through a document field in tests.
+    Bytes: class Bytes {
+      constructor(bytes) {
+        this._bytes = bytes;
+      }
+      static fromUint8Array(bytes) {
+        return new Bytes(bytes);
+      }
+      toUint8Array() {
+        return this._bytes;
+      }
+    },
   };
 };
 
