@@ -52,6 +52,10 @@ _design/
 *.zip
 # Local Pi runtime state
 .atl/
+# Local Pi lens/tool state
+.pi-lens/
+# Local build snapshots and applied-script artifacts — never shared
+tmp/
 
 # CodeGraph local index (per-checkout, never shared)
 .codegraph/
