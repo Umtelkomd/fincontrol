@@ -4,11 +4,22 @@
     "indexes": "firestore.indexes.json"
   },
   "storage": { "rules": "storage.rules" },
+  "functions": { "source": "functions" },
   "hosting": {
     "public": "dist",
     "predeploy": ["npm run build"],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "rewrites": [
+      {
+        "source": "/api/invoice-pdfs",
+        "function": { "functionId": "invoicePdfArchive", "region": "europe-west3" }
+      },
+      {
+        "source": "/api/invoice-pdfs/**",
+        "function": { "functionId": "invoicePdfArchive", "region": "europe-west3" }
+      },
+      { "source": "**", "destination": "/index.html" }
+    ],
     "headers": [
       {
         "source": "**/*.js",
