@@ -4,7 +4,7 @@
  */
 import { Badge, Button } from '../../../components/ui/nexus';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
-import { ARCHIVE_ERROR_MESSAGES } from '../lib/invoiceArchiveApi';
+import { ARCHIVE_ERROR_MESSAGES } from '../lib/invoiceArchiveStore';
 import { useInvoicePdfBlob } from '../hooks/useInvoicePdfBlob';
 
 // Same vocabulary/labels as src/features/cxp/CXPIndependiente.jsx's statusLabels,

@@ -25,6 +25,10 @@ npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predepl
   payables (CXP), payrollPeriods, employees, projects, projectControl, costCenters,
   categories, classificationRules, recurringCosts, budgets, notifications, auditLog,
   settings (singletons: bankAccount, categories, overhead, reconciliation, treasury).
+  `invoiceDocuments` holds archived invoice PDF metadata by sha256, with the
+  PDF bytes themselves stored as Firestore `Bytes` chunks under each doc's
+  `chunks/` subcollection (Spark plan has no Storage bucket) — 2 MiB cap,
+  manager/admin only; see `src/features/facturas/README.md`.
   `transactions` holds the 2025 historical P&L records (419 docs, ids `sheet-2025-N`,
   migrated from the old bundled array on 2026-07-22) plus entries written via the
   Transacciones view. Read through `useAllTransactions` for historical reporting

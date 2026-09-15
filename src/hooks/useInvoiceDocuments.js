@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { arrayUnion, collection, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { sanitizeValue } from '../utils/sanitizeFirestore';
+import { CHUNK_BYTES } from '../finance/invoiceChunks';
 
 const COLLECTION_BY_FAMILY = { payable: 'payables', receivable: 'receivables' };
 
@@ -92,9 +93,21 @@ export const useInvoiceDocuments = (user) => {
     const batch = writeBatch(db);
 
     const documentRef = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', document.id);
+    const chunkCount = Math.max(1, Math.ceil((document.data.sizeBytes || 0) / CHUNK_BYTES));
+    const links = Array.isArray(document.data.links) ? document.data.links : [];
     batch.set(
       documentRef,
-      { ...document.data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
+      {
+        ...document.data,
+        // A re-archive of the same PDF (same sha256) must accumulate links,
+        // never replace the ones an earlier submission attached.
+        ...(links.length > 0 ? { links: arrayUnion(...links) } : {}),
+        storage: 'firestore-chunks-v1',
+        chunkBytes: CHUNK_BYTES,
+        chunkCount,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
       { merge: true },
     );
 

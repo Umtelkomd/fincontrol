@@ -13,9 +13,11 @@ import { useToast } from '../../../contexts/ToastContext';
 import { extractPdfText } from '../../../lib/pdf/extractPdfText';
 import { suggestInvoiceHeader } from '../../../finance/invoiceHeaderParser';
 import { formatCurrency } from '../../../utils/formatters';
+import { db, appId } from '../../../services/firebase';
+import { MAX_INVOICE_BYTES } from '../../../finance/invoiceChunks';
 import { createInitialIntakeState, intakeReducer } from '../lib/intakeState';
 import { archiveInvoice, buildConfirmedHeader, obligationToLinkRow } from '../lib/intake';
-import { ARCHIVE_ERROR_MESSAGES, InvoiceArchiveError, uploadInvoicePdf } from '../lib/invoiceArchiveApi';
+import { ARCHIVE_ERROR_MESSAGES, InvoiceArchiveError, uploadInvoicePdf } from '../lib/invoiceArchiveStore';
 import { translateValidationMessage } from '../lib/validationMessages';
 
 const DIRECTION_OPTIONS = [
@@ -81,6 +83,10 @@ const InvoiceIntakePanel = ({
     event.target.value = '';
     if (!file) return;
     dispatch({ type: 'FILE_PICKED' });
+    if (file.size > MAX_INVOICE_BYTES) {
+      dispatch({ type: 'EXTRACTION_FAILED', message: ARCHIVE_ERROR_MESSAGES['too-large'] });
+      return;
+    }
     try {
       const { text, hash } = await extractPdfText(file);
       const { suggestions, evidence } = suggestInvoiceHeader(text, { direction: state.direction });
@@ -126,7 +132,7 @@ const InvoiceIntakePanel = ({
     }
 
     const effects = {
-      upload: ({ bytes, expectedSha256 }) => uploadInvoicePdf({ user, bytes, expectedSha256 }),
+      upload: ({ bytes, expectedSha256 }) => uploadInvoicePdf({ db, appId, bytes, expectedSha256 }),
       createObligation: async (obligationFamily, payload) => {
         const result =
           obligationFamily === 'payable' ? await createPayable(payload) : await createReceivable(payload);
@@ -222,6 +228,7 @@ const InvoiceIntakePanel = ({
               className="block w-full text-sm text-[var(--color-fg-3)] file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-[var(--color-line)] file:bg-[var(--color-bg-2)] file:px-3 file:py-2 file:font-mono file:text-[11px] file:uppercase file:tracking-[0.1em] file:text-[var(--color-fg-1)] file:transition-colors hover:file:bg-[var(--color-bg-3)]"
             />
           </Labelled>
+          <p className="label-mono -mt-2 text-[var(--color-fg-4)]">Máximo 2 MB por PDF</p>
 
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar

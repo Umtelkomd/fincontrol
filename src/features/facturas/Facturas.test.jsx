@@ -92,8 +92,8 @@ const store = installFirebaseMocks(baseFixtures());
 const extractPdfTextMock = vi.fn(async () => ({ text: INVOICE_TEXT, pageCount: 1, hash: FILE_HASH }));
 vi.doMock('@/lib/pdf/extractPdfText', () => ({ extractPdfText: extractPdfTextMock }));
 
-vi.doMock('./lib/invoiceArchiveApi', async () => {
-  const actual = await vi.importActual('./lib/invoiceArchiveApi');
+vi.doMock('./lib/invoiceArchiveStore', async () => {
+  const actual = await vi.importActual('./lib/invoiceArchiveStore');
   return {
     ...actual,
     uploadInvoicePdf: vi.fn(async ({ expectedSha256 }) => ({
@@ -108,7 +108,7 @@ vi.doMock('./lib/invoiceArchiveApi', async () => {
 const { renderScreen } = await import('@/test/renderScreen.jsx');
 const { default: Facturas } = await import('./Facturas.jsx');
 const { addDoc, writeBatch } = await import('firebase/firestore');
-const { uploadInvoicePdf, fetchInvoicePdf, InvoiceArchiveError } = await import('./lib/invoiceArchiveApi');
+const { uploadInvoicePdf, fetchInvoicePdf, InvoiceArchiveError } = await import('./lib/invoiceArchiveStore');
 
 const mountFacturas = () =>
   renderScreen(<Facturas user={TEST_USER} />, { route: '/facturas', path: '/facturas' });
@@ -258,5 +258,19 @@ describe('Facturas — intake wizard', () => {
     expect(writeBatch).not.toHaveBeenCalled();
     const payableCall = addDoc.mock.calls.find(([ref]) => String(ref?.path ?? '').endsWith('/payables'));
     expect(payableCall).toBeUndefined();
+  });
+
+  it('shows the too-large message and never extracts a PDF bigger than 2 MiB', async () => {
+    mountFacturas();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva factura' }));
+    const oversized = new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'grande.pdf', {
+      type: 'application/pdf',
+    });
+    fireEvent.change(screen.getByLabelText('PDF de la factura'), { target: { files: [oversized] } });
+
+    await screen.findByText('El PDF supera el máximo de 2 MB.');
+
+    expect(extractPdfTextMock).not.toHaveBeenCalled();
   });
 });

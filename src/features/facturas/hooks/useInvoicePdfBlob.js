@@ -5,8 +5,12 @@
  * of the tab.
  */
 import { useEffect, useState, useCallback } from 'react';
-import { fetchInvoicePdf } from '../lib/invoiceArchiveApi';
+import { fetchInvoicePdf } from '../lib/invoiceArchiveStore';
+import { db, appId } from '../../../services/firebase';
 
+// `user` is accepted for call-site symmetry with the archive/upload side and
+// potential future access-scoping, but the Firestore-chunk fetch itself only
+// needs `db`/`appId` — auth is enforced by firestore.rules, not this call.
 export const useInvoicePdfBlob = (user, sha256) => {
   const [url, setUrl] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +33,7 @@ export const useInvoicePdfBlob = (user, sha256) => {
     setError(null);
     setUrl(null);
 
-    fetchInvoicePdf({ user, sha256 })
+    fetchInvoicePdf({ db, appId, sha256 })
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
