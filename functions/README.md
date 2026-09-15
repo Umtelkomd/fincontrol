@@ -100,12 +100,100 @@ npm run test:archive:runtime
 - Make sure both are first on `PATH` before running either command above if
   your global toolchain differs
 
+## Production rollout
+
+Everything below assumes the tests above are green and this branch is merged.
+
+### Prerequisites
+
+- Firebase project `umtelkomd-finance` is on the Blaze plan (required for
+  the Storage bucket below and outbound Cloud Functions use).
+- Firebase Storage is enabled (Console → Build → Storage → Get started)
+  with the default bucket `umtelkomd-finance.firebasestorage.app`, location
+  `europe-west3` — the project has no bucket at all until this runs once.
+- `npm ci --prefix functions` has been run locally at least once.
+- The Firebase CLI is logged in, and `.firebaserc`'s `default` alias already
+  points at `umtelkomd-finance`.
+
+### Configuration
+
+Create `functions/.env.umtelkomd-finance` with exactly:
+
+```
+ARCHIVE_TENANT_ID=1:597712756560:web:ad12cd9794f11992641655
+ARCHIVE_BUCKET=umtelkomd-finance.firebasestorage.app
+```
+
+This file is covered by `functions/.gitignore` (`.env*`) and never
+committed. `firebase-tools` 15.29.0 loads `functions/.env.<projectId>` at
+deploy time and applies its lines as function env vars for that project
+only — `firebase emulators:exec` never reads it, so the test suites above
+are unaffected either way. Functions `params` are deliberately not used
+instead: an unresolved param blocks on interactive input, which a
+non-interactive (CI) deploy must not do.
+
+### IAM
+
+2nd-gen functions run as the default compute service account,
+`597712756560-compute@developer.gserviceaccount.com`. Skip this if the
+project still grants it the broad `Editor` role; otherwise grant once —
+`datastore.user` and `firebaseauth.viewer` project-wide, `storage.objectAdmin`
+scoped to the bucket only:
+
+```
+gcloud projects add-iam-policy-binding umtelkomd-finance \
+  --member="serviceAccount:597712756560-compute@developer.gserviceaccount.com" \
+  --role="roles/datastore.user"
+gcloud projects add-iam-policy-binding umtelkomd-finance \
+  --member="serviceAccount:597712756560-compute@developer.gserviceaccount.com" \
+  --role="roles/firebaseauth.viewer"
+gsutil iam ch \
+  serviceAccount:597712756560-compute@developer.gserviceaccount.com:roles/storage.objectAdmin \
+  gs://umtelkomd-finance.firebasestorage.app
+```
+
+### Deploy order
+
+Run every command with `npx -y firebase-tools` from the repo root.
+
+1. `deploy --only storage` — publishes `storage.rules` (deny-all); the
+   bucket must already exist from Prerequisites.
+2. `deploy --only functions` — `predeploy` in `firebase.json` runs
+   `npm run test:archive` (native, no network) and aborts on failure. The
+   first deploy also enables the required Blaze APIs and can take minutes.
+3. `deploy --only hosting` — rebuilds the app and publishes the
+   `/api/invoice-pdfs**` rewrites alongside it.
+4. `npm run verify:archive` — a pass prints five `PASS <probe-id>` lines and
+   exits 0; anything else (including an SPA-HTML diagnosis) means the route
+   is not live yet.
+5. Manual check: sign in as a `manager` or `admin` user, archive a small
+   text PDF from `/facturas`, and open it back up in the viewer.
+
+### Rollback
+
+```
+npx -y firebase-tools functions:delete invoicePdfArchive --region europe-west3
+```
+
+Then redeploy Hosting from `main` (without the rewrites) so
+`/api/invoice-pdfs**` falls back to the SPA. Already-archived GCS objects
+and `invoiceDocuments` Firestore rows are left in place — content-addressed
+and inert without the function, so this is harmless.
+
+### Operations
+
+- Logs: Cloud Logging, filtered to the `invoicePdfArchive` function
+  (`europe-west3`).
+- Cost bounds: `maxInstances: 2`, `512MiB`, `60s` timeout cap all traffic.
+- `403` = missing/invalid/anonymous token or no matching membership; `404` =
+  unknown route or an unarchived digest; `415` = wrong `Content-Type` or a
+  bad PDF signature. None of these alone indicate a bug.
+- The bucket is private; the archive never issues public tokens or signed
+  URLs — every read goes through the authenticated function.
+
 ## Not covered here / before production
 
-- Deploying the function and the Hosting rewrites
-- Provisioning IAM and the production bucket for `ARCHIVE_BUCKET`
+- Actually running the deploy (this document describes it; it has not been executed yet)
 - Proving data residency for the `europe-west3` region
-- Supplying `ARCHIVE_TENANT_ID` and `ARCHIVE_BUCKET` in production — via
-  Cloud Functions parameters or Secret Manager, never an env file
-- Deploying the Hosting `rewrites` that route `/api/invoice-pdfs**` to this
-  function
+- OCR of archived PDFs
+- Credit note handling
