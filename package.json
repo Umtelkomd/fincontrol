@@ -9,6 +9,7 @@
     "build": "vite build",
     "test": "vitest run",
     "test:archive": "env -i HOME=\"$HOME\" PATH=\"$PATH\" CI=1 node --test functions/test/*.test.mjs",
+    "test:archive:runtime": "firebase emulators:exec --project demo-fincontrol --only auth,firestore,storage,functions --config firebase.emulator.json \"node --test functions/test/emulator/*.test.mjs\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:reconciliation": "firebase emulators:exec --project demo-fincontrol --only firestore --config firebase.emulator.json \"vitest run --config vitest.emulator.config.js src/test/reconciliation.integration.test.js\"",
