@@ -54,6 +54,7 @@ const AlertasOperativas = lazy(
 	() => import("./features/alertas-op/AlertasOperativas"),
 );
 const Nominas = lazy(() => import("./features/nominas/Nominas"));
+const Facturas = lazy(() => import("./features/facturas/Facturas"));
 const FinanceActionLauncher = lazy(
 	() => import("./components/finance/FinanceActionLauncher"),
 );
@@ -245,6 +246,17 @@ function AppContent({ user, userRole, hasPermission }) {
 										permission="cxp"
 									>
 										<CXPIndependiente user={user} userRole={userRole} />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/facturas"
+								element={
+									<ProtectedRoute
+										hasPermission={hasPermission}
+										permission="cxp"
+									>
+										<Facturas user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
 							/>
