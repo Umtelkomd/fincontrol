@@ -164,6 +164,9 @@ These guards prevent recurrence — **do not remove them**:
 - `firebase.json` predeploy also runs `npm run deploy:guard` for hosting and firestore
   — blocks deploying from a non-`main` or dirty/out-of-sync tree (see Repo & Deploy above).
 
+Node is pinned to 22 via `.nvmrc`/`package.json#engines` because Node ≥25's
+experimental built-in `localStorage` shadows jsdom's and breaks tests.
+
 Deploy is now just `npx -y firebase-tools deploy --only hosting` (it rebuilds for you).
 Note: plain `npx firebase` resolves to the local `firebase` SDK package (no executable) — always use `firebase-tools`.
 
