@@ -1,11 +1,12 @@
 {
   "firestore": {
     "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
+    "indexes": "firestore.indexes.json",
+    "predeploy": ["npm run deploy:guard"]
   },
   "hosting": {
     "public": "dist",
-    "predeploy": ["npm run build"],
+    "predeploy": ["npm run deploy:guard", "npm run build"],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }],
     "headers": [
