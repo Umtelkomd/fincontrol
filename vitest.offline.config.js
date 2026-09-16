@@ -11,7 +11,7 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		setupFiles: ["./src/test/setup.js"],
-		include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
+		include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}", "scripts/**/*.test.js"],
 		exclude: [...configDefaults.exclude, "**/*.integration.test.js"],
 		env: {
 			VITE_FIREBASE_API_KEY: "demo-key",

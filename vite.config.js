@@ -37,7 +37,7 @@ export default defineConfig(({ command, mode }) => {
 		plugins: [react(), tailwindcss()],
 		test: {
 			environment: "jsdom",
-			include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
+			include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}", "scripts/**/*.test.js"],
 			exclude: [...configDefaults.exclude, "**/*.integration.test.js"],
 			setupFiles: ["./src/test/setup.js"],
 		},

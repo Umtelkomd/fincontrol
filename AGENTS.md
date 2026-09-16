@@ -8,14 +8,17 @@ React 19 + Vite + Firebase + Tailwind v4 + Recharts.
 ```bash
 cd ~/Dev/fincontrol
 npm run dev          # localhost:5173
-npm run build && npx firebase deploy --only hosting   # deploy
+npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
 ```
 
 ## Repo & Deploy
 - **Local:** `~/Dev/fincontrol/`
 - **GitHub:** jarl9801/fincontrol (public)
 - **Live:** https://umtelkomd-finance.web.app
-- **Deploy:** Firebase Hosting (`npm run build && npx firebase deploy --only hosting`)
+- **Deploy:** Firebase Hosting (`npx -y firebase-tools deploy --only hosting`)
+- Deploys must run from a clean `main` equal to `origin/main`; predeploy runs
+  `npm run deploy:guard` and aborts otherwise (plain `npx firebase` resolves to the
+  SDK package, not the CLI — always use `firebase-tools`).
 
 ## Firebase Config
 - **Project:** umtelkomd-finance
