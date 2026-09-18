@@ -57,6 +57,10 @@ npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predepl
 - `src/utils/sanitizeFirestore.js` — the React-301 sanitizer (tested; see CRITICAL #1)
 - `src/data/balances2025.js` — legacy starting balances (fallback only; anchors supersede it)
 - `firebase.json` — Hosting config with no-cache headers
+- `src/finance/costCenterCatalog.js` — cost center catalogue v2 (`COST_CENTER_CATALOG`, `resolveLegacyCostCenter`, `scopeOfCostCenter`)
+- `src/finance/projectCode.js` — project code scheme v2 (`CLI-SIT-LLn`, `resolveLegacyProjectCode`, `findProjectMentions`)
+- `src/finance/invoiceClassification.js` — invoice classification suggester + validator (see "Classification model" below)
+- `src/finance/classificationMigration.js` — pure planner behind `scripts/migrate-classification-catalog.cjs`
 
 ## Cash position (July 2026 model)
 - Reconciliation anchors live in `settings/reconciliation` (Configuración → Tesorería).
@@ -65,6 +69,22 @@ npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predepl
 - Bank movements imported before May 2026 have NO usable `signedAmount` — always derive via
   `direction` fallback (`signedAmountOf` in `src/lib/finance/movementAmount.js`).
 - VAT estimates per month live in `settings/treasury` (due the 10th of M+2, Dauerfrist).
+
+## Classification model (Sept 2026)
+Every income/expense is classified along three orthogonal axes — category
+(WHAT), project (WHICH contract) and cost center (WHO/which unit) — never
+mixed back together. See `src/features/facturas/README.md` → "Classification
+at intake" and `docs/classification-catalog.md` for the full catalogue,
+mapping and migration runbook.
+- `costCenterId` stores the catalogue CODE (e.g. `CC-110`), and the catalogue
+  doc id equals its code — never a Firestore auto-id.
+- `costScope` ('project' | 'overhead') is DERIVED from the cost center's kind
+  (`direct` → `project`, `indirect`/`clearing` → `overhead`), never chosen independently.
+- Project codes follow `CLI-SIT-LLn` (e.g. `INS-RSD-BL1`); legacy codes stay
+  valid — the scheme is additive, never a rejection.
+- `evidenceStatusOf` (`src/finance/costScope.js`) is a SEPARATE signal from
+  `pendingReasonOf`: it tracks whether an invoice-expected outflow has a
+  linked document, and never changes what counts as "classified".
 
 ## Dependencies (key)
 - `firebase@^12` — Backend
