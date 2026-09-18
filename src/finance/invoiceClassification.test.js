@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { adaptPayableDoc } from './adapters.js';
 import { buildClassificationFields, suggestInvoiceClassification, validateInvoiceClassification } from './invoiceClassification.js';
 
 const PROJECT_RSD = { id: 'proj-rsd', code: 'QFF', name: 'Roßdorf' }; // legacy code -> INS-RSD-BL1 (BL line)
@@ -156,6 +157,38 @@ describe('suggestInvoiceClassification — counterparty history', () => {
 
     expect(result.categoryName).toBe('');
     expect(result.projectId).toBe('');
+  });
+
+  // Production history is built from real ledger documents, not the synthetic
+  // `historyRow` fixture above — this proves the suggester actually learns
+  // from what `adaptPayableDoc` hands it, and that the adapter's display
+  // placeholder for an unset project ('Sin proyecto') is never mistaken for a
+  // real project because the suggester keys history matching on projectId.
+  it('suggests a category from adapted payable history without keying on the "Sin proyecto" placeholder', () => {
+    const priorPayable = adaptPayableDoc({
+      id: 'bill-prior',
+      grossAmount: 500,
+      status: 'settled',
+      vendor: 'Fractalkom UG',
+      category: 'Materiales',
+      // No projectId stored on this one — normalizeDocument fills projectName
+      // with the 'Sin proyecto' placeholder while projectId stays ''.
+    });
+    expect(priorPayable.projectName).toBe('Sin proyecto');
+    expect(priorPayable.projectId).toBe('');
+
+    const result = suggestInvoiceClassification({
+      header: header({ counterpartyName: 'Fractalkom UG' }),
+      text: '',
+      direction: 'payable',
+      projects: [],
+      rules: [],
+      history: [priorPayable],
+    });
+
+    expect(result.categoryName).toBe('Materiales');
+    expect(result.projectId).toBe('');
+    expect(reasonFor(result.reasons, 'categoryName')[0]).toMatchObject({ source: 'history' });
   });
 });
 
