@@ -30,6 +30,12 @@
  * same label table, so a doc stored as `CC-007` but named "NE4" still
  * resolves to `CC-120`.
  *
+ * `resolveStoredCostCenter` sits on top for the callers that read a STORED
+ * `costCenterId`, which in production may be any of four things: a v2 code, a
+ * legacy code, a free-text label, or the Firestore doc id of a live (possibly
+ * still legacy) cost-center doc. The migration planner and every screen that
+ * filters by cost center share it, so they group a document identically.
+ *
  * Pure: no React, no Firebase, no Date.now() — no I/O of any kind.
  */
 
@@ -115,6 +121,20 @@ const LEGACY_KEY_MAP = new Map(
     ['Seguros', 'CC-300'],
     ['Financiero', 'CC-900'],
     ['Nómina y Seguridad Social', 'CC-NOM'],
+    // The budget screen (BudgetVsActual.jsx) used to carry a THIRD dictionary
+    // of its own, mapping these tokens to the v1 labels above — that mapping is
+    // the only record of what they mean, so it folds in here instead of being
+    // dropped. `OPE`/`CC-OPE` are deliberately NOT included: that screen
+    // guessed them as "Despliegue" with nothing behind it, and OPE stays
+    // unresolved like the other six (see the module doc).
+    ['ADM', 'CC-300'],
+    ['CC-ADM', 'CC-300'],
+    ['LOG', 'CC-120'],
+    ['CC-LOG', 'CC-120'],
+    ['FIN', 'CC-900'],
+    ['CC-FIN', 'CC-900'],
+    ['VEN', 'CC-120'],
+    ['CC-VEN', 'CC-120'],
   ].map(([legacy, code]) => [labelKeyOf(legacy), code]),
 );
 
@@ -152,6 +172,30 @@ export const resolveLegacyCostCenter = (value, { liveName } = {}) => {
   }
 
   return { code: '', status: 'unresolved' };
+};
+
+/** The live cost-center doc a stored value is the Firestore doc id OF, or null. */
+const liveCostCenterById = (value, liveCostCenters) => {
+  const id = String(value ?? '').trim();
+  if (!id || !Array.isArray(liveCostCenters)) return null;
+  return liveCostCenters.find((entry) => entry && entry.id === id) || null;
+};
+
+/**
+ * resolveStoredCostCenter — `resolveLegacyCostCenter` for a value read off a
+ * document, where the value may also be the Firestore doc id of a live
+ * cost-center doc. Try it as a code/label first; only a value that resolves to
+ * nothing on its own falls back to that doc, through the doc's OWN code/name.
+ *
+ * @param {string} value the stored `costCenterId`
+ * @param {Array<{id:string, code?:string, name?:string}>} [liveCostCenters]
+ */
+export const resolveStoredCostCenter = (value, liveCostCenters = []) => {
+  const direct = resolveLegacyCostCenter(value);
+  if (direct.status !== 'unresolved') return direct;
+  const live = liveCostCenterById(value, liveCostCenters);
+  if (!live) return direct;
+  return resolveLegacyCostCenter(live.code || live.name, { liveName: live.name });
 };
 
 /**
@@ -208,6 +252,66 @@ export const costCenterOptions = () =>
     label: `${entry.code} · ${entry.name}`,
     kind: entry.kind,
   }));
+
+/**
+ * §Filtering by cost center — the group a stored value belongs to, and the
+ * buckets a dropdown may offer. A filter dropdown and its predicate have to
+ * compare the SAME thing, and the only thing every stored spelling can be
+ * reduced to is a catalogue CODE: `CC-002`, "Instalaciones y Reparaciones",
+ * a live doc id and `CC-120` are one bucket.
+ */
+
+/**
+ * costCenterFilterKey — the bucket a stored `costCenterId` filters under: its
+ * v2 code, or, when nothing resolves it, the value's OWN label as its own
+ * legacy bucket (via the live doc's code when the value was a doc id, so both
+ * spellings land together). Never a guessed v2 center: an unresolved value
+ * stays visible and filterable under what it actually says. '' means the
+ * document has no cost center at all.
+ */
+export const costCenterFilterKey = (value, liveCostCenters = []) => {
+  const resolved = resolveStoredCostCenter(value, liveCostCenters);
+  if (resolved.status === 'empty') return '';
+  if (resolved.code) return resolved.code;
+  const live = liveCostCenterById(value, liveCostCenters);
+  return codeKeyOf(live?.code || live?.name || value);
+};
+
+/** Does a document stored under `value` belong to `selectedKey`? A blank selection is the "all centers" view. */
+export const matchesCostCenterFilter = (value, selectedKey, liveCostCenters = []) => {
+  const selected = codeKeyOf(selectedKey);
+  if (!selected) return true;
+  return costCenterFilterKey(value, liveCostCenters) === selected;
+};
+
+/**
+ * costCenterFilterOptions — the v2 catalogue, plus one bucket per live
+ * cost-center doc that resolves to no v2 code, so a center the operator can
+ * pick today never disappears from the dropdown before the migration runs. A
+ * doc that already resolves into the catalogue adds nothing (its documents
+ * filter under the catalogue code), and an unassigned doc adds nothing either
+ * (its documents read as having no center).
+ */
+export const costCenterFilterOptions = (liveCostCenters = []) => {
+  const options = costCenterOptions();
+  const seen = new Set(options.map((option) => option.value));
+
+  for (const entry of Array.isArray(liveCostCenters) ? liveCostCenters : []) {
+    if (!entry) continue;
+    const resolved = resolveLegacyCostCenter(entry.code || entry.name || entry.id, { liveName: entry.name });
+    if (resolved.status !== 'unresolved') continue;
+    const value = codeKeyOf(entry.code || entry.name || entry.id);
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    options.push({
+      value,
+      label: `${entry.code || entry.id} · ${entry.name || entry.code || entry.id}`,
+      kind: 'unresolved',
+    });
+  }
+
+  return options;
+};
 
 /**
  * validateCostCenterAssignment — the axiom behind the whole catalogue: a

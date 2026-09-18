@@ -11,10 +11,14 @@ import {
   COST_CENTER_CATALOG_VERSION,
   COST_CENTER_KIND,
   costCenterByCode,
+  costCenterFilterKey,
+  costCenterFilterOptions,
   costCenterOptions,
   defaultCostCenterForCategory,
   defaultCostCenterForLine,
+  matchesCostCenterFilter,
   resolveLegacyCostCenter,
+  resolveStoredCostCenter,
   scopeOfCostCenter,
   validateCostCenterAssignment,
 } from './costCenterCatalog.js';
@@ -141,6 +145,30 @@ describe('resolveLegacyCostCenter', () => {
     ['CC-006', 'CC-007', 'CC-008', 'CC-009', 'Contratistas', 'OPE'].forEach((value) => {
       expect(resolveLegacyCostCenter(value)).toEqual({ code: '', status: 'unresolved' });
     });
+  });
+
+  /**
+   * The budget screen carried a THIRD dictionary of its own (ADM/LOG/FIN/VEN
+   * and their CC- prefixed spellings, mapping to the v1 labels). Those four are
+   * repo evidence of what the tokens mean, so they resolve here instead of
+   * being dropped — `OPE` is deliberately NOT among them: that screen guessed
+   * it as "Despliegue" with nothing to back it, and a guess is worse than an
+   * honest unresolved bucket.
+   */
+  it('maps the ADM/LOG/FIN/VEN tokens the budget screen used to resolve on its own', () => {
+    expect(resolveLegacyCostCenter('ADM')).toEqual({ code: 'CC-300', status: 'mapped' });
+    expect(resolveLegacyCostCenter('CC-ADM')).toEqual({ code: 'CC-300', status: 'mapped' });
+    expect(resolveLegacyCostCenter('LOG')).toEqual({ code: 'CC-120', status: 'mapped' });
+    expect(resolveLegacyCostCenter('CC-LOG')).toEqual({ code: 'CC-120', status: 'mapped' });
+    expect(resolveLegacyCostCenter('FIN')).toEqual({ code: 'CC-900', status: 'mapped' });
+    expect(resolveLegacyCostCenter('CC-FIN')).toEqual({ code: 'CC-900', status: 'mapped' });
+    expect(resolveLegacyCostCenter('VEN')).toEqual({ code: 'CC-120', status: 'mapped' });
+    expect(resolveLegacyCostCenter('CC-VEN')).toEqual({ code: 'CC-120', status: 'mapped' });
+  });
+
+  it('keeps OPE and CC-OPE unresolved — their meaning is not recorded anywhere', () => {
+    expect(resolveLegacyCostCenter('OPE')).toEqual({ code: '', status: 'unresolved' });
+    expect(resolveLegacyCostCenter('CC-OPE')).toEqual({ code: '', status: 'unresolved' });
   });
 
   it('resolves an unresolved code by the live Firestore doc name', () => {
@@ -278,5 +306,131 @@ describe('validateCostCenterAssignment', () => {
   it('treats an empty or unresolved center as valid: requiredness is the caller\'s call', () => {
     expect(validateCostCenterAssignment({ costCenterId: '', projectId: '' })).toEqual({ valid: true, error: null });
     expect(validateCostCenterAssignment({ costCenterId: 'CC-007', projectId: 'proj-1' })).toEqual({ valid: true, error: null });
+  });
+});
+
+/**
+ * A stored `costCenterId` is not one kind of value: production holds v2 codes,
+ * v1 codes, free-text labels and Firestore doc ids of live cost-center docs,
+ * side by side. `planCostCenterMigration` already had to reconcile all four;
+ * this is the same resolution, shared, so a screen FILTERING by cost center
+ * groups a document exactly where the migration would send it.
+ */
+describe('resolveStoredCostCenter', () => {
+  const live = [
+    { id: 'legacyDoc1', code: 'CC-002', name: 'Instalaciones y Reparaciones' },
+    { id: 'legacyDoc2', code: 'CC-007', name: 'NE4' },
+    { id: 'legacyDoc3', code: 'OPE', name: 'OPE' },
+  ];
+
+  it('resolves a v2 code, a v1 code and a label without needing the live docs', () => {
+    expect(resolveStoredCostCenter('CC-120', live)).toEqual({ code: 'CC-120', status: 'current' });
+    expect(resolveStoredCostCenter('CC-002', live)).toEqual({ code: 'CC-120', status: 'mapped' });
+    expect(resolveStoredCostCenter('Instalaciones y Reparaciones', live)).toEqual({ code: 'CC-120', status: 'mapped' });
+  });
+
+  it('falls back to the live doc OWN code/name for a value that is a doc id', () => {
+    expect(resolveStoredCostCenter('legacyDoc1', live)).toEqual({ code: 'CC-120', status: 'mapped' });
+    // CC-007 has no recorded meaning; the doc NAME is what resolves it.
+    expect(resolveStoredCostCenter('legacyDoc2', live)).toEqual({ code: 'CC-120', status: 'mapped' });
+  });
+
+  it('stays unresolved rather than guessing, with or without a live doc', () => {
+    expect(resolveStoredCostCenter('legacyDoc3', live)).toEqual({ code: '', status: 'unresolved' });
+    expect(resolveStoredCostCenter('Contratistas', live)).toEqual({ code: '', status: 'unresolved' });
+    expect(resolveStoredCostCenter('desconocido', [])).toEqual({ code: '', status: 'unresolved' });
+  });
+
+  it('treats blanks and "Sin asignar" as empty, and tolerates a missing list', () => {
+    expect(resolveStoredCostCenter('', live)).toEqual({ code: '', status: 'empty' });
+    expect(resolveStoredCostCenter('Sin asignar', live)).toEqual({ code: '', status: 'empty' });
+    expect(resolveStoredCostCenter('CC-120')).toEqual({ code: 'CC-120', status: 'current' });
+  });
+});
+
+describe('costCenterFilterKey / matchesCostCenterFilter', () => {
+  const live = [
+    { id: 'legacyDoc1', code: 'CC-002', name: 'Instalaciones y Reparaciones' },
+    { id: 'legacyDoc3', code: 'OPE', name: 'OPE' },
+  ];
+
+  it('sends the v2 code, its v1 code and its label to the SAME bucket', () => {
+    ['CC-120', 'CC-002', 'CC-003', 'Instalaciones y Reparaciones', 'NE4', 'legacyDoc1'].forEach((stored) => {
+      expect(costCenterFilterKey(stored, live)).toBe('CC-120');
+    });
+  });
+
+  it('gives an unresolved value its own bucket instead of a guessed center', () => {
+    expect(costCenterFilterKey('OPE', live)).toBe('OPE');
+    expect(costCenterFilterKey('legacyDoc3', live)).toBe('OPE'); // the doc id reaches its own doc code
+    expect(costCenterFilterKey('Contratistas', live)).toBe('CONTRATISTAS');
+  });
+
+  it('gives a blank or unassigned value no bucket at all', () => {
+    expect(costCenterFilterKey('', live)).toBe('');
+    expect(costCenterFilterKey('Sin asignar', live)).toBe('');
+  });
+
+  it('matches every document when nothing is selected — the "all centers" view', () => {
+    expect(matchesCostCenterFilter('CC-002', '', live)).toBe(true);
+    expect(matchesCostCenterFilter('', '', live)).toBe(true);
+    expect(matchesCostCenterFilter('OPE', '', live)).toBe(true);
+  });
+
+  it('matches a selected code through every spelling of it, and nothing else', () => {
+    expect(matchesCostCenterFilter('CC-002', 'CC-120', live)).toBe(true);
+    expect(matchesCostCenterFilter('Instalaciones y Reparaciones', 'CC-120', live)).toBe(true);
+    expect(matchesCostCenterFilter('legacyDoc1', 'CC-120', live)).toBe(true);
+    expect(matchesCostCenterFilter('CC-300', 'CC-120', live)).toBe(false);
+    expect(matchesCostCenterFilter('', 'CC-120', live)).toBe(false);
+    expect(matchesCostCenterFilter('OPE', 'CC-120', live)).toBe(false);
+  });
+
+  it('keeps an unresolved bucket filterable on its own', () => {
+    expect(matchesCostCenterFilter('OPE', 'OPE', live)).toBe(true);
+    expect(matchesCostCenterFilter('legacyDoc3', 'OPE', live)).toBe(true);
+    expect(matchesCostCenterFilter('CC-120', 'OPE', live)).toBe(false);
+  });
+});
+
+describe('costCenterFilterOptions', () => {
+  it('offers the whole v2 catalogue, in catalogue order', () => {
+    const options = costCenterFilterOptions([]);
+
+    expect(options.slice(0, COST_CENTER_CATALOG.length).map((option) => option.value)).toEqual(
+      COST_CENTER_CATALOG.map((entry) => entry.code),
+    );
+  });
+
+  it('adds a bucket for a live doc that resolves to no v2 code, so nothing visible disappears', () => {
+    const options = costCenterFilterOptions([{ id: 'legacyDoc3', code: 'OPE', name: 'OPE' }]);
+
+    expect(options.at(-1)).toEqual({ value: 'OPE', label: 'OPE · OPE', kind: 'unresolved' });
+  });
+
+  it('adds nothing for a live doc that already resolves into the catalogue', () => {
+    const options = costCenterFilterOptions([
+      { id: 'CC-120', code: 'CC-120', name: 'NE4 instalación en vivienda' },
+      { id: 'legacyDoc1', code: 'CC-002', name: 'Instalaciones y Reparaciones' },
+      { id: 'legacyDoc2', code: 'CC-007', name: 'NE4' },
+    ]);
+
+    expect(options).toHaveLength(COST_CENTER_CATALOG.length);
+  });
+
+  it('never offers an unassigned doc as a bucket — its documents read as having no center', () => {
+    const options = costCenterFilterOptions([{ id: 'none', code: '', name: 'Sin asignar' }]);
+
+    expect(options).toHaveLength(COST_CENTER_CATALOG.length);
+  });
+
+  it('offers a duplicated legacy doc once and tolerates a missing list', () => {
+    const options = costCenterFilterOptions([
+      { id: 'd1', code: 'OPE', name: 'OPE' },
+      { id: 'd2', code: 'ope', name: 'OPE' },
+    ]);
+
+    expect(options.filter((option) => option.value === 'OPE')).toHaveLength(1);
+    expect(costCenterFilterOptions()).toHaveLength(COST_CENTER_CATALOG.length);
   });
 });

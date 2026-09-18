@@ -67,7 +67,30 @@ from the project's line instead):
 | "Financiero" | CC-900 |
 | "Nómina y Seguridad Social" | CC-NOM |
 | "Sin asignar" | '' (empty) |
-| CC-006…CC-009, "Contratistas", "OPE" | **UNRESOLVED** — meaning not in the repo; the migration resolves what it can by the live doc NAME and reports the rest |
+| ADM, CC-ADM | CC-300 |
+| LOG, CC-LOG, VEN, CC-VEN | CC-120 |
+| FIN, CC-FIN | CC-900 |
+| CC-006…CC-009, "Contratistas", "OPE", "CC-OPE" | **UNRESOLVED** — meaning not in the repo; the migration resolves what it can by the live doc NAME and reports the rest |
+
+The ADM/LOG/FIN/VEN rows come from the private dictionary `BudgetVsActual.jsx`
+used to carry (its own third table, mapping those tokens to the v1 labels) —
+that mapping is the only record of what they mean, so it folded in here.
+`OPE` did NOT: that screen guessed it as "Despliegue" with nothing behind it,
+and an honest unresolved bucket beats a guessed cost center.
+
+## Filtering by cost center
+
+A stored `costCenterId` is one of four things in production: a v2 code, a
+legacy code, a free-text label, or the Firestore doc id of a live (possibly
+still legacy) cost-center doc. `resolveStoredCostCenter(value, liveCostCenters)`
+resolves all four — the migration planner and every screen that filters share
+it, so a document groups exactly where the migration would send it. On top of
+it, `costCenterFilterKey` gives the bucket a value filters under (its v2 code,
+or its own label when nothing resolves it — never a guessed center),
+`matchesCostCenterFilter` is the predicate, and `costCenterFilterOptions`
+builds the dropdown: the v2 catalogue plus one bucket per live doc that
+resolves to no v2 code, so a center the operator can pick today does not
+disappear before the migration runs.
 
 ## Project code scheme: `CLI-SIT-LLn`
 
