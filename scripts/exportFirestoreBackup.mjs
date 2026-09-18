@@ -3,17 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import admin from 'firebase-admin';
+import { BACKUP_COLLECTIONS } from '../src/constants/backupCollections.js';
 
 const DEFAULT_APP_ID = process.env.FIREBASE_APP_ID || '1:597712756560:web:ad12cd9794f11992641655';
 const DEFAULT_KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(os.homedir(), '.credentials', 'umtelkomd-firebase.json');
-const DEFAULT_COLLECTIONS = [
-  'transactions',
-  'receivables',
-  'payables',
-  'bankMovements',
-  'bankReconciliation',
-  'budgets',
-];
+const DEFAULT_COLLECTIONS = BACKUP_COLLECTIONS;
 
 const expandHome = (value) => (value.startsWith('~/') ? path.join(os.homedir(), value.slice(2)) : value);
 const args = process.argv.slice(2);

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "backup:firestore": "node scripts/exportFirestoreBackup.mjs",
+    "migrate:classification": "node scripts/migrate-classification-catalog.cjs",
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
