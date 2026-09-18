@@ -149,20 +149,62 @@ describe('removeInvoiceLink', () => {
 });
 
 describe('swapInvoiceLink', () => {
-  it('removes the old sha256 and adds the new one, in order', async () => {
-    const result = await mount();
+  const OLD_SHA = 'a'.repeat(64);
+  const NEW_SHA = 'b'.repeat(64);
 
-    await result.current.swapInvoiceLink('payable', 'cxp-1', {
-      removeInvoiceDocumentId: 'a'.repeat(64),
-      addInvoiceDocumentId: 'b'.repeat(64),
+  const swap = (result) =>
+    result.current.swapInvoiceLink('payable', 'cxp-1', {
+      removeInvoiceDocumentId: OLD_SHA,
+      addInvoiceDocumentId: NEW_SHA,
     });
 
+  it('ADDS the new sha256 first and removes the old one second, both on the obligation', async () => {
+    const result = await mount();
+
+    const response = await swap(result);
+
+    expect(response).toEqual({ success: true });
     expect(firestore.updateDoc).toHaveBeenCalledTimes(2);
-    expect(firestore.arrayRemove).toHaveBeenCalledWith('a'.repeat(64));
-    expect(firestore.arrayUnion).toHaveBeenCalledWith('b'.repeat(64));
-    const [firstRef] = firestore.updateDoc.mock.calls[0];
-    const [secondRef] = firestore.updateDoc.mock.calls[1];
+    const [firstRef, firstPayload] = firestore.updateDoc.mock.calls[0];
+    const [secondRef, secondPayload] = firestore.updateDoc.mock.calls[1];
     expect(firstRef.path).toContain('payables/cxp-1');
     expect(secondRef.path).toContain('payables/cxp-1');
+    // The mock returns the sentinel's items, so the payload names which write
+    // is which: the union of the NEW sha must be the first one to land.
+    expect(firstPayload.invoiceDocumentIds).toEqual([NEW_SHA]);
+    expect(secondPayload.invoiceDocumentIds).toEqual([OLD_SHA]);
+    expect(firestore.arrayUnion).toHaveBeenCalledWith(NEW_SHA);
+    expect(firestore.arrayRemove).toHaveBeenCalledWith(OLD_SHA);
+  });
+
+  it('reports a failed ADD without attempting the removal — the obligation keeps the old PDF', async () => {
+    const result = await mount();
+    firestore.updateDoc.mockRejectedValueOnce(new Error('offline'));
+
+    const response = await swap(result);
+
+    expect(response.success).toBe(false);
+    expect(response.error).toBeInstanceOf(Error);
+    expect(firestore.updateDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed REMOVE after a successful add — the obligation references BOTH PDFs, never none', async () => {
+    const result = await mount();
+    firestore.updateDoc.mockImplementationOnce(async () => undefined).mockRejectedValueOnce(new Error('offline'));
+
+    const response = await swap(result);
+
+    expect(response.success).toBe(false);
+    expect(response.error).toBeInstanceOf(Error);
+    expect(firestore.updateDoc).toHaveBeenCalledTimes(2);
+  });
+
+  it('still throws for an unknown family — a programming error, like its siblings', async () => {
+    const result = await mount();
+
+    await expect(
+      result.current.swapInvoiceLink('bogus', 'x', { removeInvoiceDocumentId: OLD_SHA, addInvoiceDocumentId: NEW_SHA }),
+    ).rejects.toThrow();
+    expect(firestore.updateDoc).not.toHaveBeenCalled();
   });
 });

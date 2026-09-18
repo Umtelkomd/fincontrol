@@ -186,6 +186,30 @@ an invisible orphan. REPLACE uploads and commits the new document and swaps
 every back-reference BEFORE touching the old file, so a failure there leaves
 the old PDF fully intact.
 
+One swap is two writes and cannot be one: Firestore rejects an `arrayRemove`
+and an `arrayUnion` of the SAME field in a single update (a `writeBatch` hits
+the same rule), so the ORDER decides what a cut between them leaves behind.
+`swapInvoiceLink` ADDS the new sha first and removes the old one second: at
+that moment both PDFs exist, so the obligation is left referencing BOTH — one
+readable invoice too many — instead of NEITHER, which is what removing first
+would produce. Each swap is attempted independently and its failure captured,
+so the result is `{ success:false, partial:true, failures }`, the old chunks
+and the old archive row are KEPT (the old PDF stays fully readable), and the
+audit entry is still written with the failures in its metadata. `InvoiceViewer`
+then says so — "El PDF nuevo se guardó, pero no se pudo actualizar el enlace en
+N documento(s). El PDF anterior se conserva: vuelve a intentar el reemplazo."
+— instead of reporting a failed upload.
+
+**Retrying the same replace converges.** Every write involved is idempotent
+(`arrayUnion`/`arrayRemove` of the same value, a `merge:true` upsert of the
+same document). The cross-invoice guard would otherwise refuse the retry,
+because the new sha256 now DOES belong to an archived invoice — the copy the
+first attempt committed. `applyInvoiceReplace` recognizes that one case before
+planning: the document stored under the new sha is treated as this invoice's
+own half-finished replacement when its archive `identity` is present and equal
+AND its link set matches. Anything else — a different identity, a different
+link set, or no identity to compare — stays refused.
+
 ### Audit write failures never masquerade as success
 The `writeAudit` effect is REQUIRED — a caller wired without it is a
 programming error and `applyInvoiceEdit`/`Delete`/`Replace` throw before

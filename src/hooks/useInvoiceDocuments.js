@@ -204,17 +204,36 @@ export const useInvoiceDocuments = (user) => {
 
   /**
    * swapInvoiceLink — REPLACE PDF: re-points one obligation's back
-   * reference from the OLD sha256 to the NEW one. Two sequential updates
-   * (Firestore cannot combine an arrayRemove and an arrayUnion of the SAME
-   * field in one write) rather than a batch — REPLACE's own ordering already
-   * tolerates a failure here (see lib/amend.js's applyInvoiceReplace): the old
-   * PDF is only deleted once every swap has succeeded.
+   * reference from the OLD sha256 to the NEW one.
+   *
+   * It takes TWO writes, and cannot take one: Firestore rejects an arrayRemove
+   * and an arrayUnion of the SAME field in a single update, and a writeBatch
+   * would hit the same rule. So the ORDER decides what a cut between them
+   * leaves behind, and ADD comes first on purpose: both PDFs exist at that
+   * moment (applyInvoiceReplace deletes the old one only after every swap
+   * succeeded), so the obligation is left referencing both — one readable
+   * invoice too many, which the retry resolves. Removing first would leave it
+   * referencing NEITHER: the archived invoice disappears from a payable that
+   * legally has one.
+   *
+   * Both writes are idempotent (arrayUnion/arrayRemove of the same value are
+   * no-ops the second time), so replaying the whole swap converges. Failures
+   * are REPORTED as `{ success:false, error }` rather than thrown, so the
+   * caller can record which obligations were left half-swapped instead of
+   * aborting the run — `collectionForFamily` still throws, because an unknown
+   * family is a programming error, not a write that failed.
    */
   const swapInvoiceLink = async (family, recordId, { removeInvoiceDocumentId, addInvoiceDocumentId } = {}) => {
     const collectionName = collectionForFamily(family);
     const ref = doc(db, 'artifacts', appId, 'public', 'data', collectionName, recordId);
-    await updateDoc(ref, { invoiceDocumentIds: arrayRemove(removeInvoiceDocumentId), updatedAt: serverTimestamp() });
-    await updateDoc(ref, { invoiceDocumentIds: arrayUnion(addInvoiceDocumentId), updatedAt: serverTimestamp() });
+    try {
+      await updateDoc(ref, { invoiceDocumentIds: arrayUnion(addInvoiceDocumentId), updatedAt: serverTimestamp() });
+      await updateDoc(ref, { invoiceDocumentIds: arrayRemove(removeInvoiceDocumentId), updatedAt: serverTimestamp() });
+      return { success: true };
+    } catch (swapError) {
+      logError('Error swapping invoice document link:', swapError);
+      return { success: false, error: swapError };
+    }
   };
 
   /**

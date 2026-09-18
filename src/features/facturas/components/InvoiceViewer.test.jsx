@@ -195,6 +195,37 @@ describe('InvoiceViewer — replace', () => {
     expect(screen.queryByText('PDF reemplazado correctamente')).not.toBeInTheDocument();
   });
 
+  /**
+   * A partial replace is the one outcome where BOTH PDFs exist and the invoice
+   * is still readable: the new bytes are stored, some obligation still points
+   * at the old document, and nothing was deleted. Saying "no se pudo
+   * reemplazar el PDF" would send the operator looking for a lost upload
+   * instead of retrying, which is what actually finishes the job.
+   */
+  it('names the partial outcome: the new PDF is stored, the old one kept, retry is the fix', async () => {
+    const onReplaceInvoice = vi.fn().mockResolvedValue({
+      success: false,
+      partial: true,
+      failures: [{ stage: 'backReference', family: 'payable', recordId: 'cxp-1', error: new Error('offline') }],
+    });
+    const view = renderViewer({ userRole: 'admin', onReplaceInvoice });
+
+    const input = view.container.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [pdfFile()] } });
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByPlaceholderText(/PDF ilegible/i), { target: { value: 'PDF ilegible' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reemplazar' }));
+
+    expect(
+      await screen.findByText(
+        'El PDF nuevo se guardó, pero no se pudo actualizar el enlace en 1 documento(s). El PDF anterior se conserva: vuelve a intentar el reemplazo.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('PDF reemplazado correctamente')).not.toBeInTheDocument();
+    expect(screen.queryByText('No se pudo reemplazar el PDF')).not.toBeInTheDocument();
+  });
+
   it('shows the returned error and never calls onReplaceInvoice again on cancel', async () => {
     const onReplaceInvoice = vi.fn();
     const view = renderViewer({ userRole: 'admin', onReplaceInvoice });
