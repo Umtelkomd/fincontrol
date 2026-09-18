@@ -22,6 +22,29 @@ export const PROJECT_CODE_ALIASES = {
   GFP: 'GFP',
   UGG: 'UGG',
   DGF: 'DGF',
+  // Seed codes present in LUMEN_CANONICAL_PROJECT_SEED (lumenContract.js) but
+  // missing here — added so every known project token canonicalizes through
+  // this single table instead of silently relying on the bare-uppercase
+  // fallback for an entry that is supposed to be a first-class known code.
+  BIE: 'BIE',
+  WUR: 'WUR',
+  BAM: 'BAM',
+  LGN: 'LGN',
+  // Production drift tokens (see odd/tasks/invoice-classification-catalog.md
+  // "Problem"): ops-style work-order refs merge into their existing master
+  // code, exactly like 'PROY-001' already merges into 'QFF'. Distinct sites
+  // (QFF-002 is Roßdorf 2, WESTC_MDU is the MDU line) are deliberately left
+  // OUT of this merge — collapsing them would silently combine different
+  // project costs. The new v2 project code scheme (src/finance/projectCode.js)
+  // is where those distinctions become first-class fields.
+  'QFF-001': 'QFF',
+  'QFF-002': 'QFF-002',
+  'UGG-001': 'UGG',
+  WSC: 'WSC',
+  'WEST-001': 'WSC',
+  WESTC_MDU: 'WESTC_MDU',
+  'AMD-001': 'AMD-001',
+  MESCHEDE: 'MESCHEDE',
 };
 
 export function extractProjectToken(raw) {
