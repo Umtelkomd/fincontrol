@@ -24,7 +24,7 @@
  */
 
 import { isInternalTransfer, signedAmountOf } from '../lib/finance/movementAmount.js';
-import { categoryByName } from './taxonomy.js';
+import { CATEGORY_EVIDENCE, categoryByName, evidenceOfCategory } from './taxonomy.js';
 
 /** The two destinations an outbound movement can be assigned to. */
 export const COST_SCOPE = {
@@ -210,4 +210,77 @@ export const classificationCoverage = (movements) => {
   const pct = total === 0 ? 0 : Math.round((classified / total) * 1000) / 10;
 
   return { total, classified, pct, byScope, unclassifiedOutflow };
+};
+
+// ─── Evidence expectation (statement-only path) ─────────────────────────────
+// The inbox could not tell "expense waiting for its invoice" apart from
+// "expense that never has one" — a statement-only cost (salaries, VAT, bank
+// fees...) is COMPLETE once categorized and destined, but an invoice-expected
+// one with no linked payable is genuinely missing evidence. This is a
+// SEPARATE signal from `pendingReasonOf`: it never changes what counts as
+// "classified" above.
+
+/** Whether a movement's invoice-expected outflow has a linked document. */
+export const EVIDENCE_STATUS = Object.freeze({
+  NOT_REQUIRED: 'not-required',
+  DOCUMENTED: 'documented',
+  MISSING_INVOICE: 'missing-invoice',
+});
+
+/**
+ * A movement is "linked" when `reconcileMovement.js` / `useBankMovements.js`
+ * have recorded a payable against it — `payableId` (single link),
+ * `payableIds` (the grouped-DATEV form) or `payableAllocations` (the
+ * allocation detail `reconcileMovement.js` writes). Only these three shapes
+ * are ever written today; a defensive fourth field would be dead code.
+ */
+const hasLinkedPayable = (movement) => {
+  if (!movement) return false;
+  if (text(movement.payableId)) return true;
+  if (Array.isArray(movement.payableIds) && movement.payableIds.length > 0) return true;
+  if (Array.isArray(movement.payableAllocations) && movement.payableAllocations.length > 0) return true;
+  return false;
+};
+
+/**
+ * evidenceStatusOf — does this movement still need an invoice?
+ *
+ *   - void, an own-account transfer, an inflow, no category, or a
+ *     statement-evidence category → 'not-required' (nothing to ask)
+ *   - an invoice-expected outflow with a linked payable → 'documented'
+ *   - an invoice-expected outflow with none → 'missing-invoice'
+ */
+export const evidenceStatusOf = (movement) => {
+  if (!movement) return EVIDENCE_STATUS.NOT_REQUIRED;
+  if (movement.status === 'void') return EVIDENCE_STATUS.NOT_REQUIRED;
+  if (isInternalTransfer(movement)) return EVIDENCE_STATUS.NOT_REQUIRED;
+  if (movement.direction !== 'out') return EVIDENCE_STATUS.NOT_REQUIRED;
+
+  const categoryName = text(movement.categoryName);
+  if (!categoryName) return EVIDENCE_STATUS.NOT_REQUIRED;
+  if (evidenceOfCategory(categoryName) !== CATEGORY_EVIDENCE.INVOICE) return EVIDENCE_STATUS.NOT_REQUIRED;
+
+  return hasLinkedPayable(movement) ? EVIDENCE_STATUS.DOCUMENTED : EVIDENCE_STATUS.MISSING_INVOICE;
+};
+
+/**
+ * missingInvoiceSummary — how many outflows still owe an invoice, and how
+ * much money. `amount` is the absolute value of `signedAmountOf`, matching
+ * `classificationCoverage`'s `unclassifiedOutflow` convention.
+ *
+ * @param {Array<object>} movements
+ * @returns {{ count: number, amount: number }}
+ */
+export const missingInvoiceSummary = (movements) => {
+  const list = Array.isArray(movements) ? movements : [];
+  let count = 0;
+  let amount = 0;
+
+  for (const movement of list) {
+    if (evidenceStatusOf(movement) !== EVIDENCE_STATUS.MISSING_INVOICE) continue;
+    count += 1;
+    amount += Math.abs(signedAmountOf(movement));
+  }
+
+  return { count, amount };
 };

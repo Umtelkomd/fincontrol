@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CATEGORY_EVIDENCE,
   CATEGORY_GROUPS,
   EXPENSE_CATEGORY_NAMES,
   INCOME_CATEGORY_NAMES,
@@ -23,6 +24,7 @@ import {
   TAXONOMY_VERSION,
   categoryByName,
   categoryOptions,
+  evidenceOfCategory,
   groupOfCategory,
   resolveLegacyCategory,
 } from './taxonomy.js';
@@ -100,6 +102,44 @@ const SIMPLE_RENAMES = [
   ['Consultoria', 'Otros ingresos'],
   ['Consultoría', 'Otros ingresos'],
   ['Financiero', 'Devoluciones e ingresos financieros'],
+];
+
+/**
+ * §evidence — every category id and the evidence it expects. `statement` =
+ * never has an invoice (salaries, taxes, bank fees, tarjeta corporativa,
+ * internal transfers, and every income except the one that IS billed —
+ * Facturación obra). Everything else = `invoice`.
+ */
+const EVIDENCE_APPROVED = [
+  ['facturacion-obra', 'invoice'],
+  ['servicios-particulares', 'statement'],
+  ['devoluciones-financieros', 'statement'],
+  ['otros-ingresos', 'statement'],
+  ['salarios', 'statement'],
+  ['seguridad-social', 'statement'],
+  ['impuesto-nomina', 'statement'],
+  ['alojamiento', 'invoice'],
+  ['otros-personal', 'invoice'],
+  ['subcontratas', 'invoice'],
+  ['materiales', 'invoice'],
+  ['equipos', 'invoice'],
+  ['reparaciones', 'invoice'],
+  ['danos-terceros', 'invoice'],
+  ['combustible', 'invoice'],
+  ['cuotas-alquiler-vehiculos', 'invoice'],
+  ['mantenimiento-vehiculos', 'invoice'],
+  ['asesoria', 'invoice'],
+  ['oficina', 'invoice'],
+  ['seguros-empresa', 'invoice'],
+  ['tarjeta-corporativa', 'statement'],
+  ['otros-administrativos', 'invoice'],
+  ['iva', 'statement'],
+  ['impuesto-beneficios', 'statement'],
+  ['intereses-comisiones', 'statement'],
+  ['amortizacion-prestamos', 'statement'],
+  ['intereses-socios', 'statement'],
+  ['aportes-socios', 'statement'],
+  ['transferencia-interna', 'statement'],
 ];
 
 const out = (overrides) => ({ direction: 'out', ...overrides });
@@ -505,5 +545,55 @@ describe('groupOfCategory', () => {
     expect(groupOfCategory('Comida de perro')).toBeNull();
     expect(groupOfCategory('')).toBeNull();
     expect(groupOfCategory(undefined)).toBeNull();
+  });
+});
+
+describe('CATEGORY_EVIDENCE / evidence field', () => {
+  it('exposes the two evidence kinds', () => {
+    expect(CATEGORY_EVIDENCE).toEqual({ INVOICE: 'invoice', STATEMENT: 'statement' });
+  });
+
+  it('gives every category exactly the approved evidence', () => {
+    expect(TAXONOMY.map((c) => [c.id, c.evidence])).toEqual(EVIDENCE_APPROVED);
+  });
+
+  it('only uses the two declared evidence values', () => {
+    TAXONOMY.forEach((category) => {
+      expect(Object.values(CATEGORY_EVIDENCE)).toContain(category.evidence);
+    });
+  });
+});
+
+describe('evidenceOfCategory', () => {
+  it('reads the evidence straight off a v2 category name', () => {
+    expect(evidenceOfCategory('Facturación obra')).toBe('invoice');
+    expect(evidenceOfCategory('Salarios')).toBe('statement');
+    expect(evidenceOfCategory('Materiales')).toBe('invoice');
+    expect(evidenceOfCategory('Transferencia interna')).toBe('statement');
+  });
+
+  it('resolves a simple legacy rename (§2a) through the existing legacy mechanism', () => {
+    expect(evidenceOfCategory('Subcontratos')).toBe('invoice');
+    expect(evidenceOfCategory('Vivienda')).toBe('invoice');
+    expect(evidenceOfCategory('Intereses prestamos')).toBe('statement');
+    expect(evidenceOfCategory('Servicios')).toBe('invoice');
+  });
+
+  it('resolves a split legacy category (§2b) to its default branch when there is no context', () => {
+    expect(evidenceOfCategory('Seguros')).toBe('statement'); // -> Seguridad social
+    expect(evidenceOfCategory('Impuestos')).toBe('statement'); // -> IVA
+    expect(evidenceOfCategory('Administrativo')).toBe('invoice'); // -> Otros administrativos
+    expect(evidenceOfCategory('Intereses Bancos')).toBe('statement'); // -> Intereses y comisiones bancarias
+  });
+
+  it('never guesses "Otros" without a direction — returns "", not a default', () => {
+    expect(evidenceOfCategory('Otros')).toBe('');
+  });
+
+  it('returns "" for an unknown or empty name — never a guess', () => {
+    expect(evidenceOfCategory('Comida de perro')).toBe('');
+    expect(evidenceOfCategory('')).toBe('');
+    expect(evidenceOfCategory(null)).toBe('');
+    expect(evidenceOfCategory(undefined)).toBe('');
   });
 });
