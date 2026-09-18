@@ -332,6 +332,11 @@ export const useReceivables = (user) => {
         projectName: data.projectName || data.project || '',
         projectCode: normalizeProjectCode(data.projectCode || data.projectName || ''),
         costCenterId: data.costCenterId || '',
+        categoryName: data.categoryName || '',
+        // T5 invoice classification (src/finance/invoiceClassification.js):
+        // 'project' | 'overhead', derived from costCenterId — persisted
+        // alongside it so a reconciled bank movement inherits it unchanged.
+        costScope: data.costScope || '',
         description: data.description || '',
         grossAmount: amount,
         amount,

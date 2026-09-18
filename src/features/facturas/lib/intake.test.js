@@ -158,6 +158,37 @@ describe('buildObligationPayload', () => {
   });
 });
 
+describe('buildObligationPayload — classification (T5)', () => {
+  const classification = {
+    categoryName: 'Materiales',
+    projectId: 'proj-1',
+    projectName: 'NE4 Rossdorf',
+    costCenterId: 'CC-120',
+    costScope: 'project',
+  };
+
+  it('persists the five classification fields alongside the base payload', () => {
+    const header = buildConfirmedHeader(confirmedHeaderInput({ direction: 'incoming', counterpartyName: 'Proveedor GmbH' }));
+    const payload = buildObligationPayload(header, { classification });
+    expect(payload).toMatchObject(classification);
+    expect(payload.vendor).toBe('Proveedor GmbH');
+  });
+
+  it('keeps the legacy projectId-only option working when no classification is given (backward compatible)', () => {
+    const header = buildConfirmedHeader(confirmedHeaderInput());
+    const payload = buildObligationPayload(header, { projectId: 'proj-legacy' });
+    expect(payload.projectId).toBe('proj-legacy');
+    expect(payload).not.toHaveProperty('categoryName');
+    expect(payload).not.toHaveProperty('costCenterId');
+  });
+
+  it('classification.projectId takes precedence over the legacy projectId option when both are given', () => {
+    const header = buildConfirmedHeader(confirmedHeaderInput());
+    const payload = buildObligationPayload(header, { projectId: 'legacy', classification: { ...classification, projectId: 'proj-2' } });
+    expect(payload.projectId).toBe('proj-2');
+  });
+});
+
 describe('buildInvoiceDocument', () => {
   it('builds the document id/data shape, deriving family from direction', () => {
     const header = buildConfirmedHeader(confirmedHeaderInput());
@@ -360,6 +391,39 @@ describe('archiveInvoice', () => {
     const effects = makeEffects({ commit: vi.fn().mockRejectedValue(new Error('firestore unavailable')) });
     await expect(archiveInvoice(baseArgs(), effects)).rejects.toThrow('firestore unavailable');
     expect(effects.createObligation).toHaveBeenCalledTimes(1);
+  });
+
+  it('create-ordinary: threads classification into the created obligation payload (acceptance #1)', async () => {
+    const effects = makeEffects();
+    const classification = {
+      categoryName: 'Materiales',
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      costCenterId: 'CC-120',
+      costScope: 'project',
+    };
+    await archiveInvoice(baseArgs({ classification }), effects);
+    expect(effects.createObligation).toHaveBeenCalledWith('receivable', expect.objectContaining(classification));
+  });
+
+  it('attach-existing: never patches classification onto the linked obligation — the link update only carries the archive identity', async () => {
+    const effects = makeEffects();
+    const rows = [{ family: 'receivable', recordId: 'row-1', counterpartyId: 'Cliente GmbH', sourceSystem: 'ordinary' }];
+    const classification = { categoryName: 'Materiales', projectId: 'proj-1', costCenterId: 'CC-120' };
+    await archiveInvoice(
+      baseArgs({
+        mode: 'attach-existing',
+        links: [{ family: 'receivable', recordId: 'row-1' }],
+        existingObligations: rows,
+        classification,
+      }),
+      effects,
+    );
+    expect(effects.createObligation).not.toHaveBeenCalled();
+    const [{ linkUpdates }] = effects.commit.mock.calls[0];
+    expect(linkUpdates[0].patch).not.toHaveProperty('categoryName');
+    expect(linkUpdates[0].patch).not.toHaveProperty('projectId');
+    expect(linkUpdates[0].patch).not.toHaveProperty('costCenterId');
   });
 
   it('rejects duplicate obligation links without ever uploading', async () => {

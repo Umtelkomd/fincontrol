@@ -208,6 +208,10 @@ export const usePayables = (user) => {
         employeeIds: Array.isArray(data.employeeIds) ? data.employeeIds : [],
         costCenterId: data.costCenterId || '',
         categoryName: data.categoryName || '',
+        // T5 invoice classification (src/finance/invoiceClassification.js):
+        // 'project' | 'overhead', derived from costCenterId — persisted
+        // alongside it so a reconciled bank movement inherits it unchanged.
+        costScope: data.costScope || '',
         // Payroll markers (Nóminas): link a payable back to its payroll period.
         // Null for ordinary CXP. Persisted so the Nóminas view can match each
         // obligation to its live payable by payrollPeriodId.

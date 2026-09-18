@@ -10,6 +10,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/nexus';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useInvoiceDocuments } from '../../hooks/useInvoiceDocuments';
+import { useClassificationRules } from '../../hooks/useClassificationRules';
 import MonthlyInvoicingChart from './components/MonthlyInvoicingChart';
 import InvoiceIntakePanel from './components/InvoiceIntakePanel';
 import InvoiceArchiveList from './components/InvoiceArchiveList';
@@ -18,6 +19,10 @@ import InvoiceViewer from './components/InvoiceViewer';
 const Facturas = ({ user }) => {
   const ledger = useFinanceLedgerContext();
   const { documents, loading: documentsLoading, commitInvoiceArchive } = useInvoiceDocuments(user);
+  // Feeds InvoiceIntakePanel's classification suggester (T5, acceptance #1):
+  // rules come from the same hook every other classification surface uses
+  // (Classifier, Rules, Movimientos); history is every past CXP/CXC.
+  const { rules } = useClassificationRules(user);
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
@@ -56,6 +61,9 @@ const Facturas = ({ user }) => {
           user={user}
           payables={ledger.payables}
           receivables={ledger.receivables}
+          projects={ledger.projects}
+          rules={rules}
+          history={[...ledger.payables, ...ledger.receivables]}
           createPayable={ledger.actions.payables.createPayable}
           createReceivable={ledger.actions.receivables.createReceivable}
           commitInvoiceArchive={commitInvoiceArchive}

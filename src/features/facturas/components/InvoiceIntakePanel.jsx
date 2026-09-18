@@ -1,17 +1,30 @@
 /**
- * Invoice PDF intake wizard: pick a file, review the auto-suggested header,
- * confirm it and archive the PDF alongside a new-or-linked CXP/CXC obligation.
+ * Invoice PDF intake wizard: pick a file, review the auto-suggested header
+ * AND the auto-suggested classification (category/project/cost center —
+ * acceptance #1), confirm both and archive the PDF alongside a
+ * new-or-linked CXP/CXC obligation.
  *
  * All accounting invariants live in src/finance/invoiceArchive.js, reached
  * through buildConfirmedHeader/archiveInvoice (src/features/facturas/lib/intake.js).
- * This component only shapes form state (via the intakeState reducer) and
- * wires the three effects archiveInvoice needs: upload, createObligation, commit.
+ * Classification invariants live in src/finance/invoiceClassification.js,
+ * reached through suggestInvoiceClassification/validateInvoiceClassification/
+ * buildClassificationFields. This component only shapes form state (via the
+ * intakeState reducer) and wires the three effects archiveInvoice needs:
+ * upload, createObligation, commit.
  */
 import { useReducer, useState } from 'react';
 import { Button } from '../../../components/ui/nexus';
 import { useToast } from '../../../contexts/ToastContext';
 import { extractPdfText } from '../../../lib/pdf/extractPdfText';
 import { suggestInvoiceHeader } from '../../../finance/invoiceHeaderParser';
+import {
+  buildClassificationFields,
+  suggestInvoiceClassification,
+  validateInvoiceClassification,
+} from '../../../finance/invoiceClassification';
+import { costCenterOptions, defaultCostCenterForCategory, scopeOfCostCenter } from '../../../finance/costCenterCatalog';
+import { defaultCostCenterForProject } from '../../../finance/projectCode';
+import { CATEGORY_TYPE, categoryOptions } from '../../../finance/taxonomy';
 import { formatCurrency } from '../../../utils/formatters';
 import { db, appId } from '../../../services/firebase';
 import { MAX_INVOICE_BYTES } from '../../../finance/invoiceChunks';
@@ -31,6 +44,26 @@ const SOURCE_OPTIONS = [
 ];
 
 const familyOf = (direction) => (direction === 'incoming' ? 'payable' : 'receivable');
+
+const CONFIDENCE_BADGE = { high: 'nx-badge-ok', medium: 'nx-badge-info', low: 'nx-badge-warn', none: 'nx-badge-neutral' };
+const CONFIDENCE_LABEL = { high: 'Confianza alta', medium: 'Confianza media', low: 'Confianza baja', none: 'Sin evidencia' };
+const SCOPE_LABEL = { project: 'Obra', overhead: 'Estructura' };
+
+/** `{ name, groupLabel }[]` for `type`, grouped in taxonomy order — one array of `{label, options}` groups. */
+const categoryGroupsFor = (type) => {
+  const groups = [];
+  categoryOptions()
+    .filter((option) => option.type === type)
+    .forEach((option) => {
+      let group = groups.find((g) => g.label === option.groupLabel);
+      if (!group) {
+        group = { label: option.groupLabel, options: [] };
+        groups.push(group);
+      }
+      group.options.push(option);
+    });
+  return groups;
+};
 
 const toNumber = (value) => {
   if (typeof value === 'number') return value;
@@ -52,6 +85,9 @@ const InvoiceIntakePanel = ({
   user,
   payables = [],
   receivables = [],
+  projects = [],
+  rules = [],
+  history = [],
   createPayable,
   createReceivable,
   commitInvoiceArchive,
@@ -62,6 +98,12 @@ const InvoiceIntakePanel = ({
   const { showToast } = useToast();
   const [state, dispatch] = useReducer(intakeReducer, undefined, createInitialIntakeState);
   const [candidateSearch, setCandidateSearch] = useState('');
+  // The full extracted PDF text — kept outside the (Firestore-bound) reducer
+  // state purely so the classification suggestion can be recomputed if the
+  // direction changes after extraction; evidenceLines only holds the header
+  // parser's shorter evidence excerpt, not the whole document.
+  const [pdfText, setPdfText] = useState('');
+  const [classificationErrors, setClassificationErrors] = useState({});
 
   const family = familyOf(state.direction);
   const candidates = (family === 'payable' ? payables : receivables).filter(
@@ -75,14 +117,44 @@ const InvoiceIntakePanel = ({
     return String(counterparty).toLowerCase().includes(needle) || String(number).toLowerCase().includes(needle);
   });
 
+  const activeProjects = projects.filter((project) => (project.status || 'active') === 'active');
+  const categoryType = family === 'payable' ? CATEGORY_TYPE.EXPENSE : CATEGORY_TYPE.INCOME;
+  const categoryGroups = categoryGroupsFor(categoryType);
+  const directCenters = costCenterOptions().filter((option) => option.kind === 'direct');
+  const indirectCenters = costCenterOptions().filter((option) => option.kind !== 'direct');
+  const reasonFor = (field) => state.suggestion?.reasons?.find((reason) => reason.field === field)?.detail;
+  const resolvedScope = scopeOfCostCenter(state.classification.costCenterId) || '';
+
   const handleFieldChange = (field) => (event) =>
     dispatch({ type: 'FIELD_CHANGED', field, value: event.target.value });
+
+  /**
+   * Suggests category/project/cost center for the current form + direction.
+   * `direction` here is the wizard's own 'incoming'/'outgoing' token — mapped
+   * to the suggester's 'payable'/'receivable' contract via familyOf. Never
+   * throws — a suggester with no evidence just returns empty fields.
+   */
+  const suggestClassification = (direction, text) =>
+    suggestInvoiceClassification({
+      header: {
+        counterpartyName: state.form.counterpartyName,
+        invoiceNumber: state.form.invoiceNumber,
+        grossAmount: toNumber(state.form.grossAmount),
+      },
+      text,
+      direction: familyOf(direction),
+      projects,
+      rules,
+      history,
+    });
 
   const handleFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     dispatch({ type: 'FILE_PICKED' });
+    setPdfText('');
+    setClassificationErrors({});
     if (file.size > MAX_INVOICE_BYTES) {
       dispatch({ type: 'EXTRACTION_FAILED', message: ARCHIVE_ERROR_MESSAGES['too-large'] });
       return;
@@ -102,6 +174,22 @@ const InvoiceIntakePanel = ({
           suggestions,
         },
       });
+      setPdfText(text);
+      dispatch({
+        type: 'CLASSIFICATION_SUGGESTED',
+        suggestion: suggestInvoiceClassification({
+          header: {
+            counterpartyName: suggestions?.counterpartyName?.value ?? '',
+            invoiceNumber: suggestions?.invoiceNumber?.value ?? '',
+            grossAmount: toNumber(suggestions?.grossAmount?.value ?? 0),
+          },
+          text,
+          direction: family,
+          projects,
+          rules,
+          history,
+        }),
+      });
     } catch {
       dispatch({
         type: 'EXTRACTION_FAILED',
@@ -110,8 +198,47 @@ const InvoiceIntakePanel = ({
     }
   };
 
+  const handleDirectionChange = (direction) => {
+    dispatch({ type: 'SELECT_DIRECTION', direction });
+    // Direction changes the category type (expense vs income); recompute the
+    // suggestion when it happens after a file has already been extracted.
+    if (pdfText) dispatch({ type: 'CLASSIFICATION_SUGGESTED', suggestion: suggestClassification(direction, pdfText) });
+  };
+
+  const handleClassificationFieldChange = (field) => (event) => {
+    setClassificationErrors((previous) => ({ ...previous, [field]: undefined }));
+    dispatch({ type: 'CLASSIFICATION_FIELD_CHANGED', field, value: event.target.value });
+  };
+
+  const handleProjectChange = (event) => {
+    const projectId = event.target.value;
+    const project = activeProjects.find((candidate) => candidate.id === projectId) || null;
+    const costCenterDefault = projectId
+      ? defaultCostCenterForProject(project || { id: projectId })
+      : defaultCostCenterForCategory(state.classification.categoryName);
+    setClassificationErrors((previous) => ({ ...previous, projectId: undefined, costCenterId: undefined }));
+    dispatch({ type: 'CLASSIFICATION_FIELD_CHANGED', field: 'projectId', value: projectId, costCenterDefault });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    // Classification is validated BEFORE the header/archive attempt (acceptance
+    // #2): an invalid category/project/cost-center combination blocks confirm
+    // with inline errors and never reaches 'saving' — no reducer transition, no
+    // archive effect runs.
+    const classificationCheck = validateInvoiceClassification({
+      direction: family,
+      categoryName: state.classification.categoryName,
+      projectId: state.classification.projectId,
+      costCenterId: state.classification.costCenterId,
+    });
+    if (!classificationCheck.valid) {
+      setClassificationErrors(classificationCheck.errors);
+      return;
+    }
+    setClassificationErrors({});
+
     dispatch({ type: 'SUBMIT_STARTED' });
 
     let header;
@@ -160,6 +287,7 @@ const InvoiceIntakePanel = ({
           mode: state.linkMode,
           links: state.selectedCandidateIds.map((id) => ({ family, recordId: id })),
           existingObligations: candidates.map((row) => obligationToLinkRow(row, family)),
+          classification: buildClassificationFields(state.classification, projects),
           uid: user.uid,
           now: new Date().toISOString(),
         },
@@ -196,7 +324,7 @@ const InvoiceIntakePanel = ({
                     name="facturas-direction"
                     value={option.value}
                     checked={state.direction === option.value}
-                    onChange={() => dispatch({ type: 'SELECT_DIRECTION', direction: option.value })}
+                    onChange={() => handleDirectionChange(option.value)}
                   />
                   {option.label}
                 </label>
@@ -243,7 +371,16 @@ const InvoiceIntakePanel = ({
       {state.step === 'error' && (
         <div className="nx-alert nx-alert-err flex flex-wrap items-center justify-between gap-3">
           <p>{state.error}</p>
-          <Button type="button" variant="secondary" size="sm" onClick={() => dispatch({ type: 'RETRY' })}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setPdfText('');
+              setClassificationErrors({});
+              dispatch({ type: 'RETRY' });
+            }}
+          >
             Reintentar
           </Button>
         </div>
@@ -317,6 +454,117 @@ const InvoiceIntakePanel = ({
           {mismatch && (
             <p className="text-sm text-[var(--color-warn)]">Neto + IVA no cuadra con el bruto</p>
           )}
+
+          <fieldset className="space-y-3 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-3">
+            <legend className="label-mono px-1 text-[var(--color-fg-4)]">Clasificación</legend>
+
+            {state.suggestion && (
+              <p className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-3)]">
+                <span className={`nx-badge ${CONFIDENCE_BADGE[state.suggestion.confidence] || CONFIDENCE_BADGE.none}`}>
+                  {CONFIDENCE_LABEL[state.suggestion.confidence] || CONFIDENCE_LABEL.none}
+                </span>
+                Sugerencia automática — revisa y confirma antes de archivar
+              </p>
+            )}
+
+            {/*
+              The reason/error <p> lines are deliberately OUTSIDE <Labelled> —
+              Labelled nests its children inside <label>, and testing-library's
+              (and screen readers') accessible-name computation for a <label>
+              strips a nested form control's own text but NOT a nested <p>, so
+              keeping them inside would silently fold "Categoría" into
+              "CategoríaRegla de clasificación… asigna esta categoría" as the
+              field's accessible name.
+            */}
+            <div>
+              <Labelled label="Categoría" htmlFor="facturas-category">
+                <select
+                  id="facturas-category"
+                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
+                  value={state.classification.categoryName}
+                  onChange={handleClassificationFieldChange('categoryName')}
+                >
+                  <option value="">Selecciona una categoría…</option>
+                  {categoryGroups.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.options.map((option) => (
+                        <option key={option.name} value={option.name}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </Labelled>
+              {reasonFor('categoryName') && (
+                <p className="mt-1 text-xs text-[var(--color-fg-4)]">{reasonFor('categoryName')}</p>
+              )}
+              {classificationErrors.categoryName && (
+                <p className="mt-1 text-xs text-[var(--color-err)]">{classificationErrors.categoryName}</p>
+              )}
+            </div>
+
+            <div>
+              <Labelled label="Proyecto" htmlFor="facturas-project">
+                <select
+                  id="facturas-project"
+                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
+                  value={state.classification.projectId}
+                  onChange={handleProjectChange}
+                >
+                  <option value="">Sin proyecto (estructura)</option>
+                  {activeProjects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.displayName || project.name || project.code}
+                    </option>
+                  ))}
+                </select>
+              </Labelled>
+              {reasonFor('projectId') && (
+                <p className="mt-1 text-xs text-[var(--color-fg-4)]">{reasonFor('projectId')}</p>
+              )}
+              {classificationErrors.projectId && (
+                <p className="mt-1 text-xs text-[var(--color-err)]">{classificationErrors.projectId}</p>
+              )}
+            </div>
+
+            <div>
+              <Labelled label="Centro de costo" htmlFor="facturas-cost-center">
+                <select
+                  id="facturas-cost-center"
+                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
+                  value={state.classification.costCenterId}
+                  onChange={handleClassificationFieldChange('costCenterId')}
+                >
+                  <option value="">Sin centro de costo</option>
+                  <optgroup label="Directo (obra)">
+                    {directCenters.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Indirecto / estructura">
+                    {indirectCenters.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </Labelled>
+              {reasonFor('costCenterId') && (
+                <p className="mt-1 text-xs text-[var(--color-fg-4)]">{reasonFor('costCenterId')}</p>
+              )}
+              {classificationErrors.costCenterId && (
+                <p className="mt-1 text-xs text-[var(--color-err)]">{classificationErrors.costCenterId}</p>
+              )}
+            </div>
+
+            <p className="label-mono text-[var(--color-fg-4)]">
+              Destino: <span className="text-[var(--color-fg-1)]">{SCOPE_LABEL[resolvedScope] || 'Sin determinar'}</span>
+            </p>
+          </fieldset>
 
           {state.evidenceLines.length > 0 && (
             <details className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-3">
@@ -408,7 +656,15 @@ const InvoiceIntakePanel = ({
             <Button type="button" variant="secondary" onClick={() => onViewInvoice?.(state.sha256)}>
               Ver factura
             </Button>
-            <Button type="button" variant="ghost" onClick={() => dispatch({ type: 'RESET' })}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setPdfText('');
+                setClassificationErrors({});
+                dispatch({ type: 'RESET' });
+              }}
+            >
               Archivar otra
             </Button>
           </div>
