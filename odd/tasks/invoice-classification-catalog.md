@@ -125,6 +125,16 @@ touching the sanitizer, `viewedBy`, `PartialPaymentModal`, `firebase.json` heade
   — `0fa1998`, RED 17 failed → GREEN 54 passed (96 with `src/features/proyectos`). `WipPanel.jsx` had the same token defect and now uses `src/finance/projectMatching.js`.
 - [x] T9 Docs: `src/features/facturas/README.md`, `docs/classification-catalog.md`, `CLAUDE.md` section — `b8b4ba9`. PR opened at close.
 
+- [x] T11 Owner decision 2026-09-18 (reason: accepted user change after PR #27): ALL of QFF / QFF-001 / QFF-002 /
+  "Roßdorf 1" / "Roßdorf 2" become ONE project `INS-RSD-BL1`; the rest of the proposed mapping is owner-validated as is
+  (every entry → confidence `high`, `INS-RSD-BL2` disappears). The planner must MERGE live projects that an explicit
+  merge group maps to the same code: deterministic survivor, repoint `projectId` + `projectName` everywhere (incl.
+  `employees.projectIds`, `budgets.projectId`, `workInProgress`, `classificationRules.applyTo`), losers set inactive with
+  `mergedInto` (never deleted), reversible. Two projects colliding WITHOUT a merge group stay a collision.
+  — `1852031`, RED 23 failed (planner) / 5 / 1 / 2 → GREEN 63 + 46 + 11 + 13 + 16 passed. Survivor rule: active → bare legacy
+  code → oldest `createdAt` → smallest id. Same-year budgets are repointed and reported as `budgetConflicts`, never summed.
+  `projectName` on repointed documents = survivor plain `name` (precedent: `merge-projects.cjs`, `planProjectNameRefresh`).
+
 ## Acceptance criteria
 1. Loading an invoice proposes category, project and cost center with a visible reason, and the created CXP/CXC stores
    `categoryName, projectId, projectName, costCenterId, costScope`.
@@ -158,6 +168,12 @@ Forecast: ~2,400 authored changed lines (> 400 budget) → strategy `single-pr` 
 - Final size: 54 files, +6,340 / −186 (forecast 2,400 was low; `single-pr` kept by explicit user request).
 - Pending: CI confirmation of the 7 locally-environmental tests; owner validation of the legacy → new project mapping;
   migration NOT run; nothing deployed.
+
+- 2026-09-18 T11: parent spot check → 165 passed; `node --check` OK; `rg RSD-BL2` empty; single guarded `batch.commit()`.
+  Writer: `npm test` 2802/2809 (same 7 environmental), lint clean, build clean. Assessment base `87893c0`: medium → self-verification + spot check.
+  Process note: the writer used `git stash`/`stash pop` against instructions to force a RED; parent verified the 3 pre-existing
+  stashes, the untracked files and the working-tree edits are all intact.
+- Follow-up outside scope: `scripts/assign-employee-projects.cjs` still hardcodes `ROSSDORF_2 = 'QFF-002'`; review before its next run.
 
 ## Next step
 Owner: review PR, validate mapping, then follow the runbook in `docs/classification-catalog.md`.
