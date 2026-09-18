@@ -4,15 +4,20 @@ import {
  Loader2, Calendar, ChevronDown, ChevronUp, BarChart3
 } from 'lucide-react';
 import { useCostCenters } from '../../hooks/useCostCenters';
-import { COST_CENTERS as PREDEFINED_COST_CENTERS } from '../../constants/costCenters';
 import { formatCurrency } from '../../utils/formatters';
 import { Button } from '@/components/ui/nexus';
+import { costCenterByCode, resolveLegacyCostCenter } from '../../finance/costCenterCatalog';
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MONTH_FULL_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+// T7 — src/finance/costCenterCatalog.js's COST_CENTER_KIND, in the operator's
+// own words: direct (obra) work, indirect (estructura) overhead, clearing
+// (compensación — CC-NOM, allocated out via allocatePayrollCost).
+const KIND_LABEL = { direct: 'Obra', indirect: 'Estructura', clearing: 'Compensación' };
+
 const CostCenters = ({ user }) => {
- const { costCenters: allCenters, loading, createCostCenter, updateCostCenter, deleteCostCenter } = useCostCenters(user);
+ const { costCenters: allCenters, loading, createCostCenter, updateCostCenter, deleteCostCenter, seedCatalog } = useCostCenters(user);
  // Legacy transactions feed was removed (collection is empty in production);
  // executed amounts stay at zero until canonical finance data is wired in.
  const transactions = [];
@@ -20,6 +25,7 @@ const CostCenters = ({ user }) => {
  const [editingCenter, setEditingCenter] = useState(null);
  const [expandedCenter, setExpandedCenter] = useState(null);
  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+ const [seeding, setSeeding] = useState(false);
  const [newCenter, setNewCenter] = useState({
  name: '',
  type: 'Costos',
@@ -113,19 +119,19 @@ const CostCenters = ({ user }) => {
  await deleteCostCenter(id);
  };
 
+ // T7 — idempotent by construction (seedCatalog writes doc id === code with
+ // merge:true), so this is safe to click again after the catalogue changes.
+ const [seedResult, setSeedResult] = useState('');
  const handleLoadPredefined = async () => {
- for (const center of PREDEFINED_COST_CENTERS) {
- const exists = allCenters.some(c => c.code === center.id);
- if (!exists) {
- await createCostCenter({
- code: center.id,
- name: center.name,
- type: center.type,
- budget: center.budget,
- responsible: center.responsible
- });
- }
- }
+ if (seeding) return;
+ setSeeding(true);
+ const result = await seedCatalog();
+ setSeeding(false);
+ setSeedResult(
+ result.success
+ ? `Catálogo v2: ${result.created} creado(s), ${result.updated} actualizado(s)`
+ : 'No se pudo cargar el catálogo predefinido',
+ );
  };
 
  const generateCode = () => {
@@ -272,10 +278,41 @@ const CostCenters = ({ user }) => {
  const utilization = getUtilization(ytdExecuted, ytdBudget);
  const isExpanded = expandedCenter === center.id;
 
+ // T7 — kind: prefer the catalogue's authoritative kind for a v2 code;
+ // fall back to whatever the doc itself carries (a once-seeded entry whose
+ // code later dropped out of the catalogue, in principle). "Heredado" flags
+ // a doc whose code is NOT a v2 catalogue code at all — read-only hint; the
+ // migration script (T8), not this screen, ever rewrites it.
+ const catalogEntry = costCenterByCode(center.code);
+ const kind = catalogEntry?.kind || center.kind || null;
+ const legacy = !catalogEntry;
+ const legacyResolution = legacy ? resolveLegacyCostCenter(center.code, { liveName: center.name }) : null;
+
  return (
  <>
  <tr className={`border-b border-[var(--color-bg-1)] transition-colors hover:bg-[var(--color-bg-1)] ${isExpanded ? 'bg-[var(--color-bg-1)]' : ''}`}>
- <td className="px-4 py-4 text-sm font-medium text-[var(--color-fg-3)]">{center.code}</td>
+ <td className="px-4 py-4 text-sm font-medium text-[var(--color-fg-3)]">
+ <div className="flex flex-wrap items-center gap-1.5">
+ <span>{center.code}</span>
+ {kind && (
+ <span className="rounded-full border border-[var(--color-line-s)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-fg-3)]">
+ {KIND_LABEL[kind] || kind}
+ </span>
+ )}
+ {legacy && (
+ <span
+ className="rounded-full border border-[var(--color-warn)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-warn)]"
+ title={
+ legacyResolution?.status === 'mapped'
+ ? `Heredado — se resuelve a ${legacyResolution.code}`
+ : 'Heredado — sin resolución conocida al catálogo v2'
+ }
+ >
+ Heredado{legacyResolution?.status === 'mapped' ? ` → ${legacyResolution.code}` : ''}
+ </span>
+ )}
+ </div>
+ </td>
  <td className="px-4 py-4 text-sm font-medium text-[var(--color-fg-1)]">{center.name}</td>
  <td className="px-4 py-4">
  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -421,9 +458,10 @@ const CostCenters = ({ user }) => {
  </div>
  </div>
 
+ <div className="flex flex-col items-end gap-2">
  <div className="flex justify-end gap-3">
- <Button variant="secondary" icon={Package} onClick={handleLoadPredefined}>
- Generar Predefinidos
+ <Button variant="secondary" icon={Package} loading={seeding} disabled={seeding} onClick={handleLoadPredefined}>
+ Cargar predefinidos
  </Button>
  <Button
  variant="primary"
@@ -436,6 +474,8 @@ const CostCenters = ({ user }) => {
  >
  Nuevo Centro
  </Button>
+ </div>
+ {seedResult && <p className="label-mono text-[var(--color-fg-3)]">{seedResult}</p>}
  </div>
 
  <div className="rounded-md border border-[var(--color-line-s)] bg-transparent p-6 ">

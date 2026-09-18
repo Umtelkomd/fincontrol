@@ -92,3 +92,21 @@ describe('extractProjectToken — unchanged for existing inputs', () => {
     expect(extractProjectToken('')).toBe('');
   });
 });
+
+// T7 (odd/tasks/invoice-classification-catalog.md): useProjects.normalizeProjectPayload
+// runs every project.code through canonicalizeProjectCode before it is persisted or
+// re-persisted on update. The Projects settings screen's new code builder assembles
+// structured v2 codes (src/finance/projectCode.js, CLI-SIT-LLn) — this must survive
+// that round trip unmangled, since the hyphens in a v2 code are NOT the same kind of
+// separator extractProjectToken splits legacy "CODE (Name)"/"CODE/note" values on.
+describe('canonicalizeProjectCode — structured v2 project codes pass through unmangled', () => {
+  it('keeps a hyphenated CLI-SIT-LLn code exactly as given, not split at the hyphens', () => {
+    expect(canonicalizeProjectCode('INS-RSD-BL1')).toBe('INS-RSD-BL1');
+    expect(canonicalizeProjectCode('VAN-UGG-N41')).toBe('VAN-UGG-N41');
+    expect(canonicalizeProjectCode('WSC-GEN-MD12')).toBe('WSC-GEN-MD12');
+  });
+
+  it('uppercases a lowercase structured code without altering its shape', () => {
+    expect(canonicalizeProjectCode('ins-rsd-bl1')).toBe('INS-RSD-BL1');
+  });
+});
