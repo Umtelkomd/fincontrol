@@ -1,24 +1,39 @@
 /**
- * Invoice PDF intake wizard: pick a file, review the auto-suggested header,
- * confirm it and archive the PDF alongside a new-or-linked CXP/CXC obligation.
+ * Invoice PDF intake wizard: pick a file, review the auto-suggested header
+ * AND the auto-suggested classification (category/project/cost center —
+ * acceptance #1), confirm both and archive the PDF alongside a
+ * new-or-linked CXP/CXC obligation.
  *
  * All accounting invariants live in src/finance/invoiceArchive.js, reached
  * through buildConfirmedHeader/archiveInvoice (src/features/facturas/lib/intake.js).
- * This component only shapes form state (via the intakeState reducer) and
- * wires the three effects archiveInvoice needs: upload, createObligation, commit.
+ * Classification invariants live in src/finance/invoiceClassification.js,
+ * reached through suggestInvoiceClassification/validateInvoiceClassification/
+ * buildClassificationFields. This component only shapes form state (via the
+ * intakeState reducer) and wires the three effects archiveInvoice needs:
+ * upload, createObligation, commit.
  */
 import { useReducer, useState } from 'react';
 import { Button } from '../../../components/ui/nexus';
 import { useToast } from '../../../contexts/ToastContext';
 import { extractPdfText } from '../../../lib/pdf/extractPdfText';
 import { suggestInvoiceHeader } from '../../../finance/invoiceHeaderParser';
-import { formatCurrency } from '../../../utils/formatters';
+import {
+  buildClassificationFields,
+  suggestInvoiceClassification,
+  validateInvoiceClassification,
+} from '../../../finance/invoiceClassification';
+import { defaultCostCenterFor } from '../../../finance/classificationDefaults';
+import { CATEGORY_TYPE } from '../../../finance/taxonomy';
 import { db, appId } from '../../../services/firebase';
 import { MAX_INVOICE_BYTES } from '../../../finance/invoiceChunks';
 import { createInitialIntakeState, intakeReducer } from '../lib/intakeState';
 import { archiveInvoice, buildConfirmedHeader, obligationToLinkRow } from '../lib/intake';
 import { ARCHIVE_ERROR_MESSAGES, InvoiceArchiveError, uploadInvoicePdf } from '../lib/invoiceArchiveStore';
 import { translateValidationMessage } from '../lib/validationMessages';
+import ClassificationFields from './ClassificationFields';
+import FieldLabel from './FieldLabel';
+import InvoiceHeaderFields from './InvoiceHeaderFields';
+import { formatCurrency } from '../../../utils/formatters';
 
 const DIRECTION_OPTIONS = [
   { value: 'incoming', label: 'Proveedor (CXP)' },
@@ -41,17 +56,13 @@ const toNumber = (value) => {
   return 0;
 };
 
-const Labelled = ({ label, htmlFor, children }) => (
-  <label htmlFor={htmlFor} className="block text-sm">
-    <span className="label-mono mb-1 block text-[var(--color-fg-4)]">{label}</span>
-    {children}
-  </label>
-);
-
 const InvoiceIntakePanel = ({
   user,
   payables = [],
   receivables = [],
+  projects = [],
+  rules = [],
+  history = [],
   createPayable,
   createReceivable,
   commitInvoiceArchive,
@@ -62,6 +73,12 @@ const InvoiceIntakePanel = ({
   const { showToast } = useToast();
   const [state, dispatch] = useReducer(intakeReducer, undefined, createInitialIntakeState);
   const [candidateSearch, setCandidateSearch] = useState('');
+  // The full extracted PDF text — kept outside the (Firestore-bound) reducer
+  // state purely so the classification suggestion can be recomputed if the
+  // direction changes after extraction; evidenceLines only holds the header
+  // parser's shorter evidence excerpt, not the whole document.
+  const [pdfText, setPdfText] = useState('');
+  const [classificationErrors, setClassificationErrors] = useState({});
 
   const family = familyOf(state.direction);
   const candidates = (family === 'payable' ? payables : receivables).filter(
@@ -75,14 +92,39 @@ const InvoiceIntakePanel = ({
     return String(counterparty).toLowerCase().includes(needle) || String(number).toLowerCase().includes(needle);
   });
 
+  const activeProjects = projects.filter((project) => (project.status || 'active') === 'active');
+  const categoryType = family === 'payable' ? CATEGORY_TYPE.EXPENSE : CATEGORY_TYPE.INCOME;
+
   const handleFieldChange = (field) => (event) =>
     dispatch({ type: 'FIELD_CHANGED', field, value: event.target.value });
+
+  /**
+   * Suggests category/project/cost center for the current form + direction.
+   * `direction` here is the wizard's own 'incoming'/'outgoing' token — mapped
+   * to the suggester's 'payable'/'receivable' contract via familyOf. Never
+   * throws — a suggester with no evidence just returns empty fields.
+   */
+  const suggestClassification = (direction, text) =>
+    suggestInvoiceClassification({
+      header: {
+        counterpartyName: state.form.counterpartyName,
+        invoiceNumber: state.form.invoiceNumber,
+        grossAmount: toNumber(state.form.grossAmount),
+      },
+      text,
+      direction: familyOf(direction),
+      projects,
+      rules,
+      history,
+    });
 
   const handleFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     dispatch({ type: 'FILE_PICKED' });
+    setPdfText('');
+    setClassificationErrors({});
     if (file.size > MAX_INVOICE_BYTES) {
       dispatch({ type: 'EXTRACTION_FAILED', message: ARCHIVE_ERROR_MESSAGES['too-large'] });
       return;
@@ -102,6 +144,22 @@ const InvoiceIntakePanel = ({
           suggestions,
         },
       });
+      setPdfText(text);
+      dispatch({
+        type: 'CLASSIFICATION_SUGGESTED',
+        suggestion: suggestInvoiceClassification({
+          header: {
+            counterpartyName: suggestions?.counterpartyName?.value ?? '',
+            invoiceNumber: suggestions?.invoiceNumber?.value ?? '',
+            grossAmount: toNumber(suggestions?.grossAmount?.value ?? 0),
+          },
+          text,
+          direction: family,
+          projects,
+          rules,
+          history,
+        }),
+      });
     } catch {
       dispatch({
         type: 'EXTRACTION_FAILED',
@@ -110,8 +168,45 @@ const InvoiceIntakePanel = ({
     }
   };
 
+  const handleDirectionChange = (direction) => {
+    dispatch({ type: 'SELECT_DIRECTION', direction });
+    // Direction changes the category type (expense vs income); recompute the
+    // suggestion when it happens after a file has already been extracted.
+    if (pdfText) dispatch({ type: 'CLASSIFICATION_SUGGESTED', suggestion: suggestClassification(direction, pdfText) });
+  };
+
+  const handleClassificationFieldChange = (field) => (event) => {
+    setClassificationErrors((previous) => ({ ...previous, [field]: undefined }));
+    dispatch({ type: 'CLASSIFICATION_FIELD_CHANGED', field, value: event.target.value });
+  };
+
+  const handleProjectChange = (event) => {
+    const projectId = event.target.value;
+    const project = activeProjects.find((candidate) => candidate.id === projectId) || null;
+    const costCenterDefault = defaultCostCenterFor({ projectId, project, categoryName: state.classification.categoryName });
+    setClassificationErrors((previous) => ({ ...previous, projectId: undefined, costCenterId: undefined }));
+    dispatch({ type: 'CLASSIFICATION_FIELD_CHANGED', field: 'projectId', value: projectId, costCenterDefault });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    // Classification is validated BEFORE the header/archive attempt (acceptance
+    // #2): an invalid category/project/cost-center combination blocks confirm
+    // with inline errors and never reaches 'saving' — no reducer transition, no
+    // archive effect runs.
+    const classificationCheck = validateInvoiceClassification({
+      direction: family,
+      categoryName: state.classification.categoryName,
+      projectId: state.classification.projectId,
+      costCenterId: state.classification.costCenterId,
+    });
+    if (!classificationCheck.valid) {
+      setClassificationErrors(classificationCheck.errors);
+      return;
+    }
+    setClassificationErrors({});
+
     dispatch({ type: 'SUBMIT_STARTED' });
 
     let header;
@@ -160,6 +255,7 @@ const InvoiceIntakePanel = ({
           mode: state.linkMode,
           links: state.selectedCandidateIds.map((id) => ({ family, recordId: id })),
           existingObligations: candidates.map((row) => obligationToLinkRow(row, family)),
+          classification: buildClassificationFields(state.classification, projects),
           uid: user.uid,
           now: new Date().toISOString(),
         },
@@ -196,7 +292,7 @@ const InvoiceIntakePanel = ({
                     name="facturas-direction"
                     value={option.value}
                     checked={state.direction === option.value}
-                    onChange={() => dispatch({ type: 'SELECT_DIRECTION', direction: option.value })}
+                    onChange={() => handleDirectionChange(option.value)}
                   />
                   {option.label}
                 </label>
@@ -204,7 +300,7 @@ const InvoiceIntakePanel = ({
             </div>
           </fieldset>
 
-          <Labelled label="Origen" htmlFor="facturas-source">
+          <FieldLabel label="Origen" htmlFor="facturas-source">
             <select
               id="facturas-source"
               className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
@@ -217,9 +313,9 @@ const InvoiceIntakePanel = ({
                 </option>
               ))}
             </select>
-          </Labelled>
+          </FieldLabel>
 
-          <Labelled label="PDF de la factura" htmlFor="facturas-file">
+          <FieldLabel label="PDF de la factura" htmlFor="facturas-file">
             <input
               id="facturas-file"
               type="file"
@@ -227,7 +323,7 @@ const InvoiceIntakePanel = ({
               onChange={handleFile}
               className="block w-full text-sm text-[var(--color-fg-3)] file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-[var(--color-line)] file:bg-[var(--color-bg-2)] file:px-3 file:py-2 file:font-mono file:text-[11px] file:uppercase file:tracking-[0.1em] file:text-[var(--color-fg-1)] file:transition-colors hover:file:bg-[var(--color-bg-3)]"
             />
-          </Labelled>
+          </FieldLabel>
           <p className="label-mono -mt-2 text-[var(--color-fg-4)]">Máximo 2 MB por PDF</p>
 
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -243,7 +339,16 @@ const InvoiceIntakePanel = ({
       {state.step === 'error' && (
         <div className="nx-alert nx-alert-err flex flex-wrap items-center justify-between gap-3">
           <p>{state.error}</p>
-          <Button type="button" variant="secondary" size="sm" onClick={() => dispatch({ type: 'RETRY' })}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setPdfText('');
+              setClassificationErrors({});
+              dispatch({ type: 'RETRY' });
+            }}
+          >
             Reintentar
           </Button>
         </div>
@@ -251,72 +356,19 @@ const InvoiceIntakePanel = ({
 
       {(state.step === 'confirm' || state.step === 'saving') && (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Labelled label="Contraparte" htmlFor="facturas-counterparty">
-              <input
-                id="facturas-counterparty"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.counterpartyName}
-                onChange={handleFieldChange('counterpartyName')}
-              />
-            </Labelled>
-            <Labelled label="Nº de factura" htmlFor="facturas-invoice-number">
-              <input
-                id="facturas-invoice-number"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.invoiceNumber}
-                onChange={handleFieldChange('invoiceNumber')}
-              />
-            </Labelled>
-            <Labelled label="Fecha" htmlFor="facturas-issue-date">
-              <input
-                id="facturas-issue-date"
-                type="date"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.issueDate}
-                onChange={handleFieldChange('issueDate')}
-              />
-            </Labelled>
-            <Labelled label="Neto" htmlFor="facturas-net">
-              <input
-                id="facturas-net"
-                type="number"
-                step="0.01"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.netAmount}
-                onChange={handleFieldChange('netAmount')}
-              />
-            </Labelled>
-            <Labelled label="IVA" htmlFor="facturas-tax">
-              <input
-                id="facturas-tax"
-                type="number"
-                step="0.01"
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.taxAmount}
-                onChange={handleFieldChange('taxAmount')}
-              />
-            </Labelled>
-            <Labelled label="Bruto" htmlFor="facturas-gross">
-              <input
-                id="facturas-gross"
-                type="number"
-                step="0.01"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.grossAmount}
-                onChange={handleFieldChange('grossAmount')}
-              />
-            </Labelled>
-          </div>
+          <InvoiceHeaderFields idPrefix="facturas" form={state.form} onFieldChange={handleFieldChange} mismatch={mismatch} />
 
-          {mismatch && (
-            <p className="text-sm text-[var(--color-warn)]">Neto + IVA no cuadra con el bruto</p>
-          )}
+          <ClassificationFields
+            idPrefix="facturas"
+            categoryType={categoryType}
+            projects={activeProjects}
+            classification={state.classification}
+            suggestion={state.suggestion}
+            errors={classificationErrors}
+            onCategoryChange={handleClassificationFieldChange('categoryName')}
+            onProjectChange={handleProjectChange}
+            onCostCenterChange={handleClassificationFieldChange('costCenterId')}
+          />
 
           {state.evidenceLines.length > 0 && (
             <details className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-3">
@@ -408,7 +460,15 @@ const InvoiceIntakePanel = ({
             <Button type="button" variant="secondary" onClick={() => onViewInvoice?.(state.sha256)}>
               Ver factura
             </Button>
-            <Button type="button" variant="ghost" onClick={() => dispatch({ type: 'RESET' })}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setPdfText('');
+                setClassificationErrors({});
+                dispatch({ type: 'RESET' });
+              }}
+            >
               Archivar otra
             </Button>
           </div>

@@ -9,6 +9,7 @@ import {
 	adaptPayableDoc,
 	adaptReceivableDoc,
 } from "../finance/adapters";
+import { scopeOfCostCenter } from "../finance/costCenterCatalog";
 import {
 	buildMovementAllocations,
 	RECONCILIATION_EPSILON as EPSILON,
@@ -348,6 +349,11 @@ export async function reconcileMovement(
 				user,
 				timestamp: serverTimestamp(),
 			});
+			// Resolved once so a reconciled movement with no costScope of its own
+			// can still derive one from it below, instead of surfacing as
+			// unresolvable in pendingReasonOf (see odd/tasks/invoice-classification-catalog.md).
+			const inheritedCostCenterId =
+				common(documents, "costCenterId") || bank.costCenterId || "";
 			transaction.update(bankRef, {
 				[`${kind}Id`]: ids[0],
 				[`${kind}Ids`]: ids,
@@ -371,8 +377,12 @@ export async function reconcileMovement(
 					common(documents, "projectName") ||
 					bank.projectName ||
 					(documents.length > 1 ? "Múltiples proyectos" : ""),
-				costCenterId:
-					common(documents, "costCenterId") || bank.costCenterId || "",
+				costCenterId: inheritedCostCenterId,
+				costScope:
+					common(documents, "costScope") ||
+					bank.costScope ||
+					scopeOfCostCenter(inheritedCostCenterId) ||
+					"",
 				auditTrail: arrayUnion({
 					action: `link-${kind}`,
 					user,

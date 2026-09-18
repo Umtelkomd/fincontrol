@@ -38,7 +38,30 @@ const payableCandidate = payableFixture({
   id: 'cxp-1',
   sourceSystem: 'ordinary',
   counterpartyName: 'Kabel Service GmbH',
+  // A past classification for this vendor — the T5 suggester's history source
+  // reads costCenterId/projectId/projectName back off it. categoryName is NOT
+  // set here: src/finance/adapters.js's normalizeDocument never surfaces a
+  // categoryName field on an adapted payable/receivable (it only maps
+  // costCenterId/projectId/projectName through), so a real counterparty-history
+  // category suggestion is a pre-existing gap outside T5's scope — see the
+  // classification rule below for how this vendor's category actually resolves.
+  costCenterId: 'CC-120',
 });
+
+// Standing in for a classification rule an operator already created for this
+// vendor — this is what lets Categoría auto-resolve (categoryName is NOT
+// carried by the adapted payable history, see payableCandidate above).
+const classificationRuleFixture = {
+  id: 'rule-1',
+  name: 'Kabel Service → Materiales',
+  field: 'counterparty',
+  pattern: 'Kabel Service GmbH',
+  matchType: 'contains',
+  direction: 'both',
+  active: true,
+  priority: 10,
+  applyTo: { categoryName: 'Materiales' },
+};
 const receivableCandidateA = receivableFixture({
   id: 'cxc-1',
   sourceSystem: 'insyte',
@@ -84,6 +107,7 @@ const baseFixtures = () =>
       invoiceDocuments: [incomingDoc, outgoingDoc],
       payables: [payableCandidate],
       receivables: [receivableCandidateA, receivableCandidateB],
+      classificationRules: [classificationRuleFixture],
     },
   });
 
@@ -272,5 +296,98 @@ describe('Facturas — intake wizard', () => {
     await screen.findByText('El PDF supera el máximo de 2 MB.');
 
     expect(extractPdfTextMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Facturas — invoice classification (T5)', () => {
+  const openAndExtract = async () => {
+    mountFacturas();
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva factura' }));
+    fireEvent.change(screen.getByLabelText('PDF de la factura'), { target: { files: [pdfFile()] } });
+    await screen.findByLabelText('Nº de factura');
+  };
+
+  it('proposes category (rule), project and cost center (history) with visible reasons and a confidence badge', async () => {
+    await openAndExtract();
+
+    expect(await screen.findByLabelText('Categoría')).toHaveValue('Materiales');
+    expect(screen.getByLabelText('Proyecto')).toHaveValue('proj-1');
+    expect(screen.getByLabelText('Centro de costo')).toHaveValue('CC-120');
+
+    expect(screen.getByText(/asigna esta categoría/i)).toBeInTheDocument();
+    expect(screen.getByText(/proyecto usado en 1 de 1 facturas anteriores de kabel service gmbh/i)).toBeInTheDocument();
+    expect(screen.getByText(/centro de costo usado en 1 de 1 facturas anteriores de kabel service gmbh/i)).toBeInTheDocument();
+    expect(screen.getByText('Obra')).toBeInTheDocument();
+    expect(screen.getByText(/confianza/i)).toBeInTheDocument();
+  });
+
+  it('persists the five classification fields on the created payable', async () => {
+    await openAndExtract();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archivar factura' }));
+    await screen.findByText('Factura archivada correctamente.');
+
+    const payableCall = addDoc.mock.calls.find(([ref]) => String(ref?.path ?? '').endsWith('/payables'));
+    expect(payableCall[1]).toMatchObject({
+      categoryName: 'Materiales',
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      costCenterId: 'CC-120',
+      costScope: 'project',
+    });
+  });
+
+  it('blocks confirm with inline errors when the invoice has no category or cost-center evidence', async () => {
+    extractPdfTextMock.mockResolvedValueOnce({
+      text: [
+        'Proveedor Nuevo GmbH',
+        'Musterstraße 5',
+        '99999 Musterstadt',
+        '',
+        'Rechnungsnummer: RE-2026-999',
+        'Rechnungsdatum: 20.01.2026',
+        '',
+        'Nettobetrag: 200,00 €',
+        'MwSt 19%: 38,00 €',
+        'Gesamtbetrag: 238,00 €',
+      ].join('\n'),
+      pageCount: 1,
+      hash: 'b'.repeat(64),
+    });
+
+    mountFacturas();
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva factura' }));
+    fireEvent.change(screen.getByLabelText('PDF de la factura'), { target: { files: [pdfFile()] } });
+    await screen.findByLabelText('Nº de factura');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archivar factura' }));
+
+    expect(await screen.findByText('La categoría es obligatoria')).toBeInTheDocument();
+    expect(screen.getByText('El centro de costo es obligatorio')).toBeInTheDocument();
+    expect(uploadInvoicePdf).not.toHaveBeenCalled();
+    expect(writeBatch).not.toHaveBeenCalled();
+  });
+
+  it('clearing the project resets an untouched cost center to the category default', async () => {
+    await openAndExtract();
+
+    expect(await screen.findByLabelText('Proyecto')).toHaveValue('proj-1');
+    expect(screen.getByLabelText('Centro de costo')).toHaveValue('CC-120');
+
+    // Materiales has no indirect default (it always requires a project — see
+    // CATEGORY_DEFAULTS in costCenterCatalog.js) so clearing the project drops
+    // the center back to empty rather than guessing one.
+    fireEvent.change(screen.getByLabelText('Proyecto'), { target: { value: '' } });
+    expect(screen.getByLabelText('Centro de costo')).toHaveValue('');
+  });
+
+  it('a manually chosen cost center survives a later project change (touched-field protection)', async () => {
+    await openAndExtract();
+
+    await screen.findByLabelText('Proyecto');
+    fireEvent.change(screen.getByLabelText('Centro de costo'), { target: { value: 'CC-210' } });
+    fireEvent.change(screen.getByLabelText('Proyecto'), { target: { value: '' } });
+
+    expect(screen.getByLabelText('Centro de costo')).toHaveValue('CC-210');
   });
 });

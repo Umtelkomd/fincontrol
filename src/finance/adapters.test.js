@@ -123,6 +123,37 @@ describe('finance adapters document mapping', () => {
     expect(payable.payrollKind).toBe('krankenkasse');
     expect(payable.sourceDocument).toMatchObject({ kind: 'zakf', hash: 'abc123' });
   });
+
+  // The invoice classification suggester learns from counterparty history by
+  // reading `categoryName`/`costScope` straight off adapted payables and
+  // receivables — without them here every suggestion built from real ledger
+  // documents would come back with no category evidence at all.
+  it('surfaces categoryName and cost destination for classification history matching', () => {
+    const receivable = adaptReceivableDoc({
+      id: 'invoice-2',
+      amount: 100,
+      status: 'open',
+      categoryName: 'Facturación obra',
+      costScope: 'project',
+    });
+    expect(receivable.categoryName).toBe('Facturación obra');
+    expect(receivable.costScope).toBe('project');
+
+    const payable = adaptPayableDoc({
+      id: 'bill-2',
+      grossAmount: 100,
+      status: 'open',
+      category: 'Materiales',
+      costScope: 'overhead',
+    });
+    expect(payable.categoryName).toBe('Materiales');
+    expect(payable.costScope).toBe('overhead');
+
+    // Unrecognized values are dropped, never read back as a real destination.
+    const bare = adaptReceivableDoc({ id: 'invoice-3', amount: 50, status: 'open', costScope: 'garbage' });
+    expect(bare.categoryName).toBe('');
+    expect(bare.costScope).toBe('');
+  });
 });
 
 describe('finance adapters bank movement mapping', () => {

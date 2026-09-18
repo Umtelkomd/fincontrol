@@ -63,6 +63,12 @@ const normalizeDocument = (raw, kind, source) => {
     projectName: raw.projectName || raw.project || 'Sin proyecto',
     projectCode: raw.projectCode || '',
     costCenterId: raw.costCenterId || raw.costCenter || '',
+    // Surfaced so counterparty history (invoiceClassification.js) can learn a
+    // category/destination from what was actually billed before, and so a
+    // reconciled bank movement can inherit costScope alongside the rest of
+    // the classification (reconcileMovement.js).
+    categoryName: raw.categoryName || raw.category || '',
+    costScope: isCostScope(raw.costScope) ? raw.costScope : '',
     payments: normalizePayments(raw.payments),
     linkedTransactionId: raw.linkedTransactionId || null,
     legacyTransactionId: raw.legacyTransactionId || raw.id || null,

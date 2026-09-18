@@ -12,12 +12,43 @@
  */
 import { logError } from '../utils/logger';
 import { useEffect, useMemo, useState } from 'react';
-import { arrayUnion, collection, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { sanitizeValue } from '../utils/sanitizeFirestore';
 import { CHUNK_BYTES } from '../finance/invoiceChunks';
 
 const COLLECTION_BY_FAMILY = { payable: 'payables', receivable: 'receivables' };
+
+/**
+ * Metadata keys src/finance/invoiceAmendment.js's planInvoiceEdit is ever
+ * allowed to write onto the archive doc via its `archivePatch` — mirrors
+ * `validInvoiceMetadata()` in firestore.rules so this generic patch endpoint
+ * cannot be used to slip an identity/storage/provenance field (sha256,
+ * links, family, direction, createdAt/By, …) past the rules' own intent.
+ * updateInvoiceDocument below REJECTS anything outside this set rather than
+ * silently stripping it, so a caller mistake surfaces instead of vanishing.
+ */
+const EDITABLE_INVOICE_DOCUMENT_FIELDS = new Set([
+  'counterpartyName',
+  'counterpartyId',
+  'invoiceNumber',
+  'issueDate',
+  'netAmount',
+  'taxAmount',
+  'grossAmount',
+  'identity',
+]);
 
 /** The Firestore collection an obligation family lives in, or throws. */
 export const collectionForFamily = (family) => {
@@ -125,7 +156,94 @@ export const useInvoiceDocuments = (user) => {
     await batch.commit();
   };
 
-  return { documents, loading, error, commitInvoiceArchive };
+  /**
+   * updateInvoiceDocument — EDIT/REPLACE: patches the archive metadata
+   * doc with the exact fields the caller sends (never a default overwrite,
+   * same discipline as updatePayable/updateReceivable). `patch` must never
+   * carry `sha256`/`sizeBytes`/`chunkCount`/`chunkBytes`/`storage`/`links`/
+   * `family`/`direction`/`createdAt`/`createdBy` or any other key outside
+   * EDITABLE_INVOICE_DOCUMENT_FIELDS — those keep `validInvoiceMetadata()`
+   * satisfied in firestore.rules and `links` has no edit path here (see
+   * src/finance/invoiceAmendment.js's planInvoiceReplace for the one place
+   * links legitimately change, via a full document swap). A patch outside
+   * the allowlist is REJECTED, never silently stripped, so the caller sees
+   * its own mistake instead of a quietly incomplete write.
+   */
+  const updateInvoiceDocument = async (sha256, patch = {}) => {
+    const disallowedKeys = Object.keys(patch).filter((key) => !EDITABLE_INVOICE_DOCUMENT_FIELDS.has(key));
+    if (disallowedKeys.length > 0) {
+      return {
+        success: false,
+        error: new Error(`Campos no editables en el archivo de la factura: ${disallowedKeys.join(', ')}`),
+      };
+    }
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+    await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
+    return { success: true };
+  };
+
+  /** deleteInvoiceDocument — DELETE: removes the archive metadata doc itself (chunks are a separate call — see lib/invoiceArchiveStore.js's deleteInvoicePdf). */
+  const deleteInvoiceDocument = async (sha256) => {
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+    await deleteDoc(ref);
+  };
+
+  /**
+   * removeInvoiceLink — DELETE: strips this archive doc's sha256 back
+   * reference from one linked obligation (`invoiceDocumentIds`). Runs for
+   * every link, owned or foreign — it is pure cleanup of a now-dangling
+   * pointer, never an accounting change (see src/finance/invoiceAmendment.js's
+   * `planInvoiceDelete`, which only ever cancels an OWNED, unlocked obligation
+   * separately and explicitly).
+   */
+  const removeInvoiceLink = async (family, recordId, sha256) => {
+    const collectionName = collectionForFamily(family);
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', collectionName, recordId);
+    await updateDoc(ref, { invoiceDocumentIds: arrayRemove(sha256), updatedAt: serverTimestamp() });
+  };
+
+  /**
+   * swapInvoiceLink — REPLACE PDF: re-points one obligation's back
+   * reference from the OLD sha256 to the NEW one. Two sequential updates
+   * (Firestore cannot combine an arrayRemove and an arrayUnion of the SAME
+   * field in one write) rather than a batch — REPLACE's own ordering already
+   * tolerates a failure here (see lib/amend.js's applyInvoiceReplace): the old
+   * PDF is only deleted once every swap has succeeded.
+   */
+  const swapInvoiceLink = async (family, recordId, { removeInvoiceDocumentId, addInvoiceDocumentId } = {}) => {
+    const collectionName = collectionForFamily(family);
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', collectionName, recordId);
+    await updateDoc(ref, { invoiceDocumentIds: arrayRemove(removeInvoiceDocumentId), updatedAt: serverTimestamp() });
+    await updateDoc(ref, { invoiceDocumentIds: arrayUnion(addInvoiceDocumentId), updatedAt: serverTimestamp() });
+  };
+
+  /**
+   * findInvoiceDocument — REPLACE: an authoritative single-document read
+   * (bypasses the onSnapshot-fed `documents` list, which can lag by however
+   * long the listener takes to catch up) used ONLY to check whether the new
+   * PDF's sha256 already belongs to a DIFFERENT archived invoice before a
+   * replace commits (see src/finance/invoiceAmendment.js's planInvoiceReplace
+   * and src/features/facturas/lib/amend.js's applyInvoiceReplace). A single
+   * `getDoc` by id is cheap — this is not a collection scan.
+   */
+  const findInvoiceDocument = async (sha256) => {
+    if (!sha256) return null;
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+    const snapshot = await getDoc(ref);
+    return snapshot.exists() ? sanitizeValue({ id: snapshot.id, ...snapshot.data() }) : null;
+  };
+
+  return {
+    documents,
+    loading,
+    error,
+    commitInvoiceArchive,
+    updateInvoiceDocument,
+    deleteInvoiceDocument,
+    removeInvoiceLink,
+    swapInvoiceLink,
+    findInvoiceDocument,
+  };
 };
 
 export default useInvoiceDocuments;

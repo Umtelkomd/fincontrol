@@ -136,6 +136,7 @@ export const createFirestoreModule = (store) => {
     })),
     serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP'),
     arrayUnion: vi.fn((...items) => items),
+    arrayRemove: vi.fn((...items) => items),
     increment: vi.fn((value) => value),
     getFirestore: vi.fn(() => ({ __mockDb: true })),
     // Persistent local cache (src/services/firebase.js). Inert here: the

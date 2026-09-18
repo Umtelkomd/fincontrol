@@ -10,6 +10,7 @@ import { CHUNK_BYTES, MAX_INVOICE_BYTES, chunkIdOf, sha256Hex } from '../../../f
 import {
   ARCHIVE_ERROR_MESSAGES,
   InvoiceArchiveError,
+  deleteInvoicePdf,
   fetchInvoicePdf,
   uploadInvoicePdf,
 } from './invoiceArchiveStore';
@@ -69,9 +70,10 @@ const createFakeFirestore = () => {
     const pending = [];
     return {
       set: (ref, data) => pending.push({ ref, data }),
+      delete: (ref) => pending.push({ ref, data: undefined, op: 'delete' }),
       commit: async () => {
         maybeThrow('commit');
-        pending.forEach(({ ref, data }) => docs.set(ref.path, data));
+        pending.forEach(({ ref, data, op }) => (op === 'delete' ? docs.delete(ref.path) : docs.set(ref.path, data)));
       },
     };
   };
@@ -247,6 +249,53 @@ describe('uploadInvoicePdf', () => {
     await expect(
       uploadInvoicePdf({ db: DB, appId: APP_ID, bytes, expectedSha256: sha256 }, fake.deps),
     ).rejects.toMatchObject({ code: 'internal-error' });
+  });
+});
+
+describe('deleteInvoicePdf', () => {
+  it('deletes every chunk doc for a known chunkCount', async () => {
+    const fake = createFakeFirestore();
+    const bytes = pdfBytes(CHUNK_BYTES + 10); // 2 chunks
+    const { sha256 } = await seedArchivedInvoice(fake, bytes);
+    const chunk0 = `artifacts/${APP_ID}/public/data/invoiceDocuments/${sha256}/chunks/${chunkIdOf(0)}`;
+    const chunk1 = `artifacts/${APP_ID}/public/data/invoiceDocuments/${sha256}/chunks/${chunkIdOf(1)}`;
+    expect(fake.docs.has(chunk0)).toBe(true);
+    expect(fake.docs.has(chunk1)).toBe(true);
+
+    await deleteInvoicePdf({ db: DB, appId: APP_ID, sha256, chunkCount: 2 }, fake.deps);
+
+    expect(fake.docs.has(chunk0)).toBe(false);
+    expect(fake.docs.has(chunk1)).toBe(false);
+  });
+
+  it('tolerates a chunk that was already missing', async () => {
+    const fake = createFakeFirestore();
+    const bytes = pdfBytes(10);
+    const { sha256 } = await seedArchivedInvoice(fake, bytes);
+    const chunk0 = `artifacts/${APP_ID}/public/data/invoiceDocuments/${sha256}/chunks/${chunkIdOf(0)}`;
+    fake.docs.delete(chunk0); // already gone (partial prior failure)
+
+    await expect(
+      deleteInvoicePdf({ db: DB, appId: APP_ID, sha256, chunkCount: 1 }, fake.deps),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects with not-found when the digest is not 64 lowercase hex characters', async () => {
+    const fake = createFakeFirestore();
+    await expect(
+      deleteInvoicePdf({ db: DB, appId: APP_ID, sha256: 'not-a-digest', chunkCount: 1 }, fake.deps),
+    ).rejects.toMatchObject({ code: 'not-found' });
+  });
+
+  it('maps a permission-denied commit failure to access-denied', async () => {
+    const fake = createFakeFirestore();
+    const bytes = pdfBytes(10);
+    const { sha256 } = await seedArchivedInvoice(fake, bytes);
+    fake.setNextError('commit', 'permission-denied');
+
+    await expect(
+      deleteInvoicePdf({ db: DB, appId: APP_ID, sha256, chunkCount: 1 }, fake.deps),
+    ).rejects.toMatchObject({ code: 'access-denied' });
   });
 });
 

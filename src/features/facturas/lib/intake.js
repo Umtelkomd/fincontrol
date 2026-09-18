@@ -109,9 +109,18 @@ const addDaysIso = (isoDate, days) => {
 /**
  * Builds the data payload for `createPayable` (incoming) / `createReceivable`
  * (outgoing) from a confirmed header.
+ *
+ * `classification` — the T5 addition behind acceptance criterion #1 — is the
+ * `{categoryName, projectId, projectName, costCenterId, costScope}` shape
+ * `buildClassificationFields` (src/finance/invoiceClassification.js) returns.
+ * When given, its `projectId` wins over the legacy `projectId` option (kept
+ * for backward compatibility with any caller that only ever set a project).
+ * When `classification` is omitted entirely, the payload carries no
+ * classification fields at all, exactly as before T5.
  */
-export const buildObligationPayload = (header, { projectId, description } = {}) => {
+export const buildObligationPayload = (header, { projectId, description, classification } = {}) => {
   const counterpartyField = header.direction === 'incoming' ? 'vendor' : 'client';
+  const resolvedProjectId = classification ? classification.projectId || '' : projectId || '';
   return {
     invoiceNumber: header.invoiceNumber,
     [counterpartyField]: header.counterpartyName,
@@ -124,7 +133,13 @@ export const buildObligationPayload = (header, { projectId, description } = {}) 
     currency: 'EUR',
     sourceSystem: 'ordinary',
     description: description || '',
-    projectId: projectId || '',
+    projectId: resolvedProjectId,
+    ...(classification && {
+      categoryName: classification.categoryName || '',
+      projectName: classification.projectName || '',
+      costCenterId: classification.costCenterId || '',
+      costScope: classification.costScope || '',
+    }),
   };
 };
 
@@ -177,7 +192,8 @@ export const buildInvoiceDocument = ({ header, file, links, linkMode, uid, now }
  * @param {{
  *   header: object, file: object, bytes: ArrayBuffer|Uint8Array,
  *   mode: 'create-ordinary'|'attach-existing', links?: Array<object>,
- *   existingObligations?: Array<object>, uid: string, now: string,
+ *   existingObligations?: Array<object>, classification?: object,
+ *   description?: string, uid: string, now: string,
  * }} params
  * @param {{
  *   upload: (args: {bytes, expectedSha256}) => Promise<{sha256,sizeBytes,mimeType}>,
@@ -185,9 +201,15 @@ export const buildInvoiceDocument = ({ header, file, links, linkMode, uid, now }
  *   commit: (args: {document, linkUpdates}) => Promise<void>,
  * }} effects
  * @returns {Promise<{ sha256: string, obligationIds: string[], created: boolean }>}
+ *
+ * `classification` only reaches `buildObligationPayload` on `create-ordinary`
+ * — a NEW obligation is the only one this function ever writes. `attach-existing`
+ * links to an obligation that already exists; its `linkUpdates` patch carries
+ * only the archive identity (see step (e) below), never classification, so an
+ * existing document's own classification is never overwritten here.
  */
 export const archiveInvoice = async (
-  { header, file, bytes, mode, links = [], existingObligations = [], uid, now } = {},
+  { header, file, bytes, mode, links = [], existingObligations = [], classification, description, uid, now } = {},
   effects,
 ) => {
   // (a) Validate the file descriptor before anything else.
@@ -205,7 +227,7 @@ export const archiveInvoice = async (
   // (d) create-ordinary requests exactly one new obligation.
   let resolvedLinks = plan.links;
   if (mode === 'create-ordinary') {
-    const payload = buildObligationPayload(header);
+    const payload = buildObligationPayload(header, { classification, description });
     const id = await effects.createObligation(plan.family, payload);
     resolvedLinks = [{ family: plan.family, recordId: id }];
   }

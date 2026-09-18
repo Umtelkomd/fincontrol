@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   COST_SCOPE,
+  EVIDENCE_STATUS,
   PENDING_REASON,
   PROJECT_REVENUE_CATEGORY,
   classificationCoverage,
+  evidenceStatusOf,
   isClassified,
+  missingInvoiceSummary,
   normalizeCostScope,
   pendingReasonOf,
   validateClassification,
@@ -426,5 +429,91 @@ describe('isClassified and classificationCoverage follow pendingReasonOf', () =>
     samples.forEach((sample) => {
       expect(isClassified(sample)).toBe(pendingReasonOf(sample) === null);
     });
+  });
+});
+
+// ─── evidenceStatusOf: a SEPARATE signal from pendingReasonOf ────────────────
+// A statement-only expense (salaries, taxes, tarjeta corporativa...) is
+// COMPLETE with just a category and a destination — pendingReasonOf never
+// asks it for an invoice. evidenceStatusOf answers a different question: of
+// the movements that DO expect an invoice, which ones have none yet?
+
+describe('EVIDENCE_STATUS / evidenceStatusOf', () => {
+  it('names the three statuses', () => {
+    expect(EVIDENCE_STATUS).toEqual({
+      NOT_REQUIRED: 'not-required',
+      DOCUMENTED: 'documented',
+      MISSING_INVOICE: 'missing-invoice',
+    });
+  });
+
+  it('never requires evidence for a void movement', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Materiales', status: 'void' }))).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+  });
+
+  it('never requires evidence for an own-account transfer', () => {
+    expect(evidenceStatusOf(movement({ counterpartyName: 'UMTELKOMD GmbH', categoryName: 'Materiales' })))
+      .toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+  });
+
+  it('never requires evidence for an inflow', () => {
+    expect(evidenceStatusOf(movement({ direction: 'in', categoryName: 'Materiales' }))).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+  });
+
+  it('never requires evidence with no category', () => {
+    expect(evidenceStatusOf(movement({ categoryName: '' }))).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+  });
+
+  it('never requires evidence for a statement-evidence category', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Salarios' }))).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+    expect(evidenceStatusOf(movement({ categoryName: 'Tarjeta corporativa' }))).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+  });
+
+  it('is documented when an invoice-expected outflow carries a payableId', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Materiales', payableId: 'pay-1' }))).toBe(EVIDENCE_STATUS.DOCUMENTED);
+  });
+
+  it('is documented when an invoice-expected outflow carries a non-empty payableIds array', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Materiales', payableIds: ['pay-1', 'pay-2'] })))
+      .toBe(EVIDENCE_STATUS.DOCUMENTED);
+  });
+
+  it('is documented when an invoice-expected outflow carries a non-empty payableAllocations array', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Materiales', payableAllocations: [{ documentId: 'pay-1', amount: 119 }] })))
+      .toBe(EVIDENCE_STATUS.DOCUMENTED);
+  });
+
+  it('ignores an empty payableIds/payableAllocations array', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Materiales', payableIds: [], payableAllocations: [] })))
+      .toBe(EVIDENCE_STATUS.MISSING_INVOICE);
+  });
+
+  it('is missing-invoice when an invoice-expected outflow has no linked document', () => {
+    expect(evidenceStatusOf(movement({ categoryName: 'Materiales' }))).toBe(EVIDENCE_STATUS.MISSING_INVOICE);
+    expect(evidenceStatusOf(movement({ categoryName: 'Subcontratas', projectId: 'proj-1' })))
+      .toBe(EVIDENCE_STATUS.MISSING_INVOICE);
+  });
+
+  it('returns not-required for a null/undefined movement', () => {
+    expect(evidenceStatusOf(null)).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+    expect(evidenceStatusOf(undefined)).toBe(EVIDENCE_STATUS.NOT_REQUIRED);
+  });
+});
+
+describe('missingInvoiceSummary', () => {
+  it('counts only the movements missing an invoice and sums their absolute amount', () => {
+    const summary = missingInvoiceSummary([
+      movement({ id: 'a', categoryName: 'Materiales', amount: 200 }), // missing
+      movement({ id: 'b', categoryName: 'Materiales', amount: 50, payableId: 'pay-1' }), // documented
+      movement({ id: 'c', categoryName: 'Salarios', amount: 900 }), // not-required
+      movement({ id: 'd', categoryName: 'Subcontratas', amount: 80.5 }), // missing
+    ]);
+
+    expect(summary).toEqual({ count: 2, amount: 280.5 });
+  });
+
+  it('returns zeroed totals for an empty or invalid list', () => {
+    expect(missingInvoiceSummary([])).toEqual({ count: 0, amount: 0 });
+    expect(missingInvoiceSummary(null)).toEqual({ count: 0, amount: 0 });
   });
 });

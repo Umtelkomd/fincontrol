@@ -7,8 +7,17 @@
  * with an inline `error` message instead, so the user can fix the form without
  * losing the extracted file or their edits.
  *
- * Pure: no I/O, no Date.now() — every side effect (extraction, archiving) is
- * driven by the caller and reported back through an action.
+ * `classification` (categoryName/projectId/costCenterId — see
+ * src/finance/invoiceClassification.js) is the T5 addition behind acceptance
+ * criterion #1: it is auto-filled from `suggestInvoiceClassification` but only
+ * for fields the human has not `touched`, so a later re-suggestion never
+ * overwrites a manual edit. `suggestion` keeps the LAST suggestion object
+ * around (reasons + confidence) purely for display — it is not itself part of
+ * what gets persisted.
+ *
+ * Pure: no I/O, no Date.now() — every side effect (extraction, archiving,
+ * classification suggestion) is driven by the caller and reported back
+ * through an action.
  */
 
 const EMPTY_FORM = Object.freeze({
@@ -20,7 +29,10 @@ const EMPTY_FORM = Object.freeze({
   grossAmount: '',
 });
 
-/** Fresh wizard state: incoming/ordinary, empty form, no file. */
+const EMPTY_CLASSIFICATION = Object.freeze({ categoryName: '', projectId: '', costCenterId: '' });
+const UNTOUCHED = Object.freeze({ categoryName: false, projectId: false, costCenterId: false });
+
+/** Fresh wizard state: incoming/ordinary, empty form, no file, no classification. */
 export const createInitialIntakeState = () => ({
   step: 'choose',
   direction: 'incoming',
@@ -32,6 +44,9 @@ export const createInitialIntakeState = () => ({
   selectedCandidateIds: [],
   error: null,
   sha256: null,
+  classification: { ...EMPTY_CLASSIFICATION },
+  touched: { ...UNTOUCHED },
+  suggestion: null,
 });
 
 /** A suggestion's `.value` (or '' when there is no suggestion for that field). */
@@ -79,6 +94,11 @@ export const intakeReducer = (state, action) => {
           taxAmount: valueOf(suggestions.taxAmount),
           grossAmount: valueOf(suggestions.grossAmount),
         },
+        // A new file starts a fresh classification — the previous suggestion
+        // (and any human edits) belonged to a different invoice.
+        classification: { ...EMPTY_CLASSIFICATION },
+        touched: { ...UNTOUCHED },
+        suggestion: null,
       };
     }
 
@@ -93,6 +113,9 @@ export const intakeReducer = (state, action) => {
         file: null,
         evidenceLines: [],
         form: { ...EMPTY_FORM },
+        classification: { ...EMPTY_CLASSIFICATION },
+        touched: { ...UNTOUCHED },
+        suggestion: null,
       };
 
     case 'FIELD_CHANGED':
@@ -117,6 +140,35 @@ export const intakeReducer = (state, action) => {
 
     case 'RESET':
       return createInitialIntakeState();
+
+    // ── T5: classification (categoryName/projectId/costCenterId) ──────────
+
+    case 'CLASSIFICATION_SUGGESTED': {
+      const suggestion = action.suggestion || null;
+      if (!suggestion) return { ...state, suggestion: null };
+      return {
+        ...state,
+        suggestion,
+        classification: {
+          categoryName: state.touched.categoryName ? state.classification.categoryName : suggestion.categoryName || '',
+          projectId: state.touched.projectId ? state.classification.projectId : suggestion.projectId || '',
+          costCenterId: state.touched.costCenterId ? state.classification.costCenterId : suggestion.costCenterId || '',
+        },
+      };
+    }
+
+    // `costCenterDefault`, only meaningful for `field === 'projectId'`, is the
+    // project-line (or, when the project is cleared, category) default the
+    // caller already resolved — applied only when the cost center itself has
+    // not been touched, so a manual choice is never clobbered.
+    case 'CLASSIFICATION_FIELD_CHANGED': {
+      const { field, value, costCenterDefault } = action;
+      const classification = { ...state.classification, [field]: value };
+      if (field === 'projectId' && !state.touched.costCenterId && costCenterDefault !== undefined) {
+        classification.costCenterId = costCenterDefault;
+      }
+      return { ...state, classification, touched: { ...state.touched, [field]: true } };
+    }
 
     default:
       return state;

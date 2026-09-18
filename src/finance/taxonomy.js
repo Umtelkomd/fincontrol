@@ -31,6 +31,21 @@ export const CATEGORY_TYPE = Object.freeze({
   INTERNAL: 'internal',
 });
 
+/**
+ * Evidence expectation (statement-only path, approved 2026-09-18) — whether a
+ * category can ever be backed by an invoice. `statement` categories (payroll,
+ * VAT, bank interest, tarjeta corporativa, internal transfers, and every
+ * income except the one that IS billed — Facturación obra) never have one:
+ * demanding an invoice from them would create a permanently-pending item for
+ * money that is legitimately complete once categorized. Everything else is
+ * `invoice`. See `evidenceStatusOf` in costScope.js for the movement-level
+ * signal this field feeds.
+ */
+export const CATEGORY_EVIDENCE = Object.freeze({
+  INVOICE: 'invoice',
+  STATEMENT: 'statement',
+});
+
 /** Group order is report order. `interno` never enters the P&L. */
 export const CATEGORY_GROUPS = Object.freeze(
   [
@@ -46,19 +61,23 @@ export const CATEGORY_GROUPS = Object.freeze(
   ].map(Object.freeze),
 );
 
-const category = (id, name, group, type, defaultScope = '') =>
-  Object.freeze({ id, name, group, type, defaultScope });
+const category = (id, name, group, type, defaultScope = '', evidence = CATEGORY_EVIDENCE.INVOICE) =>
+  Object.freeze({ id, name, group, type, defaultScope, evidence });
+
+const STATEMENT = CATEGORY_EVIDENCE.STATEMENT;
 
 export const TAXONOMY = Object.freeze([
   // ── Ingresos ──────────────────────────────────────────────────────────────
+  // Facturación obra IS billed (a CXC behind it); every other income category
+  // never carries an invoice.
   category('facturacion-obra', 'Facturación obra', 'ingresos', 'income'),
-  category('servicios-particulares', 'Servicios particulares', 'ingresos', 'income'),
-  category('devoluciones-financieros', 'Devoluciones e ingresos financieros', 'ingresos', 'income'),
-  category('otros-ingresos', 'Otros ingresos', 'ingresos', 'income'),
+  category('servicios-particulares', 'Servicios particulares', 'ingresos', 'income', '', STATEMENT),
+  category('devoluciones-financieros', 'Devoluciones e ingresos financieros', 'ingresos', 'income', '', STATEMENT),
+  category('otros-ingresos', 'Otros ingresos', 'ingresos', 'income', '', STATEMENT),
   // ── Personal ──────────────────────────────────────────────────────────────
-  category('salarios', 'Salarios', 'personal', 'expense', 'overhead'),
-  category('seguridad-social', 'Seguridad social', 'personal', 'expense', 'overhead'),
-  category('impuesto-nomina', 'Impuesto de nómina', 'personal', 'expense', 'overhead'),
+  category('salarios', 'Salarios', 'personal', 'expense', 'overhead', STATEMENT),
+  category('seguridad-social', 'Seguridad social', 'personal', 'expense', 'overhead', STATEMENT),
+  category('impuesto-nomina', 'Impuesto de nómina', 'personal', 'expense', 'overhead', STATEMENT),
   category('alojamiento', 'Alojamiento trabajadores', 'personal', 'expense', 'project'),
   category('otros-personal', 'Otros de personal', 'personal', 'expense', 'overhead'),
   // ── Subcontratas ──────────────────────────────────────────────────────────
@@ -76,18 +95,18 @@ export const TAXONOMY = Object.freeze([
   category('asesoria', 'Asesoría y gestoría', 'estructura', 'expense', 'overhead'),
   category('oficina', 'Oficina, telefonía y software', 'estructura', 'expense', 'overhead'),
   category('seguros-empresa', 'Seguros de empresa', 'estructura', 'expense', 'overhead'),
-  category('tarjeta-corporativa', 'Tarjeta corporativa', 'estructura', 'expense', 'overhead'),
+  category('tarjeta-corporativa', 'Tarjeta corporativa', 'estructura', 'expense', 'overhead', STATEMENT),
   category('otros-administrativos', 'Otros administrativos', 'estructura', 'expense', 'overhead'),
   // ── Impuestos (pass-through: shown, kept out of operating spend) ──────────
-  category('iva', 'IVA', 'impuestos', 'expense', 'overhead'),
-  category('impuesto-beneficios', 'Impuesto sobre beneficios', 'impuestos', 'expense', 'overhead'),
+  category('iva', 'IVA', 'impuestos', 'expense', 'overhead', STATEMENT),
+  category('impuesto-beneficios', 'Impuesto sobre beneficios', 'impuestos', 'expense', 'overhead', STATEMENT),
   // ── Financiero ────────────────────────────────────────────────────────────
-  category('intereses-comisiones', 'Intereses y comisiones bancarias', 'financiero', 'expense', 'overhead'),
-  category('amortizacion-prestamos', 'Amortización de préstamos', 'financiero', 'expense', 'overhead'),
-  category('intereses-socios', 'Intereses de préstamos de socios', 'financiero', 'expense', 'overhead'),
-  category('aportes-socios', 'Aportes y préstamos de socios recibidos', 'financiero', 'income'),
+  category('intereses-comisiones', 'Intereses y comisiones bancarias', 'financiero', 'expense', 'overhead', STATEMENT),
+  category('amortizacion-prestamos', 'Amortización de préstamos', 'financiero', 'expense', 'overhead', STATEMENT),
+  category('intereses-socios', 'Intereses de préstamos de socios', 'financiero', 'expense', 'overhead', STATEMENT),
+  category('aportes-socios', 'Aportes y préstamos de socios recibidos', 'financiero', 'income', '', STATEMENT),
   // ── Interno ───────────────────────────────────────────────────────────────
-  category('transferencia-interna', 'Transferencia interna', 'interno', 'internal'),
+  category('transferencia-interna', 'Transferencia interna', 'interno', 'internal', '', STATEMENT),
 ]);
 
 const namesOfType = (type) => Object.freeze(TAXONOMY.filter((c) => c.type === type).map((c) => c.name));
@@ -308,6 +327,30 @@ export const groupOfCategory = (name, context = {}) => {
   const resolved = resolveLegacyCategory({ ...(context || {}), categoryName: name });
   const entry = resolved ? categoryByName(resolved) : null;
   return entry ? entry.group : null;
+};
+
+/**
+ * evidenceOfCategory — the evidence a v2 or legacy category name expects.
+ *
+ * Legacy names resolve through `resolveLegacyCategory` with NO movement
+ * context, so a v2 name and every context-free legacy rename (§2a) resolve
+ * normally; the four split catch-alls (§2b) land on their "otherwise"
+ * branch (e.g. "Seguros" → "Seguridad social"), same as `LEGACY_CATEGORY_MAP`
+ * declares. "Otros" needs a direction to resolve at all — without one this
+ * returns '' rather than defaulting to either evidence kind.
+ *
+ * @param {string} name
+ * @returns {'invoice'|'statement'|''}
+ */
+export const evidenceOfCategory = (name) => {
+  const direct = categoryByName(name);
+  if (direct) return direct.evidence;
+
+  const resolved = resolveLegacyCategory({ categoryName: name });
+  if (!resolved) return '';
+
+  const entry = categoryByName(resolved);
+  return entry ? entry.evidence : '';
 };
 
 /**

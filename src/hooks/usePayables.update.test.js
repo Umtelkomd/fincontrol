@@ -207,6 +207,26 @@ describe('updatePayable — explicit clears still land', () => {
   });
 });
 
+describe('updatePayable — costScope (invoice amendment classification propagation)', () => {
+  it('writes costScope alongside the rest of the classification when the caller sends it', async () => {
+    const { updatePayable } = usePayables(USER);
+
+    await updatePayable(storedPayable(), { costCenterId: 'CC-300', costScope: 'overhead' });
+
+    const payload = writtenPayload();
+    expect(payload.costCenterId).toBe('CC-300');
+    expect(payload.costScope).toBe('overhead');
+  });
+
+  it('does not write costScope when the caller omits it', async () => {
+    const { updatePayable } = usePayables(USER);
+
+    await updatePayable(storedPayable(), { description: 'x' });
+
+    expect(writtenPayload()).not.toHaveProperty('costScope');
+  });
+});
+
 describe('updatePayable — the full form still behaves exactly as before', () => {
   it('restates the money block when the caller sends an amount', async () => {
     const { updatePayable } = usePayables(USER);

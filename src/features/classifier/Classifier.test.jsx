@@ -302,6 +302,105 @@ describe('Classifier — Sin conciliar', () => {
   });
 });
 
+/**
+ * T6 — "Sin factura": evidenceStatusOf is a SEPARATE signal from
+ * pendingReasonOf. Every fixture below is otherwise fully classified
+ * (category + destination + project already set — nothing pending in the
+ * three existing tabs) so this describe block genuinely exercises the new
+ * signal instead of accidentally reusing "Sin categoría"/"Sin obra" rows.
+ */
+describe('Classifier — Sin factura', () => {
+  const missingInvoiceMovement = (overrides = {}) =>
+    bankMovementFixture({
+      direction: 'out',
+      categoryName: 'Materiales',
+      costScope: 'project',
+      projectId: 'proj-1',
+      projectName: 'NE4 Rossdorf',
+      description: 'Ferretería Roßdorf',
+      counterpartyName: 'Ferretería GmbH',
+      amount: 250,
+      ...overrides,
+    });
+
+  it('lists an invoice-expected outflow with no linked payable, with count and total', () => {
+    store.collections.bankMovements = [INCOME, missingInvoiceMovement({ id: 'mov-missing-1', amount: 250 })];
+
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin factura/);
+
+    expect(screen.getByText('Ferretería Roßdorf')).toBeInTheDocument();
+    expect(screen.getByText('1 resultado(s) · 250,00')).toBeInTheDocument();
+  });
+
+  it('excludes an outflow already linked to a payable (documented, not missing)', () => {
+    store.collections.bankMovements = [missingInvoiceMovement({ id: 'mov-linked', payableId: 'cxp-linked' })];
+
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin factura/);
+
+    expect(screen.getByText('Sin pendientes de factura')).toBeInTheDocument();
+  });
+
+  it('excludes a statement-only category (Salarios never carries an invoice)', () => {
+    store.collections.bankMovements = [
+      missingInvoiceMovement({ id: 'mov-payroll', categoryName: 'Salarios', costScope: 'overhead', projectId: '', projectName: '' }),
+    ];
+
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin factura/);
+
+    expect(screen.getByText('Sin pendientes de factura')).toBeInTheDocument();
+  });
+
+  it('excludes inflows', () => {
+    store.collections.bankMovements = [
+      bankMovementFixture({ id: 'mov-in-material', direction: 'in', categoryName: 'Materiales', amount: 250 }),
+    ];
+
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin factura/);
+
+    expect(screen.getByText('Sin pendientes de factura')).toBeInTheDocument();
+  });
+
+  it('leaves the coverage KPI and the three existing tabs untouched', () => {
+    store.collections.bankMovements = [...INBOX, missingInvoiceMovement({ id: 'mov-missing-2' })];
+
+    renderScreen(<Classifier user={USER} />);
+
+    // The missing-invoice movement is otherwise fully classified — it must
+    // not surface as pending anywhere else, and coverage must count it.
+    expect(kpiValue('Pendientes 2026')).toHaveTextContent('3');
+    expect(kpiValue('Sin categoría')).toHaveTextContent('3');
+    expect(kpiValue('Sin obra')).toHaveTextContent('0');
+    expect(kpiValue('Sin conciliar')).toHaveTextContent('0');
+    expect(screen.getByRole('progressbar', { name: /Cobertura de clasificación/ })).toBeInTheDocument();
+
+    const panel = screen.getByText('Sin categoría', { selector: 'h3' }).closest('section');
+    expect(within(panel).queryByText('Ferretería Roßdorf')).not.toBeInTheDocument();
+  });
+
+  it('shows the explanatory helper line and an "Ir a Facturas" link on each row', () => {
+    store.collections.bankMovements = [missingInvoiceMovement({ id: 'mov-missing-3' })];
+
+    renderScreen(<Classifier user={USER} />);
+    openTab(/Sin factura/);
+
+    expect(
+      screen.getByText(/Gastos que esperan factura\. Los gastos que solo aparecen en el extracto/),
+    ).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Ir a Facturas' });
+    expect(link).toHaveAttribute('href', '/facturas');
+  });
+
+  it('does not offer the invoice link on the other tabs', () => {
+    renderScreen(<Classifier user={USER} />);
+
+    expect(screen.queryByRole('link', { name: 'Ir a Facturas' })).not.toBeInTheDocument();
+  });
+});
+
 describe('Classifier — search', () => {
   it('filters the active bucket by description', () => {
     renderScreen(<Classifier user={USER} />);

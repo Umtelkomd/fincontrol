@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { X, Save, Tag, HardHat, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/nexus';
 import { COST_SCOPE, normalizeCostScope, validateClassification } from '../../finance/costScope';
+import { costCenterOptions, resolveLegacyCostCenter, validateCostCenterAssignment } from '../../finance/costCenterCatalog';
+import { defaultCostCenterFor } from '../../finance/classificationDefaults';
+import { CATEGORY_EVIDENCE, evidenceOfCategory } from '../../finance/taxonomy';
 
 /**
  * CategorizeModal — for "spontaneous" bank movements that are NOT tied to
@@ -13,7 +16,13 @@ import { COST_SCOPE, normalizeCostScope, validateClassification } from '../../fi
  * ~93% of the ledger unclassified.
  *
  * The rule itself lives in `validateClassification`; this component never
- * re-implements it.
+ * re-implements it. `costCenterId` is a T6 addition on top: it stores a v2
+ * catalogue CODE (costCenterOptions/costCenterCatalog.js), filtered by the
+ * chosen destination (Obra ⇒ direct centers only, Estructura ⇒ indirect/
+ * clearing only) and checked with validateCostCenterAssignment. A movement
+ * that already carries a legacy cost-center value is displayed through its
+ * resolved v2 code (resolveLegacyCostCenter) but is NEVER rewritten unless
+ * the user actually saves this form.
  */
 const CategorizeModal = ({
  isOpen,
@@ -21,7 +30,6 @@ const CategorizeModal = ({
  onSubmit,
  movement,
  categories = [],
- costCenters = [],
  projects = [],
  suggestion = null,
 }) => {
@@ -41,11 +49,19 @@ const CategorizeModal = ({
  // person with certainty (`autoApply`) AND the user has not classified the
  // movement already — a suggestion must never overwrite a human decision.
  const applySuggestion = Boolean(suggestion?.autoApply) && !movement.categoryName;
+ const categoryName = (applySuggestion ? suggestion.categoryName : movement.categoryName) || '';
+ const projectId = movement.projectId || '';
 
  setForm({
- categoryName: (applySuggestion ? suggestion.categoryName : movement.categoryName) || '',
- costCenterId: movement.costCenterId || '',
- projectId: movement.projectId || '',
+ categoryName,
+ // A fresh suggestion has no cost center of its own — default it the
+ // same way T5's intake wizard does. Reopening an already-classified
+ // movement shows its RESOLVED v2 code (never the raw legacy value) and
+ // never rewrites the document unless the user saves this form.
+ costCenterId: applySuggestion
+ ? defaultCostCenterFor({ projectId, categoryName })
+ : resolveLegacyCostCenter(movement.costCenterId).code,
+ projectId,
  projectName: movement.projectName || '',
  // Legacy documents have no `costScope`; derive it so reopening a
  // classified movement shows its current destination.
@@ -69,15 +85,34 @@ const CategorizeModal = ({
  costScope: scope,
  // Structure costs must not keep a stale project.
  ...(scope === COST_SCOPE.OVERHEAD ? { projectId: '', projectName: '' } : {}),
+ // The previously chosen center's kind (direct/indirect) may no longer
+ // match the new destination — clear it rather than leave an orphaned
+ // selection the visible options no longer include.
+ costCenterId: '',
  }));
  setError('');
  };
+
+ // Every catalogue center, filtered by the chosen destination: Obra ⇒ direct
+ // only, Estructura ⇒ indirect/clearing only. An inflow has no destination
+ // concept, so it sees the full catalogue.
+ const costCenterChoices = costCenterOptions().filter((option) => {
+ if (!isOutbound) return true;
+ if (!form.costScope) return false;
+ return form.costScope === COST_SCOPE.PROJECT ? option.kind === 'direct' : option.kind !== 'direct';
+ });
+ const costCenterDisabled = isOutbound && !form.costScope;
 
  const handleSubmit = async (e) => {
  e.preventDefault();
  const check = validateClassification(movement, form);
  if (!check.valid) {
  setError(check.error);
+ return;
+ }
+ const centerCheck = validateCostCenterAssignment({ costCenterId: form.costCenterId, projectId: form.projectId });
+ if (!centerCheck.valid) {
+ setError(centerCheck.error);
  return;
  }
  setSubmitting(true);
@@ -120,12 +155,20 @@ const CategorizeModal = ({
  </div>
 
  <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+ <div>
  <label className="block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Categoría *</span>
  <select
  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
  value={form.categoryName}
- onChange={(e) => set('categoryName', e.target.value)}
+ onChange={(e) => {
+ const categoryName = e.target.value;
+ setForm((f) => ({
+ ...f,
+ categoryName,
+ costCenterId: f.costCenterId || defaultCostCenterFor({ projectId: f.projectId, categoryName }),
+ }));
+ }}
  autoFocus
  >
  <option value="">— Seleccionar —</option>
@@ -138,6 +181,12 @@ const CategorizeModal = ({
  })}
  </select>
  </label>
+ {evidenceOfCategory(form.categoryName) === CATEGORY_EVIDENCE.STATEMENT && (
+ <p className="mt-1.5 text-[12px] text-[var(--color-fg-4)]">
+ Este tipo de gasto no lleva factura: basta con clasificarlo aquí.
+ </p>
+ )}
+ </div>
 
  {isOutbound && (
  <CostScopeSelector value={form.costScope} onChange={selectScope} disabled={submitting} />
@@ -146,16 +195,15 @@ const CategorizeModal = ({
  <label className="block">
  <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Centro de costo</span>
  <select
- className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-sm text-[var(--color-fg-1)] outline-none disabled:opacity-50"
  value={form.costCenterId}
+ disabled={costCenterDisabled}
  onChange={(e) => set('costCenterId', e.target.value)}
  >
- <option value="">— Sin asignar —</option>
- {costCenters.map((c) => {
- const id = String(c.id || c.codigo || c.code || '');
- const label = String(c.nombre || c.name || c.codigo || c.code || id);
- return <option key={id} value={id}>{label}</option>;
- })}
+ <option value="">{costCenterDisabled ? '— Elegí primero el destino —' : '— Sin asignar —'}</option>
+ {costCenterChoices.map((option) => (
+ <option key={option.value} value={option.value}>{option.label}</option>
+ ))}
  </select>
  </label>
 
@@ -176,7 +224,12 @@ const CategorizeModal = ({
  const id = e.target.value;
  const found = projects.find((p) => p.id === id);
  const name = String(found?.nombre || found?.name || found?.codigo || found?.code || '');
- setForm((f) => ({ ...f, projectId: id, projectName: name }));
+ setForm((f) => ({
+ ...f,
+ projectId: id,
+ projectName: name,
+ costCenterId: f.costCenterId || defaultCostCenterFor({ projectId: id, project: found, categoryName: f.categoryName }),
+ }));
  }}
  >
  <option value="">

@@ -33,6 +33,7 @@ import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { createNetAmountResolver } from '../../finance/vatRates';
 import { splitPayrollSettlements } from '../../finance/counterpartyIdentity';
 import { splitInternalTransfers } from '../../lib/finance/movementAmount';
+import { buildProjectTokens, matchesProject } from '../../finance/projectMatching';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import WipPanel from './WipPanel';
 
@@ -41,36 +42,6 @@ const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep'
 const OPEN_DOCUMENT_STATUSES = new Set(['issued', 'partial', 'overdue']);
 
 const normalizeToken = (value) => String(value || '').trim().toLowerCase();
-
-const buildProjectTokens = (project) => {
- const rawTokens = [
- project?.id,
- project?.code,
- project?.name,
- project?.displayName,
- `${project?.code || ''} (${project?.name || ''})`,
- ];
-
- return Array.from(new Set(rawTokens.map(normalizeToken).filter(Boolean)));
-};
-
-const matchesProject = (record, tokens, projectId) => {
- const directId = normalizeToken(record?.projectId);
- if (projectId && directId && directId === normalizeToken(projectId)) return true;
-
- const candidates = [
- record?.projectName,
- record?.project,
- record?.raw?.projectName,
- record?.raw?.project,
- record?.rawRecord?.projectName,
- record?.rawRecord?.project,
- ]
- .map(normalizeToken)
- .filter(Boolean);
-
- return candidates.some((candidate) => tokens.includes(candidate));
-};
 
 const formatAxis = (value) => {
  if (Math.abs(value) >= 1000) return `${Math.round(value / 1000)}k`;
@@ -295,6 +266,15 @@ const ProyectoDashboard = ({ user }) => {
  if (!selectedProject) return null;
 
  const matching = (ledger.budgets || []).filter((entry) => {
+ // A T12 budget merge (see classificationMigration.js `planProjectMerge`)
+ // sums a loser's lines into the survivor's budget and stamps the loser
+ // `mergedInto` WITHOUT repointing its projectId — deliberately, so a
+ // survivor lookup by exact id never double-counts it. But this filter
+ // also matches by free-text projectName tokens (below), and a loser
+ // budget's projectName (e.g. "Roßdorf 2") IS a legacy alias of the
+ // survivor's own code, so without this guard it would still match and
+ // double the already-summed total.
+ if (entry.mergedInto) return false;
  const budgetTokens = [entry.projectId, entry.projectName].map(normalizeToken).filter(Boolean);
  return (
  normalizeToken(entry.projectId) === normalizeToken(selectedProject.id) ||

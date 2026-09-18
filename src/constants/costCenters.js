@@ -1,46 +1,19 @@
-// Centros de Costo predefinidos
-export const COST_CENTERS = [
-  {
-    id: 'CC-001',
-    name: 'Obra Civil',
-    type: 'Costos',
-    budget: 0,
-    spent: 0,
-    responsible: 'Por Asignar'
-  },
-  {
-    id: 'CC-002',
-    name: 'Instalaciones y Reparaciones',
-    type: 'Costos',
-    budget: 136488.00,
-    spent: 5437.44,
-    responsible: 'Andres Romero'
-  },
-  {
-    id: 'CC-003',
-    name: 'NE4',
-    type: 'Costos',
-    budget: 213257.00,
-    spent: 747.67,
-    responsible: 'Isabelle Hortsmann'
-  },
-  {
-    id: 'CC-004',
-    name: 'Administrativo',
-    type: 'Costos',
-    budget: 240000.00,
-    spent: 2158.66,
-    responsible: 'Beatriz Sandoval'
-  },
-  {
-    id: 'CC-005',
-    name: 'Despliegue',
-    type: 'Costos',
-    budget: 125172.00,
-    spent: 0,
-    responsible: 'Jeisson Romero'
-  }
-];
+// Centros de Costo predefinidos — derived from the cost center catalogue v2
+// (see src/finance/costCenterCatalog.js for the full rationale). `id` mirrors
+// the catalogue `code` (v2 rule: the Firestore doc id equals the code), and
+// `type`/`budget`/`responsible` keep the exact shape CostCenters.jsx's
+// `handleLoadPredefined` writes to Firestore. Budgets are not modeled per
+// center yet — seeded at 0 and edited from the settings screen.
+import { COST_CENTER_CATALOG } from '../finance/costCenterCatalog.js';
+
+export const COST_CENTERS = COST_CENTER_CATALOG.map((entry) => ({
+  id: entry.code,
+  name: entry.name,
+  type: 'Costos',
+  budget: 0,
+  spent: 0,
+  responsible: 'Por Asignar',
+}));
 
 // Centros de Ingresos (vacío por defecto)
 export const INCOME_CENTERS = [];

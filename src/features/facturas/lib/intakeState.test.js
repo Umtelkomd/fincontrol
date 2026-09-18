@@ -165,3 +165,146 @@ describe('intakeReducer', () => {
     expect(intakeReducer(state, { type: 'NOPE' })).toBe(state);
   });
 });
+
+// ─── T5: classification slice (categoryName/projectId/costCenterId) ────────
+describe('createInitialIntakeState — classification defaults', () => {
+  it('starts with an empty classification, nothing touched and no suggestion', () => {
+    const state = createInitialIntakeState();
+    expect(state.classification).toEqual({ categoryName: '', projectId: '', costCenterId: '' });
+    expect(state.touched).toEqual({ categoryName: false, projectId: false, costCenterId: false });
+    expect(state.suggestion).toBeNull();
+  });
+});
+
+describe('intakeReducer — CLASSIFICATION_SUGGESTED', () => {
+  const suggestion = (overrides = {}) => ({
+    categoryName: 'Materiales',
+    projectId: 'proj-1',
+    projectName: 'NE4 Rossdorf',
+    costCenterId: 'CC-120',
+    costScope: 'project',
+    confidence: 'medium',
+    reasons: [{ field: 'projectId', source: 'history', detail: 'Proyecto usado en 2 de 2 facturas anteriores' }],
+    ...overrides,
+  });
+
+  it('fills every untouched classification field from the suggestion and stores it', () => {
+    const state = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_SUGGESTED',
+      suggestion: suggestion(),
+    });
+    expect(state.classification).toEqual({ categoryName: 'Materiales', projectId: 'proj-1', costCenterId: 'CC-120' });
+    expect(state.suggestion).toEqual(suggestion());
+  });
+
+  it('never overwrites a field the human already touched', () => {
+    const touchedProject = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'projectId',
+      value: 'proj-manual',
+    });
+    const state = intakeReducer(touchedProject, { type: 'CLASSIFICATION_SUGGESTED', suggestion: suggestion() });
+    expect(state.classification.projectId).toBe('proj-manual');
+    expect(state.classification.categoryName).toBe('Materiales');
+    // the suggestion itself is still stored (for reasons/confidence display) even though it was not applied to projectId
+    expect(state.suggestion).toEqual(suggestion());
+  });
+
+  it('a null suggestion clears the stored suggestion without touching classification', () => {
+    const withSuggestion = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_SUGGESTED',
+      suggestion: suggestion(),
+    });
+    const cleared = intakeReducer(withSuggestion, { type: 'CLASSIFICATION_SUGGESTED', suggestion: null });
+    expect(cleared.suggestion).toBeNull();
+    expect(cleared.classification).toEqual(withSuggestion.classification);
+  });
+});
+
+describe('intakeReducer — CLASSIFICATION_FIELD_CHANGED', () => {
+  it('sets the field value and marks it touched', () => {
+    const state = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'categoryName',
+      value: 'Materiales',
+    });
+    expect(state.classification.categoryName).toBe('Materiales');
+    expect(state.touched.categoryName).toBe(true);
+    expect(state.touched.projectId).toBe(false);
+  });
+
+  it('a projectId change applies the given costCenterDefault when the cost center is untouched', () => {
+    const state = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'projectId',
+      value: 'proj-2',
+      costCenterDefault: 'CC-110',
+    });
+    expect(state.classification).toEqual({ categoryName: '', projectId: 'proj-2', costCenterId: 'CC-110' });
+    expect(state.touched.projectId).toBe(true);
+    // the default was applied programmatically, not by the human — it stays untouched
+    expect(state.touched.costCenterId).toBe(false);
+  });
+
+  it('a projectId change never overrides a manually touched cost center', () => {
+    const manualCenter = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'costCenterId',
+      value: 'CC-210',
+    });
+    const state = intakeReducer(manualCenter, {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'projectId',
+      value: 'proj-2',
+      costCenterDefault: 'CC-110',
+    });
+    expect(state.classification.costCenterId).toBe('CC-210');
+    expect(state.classification.projectId).toBe('proj-2');
+  });
+
+  it('clearing the project (empty costCenterDefault) resets an untouched cost center to the category default', () => {
+    const withProject = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'projectId',
+      value: 'proj-2',
+      costCenterDefault: 'CC-110',
+    });
+    const state = intakeReducer(withProject, {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'projectId',
+      value: '',
+      costCenterDefault: '',
+    });
+    expect(state.classification).toEqual({ categoryName: '', projectId: '', costCenterId: '' });
+  });
+});
+
+describe('intakeReducer — classification resets alongside the rest of the wizard', () => {
+  it('EXTRACTION_SUCCEEDED resets classification, touched flags and the stored suggestion for the new file', () => {
+    const dirty = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'categoryName',
+      value: 'Materiales',
+    });
+    const state = intakeReducer(dirty, {
+      type: 'EXTRACTION_SUCCEEDED',
+      payload: { hash: 'abc', sizeBytes: 1, originalName: 'x.pdf', bytes: new ArrayBuffer(0), evidenceLines: [], suggestions: {} },
+    });
+    expect(state.classification).toEqual({ categoryName: '', projectId: '', costCenterId: '' });
+    expect(state.touched).toEqual({ categoryName: false, projectId: false, costCenterId: false });
+    expect(state.suggestion).toBeNull();
+  });
+
+  it('RETRY resets classification, touched flags and the stored suggestion', () => {
+    const dirty = intakeReducer(createInitialIntakeState(), {
+      type: 'CLASSIFICATION_FIELD_CHANGED',
+      field: 'projectId',
+      value: 'proj-9',
+    });
+    const errored = intakeReducer(dirty, { type: 'EXTRACTION_FAILED', message: 'boom' });
+    const state = intakeReducer(errored, { type: 'RETRY' });
+    expect(state.classification).toEqual({ categoryName: '', projectId: '', costCenterId: '' });
+    expect(state.touched).toEqual({ categoryName: false, projectId: false, costCenterId: false });
+    expect(state.suggestion).toBeNull();
+  });
+});

@@ -8,10 +8,12 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  setDoc,
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
+import { COST_CENTER_CATALOG, COST_CENTER_CATALOG_VERSION } from '../finance/costCenterCatalog';
 
 export const useCostCenters = (user) => {
   const [costCenters, setCostCenters] = useState([]);
@@ -93,13 +95,64 @@ export const useCostCenters = (user) => {
     }
   };
 
+  /**
+   * seedCatalog — T7: "Cargar predefinidos" for the cost center catalogue v2.
+   * Idempotent by construction: the catalogue doc id EQUALS its code
+   * (setDoc(doc(ref, code), …, { merge: true })), unlike createCostCenter's
+   * addDoc, which always mints a new random id. A pre-existing doc's
+   * budget/responsible are simply never included in the payload, so merge
+   * leaves them untouched; only a brand-new doc gets them defaulted.
+   */
+  const seedCatalog = async () => {
+    if (!user) return { success: false, error: 'No user' };
+
+    try {
+      let created = 0;
+      let updated = 0;
+      for (const entry of COST_CENTER_CATALOG) {
+        const centerDoc = doc(db, 'artifacts', appId, 'public', 'data', 'costCenters', entry.code);
+        const existing = costCenters.some((c) => c.id === entry.code);
+        await setDoc(
+          centerDoc,
+          {
+            code: entry.code,
+            name: entry.name,
+            kind: entry.kind,
+            line: entry.line || '',
+            type: 'Costos',
+            catalogVersion: COST_CENTER_CATALOG_VERSION,
+            updatedAt: serverTimestamp(),
+            updatedBy: user.email,
+            ...(existing
+              ? {}
+              : {
+                  budget: 0,
+                  spent: 0,
+                  responsible: '',
+                  createdAt: serverTimestamp(),
+                  createdBy: user.email,
+                }),
+          },
+          { merge: true },
+        );
+        if (existing) updated += 1;
+        else created += 1;
+      }
+      return { success: true, created, updated };
+    } catch (err) {
+      logError('Error seeding cost center catalogue:', err);
+      return { success: false, error: err };
+    }
+  };
+
   return {
     costCenters,
     loading,
     error,
     createCostCenter,
     updateCostCenter,
-    deleteCostCenter
+    deleteCostCenter,
+    seedCatalog,
   };
 };
 

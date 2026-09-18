@@ -41,6 +41,11 @@ const PAYABLE_TEXT_FIELDS = [
   ['projectName', ['projectName']],
   ['costCenterId', ['costCenterId']],
   ['categoryName', ['categoryName']],
+  // Derived from costCenterId (src/finance/costCenterCatalog.js's
+  // scopeOfCostCenter) — carried explicitly so a classification edit from
+  // the invoice archive (src/finance/invoiceAmendment.js) does not silently
+  // drop it and leave the obligation's own scope stale.
+  ['costScope', ['costScope']],
 ];
 
 /**
@@ -208,6 +213,10 @@ export const usePayables = (user) => {
         employeeIds: Array.isArray(data.employeeIds) ? data.employeeIds : [],
         costCenterId: data.costCenterId || '',
         categoryName: data.categoryName || '',
+        // Invoice classification (src/finance/invoiceClassification.js):
+        // 'project' | 'overhead', derived from costCenterId — persisted
+        // alongside it so a reconciled bank movement inherits it unchanged.
+        costScope: data.costScope || '',
         // Payroll markers (Nóminas): link a payable back to its payroll period.
         // Null for ordinary CXP. Persisted so the Nóminas view can match each
         // obligation to its live payable by payrollPeriodId.
@@ -502,7 +511,16 @@ export const usePayables = (user) => {
     }
   };
 
-  const cancelPayable = async (payable) => {
+  /**
+   * cancelPayable — optional `{ reason, source }` lets a caller that already
+   * knows WHY (e.g. src/features/facturas/Facturas.jsx cancelling the CXP a
+   * deleted archived invoice created) put that into the obligation's OWN
+   * auditTrail instead of the generic default. With no options — every
+   * existing caller (useNominas.js, this hook's own callers) — the detail
+   * stays byte-identical to before. `source` is recorded as audit-log
+   * metadata only; it never changes the written detail text itself.
+   */
+  const cancelPayable = async (payable, { reason, source } = {}) => {
     if (!user) return { success: false };
     if ((payable.paidAmount || 0) > 0) {
       return { success: false, error: new Error('No se puede cancelar una CXP con pagos registrados') };
@@ -510,6 +528,7 @@ export const usePayables = (user) => {
 
     try {
       const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
+      const detail = reason || 'Factura CXP cancelada desde la mesa maestra';
       const payload = {
         status: 'cancelled',
         openAmount: 0,
@@ -520,7 +539,7 @@ export const usePayables = (user) => {
           action: 'cancel',
           user: user.email,
           timestamp: new Date().toISOString(),
-          detail: 'Factura CXP cancelada desde la mesa maestra',
+          detail,
         }),
       };
       await updateDoc(payableRef, payload);
@@ -535,6 +554,7 @@ export const usePayables = (user) => {
           ...payload,
           updatedAt: new Date().toISOString(),
         }),
+        ...(source ? { metadata: { source } } : {}),
       });
       return { success: true };
     } catch (error) {

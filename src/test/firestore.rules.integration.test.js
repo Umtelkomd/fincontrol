@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import process from "node:process";
 import { withEmulatorSafety } from "./emulatorSafety.js";
 
-let environment, assertFails, assertSucceeds, doc, getDoc, setDoc, updateDoc, Bytes;
+let environment, assertFails, assertSucceeds, deleteDoc, doc, getDoc, setDoc, updateDoc, Bytes;
 const tenantPath = (tenant = "tenant-a", collection = "invoices") =>
 	`artifacts/${tenant}/public/data/${collection}/synthetic-record`;
 const dbFor = (uid) => environment.authenticatedContext(uid).firestore();
@@ -14,7 +14,7 @@ beforeAll(async () => {
 		async ({ projectId, host, port }) => {
 			const testing = await import("@firebase/rules-unit-testing");
 			({ assertFails, assertSucceeds } = testing);
-			({ doc, getDoc, setDoc, updateDoc, Bytes } = await import("firebase/firestore"));
+			({ deleteDoc, doc, getDoc, setDoc, updateDoc, Bytes } = await import("firebase/firestore"));
 			return testing.initializeTestEnvironment({
 				projectId,
 				firestore: {
@@ -254,5 +254,90 @@ describe("invoiceDocuments — Firestore-chunk archive rules", () => {
 		await assertFails(
 			setDoc(doc(db, invoiceMetaPath("tenant-a")), { anything: "goes", no: "validation" }),
 		);
+	});
+
+	// Correcting an archived invoice (EDIT/REPLACE/DELETE) needs update/delete
+	// on both the metadata doc and its chunks — append-only was the whole
+	// archive's behaviour before this feature, so these rules had no
+	// update/delete coverage at all.
+	describe("update and delete (correcting an archived invoice)", () => {
+		const seed = async () => {
+			await environment.withSecurityRulesDisabled(async (context) => {
+				const db = context.firestore();
+				await setDoc(doc(db, invoiceMetaPath("tenant-a")), validMetadata());
+				await setDoc(doc(db, invoiceChunkPath("tenant-a", "000")), validChunk());
+			});
+		};
+
+		it("lets a manager of the owning tenant update metadata that still satisfies validInvoiceMetadata", async () => {
+			await seed();
+			const db = dbFor("manager");
+			await assertSucceeds(
+				updateDoc(doc(db, invoiceMetaPath("tenant-a")), { counterpartyName: "Nuevo nombre" }),
+			);
+		});
+
+		it("lets an admin of the owning tenant delete the metadata doc", async () => {
+			await seed();
+			const db = dbFor("admin");
+			await assertSucceeds(deleteDoc(doc(db, invoiceMetaPath("tenant-a"))));
+		});
+
+		it("denies an editor from updating or deleting metadata", async () => {
+			await seed();
+			const db = dbFor("editor");
+			await assertFails(updateDoc(doc(db, invoiceMetaPath("tenant-a")), { counterpartyName: "x" }));
+			await assertFails(deleteDoc(doc(db, invoiceMetaPath("tenant-a"))));
+		});
+
+		it("denies a manager of another tenant from updating or deleting metadata", async () => {
+			await seed();
+			const dbB = dbFor("manager-b");
+			await assertFails(updateDoc(doc(dbB, invoiceMetaPath("tenant-a")), { counterpartyName: "x" }));
+			await assertFails(deleteDoc(doc(dbB, invoiceMetaPath("tenant-a"))));
+		});
+
+		it("denies an update that would break validInvoiceMetadata (chunkCount out of range)", async () => {
+			await seed();
+			const db = dbFor("manager");
+			await assertFails(updateDoc(doc(db, invoiceMetaPath("tenant-a")), { chunkCount: 0 }));
+			await assertFails(updateDoc(doc(db, invoiceMetaPath("tenant-a")), { chunkCount: 4 }));
+		});
+
+		it("denies an update that changes the storage tag away from firestore-chunks-v1", async () => {
+			await seed();
+			const db = dbFor("manager");
+			await assertFails(updateDoc(doc(db, invoiceMetaPath("tenant-a")), { storage: "legacy-http" }));
+		});
+
+		it("lets a manager of the owning tenant update and delete a chunk", async () => {
+			await seed();
+			const db = dbFor("manager");
+			await assertSucceeds(
+				updateDoc(doc(db, invoiceChunkPath("tenant-a", "000")), { bytes: Bytes.fromUint8Array(new Uint8Array(20)) }),
+			);
+			await assertSucceeds(deleteDoc(doc(db, invoiceChunkPath("tenant-a", "000"))));
+		});
+
+		it("denies an editor and a cross-tenant manager from updating or deleting a chunk", async () => {
+			await seed();
+			const editorDb = dbFor("editor");
+			await assertFails(updateDoc(doc(editorDb, invoiceChunkPath("tenant-a", "000")), { index: 0 }));
+			await assertFails(deleteDoc(doc(editorDb, invoiceChunkPath("tenant-a", "000"))));
+
+			const dbB = dbFor("manager-b");
+			await assertFails(updateDoc(doc(dbB, invoiceChunkPath("tenant-a", "000")), { index: 0 }));
+			await assertFails(deleteDoc(doc(dbB, invoiceChunkPath("tenant-a", "000"))));
+		});
+
+		it("denies a chunk update that would break validInvoiceChunk (over the byte cap)", async () => {
+			await seed();
+			const db = dbFor("manager");
+			await assertFails(
+				updateDoc(doc(db, invoiceChunkPath("tenant-a", "000")), {
+					bytes: Bytes.fromUint8Array(new Uint8Array(786433)),
+				}),
+			);
+		});
 	});
 });

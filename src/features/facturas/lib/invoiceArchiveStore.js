@@ -19,6 +19,7 @@ import {
   chunkIdOf,
   hasPdfSignature,
   joinChunks,
+  MAX_CHUNK_COUNT,
   MAX_INVOICE_BYTES,
   sha256Hex,
   splitIntoChunks,
@@ -109,6 +110,44 @@ export const uploadInvoicePdf = async ({ db, appId, bytes, expectedSha256 } = {}
   }
 
   return { sha256, sizeBytes, mimeType: MIME_TYPE };
+};
+
+/**
+ * Deletes every chunk document of a previously archived PDF — needed by both
+ * the DELETE and REPLACE invoice-amendment flows. Never touches the
+ * `invoiceDocuments/{sha256}` metadata document itself — that is the
+ * caller's concern (see src/hooks/useInvoiceDocuments.js's
+ * `deleteInvoiceDocument`), and DELETE's required ordering (chunks first,
+ * archive doc last — see src/features/facturas/lib/amend.js) depends on
+ * these being separate calls.
+ *
+ * Deletes by INDEX up to `chunkCount` (falling back to the largest possible
+ * chunk count for a 2 MiB file when it is not known), one atomic batch.
+ * Deleting a chunk id that never existed — e.g. a prior attempt already
+ * removed it — is not an error: Firestore's `batch.delete` on a missing
+ * document simply succeeds, which is exactly the "tolerate missing ones"
+ * behaviour a retried delete needs.
+ *
+ * @param {{ db: object, appId: string, sha256: string, chunkCount?: number }} params
+ * @param {typeof firestoreDeps} [deps]
+ * @returns {Promise<void>}
+ */
+export const deleteInvoicePdf = async ({ db, appId, sha256, chunkCount } = {}, deps = firestoreDeps) => {
+  if (typeof sha256 !== 'string' || !SHA256_RE.test(sha256)) {
+    throw new InvoiceArchiveError('not-found');
+  }
+
+  const count = Number.isInteger(chunkCount) && chunkCount > 0 ? chunkCount : MAX_CHUNK_COUNT;
+  const batch = deps.writeBatch(db);
+  for (let index = 0; index < count; index += 1) {
+    batch.delete(chunkDocRef(deps, db, appId, sha256, index));
+  }
+
+  try {
+    await batch.commit();
+  } catch (thrown) {
+    throw new InvoiceArchiveError(mapFirestoreErrorCode(thrown), thrown);
+  }
 };
 
 /**

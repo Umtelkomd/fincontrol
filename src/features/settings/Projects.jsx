@@ -23,6 +23,24 @@ import Toast from '../../components/ui/Toast';
 import { Button } from '@/components/ui/nexus';
 import { LUMEN_CANONICAL_PROJECT_SEED } from '../../finance/lumenContract';
 import { canonicalizeProjectCode } from '../../finance/projectCodeAliases';
+import {
+ PROJECT_CLIENTS,
+ PROJECT_LINES,
+ buildProjectCode,
+ defaultCostCenterForProject,
+ isStructuredProjectCode,
+ lineOfProject,
+ nextLot,
+ parseProjectCode,
+ resolveLegacyProjectCode,
+ validateProjectCodeParts,
+} from '../../finance/projectCode';
+
+const EMPTY_CODE_BUILDER = { client: '', site: '', line: '', lot: '' };
+
+/** `{client, site, line, lot}` from a parsed v2 code, string lot for the form. */
+const codeBuilderFromParsed = (parsed) =>
+ parsed ? { client: parsed.client, site: parsed.site, line: parsed.line, lot: String(parsed.lot) } : { ...EMPTY_CODE_BUILDER };
 
 // ============================================
 // Operators (Auftraggeber) — known UMTELKOMD project owners.
@@ -66,6 +84,13 @@ const Projects = ({ user }) => {
  status: 'active'
  });
 
+ // T7 — the structured v2 project code builder (CLI-SIT-LLn, src/finance/projectCode.js).
+ // `codeBuilder.client` is the code's 3-letter CLI part ("who pays us") — a
+ // DIFFERENT concept from `formData.client` above ("Cliente final", the end
+ // client/contractor, already free text and already read elsewhere in the
+ // app), so it is persisted as `codeClient`, never overloading `client`.
+ const [codeBuilder, setCodeBuilder] = useState({ ...EMPTY_CODE_BUILDER });
+
  const resetForm = () => {
  setFormData({
  code: '',
@@ -79,6 +104,7 @@ const Projects = ({ user }) => {
  budget: '',
  status: 'active'
  });
+ setCodeBuilder({ ...EMPTY_CODE_BUILDER });
  };
 
  const handleOpenAdd = () => {
@@ -101,7 +127,57 @@ const Projects = ({ user }) => {
  budget: project.budget || '',
  status: project.status || 'active'
  });
+ // Prefer the parts already persisted on the doc; otherwise, for a project
+ // whose code already happens to be structured, parse it back into the
+ // builder as a convenience starting point.
+ setCodeBuilder(
+ project.codeClient || project.site || project.line || project.lot
+ ? {
+ client: project.codeClient || '',
+ site: project.site || '',
+ line: project.line || '',
+ lot: project.lot != null ? String(project.lot) : '',
+ }
+ : codeBuilderFromParsed(parseProjectCode(project.code)),
+ );
  setShowAddModal(true);
+ };
+
+ // T7 — code builder derived state (kept as plain consts, not memoized: the
+ // inputs are tiny strings and this recomputes at most on every keystroke).
+ const codeBuilderTouched = Boolean(codeBuilder.client || codeBuilder.site || codeBuilder.line || codeBuilder.lot);
+ const codeBuilderCheck = validateProjectCodeParts(codeBuilder);
+ const codePreview = buildProjectCode(codeBuilder);
+ const suggestedLot =
+ codeBuilder.client && codeBuilder.site && codeBuilder.line
+ ? nextLot(projects.map((p) => p.code), { client: codeBuilder.client, site: codeBuilder.site, line: codeBuilder.line })
+ : null;
+
+ // Editing a project whose CURRENT code is not already a structured v2 code
+ // — the "Código heredado" badge and its (suggestion-only) resolved target.
+ const legacySuggestion =
+ editingProject && !isStructuredProjectCode(editingProject.code) ? resolveLegacyProjectCode(editingProject.code) : null;
+
+ /** Cliente/Sitio/Línea auto-suggest the next free lot once all three are set and the human has not typed one yet. */
+ const updateCodeBuilder = (field, rawValue) => {
+ setCodeBuilder((prev) => {
+ const next = { ...prev, [field]: rawValue };
+ if (field !== 'lot' && next.client && next.site && next.line && !prev.lot) {
+ next.lot = String(nextLot(projects.map((p) => p.code), { client: next.client, site: next.site, line: next.line }));
+ }
+ return next;
+ });
+ };
+
+ /** Copies the builder's live preview into the raw Código field — a click, never automatic. */
+ const handleUseCodePreview = () => {
+ if (codePreview) setFormData((f) => ({ ...f, code: codePreview }));
+ };
+
+ /** Copies a mapped legacy suggestion into the builder — suggestion only, nothing is saved yet. */
+ const handleUseLegacySuggestion = () => {
+ if (legacySuggestion?.status !== 'mapped') return;
+ setCodeBuilder(codeBuilderFromParsed(parseProjectCode(legacySuggestion.code)));
  };
 
  const handleSubmit = async (e) => {
@@ -123,7 +199,13 @@ const Projects = ({ user }) => {
  endDate: formData.endDate,
  budget: parseFloat(formData.budget) || 0,
  status: formData.status,
- displayName: `${formData.code.trim().toUpperCase()} (${formData.name.trim()})`
+ displayName: `${formData.code.trim().toUpperCase()} (${formData.name.trim()})`,
+ // T7 — structured code parts, persisted alongside `code` regardless of
+ // whether the raw Código field was ever synced from the builder preview.
+ codeClient: codeBuilder.client.trim().toUpperCase(),
+ site: codeBuilder.site.trim().toUpperCase(),
+ line: codeBuilder.line,
+ lot: codeBuilder.lot ? Number(codeBuilder.lot) : null,
  };
 
  if (editingProject) {
@@ -268,6 +350,16 @@ const Projects = ({ user }) => {
 
  const activeProjects = filteredProjects.filter(p => p.status === 'active');
  const inactiveProjects = filteredProjects.filter(p => p.status !== 'active');
+
+ // T7 — "the list shows the line label and the default cost center of each
+ // project": null when neither resolves, so an unmapped legacy project shows
+ // nothing rather than a misleading blank label.
+ const lineAndCostCenterLabel = (project) => {
+ const lineEntry = PROJECT_LINES.find((l) => l.code === lineOfProject(project));
+ const cc = defaultCostCenterForProject(project);
+ if (!lineEntry && !cc) return null;
+ return `${lineEntry ? lineEntry.label : 'Línea desconocida'}${cc ? ` · CC ${cc}` : ''}`;
+ };
 
  if (loading) {
  return (
@@ -418,6 +510,9 @@ const Projects = ({ user }) => {
  title="Click para editar zona, Enter o blur para guardar"
  />
  </div>
+ {lineAndCostCenterLabel(project) && (
+ <p className="mt-1 text-[10px] text-[var(--color-fg-4)]">{lineAndCostCenterLabel(project)}</p>
+ )}
  </td>
  <td className="px-6 py-4">
  <div>
@@ -496,6 +591,11 @@ const Projects = ({ user }) => {
   <span className="inline-flex items-center rounded-md bg-transparent px-2.5 py-1 text-sm font-medium text-[var(--color-fg-3)]">
  {project.code}
  </span>
+ {project.mergedInto && (
+ <span className="nx-badge nx-badge-neutral ml-1.5 align-middle">
+ Fusionado en {project.mergedIntoCode || project.code}
+ </span>
+ )}
   <div className="mt-1 flex items-center gap-1 text-[10px] text-[var(--color-fg-3)] opacity-60">
  <MapPin size={10} />
  <input
@@ -508,6 +608,9 @@ const Projects = ({ user }) => {
   className="w-[110px] bg-transparent text-[10px] text-[var(--color-fg-3)] outline-none border-b border-transparent hover:border-[var(--color-line)] focus:border-[var(--color-line-s)] focus:text-[var(--color-fg-1)]"
  />
  </div>
+ {lineAndCostCenterLabel(project) && (
+ <p className="mt-1 text-[10px] text-[var(--color-fg-4)] opacity-60">{lineAndCostCenterLabel(project)}</p>
+ )}
  </td>
  <td className="px-6 py-4">
  <div>
@@ -636,6 +739,27 @@ const Projects = ({ user }) => {
  value={formData.code}
  onChange={e => setFormData({...formData, code: e.target.value})}
  />
+ {legacySuggestion && (
+ <div className="mt-2 flex flex-wrap items-center gap-2">
+ <span className="inline-flex items-center rounded-full border border-[var(--color-warn)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-warn)]">
+ Código heredado
+ </span>
+ {legacySuggestion.status === 'mapped' && (
+ <>
+ <span className="text-[12px] text-[var(--color-fg-3)]">
+ Sugerencia: <span className="font-mono text-[var(--color-fg-1)]">{legacySuggestion.code}</span>
+ </span>
+ <button
+ type="button"
+ onClick={handleUseLegacySuggestion}
+ className="text-[12px] font-medium text-[var(--color-fg-1)] underline underline-offset-2 hover:text-[var(--color-accent)]"
+ >
+ Usar sugerencia
+ </button>
+ </>
+ )}
+ </div>
+ )}
  </div>
  <div>
   <label className="mb-2 block label-mono text-[var(--color-fg-3)]">
@@ -649,6 +773,86 @@ const Projects = ({ user }) => {
  value={formData.name}
  onChange={e => setFormData({...formData, name: e.target.value})}
  />
+ </div>
+ </div>
+
+ {/* T7 — structured project code builder (CLI-SIT-LLn). Every field/label
+ pair below carries htmlFor/id, unlike the raw Código/Nombre inputs above
+ which predate this and have none. */}
+ <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-2)] p-4 space-y-3">
+ <p className="label-mono text-[var(--color-fg-3)]">Código estructurado (opcional)</p>
+ <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+ <div>
+ <label htmlFor="proyecto-code-client" className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Cliente</label>
+ <input
+ id="proyecto-code-client"
+ list="proyecto-code-client-options"
+ type="text"
+ maxLength={3}
+ placeholder="INS"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm uppercase text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+ value={codeBuilder.client}
+ onChange={(e) => updateCodeBuilder('client', e.target.value)}
+ />
+ <datalist id="proyecto-code-client-options">
+ {PROJECT_CLIENTS.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+ </datalist>
+ </div>
+ <div>
+ <label htmlFor="proyecto-code-site" className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Sitio</label>
+ <input
+ id="proyecto-code-site"
+ type="text"
+ maxLength={3}
+ placeholder="RSD"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm uppercase text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+ value={codeBuilder.site}
+ onChange={(e) => updateCodeBuilder('site', e.target.value)}
+ />
+ </div>
+ <div>
+ <label htmlFor="proyecto-code-line" className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Línea</label>
+ <select
+ id="proyecto-code-line"
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+ value={codeBuilder.line}
+ onChange={(e) => updateCodeBuilder('line', e.target.value)}
+ >
+ <option value="">— Seleccionar —</option>
+ {PROJECT_LINES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+ </select>
+ </div>
+ <div>
+ <label htmlFor="proyecto-code-lot" className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Lote</label>
+ <input
+ id="proyecto-code-lot"
+ type="number"
+ min="1"
+ max="99"
+ placeholder={suggestedLot != null ? String(suggestedLot) : ''}
+ className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2 text-sm text-[var(--color-fg-1)] outline-none focus:border-[var(--color-line-s)]"
+ value={codeBuilder.lot}
+ onChange={(e) => updateCodeBuilder('lot', e.target.value)}
+ />
+ </div>
+ </div>
+ {codeBuilderTouched && !codeBuilderCheck.valid && (
+ <ul className="space-y-0.5 text-[12px] text-[var(--color-accent)]">
+ {Object.values(codeBuilderCheck.errors).map((message) => <li key={message}>{message}</li>)}
+ </ul>
+ )}
+ <div className="flex flex-wrap items-center justify-between gap-2">
+ <p className="font-mono text-[12px] text-[var(--color-fg-3)]">
+ Vista previa: <span className="text-[var(--color-fg-1)]">{codePreview || '—'}</span>
+ </p>
+ <button
+ type="button"
+ disabled={!codePreview}
+ onClick={handleUseCodePreview}
+ className="text-[12px] font-medium text-[var(--color-fg-1)] underline underline-offset-2 hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:text-[var(--color-fg-4)] disabled:no-underline"
+ >
+ Usar este código
+ </button>
  </div>
  </div>
 
