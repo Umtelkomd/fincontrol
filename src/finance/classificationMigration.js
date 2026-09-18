@@ -208,13 +208,16 @@ const createdAtMillis = (project) => {
 };
 
 /**
- * pickMergeSurvivor — deterministic tie-break for which of ≥2 live projects
- * resolving to the same merge-flagged target code keeps the code and absorbs
- * the others. Every step is a total order, so the winner never depends on
- * object/Map iteration order: (1) active over inactive, (2) a bare legacy
- * code over a suffixed one, (3) the OLDEST createdAt, (4) the smallest doc id.
+ * mergeGroupOrder — the deterministic total order for ≥2 live projects
+ * resolving to the same merge-flagged target code: (1) active over inactive,
+ * (2) a bare legacy code over a suffixed one, (3) the OLDEST createdAt, (4)
+ * the smallest doc id. Every step is a total order, so the result never
+ * depends on object/Map/Firestore-read iteration order. Applied to the WHOLE
+ * group (not just to pick a winner) so the runners-up are ALSO ordered
+ * deterministically — needed so a 3+-project merge sums loser budgets in a
+ * stable, reproducible fold order (`planProjectMerge`, T12).
  */
-const pickMergeSurvivor = (group) =>
+const mergeGroupOrder = (group) =>
   [...group].sort((a, b) => {
     const activeDelta = Number(isInactiveProject(a.project)) - Number(isInactiveProject(b.project));
     if (activeDelta !== 0) return activeDelta;
@@ -227,7 +230,7 @@ const pickMergeSurvivor = (group) =>
     const createdB = createdAtMillis(b.project);
     if (createdA !== createdB) return createdA - createdB;
     return String(a.project.id).localeCompare(String(b.project.id));
-  })[0];
+  });
 
 /**
  * planProjectCodeMigration — proposes a v2 `CLI-SIT-LLn` code for every
@@ -239,9 +242,10 @@ const pickMergeSurvivor = (group) =>
  *
  * When ≥2 live projects resolve to the SAME target code:
  *   - the mapping entry has `merge: true` → they are the same obra
- *     (owner-confirmed, see `LEGACY_PROJECT_CODE_MAP`): `pickMergeSurvivor`
+ *     (owner-confirmed, see `LEGACY_PROJECT_CODE_MAP`): `mergeGroupOrder`
  *     picks one deterministic survivor, which gets the normal rename; the
- *     others become `losers` in a `merges[]` item instead of a collision.
+ *     rest become `losers` (in that same deterministic order) in a
+ *     `merges[]` item instead of a collision.
  *   - no `merge` flag → unchanged: a collision, nobody is renamed.
  *
  * @param {{ projects?: Array<{id:string, code?:string, name?:string, status?:string,
@@ -252,7 +256,7 @@ const pickMergeSurvivor = (group) =>
  *   renames: Array<{id, from, to, confidence, name, fields:{code,codeClient,site,line,lot,displayName,legacyCode}}>,
  *   skipped: Array<{id, code, reason, confidence}>,
  *   collisions: Array<{code, projects: Array<{id, from, confidence}>}>,
- *   merges: Array<{code, survivor:{id,from,name}, losers:Array<{id,from,name}>, fields:object}>,
+ *   merges: Array<{code, survivor:{id,from,name}, losers:Array<{id,from,name}>, fields:object, mergeBudgets:'sum'|null}>,
  *   summary: object,
  * }}
  */
@@ -314,8 +318,12 @@ export const planProjectCodeMigration = ({ projects, mapping = LEGACY_PROJECT_CO
     if (group.length > 1) {
       const mappingEntry = mapping.find((entry) => entry.code === code);
       if (mappingEntry?.merge) {
-        const survivor = pickMergeSurvivor(group);
-        const losers = group.filter((candidate) => candidate !== survivor);
+        // Sorted ONCE, by the same total order: the winner is the survivor,
+        // the rest are the losers, already in deterministic "survivor-rule"
+        // order for a 3+-project merge (T12 budget-summing fold order).
+        const sortedGroup = mergeGroupOrder(group);
+        const survivor = sortedGroup[0];
+        const losers = sortedGroup.slice(1);
         const survivorName = text(survivor.project.name) || survivor.from;
         const fields = buildRenameFields(code, survivorName, survivor.from);
 
@@ -325,6 +333,10 @@ export const planProjectCodeMigration = ({ projects, mapping = LEGACY_PROJECT_CO
           survivor: { id: survivor.project.id, from: survivor.from, name: survivorName },
           losers: losers.map((loser) => ({ id: loser.project.id, from: loser.from, name: text(loser.project.name) || loser.from })),
           fields,
+          // T12 (owner decision 2026-09-18): opt-in per merge group — 'sum'
+          // when the mapping entry says so, otherwise null (keeps the
+          // budgetConflicts report `planProjectMerge` has always produced).
+          mergeBudgets: mappingEntry.mergeBudgets || null,
         });
         continue;
       }
@@ -401,6 +413,106 @@ export const planProjectNameRefresh = ({ renames, documentsByCollection } = {}) 
   return { updates, summary: { updates: updates.length } };
 };
 
+// ── Budget line summing (T12: owner decision 2026-09-18) ───────────────────
+
+const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const numOr0 = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+const isEmptyValue = (value) => value === undefined || value === null || value === '';
+
+/** Identity key a budget line is matched by across a merge: `type` plus its
+ * normalized category name (accent/case-insensitive, mirrors `keyOf` above).
+ * `categoryId` carries no extra signal here — the budget UI itself sets it to
+ * the SAME string as `categoryName` (see `BudgetLineModal` in
+ * BudgetVsActual.jsx), so it is not part of the identity. */
+const budgetLineKey = (line) => `${text(line?.type)}|${keyOf(line?.categoryName)}`;
+
+/**
+ * matchBudgetLines — pairs each SURVIVOR line with the first not-yet-used
+ * LOSER line sharing its identity key, 1:1. Extracted so both `sumBudgetLines`
+ * (the merge itself) and `planProjectMerge` (the dry-run's matched/appended
+ * counts) share the exact same matching rule instead of two implementations
+ * silently drifting apart.
+ */
+const matchBudgetLines = (survivorLines, loserLines) => {
+  const survivor = Array.isArray(survivorLines) ? survivorLines : [];
+  const loser = Array.isArray(loserLines) ? loserLines : [];
+  const loserUsed = new Array(loser.length).fill(false);
+
+  const pairs = survivor.map((survivorLine) => {
+    const key = budgetLineKey(survivorLine);
+    const loserIndex = loser.findIndex((line, index) => !loserUsed[index] && budgetLineKey(line) === key);
+    if (loserIndex === -1) return { survivorLine, loserLine: null };
+    loserUsed[loserIndex] = true;
+    return { survivorLine, loserLine: loser[loserIndex] };
+  });
+
+  const appendedLoserLines = loser.filter((_, index) => !loserUsed[index]);
+  return { pairs, appendedLoserLines };
+};
+
+/** Combines one survivor/loser line PAIR: monthly amounts add element-wise
+ * over all 12 months (missing/NaN/non-numeric treated as 0, rounded to cents
+ * so the sum never drifts into floating-point noise); every other field
+ * keeps the SURVIVOR's value, falling back to the loser's only when the
+ * survivor's is empty — this includes `id`, so a merged line is never
+ * assigned a new/random id. */
+const mergeBudgetLine = (survivorLine, loserLine) => {
+  const fieldNames = new Set([...Object.keys(survivorLine || {}), ...Object.keys(loserLine || {})]);
+  fieldNames.delete('monthlyBudget');
+
+  const merged = {};
+  for (const field of fieldNames) {
+    const survivorValue = survivorLine?.[field];
+    merged[field] = isEmptyValue(survivorValue) ? loserLine?.[field] : survivorValue;
+  }
+
+  const survivorMonthly = Array.isArray(survivorLine?.monthlyBudget) ? survivorLine.monthlyBudget : [];
+  const loserMonthly = Array.isArray(loserLine?.monthlyBudget) ? loserLine.monthlyBudget : [];
+  merged.monthlyBudget = Array.from({ length: 12 }, (_, month) => round2(numOr0(survivorMonthly[month]) + numOr0(loserMonthly[month])));
+
+  return merged;
+};
+
+/**
+ * sumBudgetLines — merges a loser budget's lines into a survivor budget's
+ * lines (T12: owner decision 2026-09-18, opt-in per merge group via
+ * `mergeBudgets: 'sum'` on a `LEGACY_PROJECT_CODE_MAP` entry — see
+ * `planProjectMerge` below). A matched pair (same `type` + normalized
+ * `categoryName`) sums its `monthlyBudget`; an unmatched loser line is
+ * appended after every survivor line, so the survivor's own line order is
+ * preserved. Pure: neither input array nor any of its line objects is
+ * mutated, and nothing is randomly generated — a carried-over `id` is always
+ * the survivor's.
+ *
+ * @param {Array<object>} survivorLines
+ * @param {Array<object>} loserLines
+ * @returns {Array<object>} the merged lines
+ */
+export const sumBudgetLines = (survivorLines, loserLines) => {
+  const { pairs, appendedLoserLines } = matchBudgetLines(survivorLines, loserLines);
+  const merged = pairs.map(({ survivorLine, loserLine }) =>
+    loserLine
+      ? mergeBudgetLine(survivorLine, loserLine)
+      : { ...survivorLine, monthlyBudget: [...(Array.isArray(survivorLine.monthlyBudget) ? survivorLine.monthlyBudget : [])] },
+  );
+  return [...merged, ...appendedLoserLines.map((line) => ({ ...line, monthlyBudget: [...(Array.isArray(line.monthlyBudget) ? line.monthlyBudget : [])] }))];
+};
+
+/** Gross total across every line's `monthlyBudget` (income and expense lines
+ * summed together) — a single display/report number for `budgetMerges[]` and
+ * the migration script's dry-run output, not used for any income/expense-
+ * specific calculation elsewhere. */
+const budgetLinesTotal = (lines) =>
+  round2(
+    (Array.isArray(lines) ? lines : []).reduce(
+      (sum, line) => sum + (Array.isArray(line?.monthlyBudget) ? line.monthlyBudget : []).reduce((s, v) => s + numOr0(v), 0),
+      0,
+    ),
+  );
+
 // ── Project merges (T11) ─────────────────────────────────────────────────────
 
 /** Collections with a top-level `projectId` + denormalised `projectName`
@@ -420,17 +532,24 @@ const MERGE_PROJECT_NAME_TARGETS = [
  * planProjectMerge — after `planProjectCodeMigration` proposes a `merges[]`
  * item, repoints every document that pointed at a LOSER project onto the
  * survivor (`projectId`, plus `projectName` when it has drifted from the
- * survivor's new name). Never sums or merges budget LINES: a survivor and a
- * loser both holding a budget for the same year is reported in
- * `budgetConflicts` for a human to resolve — the loser's budget doc is still
- * repointed (its `projectId` alone, never its amounts).
+ * survivor's new name). Budgets follow the merge group's `mergeBudgets` flag
+ * (T12, owner decision 2026-09-18): by default, a survivor and a loser both
+ * holding a budget for the same year is reported in `budgetConflicts` for a
+ * human to resolve — the loser's budget doc is still repointed (its
+ * `projectId` alone, never its amounts). A `mergeBudgets: 'sum'` group sums
+ * that same-year pair's lines into the survivor's budget instead
+ * (`budgetMerges[]`) and leaves the loser budget's `projectId` untouched,
+ * stamping it `mergedInto`/`mergedIntoProjectId` so it is never deleted yet
+ * never counted again.
  *
  * @param {{ merges?: ReturnType<typeof planProjectCodeMigration>['merges'],
  *   documentsByCollection?: Record<string, Array<object>> }} params
  * @returns {{
  *   updates: Array<{collection, id, field, from, to}>,
- *   loserUpdates: Array<{collection:'projects', id, fields:Record<string,{from?, to}>}>,
+ *   loserUpdates: Array<{collection, id, fields:Record<string,{from?, to}>}>,
  *   budgetConflicts: Array<{year, survivorProjectId, survivorBudgetId, loserProjectId, loserBudgetId}>,
+ *   budgetMerges: Array<{year, survivorBudgetId, loserBudgetId, mergedLines, loserTotal,
+ *     survivorTotalBefore, survivorTotalAfter, matchedLines, appendedLines}>,
  *   summary: object,
  * }}
  */
@@ -450,6 +569,10 @@ export const planProjectMerge = ({ merges, documentsByCollection } = {}) => {
   }
 
   const updates = [];
+  // Declared here (not where it is populated below) because the budgets
+  // block further down — T12, owner decision 2026-09-18 — already needs to
+  // push a loser budget's `mergedInto` stamp onto it.
+  const loserUpdates = [];
 
   for (const target of MERGE_PROJECT_NAME_TARGETS) {
     const docs = docsByCollection[target.collection];
@@ -480,31 +603,124 @@ export const planProjectMerge = ({ merges, documentsByCollection } = {}) => {
     }
   }
 
-  // Budgets: repoint projectId only. A survivor budget and a loser budget for
-  // the SAME year are never summed/merged here — that is a human decision,
-  // reported through budgetConflicts instead.
+  // Budgets (T12: owner decision 2026-09-18 — `mergeBudgets: 'sum'` on the
+  // Roßdorf entry of LEGACY_PROJECT_CODE_MAP). Two policies, chosen PER
+  // MERGE GROUP:
+  //   - default (no `mergeBudgets` flag): repoint `projectId` only, exactly
+  //     as before T12 — a survivor+loser pair for the SAME year is a human
+  //     decision, reported through `budgetConflicts`, never summed.
+  //   - `mergeBudgets: 'sum'`: a same-year pair is summed line-by-line into
+  //     the survivor's budget instead (`budgetMerges[]`). The loser budget's
+  //     `projectId` is deliberately NEVER repointed to the survivor — doing
+  //     so would make it count a SECOND time wherever budgets are matched by
+  //     project (BudgetVsActual's exact-id lookup is safe, but
+  //     ProyectoDashboard's free-text `projectTokens` match is NOT — see the
+  //     `!budget.mergedInto` guard added there). It stays pointing at the
+  //     (now inactive) loser project and is stamped `mergedInto` instead. A
+  //     loser budget for a year the survivor has none is simply repointed,
+  //     same as the default policy — nothing to sum.
   const budgetConflicts = [];
+  const budgetMerges = [];
   const budgets = docsByCollection.budgets;
   if (Array.isArray(budgets)) {
-    const survivorBudgetByKey = new Map(); // `${projectId}:${year}` -> budgetId, from non-loser (survivor/unrelated) budgets only
+    // `${projectId}:${year}` -> budget doc, excluding every loser's OWN
+    // budget, so in a multi-loser group one loser's budget is never mistaken
+    // for the true survivor budget when checking a DIFFERENT loser's year.
+    const survivorBudgetByKey = new Map();
     for (const document of budgets) {
-      if (survivorOf.has(document.projectId)) continue; // itself a loser's budget — handled in the loop below
-      survivorBudgetByKey.set(`${document.projectId}:${document.year}`, document.id);
+      if (survivorOf.has(document.projectId)) continue;
+      survivorBudgetByKey.set(`${document.projectId}:${document.year}`, document);
     }
+    const budgetsByProjectId = new Map();
     for (const document of budgets) {
-      const survivor = survivorOf.get(document.projectId);
-      if (!survivor) continue;
-      updates.push({ collection: 'budgets', id: document.id, field: 'projectId', from: document.projectId, to: survivor.id });
-      const survivorBudgetId = survivorBudgetByKey.get(`${survivor.id}:${document.year}`);
-      if (survivorBudgetId) {
-        budgetConflicts.push({
-          year: document.year,
-          survivorProjectId: survivor.id,
-          survivorBudgetId,
-          loserProjectId: document.projectId,
-          loserBudgetId: document.id,
-        });
+      const list = budgetsByProjectId.get(document.projectId) || [];
+      list.push(document);
+      budgetsByProjectId.set(document.projectId, list);
+    }
+
+    // Running per-survivor-budget state (budgetId -> { before, lines }), so a
+    // THIRD (or later) loser for the same survivor+year folds onto what the
+    // previous loser already produced, instead of re-reading the original
+    // unmerged survivor budget every time.
+    const survivorBudgetState = new Map();
+
+    // Iterated per MERGE GROUP, in `merge.losers`' own order — the SAME
+    // deterministic survivor-rule order `planProjectCodeMigration` already
+    // sorted the whole group by — so a 3+-project merge sums budgets in a
+    // stable, reproducible fold order regardless of the Firestore read order.
+    for (const merge of mergeList) {
+      const sumEnabled = merge.mergeBudgets === 'sum';
+      for (const loser of merge.losers) {
+        // A loser budget already stamped `mergedInto` was summed on a prior
+        // `--apply` and is settled: re-summing it on a second run would
+        // silently double the survivor's budget — the critical idempotency
+        // guard this filter exists for.
+        const loserBudgets = (budgetsByProjectId.get(loser.id) || []).filter((document) => !document.mergedInto);
+
+        for (const loserBudget of loserBudgets) {
+          const survivorBudget = sumEnabled ? survivorBudgetByKey.get(`${merge.survivor.id}:${loserBudget.year}`) : undefined;
+
+          if (survivorBudget) {
+            const state = survivorBudgetState.get(survivorBudget.id) || { before: survivorBudget.lines || [], lines: survivorBudget.lines || [] };
+            const { appendedLoserLines } = matchBudgetLines(state.lines, loserBudget.lines);
+            const appended = appendedLoserLines.length;
+            const matched = (Array.isArray(loserBudget.lines) ? loserBudget.lines.length : 0) - appended;
+
+            const survivorTotalBefore = budgetLinesTotal(state.lines);
+            const mergedLines = sumBudgetLines(state.lines, loserBudget.lines);
+            const survivorTotalAfter = budgetLinesTotal(mergedLines);
+
+            state.lines = mergedLines;
+            survivorBudgetState.set(survivorBudget.id, state);
+
+            budgetMerges.push({
+              year: loserBudget.year,
+              survivorBudgetId: survivorBudget.id,
+              loserBudgetId: loserBudget.id,
+              mergedLines,
+              loserTotal: budgetLinesTotal(loserBudget.lines),
+              survivorTotalBefore,
+              survivorTotalAfter,
+              matchedLines: matched,
+              appendedLines: appended,
+            });
+
+            // Never deleted, never repointed to the survivor project — see
+            // the policy comment above. `mergedIntoProjectId` mirrors the
+            // `mergedIntoCode` convention project loser docs already carry,
+            // for the same audit purpose.
+            loserUpdates.push({
+              collection: 'budgets',
+              id: loserBudget.id,
+              fields: { mergedInto: { to: survivorBudget.id }, mergedIntoProjectId: { to: merge.survivor.id } },
+            });
+            continue;
+          }
+
+          // Default policy, or a `mergeBudgets: 'sum'` group with no
+          // same-year survivor budget: repoint projectId, exactly as before T12.
+          updates.push({ collection: 'budgets', id: loserBudget.id, field: 'projectId', from: loserBudget.projectId, to: merge.survivor.id });
+          const conflictBudget = !sumEnabled ? survivorBudgetByKey.get(`${merge.survivor.id}:${loserBudget.year}`) : null;
+          if (conflictBudget) {
+            budgetConflicts.push({
+              year: loserBudget.year,
+              survivorProjectId: merge.survivor.id,
+              survivorBudgetId: conflictBudget.id,
+              loserProjectId: loserBudget.projectId,
+              loserBudgetId: loserBudget.id,
+            });
+          }
+        }
       }
+    }
+
+    // One write per survivor budget touched, carrying its FINAL folded lines
+    // (after every loser for that year has been summed in) — buildWritePlan
+    // records `state.before` (the true pre-merge original) under
+    // `migration.classificationCatalogV2.previous.lines`, so the sum stays
+    // reversible.
+    for (const [budgetId, state] of survivorBudgetState) {
+      updates.push({ collection: 'budgets', id: budgetId, field: 'lines', from: state.before, to: state.lines });
     }
   }
 
@@ -530,7 +746,6 @@ export const planProjectMerge = ({ merges, documentsByCollection } = {}) => {
   // invents a "previous" value it does not actually know); `mergedInto` and
   // `mergedIntoCode` are brand-new fields with no meaningful prior value.
   const liveProjectsById = new Map((docsByCollection.projects || []).map((project) => [project.id, project]));
-  const loserUpdates = [];
   for (const merge of mergeList) {
     for (const loser of merge.losers) {
       const live = liveProjectsById.get(loser.id);
@@ -545,7 +760,13 @@ export const planProjectMerge = ({ merges, documentsByCollection } = {}) => {
     updates,
     loserUpdates,
     budgetConflicts,
-    summary: { updates: updates.length, loserUpdates: loserUpdates.length, budgetConflicts: budgetConflicts.length },
+    budgetMerges,
+    summary: {
+      updates: updates.length,
+      loserUpdates: loserUpdates.length,
+      budgetConflicts: budgetConflicts.length,
+      budgetMerges: budgetMerges.length,
+    },
   };
 };
 
@@ -571,8 +792,10 @@ const getAtPath = (object, dottedPath) =>
  * `costCenterId` / `applyTo.costCenterId` for a cost-center remap,
  * `projectName` / `applyTo.projectName` for a denormalised name refresh,
  * `code` for a project rename, `projectId` / `applyTo.projectId` /
- * `projectIds` / `status` / `active` for a project merge (T11) — and is
- * written through its OWN dotted Firestore path,
+ * `projectIds` / `status` / `active` for a project merge (T11), `lines` for a
+ * summed survivor budget and `mergedInto` / `mergedIntoProjectId` (no
+ * `previous` — brand-new fields) for the loser budget it absorbed (T12) —
+ * and is written through its OWN dotted Firestore path,
  * `migration.classificationCatalogV2.previous.<field>`. Because Firestore
  * treats every dot in an `update()` key as a nested path segment, each leaf
  * write only ever touches that one leaf: two different `<field>`s on the

@@ -123,11 +123,39 @@ project docs are never deleted — they get `status: 'inactive'`,
 `active: false`, `mergedInto: <survivorId>` and `mergedIntoCode`, which the
 Proyectos settings screen shows as a muted "Fusionado en `<code>`" note.
 
-Budgets are never summed or merged: if both the survivor and a loser hold a
-budget for the same year, the loser's budget is still repointed (its
-`projectId` alone) but the pair is reported in the dry-run's
-`budgetConflicts` for a human to resolve — two budgets for one project-year
-is a business decision, not something the migration guesses.
+Budgets follow one of two policies, chosen PER MERGE GROUP via an opt-in
+`mergeBudgets: 'sum'` flag on its `LEGACY_PROJECT_CODE_MAP` entry:
+
+- **Default (no flag):** never summed or merged. If both the survivor and a
+  loser hold a budget for the same year, the loser's budget is still
+  repointed (its `projectId` alone) but the pair is reported in the
+  dry-run's `budgetConflicts` for a human to resolve — two budgets for one
+  project-year is a business decision, not something the migration guesses.
+- **`mergeBudgets: 'sum'` (owner decision 2026-09-18, T12 — currently only
+  the Roßdorf entry):** a same-year survivor+loser pair is summed
+  line-by-line instead of reported as a conflict. Lines are matched by
+  identity (`type` + normalized `categoryName`, accent/case-insensitive):
+  a matched pair adds its `monthlyBudget` element-wise (missing/NaN/non-
+  numeric treated as 0, rounded to cents), an unmatched loser line is
+  appended after the survivor's own lines (whose order is preserved), and
+  every other field keeps the survivor's value unless it is empty. A 3+-
+  project merge folds its losers one at a time, in the SAME deterministic
+  survivor-rule order used to pick the survivor itself, so the result never
+  depends on Firestore read order. The survivor budget's write carries the
+  ORIGINAL lines under `migration.classificationCatalogV2.previous.lines`,
+  so the sum is reversible. The loser budget is NEVER deleted and its
+  `projectId` is deliberately left pointing at the (now inactive) loser
+  project — repointing it to the survivor would make it count a second
+  time — instead it is stamped `mergedInto: <survivorBudgetId>` and
+  `mergedIntoProjectId: <survivorProjectId>`. A loser budget already
+  stamped `mergedInto` is never summed again on a re-run (idempotent). A
+  loser budget for a year the survivor has none is simply repointed, same
+  as the default policy — nothing to sum. `ProyectoDashboard`'s budget
+  panel matches budgets by free-text `projectName` tokens as well as by
+  `projectId`, and a loser's legacy `projectName` (e.g. "Roßdorf 2") is
+  itself one of the survivor's legacy aliases — so it excludes any budget
+  carrying `mergedInto` from that match, or it would double-count the
+  already-summed total.
 
 `employees.projectIds` is NOT covered by `npm run backup:firestore` (personal
 data) — its only rollback path is the

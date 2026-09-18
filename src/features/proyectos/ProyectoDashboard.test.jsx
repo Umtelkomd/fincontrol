@@ -522,3 +522,43 @@ describe('ProyectoDashboard — internal transfers', () => {
     expect(screen.queryByTestId('internal-transfer-panel')).not.toBeInTheDocument();
   });
 });
+
+describe('ProyectoDashboard — budget merge exclusion (T12: owner decision 2026-09-18)', () => {
+  // INS-RSD-BL1 is the real Roßdorf merge survivor code (LEGACY_PROJECT_CODE_MAP);
+  // its legacy aliases include "Roßdorf 2", so buildProjectTokens matches a
+  // document by that free-text projectName even though projectId differs.
+  const SURVIVOR = projectFixture({ id: 'proj-active', code: 'INS-RSD-BL1', name: 'Roßdorf', status: 'active' });
+
+  beforeEach(() => {
+    store.collections.bankMovements = [];
+    store.collections.projects = [SURVIVOR];
+  });
+
+  it('never counts a loser budget stamped mergedInto twice, even though its legacy projectName still token-matches the survivor', () => {
+    store.collections.budgets = [
+      {
+        id: 'budget-survivor',
+        projectId: 'proj-active',
+        projectName: 'Roßdorf',
+        year: 2026,
+        lines: [{ id: 'l1', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1000) }],
+      },
+      {
+        id: 'budget-loser',
+        projectId: 'proj-inactive',
+        // A T12 sum-merge deliberately leaves this pointing at the (inactive)
+        // loser project — without the `!entry.mergedInto` guard this free-text
+        // token match would silently double the survivor's already-summed budget.
+        projectName: 'Roßdorf 2',
+        year: 2020,
+        lines: [{ id: 'l2', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(500) }],
+        mergedInto: 'budget-survivor',
+        mergedIntoProjectId: 'proj-active',
+      },
+    ];
+
+    renderScreen(<ProyectoDashboard user={USER} />);
+
+    expect(kpiValue('Gastos frente a límite')).toContain('12.000,00');
+  });
+});

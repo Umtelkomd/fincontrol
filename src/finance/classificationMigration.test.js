@@ -13,6 +13,7 @@ import {
   planProjectCodeMigration,
   planProjectMerge,
   planProjectNameRefresh,
+  sumBudgetLines,
 } from './classificationMigration.js';
 
 const doc = (id, fields = {}) => ({ id, ...fields });
@@ -260,6 +261,7 @@ describe('planProjectCodeMigration — merge groups (T11: owner decision 2026-09
       code: 'INS-RSD-BL1',
       survivor: { id: 'proj-active', from: 'QFF', name: 'Roßdorf' },
       losers: [{ id: 'proj-inactive', from: 'QFF-002', name: 'Roßdorf 2' }],
+      mergeBudgets: 'sum', // T12: owner decision 2026-09-18 — only the Roßdorf entry opts in
       fields: {
         code: 'INS-RSD-BL1',
         codeClient: 'INS',
@@ -307,6 +309,42 @@ describe('planProjectCodeMigration — merge groups (T11: owner decision 2026-09
     ];
     const plan = planProjectCodeMigration({ projects });
     expect(plan.merges[0].survivor.id).toBe('proj-a');
+  });
+
+  it('propagates mergeBudgets from the mapping entry onto the merges[] item (T12: owner decision 2026-09-18)', () => {
+    const projects = [
+      doc('proj-active', { code: 'QFF', name: 'Roßdorf', status: 'active' }),
+      doc('proj-inactive', { code: 'QFF-002', name: 'Roßdorf 2', status: 'inactive' }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+    expect(plan.merges[0].mergeBudgets).toBe('sum');
+  });
+
+  it('mergeBudgets is null for a merge-flagged mapping entry that does not opt in', () => {
+    const noSumMapping = [{ match: ['QFF', 'QFF-002'], code: 'INS-RSD-BL1', confidence: 'high', merge: true }];
+    const projects = [
+      doc('proj-active', { code: 'QFF', name: 'Roßdorf', status: 'active' }),
+      doc('proj-inactive', { code: 'QFF-002', name: 'Roßdorf 2', status: 'inactive' }),
+    ];
+    const plan = planProjectCodeMigration({ projects, mapping: noSumMapping });
+    expect(plan.merges[0].mergeBudgets).toBeNull();
+  });
+
+  it('orders losers deterministically by the SAME survivor-rule tie-break, for a 3+-project merge (T12)', () => {
+    // Input order is deliberately scrambled — the fold order must not depend
+    // on Firestore read/array order.
+    const projects = [
+      doc('proj-suffixed', { code: 'QFF-001', name: 'Roßdorf viejo', status: 'inactive', createdAt: '2026-01-01T00:00:00.000Z' }),
+      doc('proj-active', { code: 'QFF', name: 'Roßdorf', status: 'active' }),
+      doc('proj-bare-inactive', { code: 'RSD', name: 'Roßdorf otro', status: 'inactive', createdAt: '2025-01-01T00:00:00.000Z' }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+
+    expect(plan.merges[0].survivor.id).toBe('proj-active'); // active wins over both inactive
+    // Among the two inactive losers, the bare code ('RSD') outranks the
+    // suffixed one ('QFF-001') — same rule that would have broken an
+    // active-tie, continued to order the runners-up.
+    expect(plan.merges[0].losers.map((l) => l.id)).toEqual(['proj-bare-inactive', 'proj-suffixed']);
   });
 
   it('is idempotent: a survivor already renamed and a loser already mergedInto produce zero renames/merges', () => {
@@ -478,8 +516,212 @@ describe('planProjectMerge', () => {
       updates: [],
       loserUpdates: [],
       budgetConflicts: [],
-      summary: { updates: 0, loserUpdates: 0, budgetConflicts: 0 },
+      budgetMerges: [],
+      summary: { updates: 0, loserUpdates: 0, budgetConflicts: 0, budgetMerges: 0 },
     });
+  });
+});
+
+describe('planProjectMerge — budget summing (T12: owner decision 2026-09-18)', () => {
+  const sumMerges = [{
+    code: 'INS-RSD-BL1',
+    survivor: { id: 'proj-active', from: 'QFF', name: 'Roßdorf' },
+    losers: [{ id: 'proj-inactive', from: 'QFF-002', name: 'Roßdorf 2' }],
+    fields: {
+      code: 'INS-RSD-BL1', codeClient: 'INS', site: 'RSD', line: 'BL', lot: 1,
+      displayName: 'INS-RSD-BL1 (Roßdorf)', legacyCode: 'QFF',
+    },
+    mergeBudgets: 'sum',
+  }];
+
+  it('sums same-year survivor+loser budget lines instead of reporting a conflict, and reports zero conflicts', () => {
+    const plan = planProjectMerge({
+      merges: sumMerges,
+      documentsByCollection: {
+        budgets: [
+          doc('budget-survivor', {
+            projectId: 'proj-active', year: 2026,
+            lines: [{ id: 'line-a', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1000) }],
+          }),
+          doc('budget-loser', {
+            projectId: 'proj-inactive', year: 2026,
+            lines: [{ id: 'line-b', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(500) }],
+          }),
+        ],
+      },
+    });
+
+    expect(plan.budgetConflicts).toEqual([]);
+    expect(plan.budgetMerges).toEqual([{
+      year: 2026,
+      survivorBudgetId: 'budget-survivor',
+      loserBudgetId: 'budget-loser',
+      mergedLines: [{ id: 'line-a', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1500) }],
+      loserTotal: 6000,
+      survivorTotalBefore: 12000,
+      survivorTotalAfter: 18000,
+      matchedLines: 1,
+      appendedLines: 0,
+    }]);
+    // The survivor budget's `lines` field is what actually gets written.
+    expect(plan.updates).toContainEqual({
+      collection: 'budgets', id: 'budget-survivor', field: 'lines',
+      from: [{ id: 'line-a', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1000) }],
+      to: [{ id: 'line-a', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1500) }],
+    });
+    // The loser budget's projectId is NEVER repointed — doing so would make it
+    // count a second time wherever budgets are matched by project.
+    expect(plan.updates.some((u) => u.collection === 'budgets' && u.id === 'budget-loser')).toBe(false);
+  });
+
+  it('stamps the loser budget mergedInto/mergedIntoProjectId instead, never deleting it', () => {
+    const plan = planProjectMerge({
+      merges: sumMerges,
+      documentsByCollection: {
+        budgets: [
+          doc('budget-survivor', { projectId: 'proj-active', year: 2026, lines: [] }),
+          doc('budget-loser', { projectId: 'proj-inactive', year: 2026, lines: [] }),
+        ],
+      },
+    });
+
+    expect(plan.loserUpdates).toContainEqual({
+      collection: 'budgets',
+      id: 'budget-loser',
+      fields: { mergedInto: { to: 'budget-survivor' }, mergedIntoProjectId: { to: 'proj-active' } },
+    });
+  });
+
+  it('a loser budget for a year the survivor has none is simply repointed — nothing to sum', () => {
+    const plan = planProjectMerge({
+      merges: sumMerges,
+      documentsByCollection: {
+        budgets: [doc('budget-loser-2025', { projectId: 'proj-inactive', year: 2025, lines: [] })],
+      },
+    });
+
+    expect(plan.updates).toEqual([{ collection: 'budgets', id: 'budget-loser-2025', field: 'projectId', from: 'proj-inactive', to: 'proj-active' }]);
+    expect(plan.budgetMerges).toEqual([]);
+    expect(plan.budgetConflicts).toEqual([]);
+  });
+
+  it('idempotency: a loser budget already stamped mergedInto is never summed again on a re-run', () => {
+    const plan = planProjectMerge({
+      merges: sumMerges,
+      documentsByCollection: {
+        budgets: [
+          doc('budget-survivor', { projectId: 'proj-active', year: 2026, lines: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1500) }] }),
+          doc('budget-loser', { projectId: 'proj-inactive', year: 2026, lines: [{ id: 'l2', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(500) }], mergedInto: 'budget-survivor', mergedIntoProjectId: 'proj-active' }),
+        ],
+      },
+    });
+
+    expect(plan.budgetMerges).toEqual([]);
+    expect(plan.updates).toEqual([]);
+    // The unrelated project-level loserUpdate entry (T11, always produced
+    // once per merge) is not what this guard is about — only that no SECOND
+    // `budgets` loserUpdate entry is produced for the already-settled budget.
+    expect(plan.loserUpdates.filter((u) => u.collection === 'budgets')).toEqual([]);
+  });
+
+  it('three-project merge: budgets accumulate deterministically, folded in the survivor-rule order of `merge.losers`', () => {
+    const threeWayMerge = [{
+      code: 'INS-RSD-BL1',
+      survivor: { id: 'proj-active', from: 'QFF', name: 'Roßdorf' },
+      // Deliberately NOT alphabetical/insertion order — planProjectCodeMigration
+      // is responsible for handing losers over in the deterministic fold order.
+      losers: [
+        { id: 'proj-loser-1', from: 'QFF-001', name: 'Roßdorf viejo' },
+        { id: 'proj-loser-2', from: 'QFF-002', name: 'Roßdorf 2' },
+      ],
+      fields: {}, mergeBudgets: 'sum',
+    }];
+
+    const plan = planProjectMerge({
+      merges: threeWayMerge,
+      documentsByCollection: {
+        budgets: [
+          doc('budget-survivor', { projectId: 'proj-active', year: 2026, lines: [{ id: 'l0', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(100) }] }),
+          doc('budget-loser-1', { projectId: 'proj-loser-1', year: 2026, lines: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(10) }] }),
+          doc('budget-loser-2', { projectId: 'proj-loser-2', year: 2026, lines: [{ id: 'l2', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1) }] }),
+        ],
+      },
+    });
+
+    // Folded in order: survivor(100) + loser-1(10) = 110, then 110 + loser-2(1) = 111 — per month.
+    expect(plan.budgetMerges).toHaveLength(2);
+    expect(plan.budgetMerges[0]).toMatchObject({ loserBudgetId: 'budget-loser-1', survivorTotalBefore: 1200, survivorTotalAfter: 1320 });
+    expect(plan.budgetMerges[1]).toMatchObject({ loserBudgetId: 'budget-loser-2', survivorTotalBefore: 1320, survivorTotalAfter: 1332 });
+    const finalLinesUpdate = plan.updates.find((u) => u.collection === 'budgets' && u.id === 'budget-survivor' && u.field === 'lines');
+    expect(finalLinesUpdate.to[0].monthlyBudget).toEqual(Array(12).fill(111));
+  });
+});
+
+describe('sumBudgetLines (T12: owner decision 2026-09-18)', () => {
+  it('sums monthlyBudget element-wise for matched lines (type + normalized categoryName)', () => {
+    const survivor = [{ id: 'sv-1', categoryId: 'materiales', categoryName: 'Materiales', type: 'expense', monthlyBudget: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100], notes: 'nota sobreviviente' }];
+    const loser = [{ id: 'ls-1', categoryId: 'Materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50], notes: 'presupuesto perdedor' }];
+
+    const merged = sumBudgetLines(survivor, loser);
+
+    expect(merged).toEqual([{ id: 'sv-1', categoryId: 'materiales', categoryName: 'Materiales', type: 'expense', monthlyBudget: Array(12).fill(150), notes: 'nota sobreviviente' }]);
+    // survivor's id and non-empty fields win; loser's inputs are never mutated.
+    expect(loser[0].monthlyBudget).toEqual(Array(12).fill(50));
+  });
+
+  it('appends unmatched loser lines, preserving survivor line order first', () => {
+    const survivor = [{ id: 'sv-1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(100) }];
+    const loser = [{ id: 'ls-1', categoryName: 'equipos', type: 'expense', monthlyBudget: Array(12).fill(20) }];
+
+    const merged = sumBudgetLines(survivor, loser);
+
+    expect(merged).toEqual([
+      { id: 'sv-1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(100) },
+      { id: 'ls-1', categoryName: 'equipos', type: 'expense', monthlyBudget: Array(12).fill(20) },
+    ]);
+  });
+
+  it('treats missing/NaN/non-numeric monthly values as 0 and never produces NaN or floating-point noise', () => {
+    const survivor = [{ id: 'sv-1', categoryName: 'materiales', type: 'expense', monthlyBudget: [0.1, undefined, NaN, 'x', 100, 100, 100, 100, 100, 100, 100, 100] }];
+    const loser = [{ id: 'ls-1', categoryName: 'materiales', type: 'expense', monthlyBudget: [0.2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5] }];
+
+    const merged = sumBudgetLines(survivor, loser);
+
+    expect(merged[0].monthlyBudget[0]).toBe(0.3); // 0.1 + 0.2, rounded to cents — never 0.30000000000000004
+    expect(merged[0].monthlyBudget[1]).toBe(5); // undefined -> 0
+    expect(merged[0].monthlyBudget[2]).toBe(5); // NaN -> 0
+    expect(merged[0].monthlyBudget[3]).toBe(5); // 'x' -> 0
+    expect(merged[0].monthlyBudget.every((v) => Number.isFinite(v))).toBe(true);
+  });
+
+  it('keeps any other per-line field from the survivor, falling back to the loser only when the survivor value is empty', () => {
+    const survivor = [{ id: 'sv-1', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(10), notes: '' }];
+    const loser = [{ id: 'ls-1', categoryId: 'materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(5), notes: 'nota del perdedor' }];
+
+    const merged = sumBudgetLines(survivor, loser);
+
+    expect(merged[0].notes).toBe('nota del perdedor'); // survivor's notes was '', empty -> loser's kept
+    expect(merged[0].id).toBe('sv-1'); // survivor's id always wins when present — never a generated one
+  });
+
+  it('is pure: never mutates either input array or its line objects', () => {
+    const survivor = [{ id: 'sv-1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(10) }];
+    const loser = [{ id: 'ls-1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(5) }];
+    const survivorSnapshot = JSON.parse(JSON.stringify(survivor));
+    const loserSnapshot = JSON.parse(JSON.stringify(loser));
+
+    sumBudgetLines(survivor, loser);
+
+    expect(survivor).toEqual(survivorSnapshot);
+    expect(loser).toEqual(loserSnapshot);
+  });
+
+  it('handles empty/missing inputs without throwing', () => {
+    expect(sumBudgetLines([], [])).toEqual([]);
+    expect(sumBudgetLines(undefined, undefined)).toEqual([]);
+    expect(sumBudgetLines([{ id: 'sv-1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(10) }], [])).toEqual([
+      { id: 'sv-1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(10) },
+    ]);
   });
 });
 
@@ -785,6 +1027,81 @@ describe('buildWritePlan — project merges (T11)', () => {
       id: 'pay-1',
       data: { projectId: 'proj-active' }, // no previous write — 'proj-original' stays the true original
       label: 'payables/pay-1',
+    }]);
+  });
+
+  it('T12: the survivor budget write carries previous.lines, reversible, and the loser budget gets ONE write with mergedInto/mergedIntoProjectId', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: {},
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      mergePlan: {
+        updates: [{
+          collection: 'budgets', id: 'budget-survivor', field: 'lines',
+          from: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1000) }],
+          to: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1500) }],
+        }],
+        loserUpdates: [{
+          collection: 'budgets',
+          id: 'budget-loser',
+          fields: { mergedInto: { to: 'budget-survivor' }, mergedIntoProjectId: { to: 'proj-active' } },
+        }],
+      },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual(expect.arrayContaining([
+      {
+        kind: 'update',
+        collection: 'budgets',
+        id: 'budget-survivor',
+        data: {
+          lines: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1500) }],
+          'migration.classificationCatalogV2.previous.lines': [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1000) }],
+        },
+        label: 'budgets/budget-survivor',
+      },
+      {
+        kind: 'update',
+        collection: 'budgets',
+        id: 'budget-loser',
+        data: { mergedInto: 'budget-survivor', mergedIntoProjectId: 'proj-active' },
+        label: 'budgets/budget-loser',
+      },
+    ]));
+    expect(plan).toHaveLength(2);
+  });
+
+  it('T12 re-run safety: an existing previous.lines is never overwritten by a second sum run', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: {},
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      mergePlan: {
+        updates: [{
+          collection: 'budgets', id: 'budget-survivor', field: 'lines',
+          from: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1500) }],
+          to: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1600) }],
+        }],
+      },
+      existingDocsByCollection: {
+        budgets: [{
+          id: 'budget-survivor',
+          migration: {
+            classificationCatalogV2: {
+              previous: { lines: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1000) }] },
+            },
+          },
+        }],
+      },
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'budgets',
+      id: 'budget-survivor',
+      data: { lines: [{ id: 'l1', categoryName: 'materiales', type: 'expense', monthlyBudget: Array(12).fill(1600) }] }, // no previous write — the TRUE original (1000) stays recorded
+      label: 'budgets/budget-survivor',
     }]);
   });
 

@@ -23,9 +23,12 @@
  * never rejected. `LEGACY_PROJECT_CODE_MAP` is the mapping from the design
  * doc; the owner validated it on 2026-09-18 (T11, every entry is now
  * confidence `high`) — `confidence`/`--min-confidence` remain in place for
- * any future entry that has not yet been reviewed. `findProjectMentions` is
- * what lets an invoice PDF's free text resolve to a project by code, legacy
- * alias or name, in that priority.
+ * any future entry that has not yet been reviewed. On the SAME day the owner
+ * additionally decided (T12) that the Roßdorf merge's same-year budgets are
+ * SUMMED rather than reported as a conflict — `mergeBudgets: 'sum'` on that
+ * entry is the opt-in signal `planProjectMerge` reads. `findProjectMentions`
+ * is what lets an invoice PDF's free text resolve to a project by code,
+ * legacy alias or name, in that priority.
  *
  * Pure: no React, no Firebase, no Date.now() — no I/O of any kind.
  */
@@ -133,13 +136,19 @@ export const nextLot = (existingCodes, { client, site, line: lineCode } = {}) =>
 
 /** `options.merge: true` flags a target code that more than one LIVE project
  * may resolve to as the SAME project, not a collision — see
- * `planProjectCodeMigration`'s merge handling in classificationMigration.js. */
+ * `planProjectCodeMigration`'s merge handling in classificationMigration.js.
+ * `options.mergeBudgets: 'sum'` is the separate, per-merge-group opt-in
+ * (owner decision 2026-09-18, T12): when set, `planProjectMerge` sums a
+ * same-year survivor+loser budget line-by-line instead of reporting it under
+ * `budgetConflicts`. A merge entry without it keeps the conflict-report
+ * default — `mergeBudgets` only makes sense alongside `merge: true`. */
 const legacyEntry = (match, code, confidence, options = {}) =>
   Object.freeze({
     match: Object.freeze([...match]),
     code,
     confidence,
     ...(options.merge ? { merge: true } : {}),
+    ...(options.mergeBudgets ? { mergeBudgets: options.mergeBudgets } : {}),
   });
 
 /**
@@ -158,7 +167,7 @@ export const LEGACY_PROJECT_CODE_MAP = Object.freeze([
     ['QFF', 'QFF-001', 'QFF-002', 'PROY-001', 'RSD', 'Roßdorf 1', 'Roßdorf 2'],
     'INS-RSD-BL1',
     'high',
-    { merge: true },
+    { merge: true, mergeBudgets: 'sum' },
   ),
   legacyEntry(['NE4', 'PROY-004', 'WRZ', 'WUR', 'Würzburg', 'Würzwurg'], 'INS-WRZ-N41', 'high'),
   legacyEntry(['UGG', 'UGG-001', 'Vancom NE4'], 'VAN-UGG-N41', 'high'),

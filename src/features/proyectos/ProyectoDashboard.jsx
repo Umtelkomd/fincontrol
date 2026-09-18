@@ -266,6 +266,15 @@ const ProyectoDashboard = ({ user }) => {
  if (!selectedProject) return null;
 
  const matching = (ledger.budgets || []).filter((entry) => {
+ // A T12 budget merge (see classificationMigration.js `planProjectMerge`)
+ // sums a loser's lines into the survivor's budget and stamps the loser
+ // `mergedInto` WITHOUT repointing its projectId — deliberately, so a
+ // survivor lookup by exact id never double-counts it. But this filter
+ // also matches by free-text projectName tokens (below), and a loser
+ // budget's projectName (e.g. "Roßdorf 2") IS a legacy alias of the
+ // survivor's own code, so without this guard it would still match and
+ // double the already-summed total.
+ if (entry.mergedInto) return false;
  const budgetTokens = [entry.projectId, entry.projectName].map(normalizeToken).filter(Boolean);
  return (
  normalizeToken(entry.projectId) === normalizeToken(selectedProject.id) ||

@@ -198,6 +198,14 @@ describe('LEGACY_PROJECT_CODE_MAP', () => {
       expect(byCode[code].merge).toBeUndefined();
     }
   });
+
+  it('flags ONLY the Roßdorf entry with mergeBudgets: "sum" (owner decision 2026-09-18, T12) — every other entry keeps the conflict-report default', () => {
+    const byCode = Object.fromEntries(LEGACY_PROJECT_CODE_MAP.map((e) => [e.code, e]));
+    expect(byCode['INS-RSD-BL1'].mergeBudgets).toBe('sum');
+    for (const code of ['INS-WRZ-N41', 'VAN-UGG-N41', 'WSC-GEN-N41', 'WSC-GEN-MD1', 'INS-HXT-TB1', 'INS-MSD-TB1', 'UMT-ADM-OH1']) {
+      expect(byCode[code].mergeBudgets).toBeUndefined();
+    }
+  });
 });
 
 describe('resolveLegacyProjectCode', () => {

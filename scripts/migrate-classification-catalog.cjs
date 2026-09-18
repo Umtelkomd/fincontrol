@@ -356,6 +356,23 @@ const findFreshBackup = () => {
           console.log(`    año ${c.year}: sobreviviente ${c.survivorBudgetId} (${c.survivorProjectId}) vs perdedor ${c.loserBudgetId} (${c.loserProjectId})`));
       }
 
+      // T12 — owner decision 2026-09-18: a `mergeBudgets: 'sum'` merge group
+      // (currently only Roßdorf) sums a same-year survivor+loser budget
+      // instead of reporting it above — one line per fold step (a 3+-project
+      // merge folds more than one loser into the same survivor budget).
+      console.log('\n  PRESUPUESTOS SUMADOS:');
+      if (mergePlan.budgetMerges.length === 0) {
+        console.log('  (ninguno)');
+      } else {
+        printTable(
+          mergePlan.budgetMerges.map((m) =>
+            `${padEnd(m.year, 6)} ${padEnd(m.survivorBudgetId, 16)} ${padEnd(m.loserBudgetId, 16)} `
+            + `${padStart(m.survivorTotalBefore.toFixed(2), 12)} ${padStart(m.loserTotal.toFixed(2), 12)} ${padStart(m.survivorTotalAfter.toFixed(2), 12)} `
+            + `${padStart(m.matchedLines, 9)} ${padStart(m.appendedLines, 10)}`),
+          [['Año', 6], ['Sobreviviente', 16], ['Perdedor', 16], ['Antes', 12], ['Perdedor Σ', 12], ['Después', 12], ['Emparej.', 9], ['Añadidas', 10]],
+        );
+      }
+
       console.log(
         '\n  Nota: employees.projectIds NO tiene backup (datos personales) — su reversión depende '
         + 'ÚNICAMENTE del sello migration.classificationCatalogV2.previous.projectIds en cada documento de empleado.',
