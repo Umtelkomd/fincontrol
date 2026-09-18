@@ -21,9 +21,9 @@
  * `costScope` therefore stops being an independent field: it is DERIVED from
  * the cost center kind (see `scopeOfCostCenter`), never chosen freestanding.
  *
- * `resolveLegacyCostCenter` maps the old codes/labels to v2 codes. Six of them
- * (`CC-006..CC-009`, `Contratistas`, `OPE`) have no recorded meaning anywhere
- * in the repo — resolving them would be a guess, so they come back
+ * `resolveLegacyCostCenter` maps the old codes/labels to v2 codes. Five of them
+ * (`CC-006..CC-009`, `Contratistas`) have no recorded meaning anywhere in the
+ * repo — resolving them would be a guess, so they come back
  * `unresolved` and the migration script reports what is left instead of
  * inventing an answer. The one exception is by NAME: the migration can pass
  * the live Firestore doc's `name` as `liveName`, which is matched against the
@@ -121,12 +121,16 @@ const LEGACY_KEY_MAP = new Map(
     ['Seguros', 'CC-300'],
     ['Financiero', 'CC-900'],
     ['Nómina y Seguridad Social', 'CC-NOM'],
-    // The budget screen (BudgetVsActual.jsx) used to carry a THIRD dictionary
-    // of its own, mapping these tokens to the v1 labels above — that mapping is
-    // the only record of what they mean, so it folds in here instead of being
-    // dropped. `OPE`/`CC-OPE` are deliberately NOT included: that screen
-    // guessed them as "Despliegue" with nothing behind it, and OPE stays
-    // unresolved like the other six (see the module doc).
+    // The budget screen (BudgetVsActual.jsx) used to carry a dictionary of its
+    // own (`LEGACY_CC_MAP`), naming a v1 label for each of these tokens: OPE →
+    // "Despliegue", ADM → "Administrativo", LOG → "Instalaciones y
+    // Reparaciones", FIN → "Financiero", VEN → "NE4", plus the CC- prefixed
+    // spelling of each. That table is the only recorded evidence of what the
+    // tokens mean, and every row of it carries the same standing — so all five
+    // fold in here, each resolved through the label it named, rather than being
+    // dropped when that screen stopped carrying them.
+    ['OPE', 'CC-110'],
+    ['CC-OPE', 'CC-110'],
     ['ADM', 'CC-300'],
     ['CC-ADM', 'CC-300'],
     ['LOG', 'CC-120'],
@@ -148,7 +152,7 @@ const EMPTY_KEY = labelKeyOf('Sin asignar');
  *   - a mapped legacy code or label           → { code, status: 'mapped' }
  *   - unknown, with `liveName` resolving too  → { code, status: 'mapped' }
  *   - unknown otherwise (CC-006..CC-009,
- *     "Contratistas", "OPE" and anything else) → { code: '', status: 'unresolved' }
+ *     "Contratistas" and anything else)        → { code: '', status: 'unresolved' }
  *
  * @param {string} value the stored legacy costCenterId/label
  * @param {{ liveName?: string }} [options] the live Firestore doc's `name`,

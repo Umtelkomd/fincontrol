@@ -199,7 +199,7 @@ describe('BudgetVsActual — budget loaded', () => {
 /**
  * The cost-center filter compared two different things: the dropdown was keyed
  * by the live doc's NAME while the predicate read the movement's stored CODE
- * through a third, older dictionary (OPE/ADM/LOG/FIN/VEN) that knew neither
+ * through a dictionary of its own (OPE/ADM/LOG/FIN/VEN) that knew neither
  * `CC-0xx` nor `CC-1xx`. Both sides now speak catalogue CODES, resolved through
  * `resolveLegacyCostCenter`, so every spelling of one center is one bucket.
  */
@@ -243,18 +243,19 @@ describe('BudgetVsActual — cost-center filter', () => {
   });
 
   it('keeps a live cost-center doc that resolves to no v2 code as its own filterable bucket', () => {
-    store.collections.costCenters = [{ id: 'cc-doc-ope', code: 'OPE', name: 'OPE' }];
+    // "Contratistas" has no recorded meaning anywhere, so it is never guessed
+    // into a v2 center — it stays visible and filters under itself alone.
+    store.collections.costCenters = [{ id: 'cc-doc-sub', code: 'CC-008', name: 'Contratistas' }];
     store.collections.bankMovements = [
       ...MATERIAL_BY_CENTER,
-      bankMovementFixture({ id: 'cc-ope', direction: 'out', amount: 500, categoryName: 'Material', costCenterId: 'OPE', postedDate: thisMonthIso(8) }),
+      bankMovementFixture({ id: 'cc-sub', direction: 'out', amount: 500, categoryName: 'Material', costCenterId: 'CC-008', postedDate: thisMonthIso(8) }),
     ];
 
     renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
-    expect(screen.getByRole('option', { name: 'OPE · OPE' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'CC-008 · Contratistas' })).toBeInTheDocument();
 
-    selectCostCenter('OPE');
+    selectCostCenter('CC-008');
 
-    // OPE is never guessed into a v2 center — it filters under itself alone.
     expect(screen.getAllByText('500,00').length).toBeGreaterThan(0);
     expect(screen.queryAllByText('7.000,00')).toHaveLength(0);
   });

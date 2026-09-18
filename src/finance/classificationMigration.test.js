@@ -136,12 +136,23 @@ describe('planCostCenterMigration — retiring superseded live docs', () => {
   });
 
   it('reports an unresolvable live doc instead of guessing where it retires to', () => {
+    // Neither the code nor the name is recorded anywhere — unlike, say, a doc
+    // named "OPE", which the budget screen's own dictionary does map.
     const plan = planCostCenterMigration({
-      costCenters: [doc('legacyDoc2', { code: 'CC-006', name: 'OPE' })],
+      costCenters: [doc('legacyDoc2', { code: 'CC-006', name: 'Contratistas' })],
       documentsByCollection: {},
     });
     expect(plan.retire).toEqual([]);
     expect(plan.unresolved).toContainEqual({ collection: 'costCenters', id: 'legacyDoc2', value: 'CC-006' });
+  });
+
+  it('retires a live doc whose NAME the recorded dictionary maps, such as OPE', () => {
+    const plan = planCostCenterMigration({
+      costCenters: [doc('legacyDoc3', { code: 'CC-006', name: 'OPE' })],
+      documentsByCollection: {},
+    });
+    expect(plan.unresolved).toEqual([]);
+    expect(plan.retire).toEqual([{ id: 'legacyDoc3', code: 'CC-006', name: 'OPE', resolvedTo: 'CC-110' }]);
   });
 });
 

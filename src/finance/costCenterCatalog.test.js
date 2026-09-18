@@ -141,34 +141,34 @@ describe('resolveLegacyCostCenter', () => {
     expect(resolveLegacyCostCenter(undefined)).toEqual({ code: '', status: 'empty' });
   });
 
-  it('never guesses CC-006..CC-009, Contratistas or OPE', () => {
-    ['CC-006', 'CC-007', 'CC-008', 'CC-009', 'Contratistas', 'OPE'].forEach((value) => {
+  it('never guesses CC-006..CC-009 or Contratistas', () => {
+    ['CC-006', 'CC-007', 'CC-008', 'CC-009', 'Contratistas'].forEach((value) => {
       expect(resolveLegacyCostCenter(value)).toEqual({ code: '', status: 'unresolved' });
     });
   });
 
   /**
-   * The budget screen carried a THIRD dictionary of its own (ADM/LOG/FIN/VEN
-   * and their CC- prefixed spellings, mapping to the v1 labels). Those four are
-   * repo evidence of what the tokens mean, so they resolve here instead of
-   * being dropped — `OPE` is deliberately NOT among them: that screen guessed
-   * it as "Despliegue" with nothing to back it, and a guess is worse than an
-   * honest unresolved bucket.
+   * The budget screen carried a dictionary of its own (`LEGACY_CC_MAP`: OPE,
+   * ADM, LOG, FIN, VEN and their CC- prefixed spellings, each naming one of the
+   * v1 labels above). That table is the only recorded evidence of what those
+   * tokens mean, and all five rows carry the same standing — so all five
+   * resolve here, each through the label it named, instead of being dropped.
    */
-  it('maps the ADM/LOG/FIN/VEN tokens the budget screen used to resolve on its own', () => {
-    expect(resolveLegacyCostCenter('ADM')).toEqual({ code: 'CC-300', status: 'mapped' });
+  it('maps the five tokens the budget screen resolved on its own, through the label each one named', () => {
+    expect(resolveLegacyCostCenter('OPE')).toEqual({ code: 'CC-110', status: 'mapped' }); // "Despliegue"
+    expect(resolveLegacyCostCenter('CC-OPE')).toEqual({ code: 'CC-110', status: 'mapped' });
+    expect(resolveLegacyCostCenter('ADM')).toEqual({ code: 'CC-300', status: 'mapped' }); // "Administrativo"
     expect(resolveLegacyCostCenter('CC-ADM')).toEqual({ code: 'CC-300', status: 'mapped' });
-    expect(resolveLegacyCostCenter('LOG')).toEqual({ code: 'CC-120', status: 'mapped' });
+    expect(resolveLegacyCostCenter('LOG')).toEqual({ code: 'CC-120', status: 'mapped' }); // "Instalaciones y Reparaciones"
     expect(resolveLegacyCostCenter('CC-LOG')).toEqual({ code: 'CC-120', status: 'mapped' });
-    expect(resolveLegacyCostCenter('FIN')).toEqual({ code: 'CC-900', status: 'mapped' });
+    expect(resolveLegacyCostCenter('FIN')).toEqual({ code: 'CC-900', status: 'mapped' }); // "Financiero"
     expect(resolveLegacyCostCenter('CC-FIN')).toEqual({ code: 'CC-900', status: 'mapped' });
-    expect(resolveLegacyCostCenter('VEN')).toEqual({ code: 'CC-120', status: 'mapped' });
+    expect(resolveLegacyCostCenter('VEN')).toEqual({ code: 'CC-120', status: 'mapped' }); // "NE4"
     expect(resolveLegacyCostCenter('CC-VEN')).toEqual({ code: 'CC-120', status: 'mapped' });
   });
 
-  it('keeps OPE and CC-OPE unresolved — their meaning is not recorded anywhere', () => {
-    expect(resolveLegacyCostCenter('OPE')).toEqual({ code: '', status: 'unresolved' });
-    expect(resolveLegacyCostCenter('CC-OPE')).toEqual({ code: '', status: 'unresolved' });
+  it('resolves OPE through a live doc NAME too, like any other mapped label', () => {
+    expect(resolveLegacyCostCenter('CC-006', { liveName: 'OPE' })).toEqual({ code: 'CC-110', status: 'mapped' });
   });
 
   it('resolves an unresolved code by the live Firestore doc name', () => {
@@ -320,7 +320,7 @@ describe('resolveStoredCostCenter', () => {
   const live = [
     { id: 'legacyDoc1', code: 'CC-002', name: 'Instalaciones y Reparaciones' },
     { id: 'legacyDoc2', code: 'CC-007', name: 'NE4' },
-    { id: 'legacyDoc3', code: 'OPE', name: 'OPE' },
+    { id: 'legacyDoc3', code: 'CC-008', name: 'Contratistas' },
   ];
 
   it('resolves a v2 code, a v1 code and a label without needing the live docs', () => {
@@ -351,7 +351,8 @@ describe('resolveStoredCostCenter', () => {
 describe('costCenterFilterKey / matchesCostCenterFilter', () => {
   const live = [
     { id: 'legacyDoc1', code: 'CC-002', name: 'Instalaciones y Reparaciones' },
-    { id: 'legacyDoc3', code: 'OPE', name: 'OPE' },
+    // Genuinely unrecorded: neither CC-008 nor "Contratistas" is mapped anywhere.
+    { id: 'legacyDoc3', code: 'CC-008', name: 'Contratistas' },
   ];
 
   it('sends the v2 code, its v1 code and its label to the SAME bucket', () => {
@@ -361,8 +362,8 @@ describe('costCenterFilterKey / matchesCostCenterFilter', () => {
   });
 
   it('gives an unresolved value its own bucket instead of a guessed center', () => {
-    expect(costCenterFilterKey('OPE', live)).toBe('OPE');
-    expect(costCenterFilterKey('legacyDoc3', live)).toBe('OPE'); // the doc id reaches its own doc code
+    expect(costCenterFilterKey('CC-008', live)).toBe('CC-008');
+    expect(costCenterFilterKey('legacyDoc3', live)).toBe('CC-008'); // the doc id reaches its own doc code
     expect(costCenterFilterKey('Contratistas', live)).toBe('CONTRATISTAS');
   });
 
@@ -374,7 +375,7 @@ describe('costCenterFilterKey / matchesCostCenterFilter', () => {
   it('matches every document when nothing is selected — the "all centers" view', () => {
     expect(matchesCostCenterFilter('CC-002', '', live)).toBe(true);
     expect(matchesCostCenterFilter('', '', live)).toBe(true);
-    expect(matchesCostCenterFilter('OPE', '', live)).toBe(true);
+    expect(matchesCostCenterFilter('CC-008', '', live)).toBe(true);
   });
 
   it('matches a selected code through every spelling of it, and nothing else', () => {
@@ -383,13 +384,13 @@ describe('costCenterFilterKey / matchesCostCenterFilter', () => {
     expect(matchesCostCenterFilter('legacyDoc1', 'CC-120', live)).toBe(true);
     expect(matchesCostCenterFilter('CC-300', 'CC-120', live)).toBe(false);
     expect(matchesCostCenterFilter('', 'CC-120', live)).toBe(false);
-    expect(matchesCostCenterFilter('OPE', 'CC-120', live)).toBe(false);
+    expect(matchesCostCenterFilter('CC-008', 'CC-120', live)).toBe(false);
   });
 
   it('keeps an unresolved bucket filterable on its own', () => {
-    expect(matchesCostCenterFilter('OPE', 'OPE', live)).toBe(true);
-    expect(matchesCostCenterFilter('legacyDoc3', 'OPE', live)).toBe(true);
-    expect(matchesCostCenterFilter('CC-120', 'OPE', live)).toBe(false);
+    expect(matchesCostCenterFilter('CC-008', 'CC-008', live)).toBe(true);
+    expect(matchesCostCenterFilter('legacyDoc3', 'CC-008', live)).toBe(true);
+    expect(matchesCostCenterFilter('CC-120', 'CC-008', live)).toBe(false);
   });
 });
 
@@ -403,9 +404,9 @@ describe('costCenterFilterOptions', () => {
   });
 
   it('adds a bucket for a live doc that resolves to no v2 code, so nothing visible disappears', () => {
-    const options = costCenterFilterOptions([{ id: 'legacyDoc3', code: 'OPE', name: 'OPE' }]);
+    const options = costCenterFilterOptions([{ id: 'legacyDoc3', code: 'CC-008', name: 'Contratistas' }]);
 
-    expect(options.at(-1)).toEqual({ value: 'OPE', label: 'OPE · OPE', kind: 'unresolved' });
+    expect(options.at(-1)).toEqual({ value: 'CC-008', label: 'CC-008 · Contratistas', kind: 'unresolved' });
   });
 
   it('adds nothing for a live doc that already resolves into the catalogue', () => {
@@ -426,11 +427,11 @@ describe('costCenterFilterOptions', () => {
 
   it('offers a duplicated legacy doc once and tolerates a missing list', () => {
     const options = costCenterFilterOptions([
-      { id: 'd1', code: 'OPE', name: 'OPE' },
-      { id: 'd2', code: 'ope', name: 'OPE' },
+      { id: 'd1', code: 'CC-008', name: 'Contratistas' },
+      { id: 'd2', code: 'cc-008', name: 'Contratistas' },
     ]);
 
-    expect(options.filter((option) => option.value === 'OPE')).toHaveLength(1);
+    expect(options.filter((option) => option.value === 'CC-008')).toHaveLength(1);
     expect(costCenterFilterOptions()).toHaveLength(COST_CENTER_CATALOG.length);
   });
 });

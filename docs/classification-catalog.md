@@ -67,16 +67,25 @@ from the project's line instead):
 | "Financiero" | CC-900 |
 | "Nómina y Seguridad Social" | CC-NOM |
 | "Sin asignar" | '' (empty) |
+| OPE, CC-OPE | CC-110 |
 | ADM, CC-ADM | CC-300 |
 | LOG, CC-LOG, VEN, CC-VEN | CC-120 |
 | FIN, CC-FIN | CC-900 |
-| CC-006…CC-009, "Contratistas", "OPE", "CC-OPE" | **UNRESOLVED** — meaning not in the repo; the migration resolves what it can by the live doc NAME and reports the rest |
+| CC-006…CC-009, "Contratistas" | **UNRESOLVED** — meaning not in the repo; the migration resolves what it can by the live doc NAME and reports the rest |
 
-The ADM/LOG/FIN/VEN rows come from the private dictionary `BudgetVsActual.jsx`
-used to carry (its own third table, mapping those tokens to the v1 labels) —
-that mapping is the only record of what they mean, so it folded in here.
-`OPE` did NOT: that screen guessed it as "Despliegue" with nothing behind it,
-and an honest unresolved bucket beats a guessed cost center.
+The OPE/ADM/LOG/FIN/VEN rows come from the private dictionary
+`BudgetVsActual.jsx` used to carry (`LEGACY_CC_MAP`, naming a v1 label for each
+token: OPE → "Despliegue", ADM → "Administrativo", LOG → "Instalaciones y
+Reparaciones", FIN → "Financiero", VEN → "NE4"). That table is the only recorded
+evidence of what those tokens mean and every row of it carries the same
+standing, so all five folded in here, each resolved through the label it named.
+
+**Consequence for the migration:** the dry-run report will now propose
+`OPE`/`CC-OPE` → `CC-110` remaps (and will retire a live cost-center doc *named*
+"OPE" to `CC-110`) instead of listing them under `unresolved`. Those proposals
+appear in `backups/classification-migration-*.json` for review — step 3 of the
+runbook below — and nothing is written until `--apply`. `CC-006…CC-009` and
+"Contratistas" stay unresolved: nothing in the repo records what they meant.
 
 ## Filtering by cost center
 

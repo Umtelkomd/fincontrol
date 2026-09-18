@@ -63,12 +63,12 @@ const CAT_COLORS = [
 const getCatColor = (idx) => CAT_COLORS[idx % CAT_COLORS.length];
 
 // The cost-center filter compares CODES on both sides. It used to compare a
-// live doc's NAME (the dropdown) against a stored code run through a third,
-// older dictionary (OPE/ADM/LOG/FIN/VEN → v1 labels) that knew neither the
-// `CC-0xx` legacy codes nor the `CC-1xx` v2 ones, so picking a center filtered
-// everything away. Both sides now go through the catalogue
-// (`src/finance/costCenterCatalog.js`), which folded those four tokens into its
-// own legacy table — OPE excluded, it stays an unresolved bucket of its own.
+// live doc's NAME (the dropdown) against a stored code run through a private
+// dictionary of its own (`LEGACY_CC_MAP`: OPE/ADM/LOG/FIN/VEN → v1 labels) that
+// knew neither the `CC-0xx` legacy codes nor the `CC-1xx` v2 ones, so picking a
+// center filtered everything away. Both sides now go through the catalogue
+// (`src/finance/costCenterCatalog.js`), which folded all five of those tokens
+// into its own legacy table, each resolved through the label it named.
 
 // ── Confirm Modal ───────────────────────────────────────────────
 const ConfirmModal = ({ isOpen, onConfirm, onCancel, title, message }) => {
