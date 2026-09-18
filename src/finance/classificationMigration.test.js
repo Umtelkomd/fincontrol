@@ -311,7 +311,7 @@ describe('planProjectCodeMigration — merge groups (T11: owner decision 2026-09
     expect(plan.merges[0].survivor.id).toBe('proj-a');
   });
 
-  it('propagates mergeBudgets from the mapping entry onto the merges[] item (T12: owner decision 2026-09-18)', () => {
+  it('propagates mergeBudgets from the mapping entry onto the merges[] item (owner decision 2026-09-18)', () => {
     const projects = [
       doc('proj-active', { code: 'QFF', name: 'Roßdorf', status: 'active' }),
       doc('proj-inactive', { code: 'QFF-002', name: 'Roßdorf 2', status: 'inactive' }),
@@ -522,7 +522,7 @@ describe('planProjectMerge', () => {
   });
 });
 
-describe('planProjectMerge — budget summing (T12: owner decision 2026-09-18)', () => {
+describe('planProjectMerge — budget summing (owner decision 2026-09-18)', () => {
   const sumMerges = [{
     code: 'INS-RSD-BL1',
     survivor: { id: 'proj-active', from: 'QFF', name: 'Roßdorf' },
@@ -657,7 +657,7 @@ describe('planProjectMerge — budget summing (T12: owner decision 2026-09-18)',
   });
 });
 
-describe('sumBudgetLines (T12: owner decision 2026-09-18)', () => {
+describe('sumBudgetLines (owner decision 2026-09-18)', () => {
   it('sums monthlyBudget element-wise for matched lines (type + normalized categoryName)', () => {
     const survivor = [{ id: 'sv-1', categoryId: 'materiales', categoryName: 'Materiales', type: 'expense', monthlyBudget: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100], notes: 'nota sobreviviente' }];
     const loser = [{ id: 'ls-1', categoryId: 'Materiales', categoryName: 'materiales', type: 'expense', monthlyBudget: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50], notes: 'presupuesto perdedor' }];

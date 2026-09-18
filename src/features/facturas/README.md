@@ -97,6 +97,85 @@ once categorized and destined. The Clasificador inbox (`Classifier.jsx`)
 surfaces `'missing-invoice'` outflows in their own "Sin factura" tab,
 alongside — not instead of — "Sin categoría" / "Sin obra" / "Sin conciliar".
 
+## Correcting an archived invoice
+The archive was append-only until T13: no edit, no delete, no way to fix a
+mistake short of leaving a wrong row in place forever. `InvoiceViewer.jsx`
+now offers three admin/manager-only actions, every accounting decision for
+which lives in `src/finance/invoiceAmendment.js` (planInvoiceEdit /
+planInvoiceDelete / planInvoiceReplace) and is turned into effects by
+`lib/amend.js` (applyInvoiceEdit / applyInvoiceDelete / applyInvoiceReplace).
+
+### LOCK — when an obligation must not move
+An obligation (the CXP/CXC this invoice created) is LOCKED when touching its
+amount or cancelling it would disagree with money that already moved:
+`paidAmount > 0`, a non-empty `payments[]`, status `partial`/`settled`, or a
+non-void bank movement already references it (`payableId`/`payableIds`/
+`payableAllocations`, or the `receivable*` equivalents). A LOCKED obligation's
+amounts render disabled with a muted explanation; every other field (header,
+classification) stays editable.
+
+### Owned vs. foreign links
+`invoiceDocument.linkMode` is a per-DOCUMENT field, not per-link — a PDF
+re-archived and attached to further obligations can carry more links than the
+original `create-ordinary` call produced, and nothing on a link records which
+archive operation created it. So a link counts as OWNED only in the one
+provable case: `linkMode === 'create-ordinary'` AND the document carries
+EXACTLY ONE link. Every other shape (`attach-existing`, or more than one
+link) is treated as FOREIGN — this feature never cancels or rewrites an
+obligation it cannot prove it created.
+
+### Editar
+Always editable: counterparty, invoice number, issue date (shifting the
+obligation's `dueDate` by the same delta, but only while it still equals the
+intake default of issue date + 30 days — an operator-adjusted due date is
+never silently moved), category, project, cost center. Amounts (net/tax/
+gross) are editable only when the owned obligation is not LOCKED, and the
+usual invariants (net + tax ≈ gross, cent precision) are re-checked. A
+classification change propagates to bank movements linked ONLY to this one
+obligation (never a movement shared by several documents — those are listed
+to the user instead). `attach-existing` links: only the archive metadata is
+edited, the foreign obligation is untouched. **Direction is never editable**
+— it decides which collection (`payables` vs `receivables`) and which
+accounting rules apply; changing it would mean creating a different kind of
+document, not editing this one, so the correction is delete-and-re-archive.
+
+### Reemplazar PDF
+Uploads a new file, validated exactly like intake (PDF signature, ≤ 2 MiB,
+not the same sha256 as the current file), creates a new
+`invoiceDocuments/{newSha}` carrying the same metadata and links, re-points
+every linked obligation's `invoiceDocumentIds` from the old sha to the new
+one, and only then deletes the old document's chunks and the old document
+itself.
+
+### Eliminar
+Removes the back-reference from every linked obligation (owned or foreign —
+this is cleanup of a now-dangling pointer, never an accounting change), then
+the PDF chunks, then the archive document. An optional "Anular también la
+CXP/CXC" checkbox additionally cancels the obligation through the existing
+soft `cancelPayable`/`cancelReceivable` path (never a hard delete) — offered,
+and enabled, ONLY for an OWNED, unlocked obligation; a LOCKED or FOREIGN one
+disables the checkbox with the reason shown next to it, and the PDF is still
+removed. Mandatory reason, type-to-confirm with the invoice number, one
+`auditLog` entry with the full `before` snapshot.
+
+### Ordering and partial failure
+EDIT attempts the owned obligation patch, then linked bank movements, then
+the archive metadata — independently, so one stage failing does not skip the
+next, and the outcome reports exactly which stage(s) failed. DELETE is
+strictly gated: back-references and any requested cancellation must succeed
+before the chunks are deleted, and the chunks before the archive document
+itself — a failure anywhere leaves a still-visible, retryable row instead of
+an invisible orphan. REPLACE uploads and commits the new document and swaps
+every back-reference BEFORE touching the old file, so a failure there leaves
+the old PDF fully intact.
+
+### No undo of a reconciliation
+There is no working undo of a modern bank reconciliation in this app
+(`unreconcileMovement` only clears legacy fields) — that is exactly why the
+LOCK rule exists: once a bank movement references an obligation, this feature
+refuses to change its amount or cancel it, rather than silently drifting from
+money that already left or arrived.
+
 ## Deploy
 ```bash
 firebase deploy --only firestore:rules,hosting
