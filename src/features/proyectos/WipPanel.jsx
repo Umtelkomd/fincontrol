@@ -19,6 +19,7 @@ import { Badge, Button, Panel } from '@/components/ui/nexus';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { useWorkInProgress } from '../../hooks/useWorkInProgress';
 import { WIP_STAGE, summarizeWip } from '../../finance/workInProgress';
+import { buildProjectTokens, matchesProject } from '../../finance/projectMatching';
 
 const STAGE_LABEL = {
   [WIP_STAGE.EXECUTED]: 'Ejecutado sin certificar',
@@ -33,20 +34,6 @@ const TONE_COLOR = {
 };
 
 const TONE_BADGE = { ok: 'neutral', warn: 'warn', critical: 'err' };
-
-const normalize = (value) => String(value ?? '').trim().toLowerCase();
-
-/**
- * An entry belongs to this obra when it matches by id OR by any of the names the
- * project is known under — entries captured before a project had an id, or typed
- * against its display name, must not silently vanish from their own site.
- */
-const belongsToProject = (entry, project) => {
-  const tokens = [project?.id, project?.code, project?.name, project?.displayName]
-    .map(normalize)
-    .filter(Boolean);
-  return tokens.includes(normalize(entry?.projectId)) || tokens.includes(normalize(entry?.projectName));
-};
 
 const todayIso = () => {
   const now = new Date();
@@ -66,13 +53,19 @@ const WipPanel = ({ project, user }) => {
 
   const today = useMemo(() => new Date(), []);
 
+  // Same token-based matching ProyectoDashboard uses: an entry belongs to this
+  // obra by id OR by any name/legacy alias the project is known under — entries
+  // captured before a project had an id, typed against its display name, or
+  // never updated after a legacy code was renamed, must not silently vanish.
+  const projectTokens = useMemo(() => buildProjectTokens(project), [project]);
+
   const summary = useMemo(() => {
     if (!project) return summarizeWip([], today);
     return summarizeWip(
-      (entries || []).filter((entry) => belongsToProject(entry, project)),
+      (entries || []).filter((entry) => matchesProject(entry, projectTokens, project.id)),
       today,
     );
-  }, [entries, project, today]);
+  }, [entries, project, projectTokens, today]);
 
   if (!project) return null;
 

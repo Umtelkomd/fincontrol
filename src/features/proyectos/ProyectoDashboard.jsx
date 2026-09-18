@@ -33,6 +33,7 @@ import { allocatePayrollCost } from '../nominas/lib/payrollAllocation';
 import { createNetAmountResolver } from '../../finance/vatRates';
 import { splitPayrollSettlements } from '../../finance/counterpartyIdentity';
 import { splitInternalTransfers } from '../../lib/finance/movementAmount';
+import { buildProjectTokens, matchesProject } from '../../finance/projectMatching';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import WipPanel from './WipPanel';
 
@@ -41,36 +42,6 @@ const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep'
 const OPEN_DOCUMENT_STATUSES = new Set(['issued', 'partial', 'overdue']);
 
 const normalizeToken = (value) => String(value || '').trim().toLowerCase();
-
-const buildProjectTokens = (project) => {
- const rawTokens = [
- project?.id,
- project?.code,
- project?.name,
- project?.displayName,
- `${project?.code || ''} (${project?.name || ''})`,
- ];
-
- return Array.from(new Set(rawTokens.map(normalizeToken).filter(Boolean)));
-};
-
-const matchesProject = (record, tokens, projectId) => {
- const directId = normalizeToken(record?.projectId);
- if (projectId && directId && directId === normalizeToken(projectId)) return true;
-
- const candidates = [
- record?.projectName,
- record?.project,
- record?.raw?.projectName,
- record?.raw?.project,
- record?.rawRecord?.projectName,
- record?.rawRecord?.project,
- ]
- .map(normalizeToken)
- .filter(Boolean);
-
- return candidates.some((candidate) => tokens.includes(candidate));
-};
 
 const formatAxis = (value) => {
  if (Math.abs(value) >= 1000) return `${Math.round(value / 1000)}k`;

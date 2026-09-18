@@ -4,11 +4,13 @@
  * Moves every stored cost-center value (a doc id, a legacy code, or a free-text
  * label) to the v2 catalogue in `src/finance/costCenterCatalog.js`, and every
  * legacy project code to the structured `CLI-SIT-LLn` scheme in
- * `src/finance/projectCode.js`. The resolution itself is NOT reimplemented
- * here — this script is a thin I/O shell around the pure planner in
- * `src/finance/classificationMigration.js`, which is what the unit tests
- * cover; this file only reads Firestore, prints the plan, and — only behind
- * `--apply` — writes it.
+ * `src/finance/projectCode.js`. Neither the resolution, the argv parsing, nor
+ * the write-plan merging is reimplemented here — this script is a thin I/O
+ * shell around the pure functions in `src/finance/classificationMigration.js`
+ * (`planCostCenterMigration`, `planProjectCodeMigration`,
+ * `planProjectNameRefresh`, `buildWritePlan`, `parseMigrationArgs`), which is
+ * what the unit tests cover; this file only reads Firestore, prints the
+ * plan, and — only behind `--apply` — executes the write plan verbatim.
  *
  * See `odd/tasks/invoice-classification-catalog.md` ("Legacy resolution" and
  * "Proposed legacy → new mapping") for the mapping this migration proposes.
@@ -33,10 +35,14 @@
  * own backup, so a stale or missing one always blocks the write).
  *
  * Every changed document keeps its pre-migration value under
- * `migration.classificationCatalogV2.previous.<field>`, so the change is
- * reversible by hand. Writes go in batches of ≤400 with one `auditLog` entry
- * per batch, in the same shape `reconcileMovement.js` writes. `retire` and
- * `unresolved` entries in the report are NEVER written by this script —
+ * `migration.classificationCatalogV2.previous.<field>`, one dotted Firestore
+ * path per changed field (never a shared object), so a document needing BOTH
+ * a cost-center remap and a projectName refresh gets ONE write with both
+ * originals preserved, and a re-run never overwrites an original already
+ * recorded — see `buildWritePlan` for the merge/re-run-safety rules. Writes
+ * go in batches of ≤399 document writes plus one `auditLog` entry (≤400
+ * total per batch), in the same shape `reconcileMovement.js` writes. `retire`
+ * and `unresolved` entries in the report are NEVER written by this script —
  * retiring a superseded cost-center doc stays a deliberate action in
  * Configuración → Centros de costo, and an unresolved value is never guessed.
  *
@@ -57,14 +63,15 @@ const FIREBASE_PROJECT_ID = 'umtelkomd-finance';
 const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
   || path.join(os.homedir(), '.credentials', 'umtelkomd-firebase.json');
 
+// Firestore hard-caps a batch at 500 writes; this script stays well under it
+// AND reserves one slot for the batch's own `auditLog` entry, so a batch of
+// N document writes + 1 audit write never exceeds BATCH_SIZE in total.
 const BATCH_SIZE = 400;
+const MAX_DOCS_PER_BATCH = BATCH_SIZE - 1;
 const BACKUP_DIR = path.join(REPO_ROOT, 'backups');
 const MAX_BACKUP_AGE_MS = 24 * 60 * 60 * 1000;
 const BOT_EMAIL = 'migrate-classification-catalog@umtelkomd.com';
 const BOT_NAME = 'migrate-classification-catalog';
-
-const ONLY_VALUES = ['cost-centers', 'projects'];
-const CONFIDENCE_VALUES = ['high', 'medium', 'low'];
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
@@ -73,26 +80,6 @@ const fail = (message) => {
   console.error(`❌ ${message}`);
   process.exit(1);
 };
-const flagValue = (name) => argv.find((entry) => entry.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
-
-const APPLY = argv.includes('--apply');
-const CONFIRM = flagValue('confirm') || '';
-const ONLY = flagValue('only') || '';
-const MIN_CONFIDENCE = flagValue('min-confidence') || 'high';
-
-if (ONLY && !ONLY_VALUES.includes(ONLY)) fail(`--only debe ser uno de: ${ONLY_VALUES.join(', ')}`);
-if (!CONFIDENCE_VALUES.includes(MIN_CONFIDENCE)) fail(`--min-confidence debe ser uno de: ${CONFIDENCE_VALUES.join(', ')}`);
-
-const KNOWN_FLAGS = new Set(['--apply']);
-const unknown = argv.filter((entry) => {
-  if (KNOWN_FLAGS.has(entry)) return false;
-  if (/^--(confirm|only|min-confidence)=/.test(entry)) return false;
-  return true;
-});
-if (unknown.length > 0) fail(`Argumento no reconocido: ${unknown.join(', ')}`);
-
-const includesCostCenters = ONLY !== 'projects';
-const includesProjects = ONLY !== 'cost-centers';
 
 // ── Formatting helpers (operator-facing output is Spanish) ──────────────────
 
@@ -161,6 +148,21 @@ const findFreshBackup = () => {
 // ── Main ────────────────────────────────────────────────────────────────────
 
 (async () => {
+  const { parseMigrationArgs, planCostCenterMigration, planProjectCodeMigration, planProjectNameRefresh, buildWritePlan } =
+    await loadEsm('src/finance/classificationMigration.js');
+  const chunkedCommit = await loadEsm('src/utils/chunkedCommit.js');
+
+  // Fails CLOSED on a misspelled or empty flag (see parseMigrationArgs) rather
+  // than silently degrading a restricted dry-run into a full one.
+  const parsed = parseMigrationArgs(argv);
+  if (!parsed.ok) fail(parsed.error);
+  const APPLY = parsed.apply;
+  const CONFIRM = parsed.confirm;
+  const ONLY = parsed.only;
+  const MIN_CONFIDENCE = parsed.minConfidence;
+  const includesCostCenters = ONLY !== 'projects';
+  const includesProjects = ONLY !== 'cost-centers';
+
   if (APPLY && CONFIRM !== FIREBASE_PROJECT_ID) {
     fail(`--apply requiere --confirm=${FIREBASE_PROJECT_ID}`);
   }
@@ -174,10 +176,6 @@ const findFreshBackup = () => {
       );
     }
   }
-
-  const { planCostCenterMigration, planProjectCodeMigration, planProjectNameRefresh } =
-    await loadEsm('src/finance/classificationMigration.js');
-  const chunkedCommit = await loadEsm('src/utils/chunkedCommit.js');
 
   if (!fs.existsSync(KEY_PATH)) fail(`No se encontró la clave de servicio: ${KEY_PATH}`);
   if (!admin.apps.length) {
@@ -305,51 +303,18 @@ const findFreshBackup = () => {
     );
   }
 
-  // ── Write plan summary ───────────────────────────────────────────────────
-  const writes = [];
-  if (includesCostCenters) {
-    costCenterPlan.catalogUpserts.forEach((upsert) => writes.push({
-      label: `costCenters/${upsert.code}`,
-      apply: (batch) => batch.set(col('costCenters').doc(upsert.code), {
-        ...upsert.data,
-        type: 'Costos',
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: BOT_NAME,
-      }, { merge: true }),
-    }));
-    costCenterPlan.remaps.forEach((remap) => writes.push({
-      label: `${remap.collection}/${remap.id}`,
-      apply: (batch) => batch.update(col(remap.collection).doc(remap.id), {
-        [remap.collection === 'classificationRules' ? 'applyTo.costCenterId' : 'costCenterId']: remap.to,
-        'migration.classificationCatalogV2.previous': { costCenterId: remap.from },
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: BOT_EMAIL,
-      }),
-    }));
-  }
-  if (includesProjects) {
-    projectPlan.renames.forEach((rename) => writes.push({
-      label: `projects/${rename.id}`,
-      apply: (batch) => batch.update(col('projects').doc(rename.id), {
-        ...rename.fields,
-        'migration.classificationCatalogV2.previous': { code: rename.from },
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: BOT_EMAIL,
-      }),
-    }));
-    nameRefreshPlan.updates.forEach((update) => writes.push({
-      label: `${update.collection}/${update.id}`,
-      apply: (batch) => batch.update(col(update.collection).doc(update.id), {
-        [update.field]: update.to,
-        'migration.classificationCatalogV2.previous': { [update.field]: update.from },
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: BOT_EMAIL,
-      }),
-    }));
-  }
+  // ── Write plan — merged into exactly one write per document by the PURE
+  // planner (buildWritePlan); this script only executes it, never decides it.
+  // ─────────────────────────────────────────────────────────────────────────
+  const writePlan = buildWritePlan({
+    costCenterPlan,
+    projectPlan,
+    nameRefreshPlan,
+    existingDocsByCollection: { costCenters, projects, ...documentsByCollection },
+  });
 
   banner('PLAN DE ESCRITURA');
-  console.log(`  ${padEnd('TOTAL', 24)} ${padStart(writes.length, 6)} escrituras (lotes de ${BATCH_SIZE})`);
+  console.log(`  ${padEnd('TOTAL', 24)} ${padStart(writePlan.length, 6)} escrituras (lotes de ${MAX_DOCS_PER_BATCH} + 1 auditLog = ${BATCH_SIZE})`);
 
   // ── Save report (dry-run and apply both write one, before any write) ────
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -363,19 +328,35 @@ const findFreshBackup = () => {
     costCenterPlan,
     projectPlan,
     nameRefreshPlan,
+    writePlan,
   }, null, 2));
   console.log(`\nInforme escrito: ${reportPath}`);
 
-  // ── Apply ─────────────────────────────────────────────────────────────────
+  // ── Apply — a dumb executor of `writePlan`: no merging or previous-key
+  // decisions happen here, only the Firestore-specific bookkeeping
+  // (`updatedAt`/`updatedBy`) the pure planner cannot express. ─────────────
+  const applyWriteEntry = (batch, entry) => {
+    const ref = col(entry.collection).doc(entry.id);
+    if (entry.kind === 'set') {
+      batch.set(
+        ref,
+        { ...entry.data, type: 'Costos', updatedAt: FieldValue.serverTimestamp(), updatedBy: BOT_NAME },
+        { merge: entry.merge !== false },
+      );
+    } else {
+      batch.update(ref, { ...entry.data, updatedAt: FieldValue.serverTimestamp(), updatedBy: BOT_EMAIL });
+    }
+  };
+
   let outcome = null;
-  if (APPLY && writes.length > 0) {
-    console.log(`\nEscribiendo ${writes.length} documentos en lotes de ${BATCH_SIZE}…`);
-    const groups = chunk(writes, BATCH_SIZE);
+  if (APPLY && writePlan.length > 0) {
+    console.log(`\nEscribiendo ${writePlan.length} documentos en lotes de ${MAX_DOCS_PER_BATCH}…`);
+    const groups = chunk(writePlan, MAX_DOCS_PER_BATCH);
     outcome = await chunkedCommit.commitInChunks(
       groups,
       async (group, index) => {
         const batch = db.batch();
-        for (const write of group) write.apply(batch);
+        for (const entry of group) applyWriteEntry(batch, entry);
         const auditRef = col('auditLog').doc();
         batch.set(auditRef, {
           action: 'classification-catalog-migration',
@@ -391,7 +372,7 @@ const findFreshBackup = () => {
         await batch.commit();
       },
       ({ ok, size, applied, failed, error }) => {
-        if (ok) console.log(`  Lote confirmado: ${applied}/${writes.length}`);
+        if (ok) console.log(`  Lote confirmado: ${applied}/${writePlan.length}`);
         else console.error(`  ❌ Lote fallido (${size} documentos, ${failed} fallidos en total): ${error?.message || error}`);
       },
     );
@@ -404,10 +385,10 @@ const findFreshBackup = () => {
     console.log('🟢 DRY RUN — no se escribió nada.');
     console.log(`   Revisa especialmente "sin resolver" y "colisiones" antes de aplicar.`);
     console.log(`   Para aplicar: node scripts/migrate-classification-catalog.cjs --apply --confirm=${FIREBASE_PROJECT_ID}`);
-  } else if (writes.length === 0) {
+  } else if (writePlan.length === 0) {
     console.log('✅ Nada que escribir: el catálogo v2 ya está aplicado.');
   } else if (outcome.failed > 0) {
-    console.log(`⚠️  APLICADO PARCIALMENTE — ${outcome.applied} de ${writes.length} documentos, ${outcome.failed} sin escribir.`);
+    console.log(`⚠️  APLICADO PARCIALMENTE — ${outcome.applied} de ${writePlan.length} documentos, ${outcome.failed} sin escribir.`);
     console.log('   Volver a ejecutar es SEGURO: un valor ya migrado no produce remap, así que solo se reintenta lo que falta.');
   } else {
     console.log(`✅ APLICADO — ${outcome.applied} documentos actualizados.`);

@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { COST_CENTER_CATALOG } from './costCenterCatalog.js';
 import {
+  buildWritePlan,
+  parseMigrationArgs,
   planCostCenterMigration,
   planProjectCodeMigration,
   planProjectNameRefresh,
@@ -272,5 +274,224 @@ describe('planProjectNameRefresh', () => {
       documentsByCollection: { budgets: [doc('budget-1', { projectId: 'proj-1' })] },
     });
     expect(plan.updates).toEqual([]);
+  });
+});
+
+describe('buildWritePlan — merging every planner into one write per document', () => {
+  it('BLOCKER regression: a document needing both a cost-center remap and a projectName refresh gets ONE write with both previous values', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { remaps: [{ collection: 'payables', id: 'pay-1', from: 'CC-002', to: 'CC-120' }] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [{ collection: 'payables', id: 'pay-1', field: 'projectName', from: 'QFF', to: 'Roßdorf' }] },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'payables',
+      id: 'pay-1',
+      data: {
+        costCenterId: 'CC-120',
+        'migration.classificationCatalogV2.previous.costCenterId': 'CC-002',
+        projectName: 'Roßdorf',
+        'migration.classificationCatalogV2.previous.projectName': 'QFF',
+      },
+      label: 'payables/pay-1',
+    }]);
+  });
+
+  it('is idempotent: a second run over fully migrated data plans zero writes', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { catalogUpserts: [], remaps: [] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      existingDocsByCollection: {},
+    });
+    expect(plan).toEqual([]);
+  });
+
+  it('re-run safety: a previous key already recorded on the live doc is never overwritten, even when this run recomputes the same field', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { remaps: [{ collection: 'payables', id: 'pay-1', from: 'CC-XYZ', to: 'CC-100' }] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [{ collection: 'payables', id: 'pay-1', field: 'projectName', from: 'QFF', to: 'Roßdorf' }] },
+      existingDocsByCollection: {
+        payables: [{ id: 'pay-1', migration: { classificationCatalogV2: { previous: { costCenterId: 'CC-002' } } } }],
+      },
+    });
+
+    // costCenterId is still updated to its newly resolved value, but the
+    // already-recorded previous.costCenterId ('CC-002', the TRUE first-ever
+    // original) is preserved — never clobbered with this run's 'CC-XYZ'.
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'payables',
+      id: 'pay-1',
+      data: {
+        costCenterId: 'CC-100',
+        projectName: 'Roßdorf',
+        'migration.classificationCatalogV2.previous.projectName': 'QFF',
+      },
+      label: 'payables/pay-1',
+    }]);
+  });
+
+  it('classificationRules nested paths: applyTo.costCenterId and applyTo.projectName roll back independently on the same rule', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { remaps: [{ collection: 'classificationRules', id: 'rule-1', from: 'CC-005', to: 'CC-110' }] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: {
+        updates: [{ collection: 'classificationRules', id: 'rule-1', field: 'applyTo.projectName', from: 'QFF', to: 'Roßdorf' }],
+      },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'classificationRules',
+      id: 'rule-1',
+      data: {
+        'applyTo.costCenterId': 'CC-110',
+        'migration.classificationCatalogV2.previous.applyTo.costCenterId': 'CC-005',
+        'applyTo.projectName': 'Roßdorf',
+        'migration.classificationCatalogV2.previous.applyTo.projectName': 'QFF',
+      },
+      label: 'classificationRules/rule-1',
+    }]);
+  });
+
+  it('re-run safety also resolves a NESTED existing previous path (applyTo.costCenterId), not just a top-level one', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { remaps: [{ collection: 'classificationRules', id: 'rule-1', from: 'CC-999', to: 'CC-110' }] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      existingDocsByCollection: {
+        classificationRules: [{
+          id: 'rule-1',
+          migration: { classificationCatalogV2: { previous: { applyTo: { costCenterId: 'CC-005' } } } },
+        }],
+      },
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'classificationRules',
+      id: 'rule-1',
+      data: { 'applyTo.costCenterId': 'CC-110' }, // no previous write: CC-005 already recorded as the true original
+      label: 'classificationRules/rule-1',
+    }]);
+  });
+
+  it('a catalogue upsert becomes a merge-set write, independent of any document remap', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { catalogUpserts: [{ code: 'CC-100', data: { code: 'CC-100', name: 'Obra civil (Tiefbau)', kind: 'direct', line: 'TB' } }], remaps: [] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual([{
+      kind: 'set',
+      collection: 'costCenters',
+      id: 'CC-100',
+      data: { code: 'CC-100', name: 'Obra civil (Tiefbau)', kind: 'direct', line: 'TB' },
+      merge: true,
+      label: 'costCenters/CC-100',
+    }]);
+  });
+
+  it('a project rename rolls back through previous.code', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { remaps: [] },
+      projectPlan: {
+        renames: [{
+          id: 'proj-1',
+          from: 'QFF',
+          to: 'INS-RSD-BL1',
+          confidence: 'high',
+          name: 'Roßdorf',
+          fields: { code: 'INS-RSD-BL1', codeClient: 'INS', site: 'RSD', line: 'BL', lot: 1, displayName: 'INS-RSD-BL1 (Roßdorf)', legacyCode: 'QFF' },
+        }],
+      },
+      nameRefreshPlan: { updates: [] },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'projects',
+      id: 'proj-1',
+      data: {
+        code: 'INS-RSD-BL1',
+        codeClient: 'INS',
+        site: 'RSD',
+        line: 'BL',
+        lot: 1,
+        displayName: 'INS-RSD-BL1 (Roßdorf)',
+        legacyCode: 'QFF',
+        'migration.classificationCatalogV2.previous.code': 'QFF',
+      },
+      label: 'projects/proj-1',
+    }]);
+  });
+});
+
+describe('parseMigrationArgs', () => {
+  it('accepts no flags: dry-run, no scope restriction, default confidence', () => {
+    expect(parseMigrationArgs([])).toEqual({ ok: true, apply: false, confirm: '', only: '', minConfidence: 'high' });
+  });
+
+  it('accepts a valid --apply + --confirm combination', () => {
+    expect(parseMigrationArgs(['--apply', '--confirm=umtelkomd-finance'])).toEqual({
+      ok: true, apply: true, confirm: 'umtelkomd-finance', only: '', minConfidence: 'high',
+    });
+  });
+
+  it('accepts valid --only and --min-confidence combinations', () => {
+    expect(parseMigrationArgs(['--only=cost-centers', '--min-confidence=medium'])).toEqual({
+      ok: true, apply: false, confirm: '', only: 'cost-centers', minConfidence: 'medium',
+    });
+  });
+
+  it('rejects a misspelled flag instead of silently ignoring it', () => {
+    const result = parseMigrationArgs(['--aply']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--aply/);
+  });
+
+  it('rejects --apply=true: --apply is a bare flag, not a key=value one', () => {
+    const result = parseMigrationArgs(['--apply=true']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--apply=true/);
+  });
+
+  it('rejects the space form "--confirm x" instead of silently treating confirm as empty', () => {
+    const result = parseMigrationArgs(['--confirm', 'x']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--confirm/);
+  });
+
+  it('BLOCKER-adjacent (d): --only= with an empty value fails closed instead of degrading to a full run', () => {
+    const result = parseMigrationArgs(['--only=']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--only/);
+  });
+
+  it('rejects --only=bogus (not in the closed value set)', () => {
+    const result = parseMigrationArgs(['--only=bogus']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--only/);
+  });
+
+  it('(d): --min-confidence= with an empty value fails closed instead of silently defaulting to high', () => {
+    const result = parseMigrationArgs(['--min-confidence=']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--min-confidence/);
+  });
+
+  it('rejects --min-confidence=bogus (not in the closed value set)', () => {
+    const result = parseMigrationArgs(['--min-confidence=bogus']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--min-confidence/);
   });
 });

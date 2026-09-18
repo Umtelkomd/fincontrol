@@ -12,6 +12,17 @@
  * unit tests before it is ever pointed at production data. A legacy value
  * this module cannot resolve is always reported, never guessed.
  *
+ * `buildWritePlan` is the last step: it merges the three plans above into
+ * exactly ONE Firestore write per `collection/id`, because a document can
+ * legitimately need changes from more than one of them (e.g. a payable
+ * needing both a cost-center remap and a projectName refresh) — two
+ * independent `batch.update()` calls for the same doc would each set the
+ * whole `migration.classificationCatalogV2.previous` field, the second
+ * silently destroying the first's rollback data. `parseMigrationArgs` is the
+ * script's argv parser, extracted so its fail-closed behaviour (an empty or
+ * unknown flag value is a hard error, never a silent default) is unit-tested
+ * without ever running the script itself.
+ *
  * Pure: no React, no Firebase, no Date.now() — no I/O of any kind.
  */
 
@@ -311,4 +322,174 @@ export const planProjectNameRefresh = ({ renames, documentsByCollection } = {}) 
   }
 
   return { updates, summary: { updates: updates.length } };
+};
+
+// ── Merged write plan ───────────────────────────────────────────────────────
+
+/** Resolves a dotted path (e.g. `'applyTo.costCenterId'`) against a plain
+ * object, the same NESTED shape Firestore hands back after a dotted-path
+ * `update()` (`batch.update(ref, {'a.b': 1})` reads back as `{ a: { b: 1 } }`
+ * — Firestore never stores a literal `'a.b'` map key). Returns `undefined`
+ * for any missing segment. */
+const getAtPath = (object, dottedPath) =>
+  dottedPath.split('.').reduce((value, key) => (value && typeof value === 'object' ? value[key] : undefined), object);
+
+/**
+ * buildWritePlan — the single place migration writes are assembled, so a
+ * document touched by more than one planner above (typically a cost-center
+ * remap together with a projectName refresh) gets exactly ONE write instead
+ * of two independent `batch.update()` calls that would each set the whole
+ * `migration.classificationCatalogV2.previous` object, the second silently
+ * destroying the first's rollback data.
+ *
+ * `previous` key naming: each rolled-back field keeps ITS OWN name —
+ * `costCenterId` / `applyTo.costCenterId` for a cost-center remap,
+ * `projectName` / `applyTo.projectName` for a denormalised name refresh,
+ * `code` for a project rename — and is written through its OWN dotted
+ * Firestore path, `migration.classificationCatalogV2.previous.<field>`.
+ * Because Firestore treats every dot in an `update()` key as a nested path
+ * segment, each leaf write only ever touches that one leaf: two different
+ * `<field>`s on the same document (e.g. `costCenterId` and `projectName`,
+ * or the nested `applyTo.costCenterId` and `applyTo.projectName`) can never
+ * clobber each other, however many of them land in the same `data` object.
+ *
+ * Re-run safety: when `existingDocsByCollection` shows the live document
+ * already carries a `previous` value for a field this run would also set,
+ * that `previous` key is NOT written again — the first-ever original always
+ * wins. The field's live value is still updated to the newly resolved
+ * target; only the (redundant, and potentially wrong) `previous` write is
+ * skipped.
+ *
+ * @param {{
+ *   costCenterPlan?: { catalogUpserts?: Array<{code, data}>, remaps?: Array<{collection,id,from,to}> },
+ *   projectPlan?: { renames?: Array<{id,from,to,fields}> },
+ *   nameRefreshPlan?: { updates?: Array<{collection,id,field,from,to}> },
+ *   existingDocsByCollection?: Record<string, Array<{id:string, migration?:object}>>,
+ * }} params
+ * @returns {Array<{ kind:'set'|'update', collection:string, id:string,
+ *   data:object, merge?:boolean, label:string }>}
+ */
+export const buildWritePlan = ({ costCenterPlan, projectPlan, nameRefreshPlan, existingDocsByCollection } = {}) => {
+  const docsByCollection = existingDocsByCollection || {};
+
+  const existingPreviousOf = (collection, id) => {
+    const docs = docsByCollection[collection];
+    const found = Array.isArray(docs) ? docs.find((entry) => entry.id === id) : null;
+    return found?.migration?.classificationCatalogV2?.previous || {};
+  };
+
+  const entries = new Map(); // `${collection}/${id}` → one working entry, in first-seen order
+  const entryFor = (kind, collection, id) => {
+    const key = `${collection}/${id}`;
+    let entry = entries.get(key);
+    if (!entry) {
+      entry = { kind, collection, id, data: {}, existingPrevious: existingPreviousOf(collection, id) };
+      entries.set(key, entry);
+    }
+    return entry;
+  };
+
+  /** Records `fromValue` under its own dotted previous path — unless the
+   * live document already has one for `field`, in which case that recorded
+   * original is left untouched (re-run safety, see doc comment above). */
+  const setPrevious = (entry, field, fromValue) => {
+    if (getAtPath(entry.existingPrevious, field) !== undefined) return;
+    entry.data[`migration.classificationCatalogV2.previous.${field}`] = fromValue;
+  };
+
+  for (const upsert of costCenterPlan?.catalogUpserts || []) {
+    const entry = entryFor('set', 'costCenters', upsert.code);
+    entry.merge = true;
+    Object.assign(entry.data, upsert.data);
+  }
+
+  for (const remap of costCenterPlan?.remaps || []) {
+    const entry = entryFor('update', remap.collection, remap.id);
+    const field = remap.collection === 'classificationRules' ? 'applyTo.costCenterId' : 'costCenterId';
+    entry.data[field] = remap.to;
+    setPrevious(entry, field, remap.from);
+  }
+
+  for (const rename of projectPlan?.renames || []) {
+    const entry = entryFor('update', 'projects', rename.id);
+    Object.assign(entry.data, rename.fields);
+    setPrevious(entry, 'code', rename.from);
+  }
+
+  for (const update of nameRefreshPlan?.updates || []) {
+    const entry = entryFor('update', update.collection, update.id);
+    entry.data[update.field] = update.to;
+    setPrevious(entry, update.field, update.from);
+  }
+
+  return Array.from(entries.values()).map((entry) => ({
+    kind: entry.kind,
+    collection: entry.collection,
+    id: entry.id,
+    data: entry.data,
+    ...(entry.merge ? { merge: true } : {}),
+    label: `${entry.collection}/${entry.id}`,
+  }));
+};
+
+// ── Script argv parsing ─────────────────────────────────────────────────────
+
+const MIGRATION_ONLY_VALUES = ['cost-centers', 'projects'];
+const MIGRATION_CONFIDENCE_VALUES = ['high', 'medium', 'low'];
+
+/** The raw string after `--<name>=`, or `undefined` when the flag is absent
+ * entirely — kept distinct from an EMPTY value (`--<name>=`), which is the
+ * bug this parser fixes: the script used to fold "absent" and "present but
+ * empty" into the same fallback, silently widening a dry-run's scope. */
+const rawFlagValue = (argv, name) => {
+  const prefix = `--${name}=`;
+  const entry = argv.find((item) => item.startsWith(prefix));
+  return entry === undefined ? undefined : entry.slice(prefix.length);
+};
+
+/**
+ * parseMigrationArgs — pure argv parser for
+ * `scripts/migrate-classification-catalog.cjs`. Fails CLOSED: a misspelled
+ * flag, `--apply=<value>` (it is a bare flag), the space-separated
+ * `--confirm x` form, or an empty/unrecognised `--only=`/`--min-confidence=`
+ * value are all hard errors — never silently ignored or defaulted, which
+ * would let an operator's mistyped guard run wider than intended.
+ *
+ * @param {string[]} argv - `process.argv.slice(2)`
+ * @returns {{ ok:true, apply:boolean, confirm:string, only:string, minConfidence:string }
+ *   | { ok:false, error:string }}
+ */
+export const parseMigrationArgs = (argv) => {
+  const list = Array.isArray(argv) ? argv : [];
+
+  const only = rawFlagValue(list, 'only');
+  if (only === '') {
+    return { ok: false, error: `--only no puede estar vacío. Usa uno de: ${MIGRATION_ONLY_VALUES.join(', ')}` };
+  }
+  if (only !== undefined && !MIGRATION_ONLY_VALUES.includes(only)) {
+    return { ok: false, error: `--only debe ser uno de: ${MIGRATION_ONLY_VALUES.join(', ')}` };
+  }
+
+  const minConfidence = rawFlagValue(list, 'min-confidence');
+  if (minConfidence === '') {
+    return { ok: false, error: `--min-confidence no puede estar vacío. Usa uno de: ${MIGRATION_CONFIDENCE_VALUES.join(', ')}` };
+  }
+  if (minConfidence !== undefined && !MIGRATION_CONFIDENCE_VALUES.includes(minConfidence)) {
+    return { ok: false, error: `--min-confidence debe ser uno de: ${MIGRATION_CONFIDENCE_VALUES.join(', ')}` };
+  }
+
+  const knownExact = new Set(['--apply']);
+  const knownPrefixed = /^--(confirm|only|min-confidence)=/;
+  const unknown = list.filter((entry) => !knownExact.has(entry) && !knownPrefixed.test(entry));
+  if (unknown.length > 0) {
+    return { ok: false, error: `Argumento no reconocido: ${unknown.join(', ')}` };
+  }
+
+  return {
+    ok: true,
+    apply: list.includes('--apply'),
+    confirm: rawFlagValue(list, 'confirm') || '',
+    only: only || '',
+    minConfidence: minConfidence || 'high',
+  };
 };
