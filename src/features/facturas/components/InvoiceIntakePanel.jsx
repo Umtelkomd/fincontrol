@@ -22,16 +22,18 @@ import {
   suggestInvoiceClassification,
   validateInvoiceClassification,
 } from '../../../finance/invoiceClassification';
-import { costCenterOptions, scopeOfCostCenter } from '../../../finance/costCenterCatalog';
 import { defaultCostCenterFor } from '../../../finance/classificationDefaults';
-import { CATEGORY_TYPE, categoryOptions } from '../../../finance/taxonomy';
-import { formatCurrency } from '../../../utils/formatters';
+import { CATEGORY_TYPE } from '../../../finance/taxonomy';
 import { db, appId } from '../../../services/firebase';
 import { MAX_INVOICE_BYTES } from '../../../finance/invoiceChunks';
 import { createInitialIntakeState, intakeReducer } from '../lib/intakeState';
 import { archiveInvoice, buildConfirmedHeader, obligationToLinkRow } from '../lib/intake';
 import { ARCHIVE_ERROR_MESSAGES, InvoiceArchiveError, uploadInvoicePdf } from '../lib/invoiceArchiveStore';
 import { translateValidationMessage } from '../lib/validationMessages';
+import ClassificationFields from './ClassificationFields';
+import FieldLabel from './FieldLabel';
+import InvoiceHeaderFields from './InvoiceHeaderFields';
+import { formatCurrency } from '../../../utils/formatters';
 
 const DIRECTION_OPTIONS = [
   { value: 'incoming', label: 'Proveedor (CXP)' },
@@ -45,26 +47,6 @@ const SOURCE_OPTIONS = [
 
 const familyOf = (direction) => (direction === 'incoming' ? 'payable' : 'receivable');
 
-const CONFIDENCE_BADGE = { high: 'nx-badge-ok', medium: 'nx-badge-info', low: 'nx-badge-warn', none: 'nx-badge-neutral' };
-const CONFIDENCE_LABEL = { high: 'Confianza alta', medium: 'Confianza media', low: 'Confianza baja', none: 'Sin evidencia' };
-const SCOPE_LABEL = { project: 'Obra', overhead: 'Estructura' };
-
-/** `{ name, groupLabel }[]` for `type`, grouped in taxonomy order — one array of `{label, options}` groups. */
-const categoryGroupsFor = (type) => {
-  const groups = [];
-  categoryOptions()
-    .filter((option) => option.type === type)
-    .forEach((option) => {
-      let group = groups.find((g) => g.label === option.groupLabel);
-      if (!group) {
-        group = { label: option.groupLabel, options: [] };
-        groups.push(group);
-      }
-      group.options.push(option);
-    });
-  return groups;
-};
-
 const toNumber = (value) => {
   if (typeof value === 'number') return value;
   if (typeof value === 'string' && value.trim() !== '') {
@@ -73,13 +55,6 @@ const toNumber = (value) => {
   }
   return 0;
 };
-
-const Labelled = ({ label, htmlFor, children }) => (
-  <label htmlFor={htmlFor} className="block text-sm">
-    <span className="label-mono mb-1 block text-[var(--color-fg-4)]">{label}</span>
-    {children}
-  </label>
-);
 
 const InvoiceIntakePanel = ({
   user,
@@ -119,11 +94,6 @@ const InvoiceIntakePanel = ({
 
   const activeProjects = projects.filter((project) => (project.status || 'active') === 'active');
   const categoryType = family === 'payable' ? CATEGORY_TYPE.EXPENSE : CATEGORY_TYPE.INCOME;
-  const categoryGroups = categoryGroupsFor(categoryType);
-  const directCenters = costCenterOptions().filter((option) => option.kind === 'direct');
-  const indirectCenters = costCenterOptions().filter((option) => option.kind !== 'direct');
-  const reasonFor = (field) => state.suggestion?.reasons?.find((reason) => reason.field === field)?.detail;
-  const resolvedScope = scopeOfCostCenter(state.classification.costCenterId) || '';
 
   const handleFieldChange = (field) => (event) =>
     dispatch({ type: 'FIELD_CHANGED', field, value: event.target.value });
@@ -330,7 +300,7 @@ const InvoiceIntakePanel = ({
             </div>
           </fieldset>
 
-          <Labelled label="Origen" htmlFor="facturas-source">
+          <FieldLabel label="Origen" htmlFor="facturas-source">
             <select
               id="facturas-source"
               className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
@@ -343,9 +313,9 @@ const InvoiceIntakePanel = ({
                 </option>
               ))}
             </select>
-          </Labelled>
+          </FieldLabel>
 
-          <Labelled label="PDF de la factura" htmlFor="facturas-file">
+          <FieldLabel label="PDF de la factura" htmlFor="facturas-file">
             <input
               id="facturas-file"
               type="file"
@@ -353,7 +323,7 @@ const InvoiceIntakePanel = ({
               onChange={handleFile}
               className="block w-full text-sm text-[var(--color-fg-3)] file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-[var(--color-line)] file:bg-[var(--color-bg-2)] file:px-3 file:py-2 file:font-mono file:text-[11px] file:uppercase file:tracking-[0.1em] file:text-[var(--color-fg-1)] file:transition-colors hover:file:bg-[var(--color-bg-3)]"
             />
-          </Labelled>
+          </FieldLabel>
           <p className="label-mono -mt-2 text-[var(--color-fg-4)]">Máximo 2 MB por PDF</p>
 
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -386,183 +356,19 @@ const InvoiceIntakePanel = ({
 
       {(state.step === 'confirm' || state.step === 'saving') && (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Labelled label="Contraparte" htmlFor="facturas-counterparty">
-              <input
-                id="facturas-counterparty"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.counterpartyName}
-                onChange={handleFieldChange('counterpartyName')}
-              />
-            </Labelled>
-            <Labelled label="Nº de factura" htmlFor="facturas-invoice-number">
-              <input
-                id="facturas-invoice-number"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.invoiceNumber}
-                onChange={handleFieldChange('invoiceNumber')}
-              />
-            </Labelled>
-            <Labelled label="Fecha" htmlFor="facturas-issue-date">
-              <input
-                id="facturas-issue-date"
-                type="date"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.issueDate}
-                onChange={handleFieldChange('issueDate')}
-              />
-            </Labelled>
-            <Labelled label="Neto" htmlFor="facturas-net">
-              <input
-                id="facturas-net"
-                type="number"
-                step="0.01"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.netAmount}
-                onChange={handleFieldChange('netAmount')}
-              />
-            </Labelled>
-            <Labelled label="IVA" htmlFor="facturas-tax">
-              <input
-                id="facturas-tax"
-                type="number"
-                step="0.01"
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.taxAmount}
-                onChange={handleFieldChange('taxAmount')}
-              />
-            </Labelled>
-            <Labelled label="Bruto" htmlFor="facturas-gross">
-              <input
-                id="facturas-gross"
-                type="number"
-                step="0.01"
-                required
-                className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                value={state.form.grossAmount}
-                onChange={handleFieldChange('grossAmount')}
-              />
-            </Labelled>
-          </div>
+          <InvoiceHeaderFields idPrefix="facturas" form={state.form} onFieldChange={handleFieldChange} mismatch={mismatch} />
 
-          {mismatch && (
-            <p className="text-sm text-[var(--color-warn)]">Neto + IVA no cuadra con el bruto</p>
-          )}
-
-          <fieldset className="space-y-3 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-3">
-            <legend className="label-mono px-1 text-[var(--color-fg-4)]">Clasificación</legend>
-
-            {state.suggestion && (
-              <p className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-3)]">
-                <span className={`nx-badge ${CONFIDENCE_BADGE[state.suggestion.confidence] || CONFIDENCE_BADGE.none}`}>
-                  {CONFIDENCE_LABEL[state.suggestion.confidence] || CONFIDENCE_LABEL.none}
-                </span>
-                Sugerencia automática — revisa y confirma antes de archivar
-              </p>
-            )}
-
-            {/*
-              The reason/error <p> lines are deliberately OUTSIDE <Labelled> —
-              Labelled nests its children inside <label>, and testing-library's
-              (and screen readers') accessible-name computation for a <label>
-              strips a nested form control's own text but NOT a nested <p>, so
-              keeping them inside would silently fold "Categoría" into
-              "CategoríaRegla de clasificación… asigna esta categoría" as the
-              field's accessible name.
-            */}
-            <div>
-              <Labelled label="Categoría" htmlFor="facturas-category">
-                <select
-                  id="facturas-category"
-                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                  value={state.classification.categoryName}
-                  onChange={handleClassificationFieldChange('categoryName')}
-                >
-                  <option value="">Selecciona una categoría…</option>
-                  {categoryGroups.map((group) => (
-                    <optgroup key={group.label} label={group.label}>
-                      {group.options.map((option) => (
-                        <option key={option.name} value={option.name}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </Labelled>
-              {reasonFor('categoryName') && (
-                <p className="mt-1 text-xs text-[var(--color-fg-4)]">{reasonFor('categoryName')}</p>
-              )}
-              {classificationErrors.categoryName && (
-                <p className="mt-1 text-xs text-[var(--color-err)]">{classificationErrors.categoryName}</p>
-              )}
-            </div>
-
-            <div>
-              <Labelled label="Proyecto" htmlFor="facturas-project">
-                <select
-                  id="facturas-project"
-                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                  value={state.classification.projectId}
-                  onChange={handleProjectChange}
-                >
-                  <option value="">Sin proyecto (estructura)</option>
-                  {activeProjects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.displayName || project.name || project.code}
-                    </option>
-                  ))}
-                </select>
-              </Labelled>
-              {reasonFor('projectId') && (
-                <p className="mt-1 text-xs text-[var(--color-fg-4)]">{reasonFor('projectId')}</p>
-              )}
-              {classificationErrors.projectId && (
-                <p className="mt-1 text-xs text-[var(--color-err)]">{classificationErrors.projectId}</p>
-              )}
-            </div>
-
-            <div>
-              <Labelled label="Centro de costo" htmlFor="facturas-cost-center">
-                <select
-                  id="facturas-cost-center"
-                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                  value={state.classification.costCenterId}
-                  onChange={handleClassificationFieldChange('costCenterId')}
-                >
-                  <option value="">Sin centro de costo</option>
-                  <optgroup label="Directo (obra)">
-                    {directCenters.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Indirecto / estructura">
-                    {indirectCenters.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </Labelled>
-              {reasonFor('costCenterId') && (
-                <p className="mt-1 text-xs text-[var(--color-fg-4)]">{reasonFor('costCenterId')}</p>
-              )}
-              {classificationErrors.costCenterId && (
-                <p className="mt-1 text-xs text-[var(--color-err)]">{classificationErrors.costCenterId}</p>
-              )}
-            </div>
-
-            <p className="label-mono text-[var(--color-fg-4)]">
-              Destino: <span className="text-[var(--color-fg-1)]">{SCOPE_LABEL[resolvedScope] || 'Sin determinar'}</span>
-            </p>
-          </fieldset>
+          <ClassificationFields
+            idPrefix="facturas"
+            categoryType={categoryType}
+            projects={activeProjects}
+            classification={state.classification}
+            suggestion={state.suggestion}
+            errors={classificationErrors}
+            onCategoryChange={handleClassificationFieldChange('categoryName')}
+            onProjectChange={handleProjectChange}
+            onCostCenterChange={handleClassificationFieldChange('costCenterId')}
+          />
 
           {state.evidenceLines.length > 0 && (
             <details className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] p-3">

@@ -17,6 +17,7 @@ const ConfirmModal = ({
  warning = '',
  reasonLabel = '',
  reasonPlaceholder = '',
+ children,
 }) => {
  const [confirmationValue, setConfirmationValue] = useState('');
  const [reasonValue, setReasonValue] = useState('');
@@ -92,6 +93,8 @@ const ConfirmModal = ({
  {warning}
  </p>
  )}
+
+ {children && <div className="mt-4">{children}</div>}
 
  {requiresReason && (
  <label className="mt-4 block">
