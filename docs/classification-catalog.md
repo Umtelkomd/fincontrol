@@ -67,7 +67,39 @@ from the project's line instead):
 | "Financiero" | CC-900 |
 | "Nómina y Seguridad Social" | CC-NOM |
 | "Sin asignar" | '' (empty) |
-| CC-006…CC-009, "Contratistas", "OPE" | **UNRESOLVED** — meaning not in the repo; the migration resolves what it can by the live doc NAME and reports the rest |
+| OPE, CC-OPE | CC-110 |
+| ADM, CC-ADM | CC-300 |
+| LOG, CC-LOG, VEN, CC-VEN | CC-120 |
+| FIN, CC-FIN | CC-900 |
+| CC-006…CC-009, "Contratistas" | **UNRESOLVED** — meaning not in the repo; the migration resolves what it can by the live doc NAME and reports the rest |
+
+The OPE/ADM/LOG/FIN/VEN rows come from the private dictionary
+`BudgetVsActual.jsx` used to carry (`LEGACY_CC_MAP`, naming a v1 label for each
+token: OPE → "Despliegue", ADM → "Administrativo", LOG → "Instalaciones y
+Reparaciones", FIN → "Financiero", VEN → "NE4"). That table is the only recorded
+evidence of what those tokens mean and every row of it carries the same
+standing, so all five folded in here, each resolved through the label it named.
+
+**Consequence for the migration:** the dry-run report will now propose
+`OPE`/`CC-OPE` → `CC-110` remaps (and will retire a live cost-center doc *named*
+"OPE" to `CC-110`) instead of listing them under `unresolved`. Those proposals
+appear in `backups/classification-migration-*.json` for review — step 3 of the
+runbook below — and nothing is written until `--apply`. `CC-006…CC-009` and
+"Contratistas" stay unresolved: nothing in the repo records what they meant.
+
+## Filtering by cost center
+
+A stored `costCenterId` is one of four things in production: a v2 code, a
+legacy code, a free-text label, or the Firestore doc id of a live (possibly
+still legacy) cost-center doc. `resolveStoredCostCenter(value, liveCostCenters)`
+resolves all four — the migration planner and every screen that filters share
+it, so a document groups exactly where the migration would send it. On top of
+it, `costCenterFilterKey` gives the bucket a value filters under (its v2 code,
+or its own label when nothing resolves it — never a guessed center),
+`matchesCostCenterFilter` is the predicate, and `costCenterFilterOptions`
+builds the dropdown: the v2 catalogue plus one bucket per live doc that
+resolves to no v2 code, so a center the operator can pick today does not
+disappear before the migration runs.
 
 ## Project code scheme: `CLI-SIT-LLn`
 
@@ -100,6 +132,51 @@ for any future, not-yet-validated entry.
 | "Meschede" | INS-MSD-TB1 | high |
 | AMD-001, "Overhead" | UMT-ADM-OH1 | high |
 | QDU, AUSTRIA, EHR, BIE, BAM, LGN, GFP, DGF, WCB | *(none)* | unmapped — stays legacy |
+
+## One project dictionary
+
+The table above lives in `src/finance/projectCodeAliases.js`, next to the short
+legacy-alias table, and `src/finance/projectCode.js` re-exports
+`LEGACY_PROJECT_CODE_MAP`, `PROJECT_CODE_PATTERN`, `isStructuredProjectCode`
+and `resolveLegacyProjectCode` from it. They used to be two dictionaries in a
+circular pair of modules, and they disagreed: `projectCodesMatch('INS-RSD-BL1',
+'QFF')` was `false`, so a project renamed to its v2 code read as a DIFFERENT
+obra from its own documents.
+
+Two functions, deliberately not the same one:
+
+- **`canonicalizeProjectCode`** is the STORAGE normalizer: `QFF-001` → `QFF`,
+  a structured code passes through, anything unknown comes back
+  bare-uppercased. It is persisted as `projects.code` and as `projectCode` on
+  payables and receivables, so it must keep answering with the code production
+  actually holds until the migration renames it.
+- **`canonicalObraKey`** is the MATCHING key: one key per obra, so `QFF`,
+  `QFF-002`, `RSD`, "Roßdorf 2", `QFF (Roßdorf 1)` and `INS-RSD-BL1` all answer
+  `INS-RSD-BL1`. `projectCodesMatch` compares these. An obra the table does not
+  map keeps its canonicalized value, so two unknown codes match only when they
+  are the same code — never a guess.
+
+Reading the table literally has a consequence worth knowing: the legacy
+catalogue listed several codes for one obra (QFF **and** RSD are Roßdorf,
+NE4/WRZ/WUR are Würzburg, FBX **and** HXT are Höxter), so those now answer as
+ONE obra. `useProjects.createProject` therefore allows one project per obra and
+names the existing one ("Ya existe un proyecto para esa obra: QFF"), and
+"Importar códigos Lumen" counts by obra too — 13 of the 17 seed codes are
+created, the 4 repeats are reported as already existing. A project that is
+inactive, `active: false` or `mergedInto` holds no obra: its obra is free again.
+
+`extractProjectToken` prefers a STRUCTURED head code over the parenthesized
+part. The old "a short parenthesized part wins" rule was written for legacy
+values like "Nombre largo (QFF)", and it broke on the displayName this app
+writes (`"CODE (Name)"`): `VAN-UGG-N41 (UGG)` canonicalized to `UGG`, the
+legacy code of the very project that had just been renamed. Everything whose
+head is not a v2 code keeps its previous output.
+
+`resolveProjectIdByCode` (`lumenContract.js`) looks up the exact canonical
+code/name first and only then by obra key or stamped `legacyCode`, so a list
+holding several projects of one obra still answers with the one asked for,
+while a Lumen payload carrying `QFF` finds the project renamed to
+`INS-RSD-BL1`.
 
 ## Project merges
 
@@ -156,6 +233,29 @@ Budgets follow one of two policies, chosen PER MERGE GROUP via an opt-in
   itself one of the survivor's legacy aliases — so it excludes any budget
   carrying `mergedInto` from that match, or it would double-count the
   already-summed total.
+
+### Renaming a project by hand
+
+**Do not rename a merge-group project by hand before the migration has folded
+it.** While QFF and QFF-002 are both live, renaming one of them to
+`INS-RSD-BL1` makes its dictionary aliases ("QFF-002", "Roßdorf 2") collide
+with the other project's own code and name, and a payable carrying only
+`projectName: 'Roßdorf 2'` would appear under BOTH obras. Two guards keep that
+from going unnoticed:
+
+- The Proyectos form shows a muted warning when the structured code being
+  saved is a merge target another LIVE project also resolves to. It is a
+  warning, not a block — renaming the survivor is legitimate.
+- `buildProjectTokens` (`src/finance/projectMatching.js`) takes the project
+  list and withholds any alias that is another live project's own
+  code/name/displayName/legacyCode. Once that sibling is `inactive` or carries
+  `mergedInto` — the state the migration leaves — the alias is admitted again,
+  so the survivor does answer for the absorbed obra's old documents.
+
+Saving a code change in the Proyectos screen also stamps `legacyCode` with the
+PREVIOUS code, once: every document captured before the rename still carries
+that code as free text, and `legacyCode` is what keeps matching them. A later
+rename never overwrites it — the first original is the one the documents hold.
 
 `employees.projectIds` is NOT covered by `npm run backup:firestore` (personal
 data) — its only rollback path is the

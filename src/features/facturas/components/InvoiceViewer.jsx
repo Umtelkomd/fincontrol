@@ -162,6 +162,18 @@ const InvoiceViewer = ({
         showToast(result.auditFailed ? AUDIT_FAILED_MESSAGE : 'PDF reemplazado correctamente', result.auditFailed ? 'warning' : 'success');
         return true;
       }
+      // A partial replace is not a failed upload: the new PDF IS stored, the
+      // old one was deliberately kept, and every obligation still points at a
+      // readable document. Retrying converges (see lib/amend.js), so the toast
+      // says that instead of sending the operator hunting for a lost file.
+      if (result?.partial) {
+        const pending = Array.isArray(result.failures) ? result.failures.length : 0;
+        showToast(
+          `El PDF nuevo se guardó, pero no se pudo actualizar el enlace en ${pending} documento(s). El PDF anterior se conserva: vuelve a intentar el reemplazo.`,
+          'warning',
+        );
+        return false;
+      }
       showToast(result?.errors?.file || result?.errors?.reason || 'No se pudo reemplazar el PDF', 'error');
       return false;
     } catch (thrown) {

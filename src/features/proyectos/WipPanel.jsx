@@ -41,7 +41,7 @@ const todayIso = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-const WipPanel = ({ project, user }) => {
+const WipPanel = ({ project, liveProjects = [], user }) => {
   const { entries, loading, error, recordWip, markInvoiced } = useWorkInProgress(user);
 
   const [amount, setAmount] = useState('');
@@ -57,7 +57,9 @@ const WipPanel = ({ project, user }) => {
   // obra by id OR by any name/legacy alias the project is known under — entries
   // captured before a project had an id, typed against its display name, or
   // never updated after a legacy code was renamed, must not silently vanish.
-  const projectTokens = useMemo(() => buildProjectTokens(project), [project]);
+  // `liveProjects` is the same full list the dashboard holds: it keeps a merge
+  // alias out of these tokens while the sibling obra is still a live project.
+  const projectTokens = useMemo(() => buildProjectTokens(project, { liveProjects }), [project, liveProjects]);
 
   const summary = useMemo(() => {
     if (!project) return summarizeWip([], today);

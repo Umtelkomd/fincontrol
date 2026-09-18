@@ -7,7 +7,7 @@
  * @see umtelkomd-gerencia/docs/product/ARQUITECTURA_SISTEMA.md
  */
 
-import { canonicalizeProjectCode } from './projectCodeAliases.js';
+import { canonicalizeProjectCode, canonicalObraKey } from './projectCodeAliases.js';
 
 export const LUMEN_SOURCE_SYSTEM = 'lumen';
 
@@ -52,15 +52,31 @@ export function normalizeProjectCode(raw) {
 
 /**
  * Pick projectId from FinControl projects list using canonical code.
+ *
+ * Two passes, in this order. The first is the exact canonical code or name, so
+ * a list holding several projects of one obra still answers with the one asked
+ * for. Only when nothing matches exactly does the second pass compare OBRA
+ * KEYS (`canonicalObraKey`) and the `legacyCode` a rename stamped: a project
+ * renamed to `INS-RSD-BL1` no longer carries the `QFF` every Lumen payload
+ * still sends, and without this the document would land with no project at all.
  */
 export function resolveProjectIdByCode(projects, projectCode) {
   const canon = normalizeProjectCode(projectCode);
   if (!canon || !Array.isArray(projects)) return { projectId: '', projectName: '', projectCode: canon };
-  const match = projects.find((p) => {
+  const exact = projects.find((p) => {
     const pc = normalizeProjectCode(p.code || p.codigo || '');
     if (pc && pc === canon) return true;
     return normalizeProjectCode(p.name || p.displayName || '') === canon;
   });
+  const obra = canonicalObraKey(projectCode);
+  const match =
+    exact ||
+    (obra &&
+      projects.find((p) => {
+        const candidate = canonicalObraKey(p.code || p.codigo || '');
+        if (candidate && candidate === obra) return true;
+        return Boolean(p.legacyCode) && canonicalObraKey(p.legacyCode) === obra;
+      }));
   if (!match) {
     return { projectId: '', projectName: canon, projectCode: canon };
   }

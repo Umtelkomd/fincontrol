@@ -73,6 +73,118 @@ describe('buildProjectTokens', () => {
   });
 });
 
+/**
+ * A merge group's aliases ("QFF-002", "Roßdorf 2") only belong to the project
+ * renamed to the group's v2 code AFTER the merge actually happened. Before it,
+ * the second Roßdorf project is still a separate live doc holding those very
+ * values as its OWN code/name — handing them to the renamed sibling as tokens
+ * makes one payable appear under both obras at once, which a single rename
+ * click in the Proyectos screen is enough to reach.
+ *
+ * So `liveProjects` (the project list the caller already has) lets the builder
+ * see that conflict. Omitting it keeps the pre-existing output, which is what
+ * a caller without a list gets.
+ */
+describe('buildProjectTokens — an alias never captures a LIVE sibling own identity', () => {
+  const survivor = { id: 'p-rsd-1', code: 'INS-RSD-BL1', name: 'Roßdorf', legacyCode: 'QFF' };
+  const sibling = (overrides = {}) => ({ id: 'p-rsd-2', code: 'QFF-002', name: 'Roßdorf 2', status: 'active', ...overrides });
+
+  it('keeps the pre-existing output when no project list is supplied', () => {
+    expect(buildProjectTokens(survivor)).toEqual(buildProjectTokens(survivor, {}));
+    expect(buildProjectTokens(survivor)).toEqual(
+      expect.arrayContaining(['qff', 'qff-001', 'qff-002', 'proy-001', 'rsd', 'roßdorf 1', 'roßdorf 2']),
+    );
+  });
+
+  it('drops the aliases a live sibling answers to by its own code and name', () => {
+    const tokens = buildProjectTokens(survivor, { liveProjects: [survivor, sibling()] });
+
+    expect(tokens).not.toContain('qff-002');
+    expect(tokens).not.toContain('roßdorf 2');
+    // Everything that is NOT the sibling's own identity still belongs here —
+    // a document stored as "QFF" or "Roßdorf 1" is this project's.
+    expect(tokens).toEqual(expect.arrayContaining(['qff', 'qff-001', 'proy-001', 'rsd', 'roßdorf 1']));
+  });
+
+  it('never drops the project OWN code, name, displayName or legacyCode', () => {
+    const tokens = buildProjectTokens(
+      { ...survivor, displayName: 'INS-RSD-BL1 (Roßdorf)' },
+      { liveProjects: [survivor, sibling()] },
+    );
+
+    expect(tokens).toEqual(
+      expect.arrayContaining(['p-rsd-1', 'ins-rsd-bl1', 'roßdorf', 'ins-rsd-bl1 (roßdorf)', 'qff']),
+    );
+  });
+
+  it('admits the aliases again once the sibling is inactive — the post-merge state', () => {
+    const tokens = buildProjectTokens(survivor, {
+      liveProjects: [survivor, sibling({ status: 'inactive', active: false })],
+    });
+
+    expect(tokens).toEqual(expect.arrayContaining(['qff-002', 'roßdorf 2']));
+  });
+
+  it('admits the aliases again once the sibling carries mergedInto, even if still flagged active', () => {
+    const tokens = buildProjectTokens(survivor, {
+      liveProjects: [survivor, sibling({ mergedInto: 'p-rsd-1', mergedIntoCode: 'INS-RSD-BL1' })],
+    });
+
+    expect(tokens).toEqual(expect.arrayContaining(['qff-002', 'roßdorf 2']));
+  });
+
+  it('treats active:false as not live even when status still says active', () => {
+    const tokens = buildProjectTokens(survivor, { liveProjects: [survivor, sibling({ active: false })] });
+
+    expect(tokens).toEqual(expect.arrayContaining(['qff-002', 'roßdorf 2']));
+  });
+
+  it('compares accent-insensitively, so an unaccented sibling name still claims its alias', () => {
+    // "Höxter Nord" is an alias of INS-HXT-TB1; the live sibling holding that
+    // site stores it without the umlaut.
+    const hoexter = { id: 'p-hxt-1', code: 'INS-HXT-TB1', name: 'Höxter', legacyCode: 'FBX' };
+    const tokens = buildProjectTokens(hoexter, {
+      liveProjects: [hoexter, { id: 'p-hxt-2', code: 'HXT', name: 'Hoxter Nord', status: 'active' }],
+    });
+
+    expect(tokens).not.toContain('höxter nord');
+    expect(tokens).not.toContain('hxt');
+    expect(tokens).toEqual(expect.arrayContaining(['fbx', 'proy-003']));
+  });
+
+  it('claims an alias through a sibling displayName alone, for a doc that carries no code or name', () => {
+    const tokens = buildProjectTokens(survivor, {
+      liveProjects: [survivor, { id: 'p-rsd-2', displayName: 'Roßdorf 2', status: 'active' }],
+    });
+
+    expect(tokens).not.toContain('roßdorf 2');
+    expect(tokens).toContain('qff-002');
+  });
+
+  it('claims an alias through a sibling legacyCode', () => {
+    const tokens = buildProjectTokens(survivor, {
+      liveProjects: [survivor, { id: 'p-rsd-2', code: 'ZZZ-OTRO', name: 'Otra obra', legacyCode: 'QFF-001', status: 'active' }],
+    });
+
+    expect(tokens).not.toContain('qff-001');
+    expect(tokens).toContain('qff-002');
+  });
+
+  it('ignores the project own entry in the list, matched by identity or by id', () => {
+    const byIdentity = buildProjectTokens(survivor, { liveProjects: [survivor] });
+    const byId = buildProjectTokens(survivor, { liveProjects: [{ ...survivor }] });
+
+    expect(byIdentity).toEqual(buildProjectTokens(survivor));
+    expect(byId).toEqual(buildProjectTokens(survivor));
+  });
+
+  it('tolerates a list holding null/undefined entries', () => {
+    const tokens = buildProjectTokens(survivor, { liveProjects: [null, undefined, sibling()] });
+
+    expect(tokens).not.toContain('qff-002');
+  });
+});
+
 describe('matchesProject', () => {
   const project = { id: 'proj-1', code: 'INS-RSD-BL1', name: 'Roßdorf', legacyCode: 'QFF' };
   const tokens = buildProjectTokens(project);
