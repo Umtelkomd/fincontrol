@@ -155,3 +155,50 @@ describe('Projects — list shows line and default cost center (T7)', () => {
     expect(screen.queryByText(/· CC /)).not.toBeInTheDocument();
   });
 });
+
+describe('Projects — merged-loser note (T11: owner decision 2026-09-18)', () => {
+  it('shows a muted "Fusionado en <code>" note for a project carrying mergedInto', () => {
+    store.collections.projects = [
+      projectFixture({ id: 'p-survivor', code: 'INS-RSD-BL1', name: 'Roßdorf', status: 'active' }),
+      projectFixture({
+        id: 'p-loser',
+        code: 'QFF-002',
+        name: 'Roßdorf 2',
+        status: 'inactive',
+        active: false,
+        mergedInto: 'p-survivor',
+        mergedIntoCode: 'INS-RSD-BL1',
+      }),
+    ];
+    render(<Projects user={TEST_USER} />);
+
+    expect(screen.getByText('Fusionado en INS-RSD-BL1')).toBeInTheDocument();
+  });
+
+  it('shows no merged note for an ordinary inactive project (never merged)', () => {
+    store.collections.projects = [projectFixture({ id: 'p1', code: 'QDU', name: 'Otro', status: 'inactive' })];
+    render(<Projects user={TEST_USER} />);
+
+    expect(screen.queryByText(/Fusionado en/)).not.toBeInTheDocument();
+  });
+
+  it('a merged loser stays out of the "Activos" list — it already renders under "Inactivo" (status !== \'active\')', () => {
+    store.collections.projects = [
+      projectFixture({ id: 'p-survivor', code: 'INS-RSD-BL1', name: 'Roßdorf', status: 'active' }),
+      projectFixture({
+        id: 'p-loser',
+        code: 'QFF-002',
+        name: 'Roßdorf 2',
+        status: 'inactive',
+        active: false,
+        mergedInto: 'p-survivor',
+        mergedIntoCode: 'INS-RSD-BL1',
+      }),
+    ];
+    render(<Projects user={TEST_USER} />);
+
+    const loserRow = screen.getByText('QFF-002').closest('tr');
+    expect(loserRow).toHaveTextContent('Inactivo');
+    expect(loserRow).toHaveTextContent('Fusionado en INS-RSD-BL1');
+  });
+});

@@ -20,10 +20,12 @@
  *   └── n    1-99, no padding, the lot within that CLI-SIT-LL combination
  *
  * Legacy codes stay VALID — flagged `legacy` by `resolveLegacyProjectCode`,
- * never rejected. `LEGACY_PROJECT_CODE_MAP` is the PROPOSED mapping from the
- * design doc; the owner validates it before any migration writes a v2 code
- * over a legacy one. `findProjectMentions` is what lets an invoice PDF's free
- * text resolve to a project by code, legacy alias or name, in that priority.
+ * never rejected. `LEGACY_PROJECT_CODE_MAP` is the mapping from the design
+ * doc; the owner validated it on 2026-09-18 (T11, every entry is now
+ * confidence `high`) — `confidence`/`--min-confidence` remain in place for
+ * any future entry that has not yet been reviewed. `findProjectMentions` is
+ * what lets an invoice PDF's free text resolve to a project by code, legacy
+ * alias or name, in that priority.
  *
  * Pure: no React, no Firebase, no Date.now() — no I/O of any kind.
  */
@@ -129,24 +131,41 @@ export const nextLot = (existingCodes, { client, site, line: lineCode } = {}) =>
   return lot;
 };
 
-const legacyEntry = (match, code, confidence) => Object.freeze({ match: Object.freeze([...match]), code, confidence });
+/** `options.merge: true` flags a target code that more than one LIVE project
+ * may resolve to as the SAME project, not a collision — see
+ * `planProjectCodeMigration`'s merge handling in classificationMigration.js. */
+const legacyEntry = (match, code, confidence, options = {}) =>
+  Object.freeze({
+    match: Object.freeze([...match]),
+    code,
+    confidence,
+    ...(options.merge ? { merge: true } : {}),
+  });
 
 /**
- * Proposed legacy → v2 mapping from the design doc. PROPOSED: the owner
- * validates it before the migration script applies it (see
- * odd/tasks/invoice-classification-catalog.md). Everything not covered here
- * (QDU, AUSTRIA, EHR, BIE, BAM, LGN, GFP, DGF, WCB, ...) stays `legacy` —
- * `resolveLegacyProjectCode` never guesses a target for it.
+ * Legacy → v2 mapping from the design doc, owner-validated on 2026-09-18
+ * (T11): every entry below is `confidence: 'high'`. QFF, QFF-001, QFF-002,
+ * PROY-001, RSD, "Roßdorf 1" and "Roßdorf 2" are ONE project — `merge: true`
+ * is the explicit signal that several live projects resolving to this code
+ * are the same obra and must be MERGED (one survivor absorbs the others),
+ * never treated as a collision. Everything not covered here (QDU, AUSTRIA,
+ * EHR, BIE, BAM, LGN, GFP, DGF, WCB, ...) stays `legacy` —
+ * `resolveLegacyProjectCode` never guesses a target for it. `confidence` and
+ * `--min-confidence` remain useful for any future, not-yet-validated entry.
  */
 export const LEGACY_PROJECT_CODE_MAP = Object.freeze([
-  legacyEntry(['QFF', 'QFF-001', 'PROY-001', 'RSD', 'Roßdorf 1'], 'INS-RSD-BL1', 'high'),
-  legacyEntry(['QFF-002', 'Roßdorf 2'], 'INS-RSD-BL2', 'high'),
-  legacyEntry(['NE4', 'PROY-004', 'WRZ', 'WUR', 'Würzburg', 'Würzwurg'], 'INS-WRZ-N41', 'medium'),
-  legacyEntry(['UGG', 'UGG-001', 'Vancom NE4'], 'VAN-UGG-N41', 'medium'),
-  legacyEntry(['WSC', 'WEST-001', 'Wesconnect', 'NE4 West-connect'], 'WSC-GEN-N41', 'medium'),
-  legacyEntry(['WESTC_MDU'], 'WSC-GEN-MD1', 'medium'),
-  legacyEntry(['FBX', 'PROY-003', 'HXT', 'Höxter Nord'], 'INS-HXT-TB1', 'low'),
-  legacyEntry(['Meschede'], 'INS-MSD-TB1', 'low'),
+  legacyEntry(
+    ['QFF', 'QFF-001', 'QFF-002', 'PROY-001', 'RSD', 'Roßdorf 1', 'Roßdorf 2'],
+    'INS-RSD-BL1',
+    'high',
+    { merge: true },
+  ),
+  legacyEntry(['NE4', 'PROY-004', 'WRZ', 'WUR', 'Würzburg', 'Würzwurg'], 'INS-WRZ-N41', 'high'),
+  legacyEntry(['UGG', 'UGG-001', 'Vancom NE4'], 'VAN-UGG-N41', 'high'),
+  legacyEntry(['WSC', 'WEST-001', 'Wesconnect', 'NE4 West-connect'], 'WSC-GEN-N41', 'high'),
+  legacyEntry(['WESTC_MDU'], 'WSC-GEN-MD1', 'high'),
+  legacyEntry(['FBX', 'PROY-003', 'HXT', 'Höxter Nord'], 'INS-HXT-TB1', 'high'),
+  legacyEntry(['Meschede'], 'INS-MSD-TB1', 'high'),
   legacyEntry(['AMD-001', 'Overhead'], 'UMT-ADM-OH1', 'high'),
 ]);
 

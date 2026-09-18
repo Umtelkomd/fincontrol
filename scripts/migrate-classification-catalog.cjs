@@ -148,8 +148,14 @@ const findFreshBackup = () => {
 // ── Main ────────────────────────────────────────────────────────────────────
 
 (async () => {
-  const { parseMigrationArgs, planCostCenterMigration, planProjectCodeMigration, planProjectNameRefresh, buildWritePlan } =
-    await loadEsm('src/finance/classificationMigration.js');
+  const {
+    parseMigrationArgs,
+    planCostCenterMigration,
+    planProjectCodeMigration,
+    planProjectNameRefresh,
+    planProjectMerge,
+    buildWritePlan,
+  } = await loadEsm('src/finance/classificationMigration.js');
   const chunkedCommit = await loadEsm('src/utils/chunkedCommit.js');
 
   // Fails CLOSED on a misspelled or empty flag (see parseMigrationArgs) rather
@@ -196,6 +202,9 @@ const findFreshBackup = () => {
   if (backupPath) console.log(`Backup:          ${backupPath}`);
 
   // ── Read (read-only) ────────────────────────────────────────────────────
+  // employees and budgets are read here ONLY for planProjectMerge (T11):
+  // employees is NEVER written to backups/ (personal data — see the "FUSIÓN
+  // DE PROYECTOS" report note below), budgets already wasn't backed up either.
   const docsOf = (snap) => snap.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
   const [
     costCentersSnap,
@@ -206,6 +215,8 @@ const findFreshBackup = () => {
     recurringCostsSnap,
     classificationRulesSnap,
     workInProgressSnap,
+    employeesSnap,
+    budgetsSnap,
   ] = await Promise.all([
     col('costCenters').get(),
     col('projects').get(),
@@ -215,6 +226,8 @@ const findFreshBackup = () => {
     col('recurringCosts').get(),
     col('classificationRules').get(),
     col('workInProgress').get(),
+    col('employees').get(),
+    col('budgets').get(),
   ]);
 
   const costCenters = docsOf(costCentersSnap);
@@ -226,12 +239,15 @@ const findFreshBackup = () => {
     recurringCosts: docsOf(recurringCostsSnap),
     classificationRules: docsOf(classificationRulesSnap),
     workInProgress: docsOf(workInProgressSnap),
+    employees: docsOf(employeesSnap),
+    budgets: docsOf(budgetsSnap),
   };
   console.log(
     `Leído:           ${costCenters.length} centros de costo · ${projects.length} proyectos · `
     + `${documentsByCollection.payables.length} CXP · ${documentsByCollection.receivables.length} CXC · `
     + `${documentsByCollection.bankMovements.length} movimientos · ${documentsByCollection.recurringCosts.length} costos recurrentes · `
-    + `${documentsByCollection.classificationRules.length} reglas · ${documentsByCollection.workInProgress.length} obra en curso`,
+    + `${documentsByCollection.classificationRules.length} reglas · ${documentsByCollection.workInProgress.length} obra en curso · `
+    + `${documentsByCollection.employees.length} empleados · ${documentsByCollection.budgets.length} presupuestos`,
   );
 
   // ── Plan (pure) ──────────────────────────────────────────────────────────
@@ -240,10 +256,16 @@ const findFreshBackup = () => {
     : { catalogUpserts: [], remaps: [], unresolved: [], retire: [], summary: {} };
   const projectPlan = includesProjects
     ? planProjectCodeMigration({ projects, minConfidence: MIN_CONFIDENCE })
-    : { renames: [], skipped: [], collisions: [], summary: {} };
+    : { renames: [], skipped: [], collisions: [], merges: [], summary: {} };
   const nameRefreshPlan = includesProjects
     ? planProjectNameRefresh({ renames: projectPlan.renames, documentsByCollection })
     : { updates: [], summary: {} };
+  // T11 — project merges: planProjectMerge additionally needs the live
+  // `projects` docs (to read each loser's CURRENT status/active for rollback)
+  // alongside the same documentsByCollection every other planner reads.
+  const mergePlan = includesProjects
+    ? planProjectMerge({ merges: projectPlan.merges, documentsByCollection: { ...documentsByCollection, projects } })
+    : { updates: [], loserUpdates: [], budgetConflicts: [], summary: {} };
 
   // ── Report ───────────────────────────────────────────────────────────────
   if (includesCostCenters) {
@@ -301,6 +323,44 @@ const findFreshBackup = () => {
       nameRefreshPlan.updates.map((u) => `${padEnd(u.collection, 20)} ${padEnd(u.id, 20)} ${padEnd(u.field, 20)} ${padEnd(clip(u.from, 16), 16)} → ${u.to}`),
       [['Colección', 20], ['Id', 20], ['Campo', 20], ['Antes', 16], ['Después', 16]],
     );
+
+    // T11 — owner decision 2026-09-18: live projects sharing a merge-flagged
+    // legacy code (see LEGACY_PROJECT_CODE_MAP) are ONE obra, not a collision.
+    banner('FUSIÓN DE PROYECTOS');
+    if (projectPlan.merges.length === 0) {
+      console.log('  (ninguna)');
+    } else {
+      for (const merge of projectPlan.merges) {
+        console.log(`  ${merge.code}:`);
+        console.log(`    Sobrevive:  ${merge.survivor.id} (${merge.survivor.from}) → "${merge.survivor.name}"`);
+        merge.losers.forEach((loser) =>
+          console.log(`    Se fusiona: ${loser.id} (${loser.from}, "${loser.name}") → inactivo, mergedInto=${merge.survivor.id}`));
+      }
+
+      const repointedByCollection = new Map();
+      for (const update of mergePlan.updates) {
+        if (update.field !== 'projectId' && update.field !== 'applyTo.projectId' && update.field !== 'projectIds') continue;
+        repointedByCollection.set(update.collection, (repointedByCollection.get(update.collection) || 0) + 1);
+      }
+      console.log('\n  Documentos repuntados:');
+      printTable(
+        [...repointedByCollection.entries()].map(([collection, count]) => `${padEnd(collection, 22)} ${count}`),
+        [['Colección', 22], ['Docs', 6]],
+      );
+
+      if (mergePlan.budgetConflicts.length === 0) {
+        console.log('  Conflictos de presupuesto: (ninguno)');
+      } else {
+        console.log(`  ⚠️  Conflictos de presupuesto (mismo año en sobreviviente y perdedor — revisar a mano, NO se suman):`);
+        mergePlan.budgetConflicts.forEach((c) =>
+          console.log(`    año ${c.year}: sobreviviente ${c.survivorBudgetId} (${c.survivorProjectId}) vs perdedor ${c.loserBudgetId} (${c.loserProjectId})`));
+      }
+
+      console.log(
+        '\n  Nota: employees.projectIds NO tiene backup (datos personales) — su reversión depende '
+        + 'ÚNICAMENTE del sello migration.classificationCatalogV2.previous.projectIds en cada documento de empleado.',
+      );
+    }
   }
 
   // ── Write plan — merged into exactly one write per document by the PURE
@@ -310,6 +370,7 @@ const findFreshBackup = () => {
     costCenterPlan,
     projectPlan,
     nameRefreshPlan,
+    mergePlan,
     existingDocsByCollection: { costCenters, projects, ...documentsByCollection },
   });
 
@@ -328,6 +389,7 @@ const findFreshBackup = () => {
     costCenterPlan,
     projectPlan,
     nameRefreshPlan,
+    mergePlan,
     writePlan,
   }, null, 2));
   console.log(`\nInforme escrito: ${reportPath}`);

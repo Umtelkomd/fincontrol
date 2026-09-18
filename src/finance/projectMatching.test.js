@@ -45,13 +45,26 @@ describe('buildProjectTokens', () => {
     expect(tokens).toEqual(expect.arrayContaining(['qff', 'qff-001', 'proy-001', 'rsd', 'roßdorf 1']));
   });
 
-  it('never bleeds an alias belonging to a DIFFERENT project sharing the same legacy prefix', () => {
-    // QFF-002 / "Roßdorf 2" map to INS-RSD-BL2 — a sibling project, not this one.
+  it('includes QFF-002 and "Roßdorf 2" now that Roßdorf 1/2 are ONE merged project (owner decision 2026-09-18, T11)', () => {
+    // The old assertion here ("QFF-002 must NOT bleed into this project") is
+    // inverted by the owner's merge decision: QFF-002 / "Roßdorf 2" are now
+    // aliases of this SAME project, not a sibling's — see the merge group in
+    // LEGACY_PROJECT_CODE_MAP (projectCode.js).
     const project = { id: 'proj-1', code: 'INS-RSD-BL1', name: 'Roßdorf', legacyCode: 'QFF' };
     const tokens = buildProjectTokens(project);
 
-    expect(tokens).not.toContain('qff-002');
-    expect(tokens).not.toContain('roßdorf 2');
+    expect(tokens).toEqual(expect.arrayContaining(['qff-002', 'roßdorf 2']));
+  });
+
+  it('never bleeds an alias belonging to a genuinely different project (WSC-GEN-MD1 vs WSC-GEN-N41 — not a merge group)', () => {
+    const project = { id: 'proj-mdu', code: 'WSC-GEN-MD1', name: 'MDU Oeste', legacyCode: 'WESTC_MDU' };
+    const tokens = buildProjectTokens(project);
+
+    // WSC / WEST-001 / Wesconnect / "NE4 West-connect" map to the sibling
+    // WSC-GEN-N41, not to this MDU-line project.
+    expect(tokens).not.toContain('wsc');
+    expect(tokens).not.toContain('west-001');
+    expect(tokens).not.toContain('wesconnect');
   });
 
   it('handles a null/undefined project without throwing', () => {
@@ -81,7 +94,18 @@ describe('matchesProject', () => {
     expect(matchesProject({ projectId: '', projectName: 'Otra obra' }, tokens, project.id)).toBe(false);
   });
 
-  it('does not match a sibling project\'s legacy alias', () => {
-    expect(matchesProject({ projectId: '', projectName: 'QFF-002' }, tokens, project.id)).toBe(false);
+  it('matches QFF-002 now that Roßdorf 1/2 are ONE merged project (owner decision 2026-09-18, T11)', () => {
+    // Inverted: this alias used to belong to a sibling project (the second
+    // Roßdorf site's own former code), which no longer exists — QFF-002 is
+    // this SAME project's own alias now.
+    expect(matchesProject({ projectId: '', projectName: 'QFF-002' }, tokens, project.id)).toBe(true);
+  });
+
+  it('does not match a genuinely different project\'s legacy alias (WSC-GEN-MD1 vs WSC-GEN-N41 — not a merge group)', () => {
+    const mduProject = { id: 'proj-mdu', code: 'WSC-GEN-MD1', name: 'MDU Oeste', legacyCode: 'WESTC_MDU' };
+    const mduTokens = buildProjectTokens(mduProject);
+
+    expect(matchesProject({ projectId: '', projectName: 'WSC' }, mduTokens, mduProject.id)).toBe(false);
+    expect(matchesProject({ projectId: '', projectName: 'Wesconnect' }, mduTokens, mduProject.id)).toBe(false);
   });
 });

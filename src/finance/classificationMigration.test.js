@@ -11,6 +11,7 @@ import {
   parseMigrationArgs,
   planCostCenterMigration,
   planProjectCodeMigration,
+  planProjectMerge,
   planProjectNameRefresh,
 } from './classificationMigration.js';
 
@@ -164,6 +165,9 @@ describe('planProjectCodeMigration', () => {
         legacyCode: 'QFF',
       },
     }]);
+    // A single project resolving to a merge-flagged code is a plain rename —
+    // a merge only happens when TWO OR MORE live projects collide there.
+    expect(plan.merges).toEqual([]);
   });
 
   it('never touches a project already on a structured v2 code', () => {
@@ -172,13 +176,17 @@ describe('planProjectCodeMigration', () => {
     expect(plan.skipped).toEqual([]);
   });
 
-  it('skips a medium-confidence mapping under the default high threshold, and includes it once the threshold is lowered', () => {
+  it('skips a mapped entry below minConfidence, and includes it once the threshold is lowered', () => {
+    // Every entry shipped in the default LEGACY_PROJECT_CODE_MAP is now
+    // confidence 'high' (owner-validated 2026-09-18, T11) — a caller-supplied
+    // 'medium' entry is what exercises the threshold itself here.
+    const mediumMapping = [{ match: ['NE4'], code: 'INS-WRZ-N41', confidence: 'medium' }];
     const projects = [doc('proj-2', { code: 'NE4', name: 'Würzburg' })];
-    const skippedPlan = planProjectCodeMigration({ projects });
+    const skippedPlan = planProjectCodeMigration({ projects, mapping: mediumMapping });
     expect(skippedPlan.renames).toEqual([]);
     expect(skippedPlan.skipped).toEqual([{ id: 'proj-2', code: 'NE4', reason: 'below-min-confidence', confidence: 'medium' }]);
 
-    const includedPlan = planProjectCodeMigration({ projects, minConfidence: 'medium' });
+    const includedPlan = planProjectCodeMigration({ projects, mapping: mediumMapping, minConfidence: 'medium' });
     expect(includedPlan.renames).toHaveLength(1);
     expect(includedPlan.renames[0]).toMatchObject({ to: 'INS-WRZ-N41', confidence: 'medium' });
   });
@@ -189,7 +197,7 @@ describe('planProjectCodeMigration', () => {
     expect(plan.skipped).toEqual([{ id: 'proj-3', code: 'QDU', reason: 'unmapped', confidence: null }]);
   });
 
-  it('never renames either side of a collision: two projects resolving to the same target', () => {
+  it('never renames either side of a collision: two projects resolving to the same target WITHOUT a merge group', () => {
     const projects = [
       doc('proj-amd', { code: 'AMD-001', name: 'Administración' }),
       doc('proj-overhead', { code: 'Overhead', name: 'Overhead' }),
@@ -203,6 +211,9 @@ describe('planProjectCodeMigration', () => {
         { id: 'proj-overhead', from: 'Overhead', confidence: 'high' },
       ],
     }]);
+    // UMT-ADM-OH1 carries no `merge: true` in LEGACY_PROJECT_CODE_MAP — a
+    // genuine collision, never silently turned into a merge.
+    expect(plan.merges).toEqual([]);
   });
 
   it('keeps the project doc id unchanged — only code and its parts move', () => {
@@ -217,6 +228,258 @@ describe('planProjectCodeMigration', () => {
       mapping: correctedMapping,
     });
     expect(plan.renames[0].to).toBe('INS-RSD-TB1');
+  });
+});
+
+describe('planProjectCodeMigration — merge groups (T11: owner decision 2026-09-18)', () => {
+  it('merges ≥2 live projects resolving to a merge-flagged code: renames only the survivor, never the losers', () => {
+    const projects = [
+      doc('proj-inactive', { code: 'QFF-002', name: 'Roßdorf 2', status: 'inactive' }),
+      doc('proj-active', { code: 'QFF', name: 'Roßdorf', status: 'active' }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+
+    expect(plan.renames).toEqual([{
+      id: 'proj-active',
+      from: 'QFF',
+      to: 'INS-RSD-BL1',
+      confidence: 'high',
+      name: 'Roßdorf',
+      fields: {
+        code: 'INS-RSD-BL1',
+        codeClient: 'INS',
+        site: 'RSD',
+        line: 'BL',
+        lot: 1,
+        displayName: 'INS-RSD-BL1 (Roßdorf)',
+        legacyCode: 'QFF',
+      },
+    }]);
+    expect(plan.collisions).toEqual([]);
+    expect(plan.merges).toEqual([{
+      code: 'INS-RSD-BL1',
+      survivor: { id: 'proj-active', from: 'QFF', name: 'Roßdorf' },
+      losers: [{ id: 'proj-inactive', from: 'QFF-002', name: 'Roßdorf 2' }],
+      fields: {
+        code: 'INS-RSD-BL1',
+        codeClient: 'INS',
+        site: 'RSD',
+        line: 'BL',
+        lot: 1,
+        displayName: 'INS-RSD-BL1 (Roßdorf)',
+        legacyCode: 'QFF',
+      },
+    }]);
+    expect(plan.summary.merges).toBe(1);
+  });
+
+  it('survivor tie-break, step 1: prefers an active project over an inactive one', () => {
+    const projects = [
+      doc('proj-a', { code: 'QFF', name: 'Roßdorf A', status: 'inactive' }),
+      doc('proj-b', { code: 'RSD', name: 'Roßdorf B', status: 'active' }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+    expect(plan.merges[0].survivor.id).toBe('proj-b');
+  });
+
+  it('survivor tie-break, step 2: prefers the bare legacy code (QFF) over a suffixed one (QFF-001) once activity ties', () => {
+    const projects = [
+      doc('proj-suffixed', { code: 'QFF-001', name: 'Roßdorf viejo' }),
+      doc('proj-bare', { code: 'QFF', name: 'Roßdorf' }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+    expect(plan.merges[0].survivor.id).toBe('proj-bare');
+  });
+
+  it('survivor tie-break, step 3: prefers the OLDEST createdAt once activity and bare-code both tie (accepts ISO strings and {seconds})', () => {
+    const projects = [
+      doc('proj-newer', { code: 'QFF', name: 'Roßdorf B', createdAt: '2026-05-01T00:00:00.000Z' }),
+      doc('proj-older', { code: 'RSD', name: 'Roßdorf A', createdAt: { seconds: 1700000000 } }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+    expect(plan.merges[0].survivor.id).toBe('proj-older');
+  });
+
+  it('survivor tie-break, step 4: falls back to the smallest doc id once everything else ties', () => {
+    const projects = [
+      doc('proj-b', { code: 'QFF', name: 'Roßdorf B' }),
+      doc('proj-a', { code: 'RSD', name: 'Roßdorf A' }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+    expect(plan.merges[0].survivor.id).toBe('proj-a');
+  });
+
+  it('is idempotent: a survivor already renamed and a loser already mergedInto produce zero renames/merges', () => {
+    const projects = [
+      doc('proj-active', { code: 'INS-RSD-BL1', name: 'Roßdorf', legacyCode: 'QFF' }),
+      doc('proj-inactive', {
+        code: 'QFF-002',
+        name: 'Roßdorf 2',
+        status: 'inactive',
+        active: false,
+        mergedInto: 'proj-active',
+        mergedIntoCode: 'INS-RSD-BL1',
+      }),
+    ];
+    const plan = planProjectCodeMigration({ projects });
+    expect(plan.renames).toEqual([]);
+    expect(plan.merges).toEqual([]);
+    expect(plan.skipped).toEqual([]);
+    expect(plan.collisions).toEqual([]);
+  });
+});
+
+describe('planProjectMerge', () => {
+  const merges = [{
+    code: 'INS-RSD-BL1',
+    survivor: { id: 'proj-active', from: 'QFF', name: 'Roßdorf' },
+    losers: [{ id: 'proj-inactive', from: 'QFF-002', name: 'Roßdorf 2' }],
+    fields: {
+      code: 'INS-RSD-BL1',
+      codeClient: 'INS',
+      site: 'RSD',
+      line: 'BL',
+      lot: 1,
+      displayName: 'INS-RSD-BL1 (Roßdorf)',
+      legacyCode: 'QFF',
+    },
+  }];
+
+  it('repoints projectId + projectName on every document pointing at a loser', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: {
+        payables: [doc('pay-1', { projectId: 'proj-inactive', projectName: 'QFF-002' })],
+        receivables: [doc('rec-1', { projectId: 'proj-inactive', projectName: 'Roßdorf 2' })],
+        bankMovements: [doc('mv-1', { projectId: 'proj-inactive', projectName: '' })],
+        workInProgress: [doc('wip-1', { projectId: 'proj-inactive', projectName: 'QFF-002' })],
+      },
+    });
+
+    expect(plan.updates).toEqual(expect.arrayContaining([
+      { collection: 'payables', id: 'pay-1', field: 'projectId', from: 'proj-inactive', to: 'proj-active' },
+      { collection: 'payables', id: 'pay-1', field: 'projectName', from: 'QFF-002', to: 'Roßdorf' },
+      { collection: 'receivables', id: 'rec-1', field: 'projectId', from: 'proj-inactive', to: 'proj-active' },
+      { collection: 'receivables', id: 'rec-1', field: 'projectName', from: 'Roßdorf 2', to: 'Roßdorf' },
+      { collection: 'bankMovements', id: 'mv-1', field: 'projectId', from: 'proj-inactive', to: 'proj-active' },
+      { collection: 'bankMovements', id: 'mv-1', field: 'projectName', from: '', to: 'Roßdorf' },
+      { collection: 'workInProgress', id: 'wip-1', field: 'projectId', from: 'proj-inactive', to: 'proj-active' },
+      { collection: 'workInProgress', id: 'wip-1', field: 'projectName', from: 'QFF-002', to: 'Roßdorf' },
+    ]));
+    expect(plan.updates).toHaveLength(8);
+  });
+
+  it('never touches a document that already points at the survivor', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: { payables: [doc('pay-2', { projectId: 'proj-active', projectName: 'Roßdorf' })] },
+    });
+    expect(plan.updates).toEqual([]);
+  });
+
+  it('repoints applyTo.projectId/applyTo.projectName on a classification rule', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: { classificationRules: [doc('rule-1', { applyTo: { projectId: 'proj-inactive', projectName: 'QFF-002' } })] },
+    });
+    expect(plan.updates).toEqual([
+      { collection: 'classificationRules', id: 'rule-1', field: 'applyTo.projectId', from: 'proj-inactive', to: 'proj-active' },
+      { collection: 'classificationRules', id: 'rule-1', field: 'applyTo.projectName', from: 'QFF-002', to: 'Roßdorf' },
+    ]);
+  });
+
+  it('repoints budgets.projectId only — never sums or merges the budget lines themselves', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: { budgets: [doc('budget-loser', { projectId: 'proj-inactive', year: 2026, total: 5000 })] },
+    });
+    expect(plan.updates).toEqual([{ collection: 'budgets', id: 'budget-loser', field: 'projectId', from: 'proj-inactive', to: 'proj-active' }]);
+    expect(plan.budgetConflicts).toEqual([]);
+  });
+
+  it('reports a budgetConflicts entry when the survivor AND a loser both hold a budget for the same year, but still repoints the loser', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: {
+        budgets: [
+          doc('budget-survivor', { projectId: 'proj-active', year: 2026, total: 10000 }),
+          doc('budget-loser', { projectId: 'proj-inactive', year: 2026, total: 5000 }),
+        ],
+      },
+    });
+    expect(plan.updates).toContainEqual({ collection: 'budgets', id: 'budget-loser', field: 'projectId', from: 'proj-inactive', to: 'proj-active' });
+    expect(plan.budgetConflicts).toEqual([{
+      year: 2026,
+      survivorProjectId: 'proj-active',
+      survivorBudgetId: 'budget-survivor',
+      loserProjectId: 'proj-inactive',
+      loserBudgetId: 'budget-loser',
+    }]);
+  });
+
+  it('replaces the loser id in employees.projectIds and DE-DUPLICATES when the employee already had the survivor too', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: {
+        employees: [
+          doc('emp-both', { projectIds: ['proj-active', 'proj-inactive'] }),
+          doc('emp-loser-only', { projectIds: ['proj-inactive', 'other-proj'] }),
+        ],
+      },
+    });
+    expect(plan.updates).toEqual(expect.arrayContaining([
+      { collection: 'employees', id: 'emp-both', field: 'projectIds', from: ['proj-active', 'proj-inactive'], to: ['proj-active'] },
+      { collection: 'employees', id: 'emp-loser-only', field: 'projectIds', from: ['proj-inactive', 'other-proj'], to: ['proj-active', 'other-proj'] },
+    ]));
+  });
+
+  it('never touches an employee with no loser project id', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: { employees: [doc('emp-1', { projectIds: ['other-proj'] })] },
+    });
+    expect(plan.updates).toEqual([]);
+  });
+
+  it('proposes the loser project doc update: inactive, deactivated, mergedInto the survivor, never deleted', () => {
+    const plan = planProjectMerge({
+      merges,
+      documentsByCollection: { projects: [doc('proj-inactive', { code: 'QFF-002', name: 'Roßdorf 2', status: 'active', active: true })] },
+    });
+    expect(plan.loserUpdates).toEqual([{
+      collection: 'projects',
+      id: 'proj-inactive',
+      fields: {
+        status: { from: 'active', to: 'inactive' },
+        active: { from: true, to: false },
+        mergedInto: { to: 'proj-active' },
+        mergedIntoCode: { to: 'INS-RSD-BL1' },
+      },
+    }]);
+  });
+
+  it('omits the "from" of status/active when the live loser doc is not supplied — never invents a prior value', () => {
+    const plan = planProjectMerge({ merges, documentsByCollection: {} });
+    expect(plan.loserUpdates).toEqual([{
+      collection: 'projects',
+      id: 'proj-inactive',
+      fields: {
+        status: { to: 'inactive' },
+        active: { to: false },
+        mergedInto: { to: 'proj-active' },
+        mergedIntoCode: { to: 'INS-RSD-BL1' },
+      },
+    }]);
+  });
+
+  it('returns empty plans for no merges', () => {
+    const plan = planProjectMerge({ merges: [], documentsByCollection: {} });
+    expect(plan).toEqual({
+      updates: [],
+      loserUpdates: [],
+      budgetConflicts: [],
+      summary: { updates: 0, loserUpdates: 0, budgetConflicts: 0 },
+    });
   });
 });
 
@@ -433,6 +696,131 @@ describe('buildWritePlan — merging every planner into one write per document',
       },
       label: 'projects/proj-1',
     }]);
+  });
+});
+
+describe('buildWritePlan — project merges (T11)', () => {
+  it('a cost-center remap + a merge repoint + a name refresh on ONE document is still ONE write with all three previous values', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: { remaps: [{ collection: 'payables', id: 'pay-1', from: 'CC-002', to: 'CC-120' }] },
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      mergePlan: {
+        updates: [
+          { collection: 'payables', id: 'pay-1', field: 'projectId', from: 'proj-inactive', to: 'proj-active' },
+          { collection: 'payables', id: 'pay-1', field: 'projectName', from: 'QFF-002', to: 'Roßdorf' },
+        ],
+      },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'payables',
+      id: 'pay-1',
+      data: {
+        costCenterId: 'CC-120',
+        'migration.classificationCatalogV2.previous.costCenterId': 'CC-002',
+        projectId: 'proj-active',
+        'migration.classificationCatalogV2.previous.projectId': 'proj-inactive',
+        projectName: 'Roßdorf',
+        'migration.classificationCatalogV2.previous.projectName': 'QFF-002',
+      },
+      label: 'payables/pay-1',
+    }]);
+  });
+
+  it('a loser project doc gets ONE write holding status/active/mergedInto/mergedIntoCode, with previous only for status/active', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: {},
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      mergePlan: {
+        loserUpdates: [{
+          collection: 'projects',
+          id: 'proj-inactive',
+          fields: {
+            status: { from: 'active', to: 'inactive' },
+            active: { from: true, to: false },
+            mergedInto: { to: 'proj-active' },
+            mergedIntoCode: { to: 'INS-RSD-BL1' },
+          },
+        }],
+      },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'projects',
+      id: 'proj-inactive',
+      data: {
+        status: 'inactive',
+        'migration.classificationCatalogV2.previous.status': 'active',
+        active: false,
+        'migration.classificationCatalogV2.previous.active': true,
+        mergedInto: 'proj-active',
+        mergedIntoCode: 'INS-RSD-BL1',
+      },
+      label: 'projects/proj-inactive',
+    }]);
+  });
+
+  it('re-run safety: a previously recorded previous.projectId is never overwritten by a second merge-repoint run', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: {},
+      projectPlan: { renames: [] },
+      nameRefreshPlan: { updates: [] },
+      mergePlan: {
+        updates: [{ collection: 'payables', id: 'pay-1', field: 'projectId', from: 'proj-inactive', to: 'proj-active' }],
+      },
+      existingDocsByCollection: {
+        payables: [{ id: 'pay-1', migration: { classificationCatalogV2: { previous: { projectId: 'proj-original' } } } }],
+      },
+    });
+
+    expect(plan).toEqual([{
+      kind: 'update',
+      collection: 'payables',
+      id: 'pay-1',
+      data: { projectId: 'proj-active' }, // no previous write — 'proj-original' stays the true original
+      label: 'payables/pay-1',
+    }]);
+  });
+
+  it('the survivor rename and a loser project update are independent writes (different doc ids)', () => {
+    const plan = buildWritePlan({
+      costCenterPlan: {},
+      projectPlan: {
+        renames: [{
+          id: 'proj-active',
+          from: 'QFF',
+          to: 'INS-RSD-BL1',
+          confidence: 'high',
+          name: 'Roßdorf',
+          fields: {
+            code: 'INS-RSD-BL1',
+            codeClient: 'INS',
+            site: 'RSD',
+            line: 'BL',
+            lot: 1,
+            displayName: 'INS-RSD-BL1 (Roßdorf)',
+            legacyCode: 'QFF',
+          },
+        }],
+      },
+      nameRefreshPlan: { updates: [] },
+      mergePlan: {
+        loserUpdates: [{
+          collection: 'projects',
+          id: 'proj-inactive',
+          fields: { status: { to: 'inactive' }, active: { to: false }, mergedInto: { to: 'proj-active' }, mergedIntoCode: { to: 'INS-RSD-BL1' } },
+        }],
+      },
+      existingDocsByCollection: {},
+    });
+
+    expect(plan.map((entry) => entry.id)).toEqual(['proj-active', 'proj-inactive']);
   });
 });
 

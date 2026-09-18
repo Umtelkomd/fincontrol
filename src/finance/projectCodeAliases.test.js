@@ -67,9 +67,9 @@ describe('PROJECT_CODE_ALIASES — production drift tokens are recognized', () =
     expect(canonicalizeProjectCode('WEST-001')).toBe('WSC');
   });
 
-  it('keeps QFF-002 apart from QFF — it is a different site (Roßdorf 2)', () => {
-    expect(canonicalizeProjectCode('QFF-002')).toBe('QFF-002');
-    expect(projectCodesMatch('QFF-002', 'QFF')).toBe(false);
+  it('canonicalizes QFF-002 like QFF-001 — Roßdorf 1 and 2 are ONE project (owner decision 2026-09-18, T11)', () => {
+    expect(canonicalizeProjectCode('QFF-002')).toBe('QFF');
+    expect(projectCodesMatch('QFF-002', 'QFF')).toBe(true);
   });
 
   it('recognizes the new Wesconnect production tokens', () => {

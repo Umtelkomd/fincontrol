@@ -591,6 +591,11 @@ const Projects = ({ user }) => {
   <span className="inline-flex items-center rounded-md bg-transparent px-2.5 py-1 text-sm font-medium text-[var(--color-fg-3)]">
  {project.code}
  </span>
+ {project.mergedInto && (
+ <span className="nx-badge nx-badge-neutral ml-1.5 align-middle">
+ Fusionado en {project.mergedIntoCode || project.code}
+ </span>
+ )}
   <div className="mt-1 flex items-center gap-1 text-[10px] text-[var(--color-fg-3)] opacity-60">
  <MapPin size={10} />
  <input

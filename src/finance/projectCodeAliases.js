@@ -32,13 +32,14 @@ export const PROJECT_CODE_ALIASES = {
   LGN: 'LGN',
   // Production drift tokens (see odd/tasks/invoice-classification-catalog.md
   // "Problem"): ops-style work-order refs merge into their existing master
-  // code, exactly like 'PROY-001' already merges into 'QFF'. Distinct sites
-  // (QFF-002 is Roßdorf 2, WESTC_MDU is the MDU line) are deliberately left
-  // OUT of this merge — collapsing them would silently combine different
-  // project costs. The new v2 project code scheme (src/finance/projectCode.js)
-  // is where those distinctions become first-class fields.
+  // code, exactly like 'PROY-001' already merges into 'QFF'. Owner decision
+  // 2026-09-18 (T11): QFF-002 ("Roßdorf 2") is the SAME project as QFF/
+  // QFF-001 ("Roßdorf 1"), so it merges here too. WESTC_MDU stays apart — it
+  // is a genuinely different site (the MDU line), not a split of the same
+  // obra. The v2 project code scheme (src/finance/projectCode.js) is where
+  // that distinction becomes a first-class field.
   'QFF-001': 'QFF',
-  'QFF-002': 'QFF-002',
+  'QFF-002': 'QFF',
   'UGG-001': 'UGG',
   WSC: 'WSC',
   'WEST-001': 'WSC',

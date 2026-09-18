@@ -158,8 +158,8 @@ describe('nextLot', () => {
   });
 
   it('returns the smallest free lot', () => {
-    const existing = ['INS-RSD-BL1', 'INS-RSD-BL2', 'INS-RSD-BL4'];
-    expect(nextLot(existing, { client: 'INS', site: 'RSD', line: 'BL' })).toBe(3);
+    const existing = ['INS-GEN-BL1', 'INS-GEN-BL2', 'INS-GEN-BL4'];
+    expect(nextLot(existing, { client: 'INS', site: 'GEN', line: 'BL' })).toBe(3);
   });
 
   it('ignores codes for a different client/site/line', () => {
@@ -173,21 +173,30 @@ describe('nextLot', () => {
 });
 
 describe('LEGACY_PROJECT_CODE_MAP', () => {
-  it('is frozen and carries the exact proposed mapping', () => {
+  it('is frozen and carries the owner-validated mapping (2026-09-18, all entries confidence high)', () => {
     expect(Object.isFrozen(LEGACY_PROJECT_CODE_MAP)).toBe(true);
     const byCode = Object.fromEntries(LEGACY_PROJECT_CODE_MAP.map((e) => [e.code, e]));
     expect(byCode['INS-RSD-BL1']).toMatchObject({ confidence: 'high' });
-    expect(byCode['INS-RSD-BL1'].match).toEqual(expect.arrayContaining(['QFF', 'QFF-001', 'PROY-001', 'RSD', 'Roßdorf 1']));
-    expect(byCode['INS-RSD-BL2']).toMatchObject({ confidence: 'high' });
-    expect(byCode['INS-WRZ-N41']).toMatchObject({ confidence: 'medium' });
+    expect(byCode['INS-RSD-BL1'].match).toEqual(
+      expect.arrayContaining(['QFF', 'QFF-001', 'QFF-002', 'PROY-001', 'RSD', 'Roßdorf 1', 'Roßdorf 2']),
+    );
+    expect(byCode['INS-WRZ-N41']).toMatchObject({ confidence: 'high' });
     expect(byCode['INS-WRZ-N41'].match).toEqual(expect.arrayContaining(['NE4', 'PROY-004', 'WRZ', 'WUR', 'Würzburg', 'Würzwurg']));
-    expect(byCode['VAN-UGG-N41']).toMatchObject({ confidence: 'medium' });
-    expect(byCode['WSC-GEN-N41']).toMatchObject({ confidence: 'medium' });
-    expect(byCode['WSC-GEN-MD1']).toMatchObject({ confidence: 'medium' });
-    expect(byCode['INS-HXT-TB1']).toMatchObject({ confidence: 'low' });
-    expect(byCode['INS-MSD-TB1']).toMatchObject({ confidence: 'low' });
+    expect(byCode['VAN-UGG-N41']).toMatchObject({ confidence: 'high' });
+    expect(byCode['WSC-GEN-N41']).toMatchObject({ confidence: 'high' });
+    expect(byCode['WSC-GEN-MD1']).toMatchObject({ confidence: 'high' });
+    expect(byCode['INS-HXT-TB1']).toMatchObject({ confidence: 'high' });
+    expect(byCode['INS-MSD-TB1']).toMatchObject({ confidence: 'high' });
     expect(byCode['UMT-ADM-OH1']).toMatchObject({ confidence: 'high' });
     expect(byCode['UMT-ADM-OH1'].match).toEqual(expect.arrayContaining(['AMD-001', 'Overhead']));
+  });
+
+  it('flags ONLY the Roßdorf entry as a merge group — every other entry stays a plain mapping', () => {
+    const byCode = Object.fromEntries(LEGACY_PROJECT_CODE_MAP.map((e) => [e.code, e]));
+    expect(byCode['INS-RSD-BL1'].merge).toBe(true);
+    for (const code of ['INS-WRZ-N41', 'VAN-UGG-N41', 'WSC-GEN-N41', 'WSC-GEN-MD1', 'INS-HXT-TB1', 'INS-MSD-TB1', 'UMT-ADM-OH1']) {
+      expect(byCode[code].merge).toBeUndefined();
+    }
   });
 });
 
@@ -200,19 +209,19 @@ describe('resolveLegacyProjectCode', () => {
   it('maps a legacy code, accent/case-insensitive', () => {
     expect(resolveLegacyProjectCode('qff')).toEqual({ code: 'INS-RSD-BL1', confidence: 'high', status: 'mapped' });
     expect(resolveLegacyProjectCode('RSD')).toEqual({ code: 'INS-RSD-BL1', confidence: 'high', status: 'mapped' });
-    expect(resolveLegacyProjectCode('wurzburg')).toEqual({ code: 'INS-WRZ-N41', confidence: 'medium', status: 'mapped' });
-    expect(resolveLegacyProjectCode('Würzwurg')).toEqual({ code: 'INS-WRZ-N41', confidence: 'medium', status: 'mapped' });
+    expect(resolveLegacyProjectCode('wurzburg')).toEqual({ code: 'INS-WRZ-N41', confidence: 'high', status: 'mapped' });
+    expect(resolveLegacyProjectCode('Würzwurg')).toEqual({ code: 'INS-WRZ-N41', confidence: 'high', status: 'mapped' });
   });
 
-  it('maps a legacy name', () => {
-    expect(resolveLegacyProjectCode('Roßdorf 2')).toEqual({ code: 'INS-RSD-BL2', confidence: 'high', status: 'mapped' });
-    expect(resolveLegacyProjectCode('Vancom NE4')).toEqual({ code: 'VAN-UGG-N41', confidence: 'medium', status: 'mapped' });
+  it('maps a legacy name — Roßdorf 2 now resolves to the SAME merged project as Roßdorf 1 (owner decision 2026-09-18, T11)', () => {
+    expect(resolveLegacyProjectCode('Roßdorf 2')).toEqual({ code: 'INS-RSD-BL1', confidence: 'high', status: 'mapped' });
+    expect(resolveLegacyProjectCode('Vancom NE4')).toEqual({ code: 'VAN-UGG-N41', confidence: 'high', status: 'mapped' });
     expect(resolveLegacyProjectCode('Overhead')).toEqual({ code: 'UMT-ADM-OH1', confidence: 'high', status: 'mapped' });
   });
 
   it('tolerates the "CODE (Name)" displayName form', () => {
     expect(resolveLegacyProjectCode('QFF (Roßdorf 1)')).toEqual({ code: 'INS-RSD-BL1', confidence: 'high', status: 'mapped' });
-    expect(resolveLegacyProjectCode('PROY-004 (Würzburg)')).toEqual({ code: 'INS-WRZ-N41', confidence: 'medium', status: 'mapped' });
+    expect(resolveLegacyProjectCode('PROY-004 (Würzburg)')).toEqual({ code: 'INS-WRZ-N41', confidence: 'high', status: 'mapped' });
   });
 
   it('never guesses an unmapped legacy value — returns the canonicalized input', () => {

@@ -82,24 +82,57 @@ from the project's line instead):
 Examples: `INS-RSD-BL1` (Insyte, Roßdorf, blowing/splicing, lot 1) ·
 `VAN-UGG-N41` (Vancom, UGG, NE4, lot 1) · `UMT-ADM-OH1` (internal overhead, lot 1).
 
-## Proposed legacy → new project code mapping
+## Legacy → new project code mapping
 
-**The owner validates this before the migration is applied** — it is a
-proposal, not a fact already in the repo. `confidence` also gates
-`scripts/migrate-classification-catalog.cjs --min-confidence`.
+**The owner validated this table on 2026-09-18** (T11) — every mapped entry
+below is `confidence: high`. The `confidence` field and
+`scripts/migrate-classification-catalog.cjs --min-confidence` stay in place
+for any future, not-yet-validated entry.
 
-| Legacy values | Proposed code | Confidence |
+| Legacy values | Code | Confidence |
 |---|---|---|
-| QFF, QFF-001, PROY-001, RSD, "Roßdorf 1" | INS-RSD-BL1 | high |
-| QFF-002, "Roßdorf 2" | INS-RSD-BL2 | high |
-| NE4, PROY-004, WRZ, WUR, "Würzburg", "Würzwurg" | INS-WRZ-N41 | medium |
-| UGG, UGG-001, "Vancom NE4" | VAN-UGG-N41 | medium |
-| WSC, WEST-001, "Wesconnect", "NE4 West-connect" | WSC-GEN-N41 | medium |
-| WESTC_MDU | WSC-GEN-MD1 | medium |
-| FBX, PROY-003, HXT, "Höxter Nord" | INS-HXT-TB1 | low (line unknown) |
-| "Meschede" | INS-MSD-TB1 | low |
+| QFF, QFF-001, QFF-002, PROY-001, RSD, "Roßdorf 1", "Roßdorf 2" | INS-RSD-BL1 (merge group — see below) | high |
+| NE4, PROY-004, WRZ, WUR, "Würzburg", "Würzwurg" | INS-WRZ-N41 | high |
+| UGG, UGG-001, "Vancom NE4" | VAN-UGG-N41 | high |
+| WSC, WEST-001, "Wesconnect", "NE4 West-connect" | WSC-GEN-N41 | high |
+| WESTC_MDU | WSC-GEN-MD1 | high |
+| FBX, PROY-003, HXT, "Höxter Nord" | INS-HXT-TB1 | high |
+| "Meschede" | INS-MSD-TB1 | high |
 | AMD-001, "Overhead" | UMT-ADM-OH1 | high |
 | QDU, AUSTRIA, EHR, BIE, BAM, LGN, GFP, DGF, WCB | *(none)* | unmapped — stays legacy |
+
+## Project merges
+
+Owner decision 2026-09-18 (T11): QFF, QFF-001, QFF-002, PROY-001, RSD,
+"Roßdorf 1" and "Roßdorf 2" are ONE project, `INS-RSD-BL1`. The former
+separate code for the second Roßdorf site no longer exists anywhere. A
+`merge: true` flag on a `LEGACY_PROJECT_CODE_MAP`
+entry (`src/finance/projectCode.js`) is the explicit signal that several LIVE
+projects resolving to that code are the same obra, not a naming collision.
+
+`planProjectCodeMigration` (`src/finance/classificationMigration.js`) picks
+one deterministic survivor among the colliding live projects — active over
+inactive, then a bare legacy code (`QFF`) over a suffixed one (`QFF-001`),
+then the oldest `createdAt`, then the smallest doc id — and renames only the
+survivor to the v2 code. `planProjectMerge` then repoints every document that
+referenced a loser onto the survivor: `projectId`/`projectName` on
+bankMovements, receivables, payables and workInProgress;
+`applyTo.projectId`/`applyTo.projectName` on classificationRules;
+`projectId` on budgets; and `projectIds` on employees, de-duplicated. Loser
+project docs are never deleted — they get `status: 'inactive'`,
+`active: false`, `mergedInto: <survivorId>` and `mergedIntoCode`, which the
+Proyectos settings screen shows as a muted "Fusionado en `<code>`" note.
+
+Budgets are never summed or merged: if both the survivor and a loser hold a
+budget for the same year, the loser's budget is still repointed (its
+`projectId` alone) but the pair is reported in the dry-run's
+`budgetConflicts` for a human to resolve — two budgets for one project-year
+is a business decision, not something the migration guesses.
+
+`employees.projectIds` is NOT covered by `npm run backup:firestore` (personal
+data) — its only rollback path is the
+`migration.classificationCatalogV2.previous.projectIds` stamp the migration
+writes on each affected employee document.
 
 ## Evidence expectation (statement-only path)
 
