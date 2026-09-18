@@ -1,7 +1,6 @@
 /**
  * Orchestration for correcting an archived invoice: EDIT, DELETE and REPLACE
- * PDF (odd/tasks/invoice-classification-catalog.md, T13). Every accounting
- * decision already happened in src/finance/invoiceAmendment.js
+ * PDF. Every accounting decision already happened in src/finance/invoiceAmendment.js
  * (planInvoiceEdit/planInvoiceDelete/planInvoiceReplace) — this module only
  * turns that plan into an ordered sequence of injected effect calls, exactly
  * like `archiveInvoice` does for intake. Pure orchestration: no Firebase, no

@@ -1,6 +1,6 @@
 /**
- * Metadata + embedded PDF for the selected archived invoice, plus (T13,
- * admin/manager only) correcting a mistake: Editar, Reemplazar PDF, Eliminar.
+ * Metadata + embedded PDF for the selected archived invoice, plus (admin/
+ * manager only) correcting a mistake: Editar, Reemplazar PDF, Eliminar.
  * The blob fetch/object-URL lifecycle lives in useInvoicePdfBlob. Every
  * accounting decision behind these three actions lives in
  * src/finance/invoiceAmendment.js; this component only collects input and

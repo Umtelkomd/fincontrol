@@ -1,7 +1,7 @@
 /**
  * Shared classification block (categoría / proyecto / centro de costo) —
  * used by InvoiceIntakePanel (new invoice, with an auto-suggestion) and
- * InvoiceEditModal (T13 correction of an archived invoice, no suggestion).
+ * InvoiceEditModal (correcting an archived invoice, no suggestion).
  *
  * `suggestion` is optional: when present, a confidence badge and per-field
  * reasons are shown (intake); when absent, the block is a plain editable

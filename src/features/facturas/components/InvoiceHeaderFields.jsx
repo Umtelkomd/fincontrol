@@ -1,8 +1,8 @@
 /**
  * Shared invoice header inputs (contraparte, número, fecha, neto, IVA,
  * bruto) — used by InvoiceIntakePanel (new invoice) and InvoiceEditModal
- * (T13 correction of an archived invoice). `idPrefix` keeps DOM ids unique
- * when both a wizard and a modal could, in principle, render at once.
+ * (correcting an archived invoice). `idPrefix` keeps DOM ids unique when
+ * both a wizard and a modal could, in principle, render at once.
  *
  * `disabledFields` (a Set) disables individual amount inputs — the EDIT
  * modal uses it for a LOCKED obligation's net/tax/gross — and

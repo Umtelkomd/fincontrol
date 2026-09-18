@@ -136,7 +136,7 @@ export const useInvoiceDocuments = (user) => {
   };
 
   /**
-   * updateInvoiceDocument — T13 EDIT/REPLACE: patches the archive metadata
+   * updateInvoiceDocument — EDIT/REPLACE: patches the archive metadata
    * doc with the exact fields the caller sends (never a default overwrite,
    * same discipline as updatePayable/updateReceivable). `patch` must never
    * carry `sha256`/`sizeBytes`/`chunkCount`/`storage`/`links` — those keep
@@ -149,14 +149,14 @@ export const useInvoiceDocuments = (user) => {
     await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
   };
 
-  /** deleteInvoiceDocument — T13 DELETE: removes the archive metadata doc itself (chunks are a separate call — see lib/invoiceArchiveStore.js's deleteInvoicePdf). */
+  /** deleteInvoiceDocument — DELETE: removes the archive metadata doc itself (chunks are a separate call — see lib/invoiceArchiveStore.js's deleteInvoicePdf). */
   const deleteInvoiceDocument = async (sha256) => {
     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
     await deleteDoc(ref);
   };
 
   /**
-   * removeInvoiceLink — T13 DELETE: strips this archive doc's sha256 back
+   * removeInvoiceLink — DELETE: strips this archive doc's sha256 back
    * reference from one linked obligation (`invoiceDocumentIds`). Runs for
    * every link, owned or foreign — it is pure cleanup of a now-dangling
    * pointer, never an accounting change (see src/finance/invoiceAmendment.js's
@@ -170,7 +170,7 @@ export const useInvoiceDocuments = (user) => {
   };
 
   /**
-   * swapInvoiceLink — T13 REPLACE PDF: re-points one obligation's back
+   * swapInvoiceLink — REPLACE PDF: re-points one obligation's back
    * reference from the OLD sha256 to the NEW one. Two sequential updates
    * (Firestore cannot combine an arrayRemove and an arrayUnion of the SAME
    * field in one write) rather than a batch — REPLACE's own ordering already

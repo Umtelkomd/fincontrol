@@ -98,9 +98,9 @@ surfaces `'missing-invoice'` outflows in their own "Sin factura" tab,
 alongside — not instead of — "Sin categoría" / "Sin obra" / "Sin conciliar".
 
 ## Correcting an archived invoice
-The archive was append-only until T13: no edit, no delete, no way to fix a
+The archive was append-only at first: no edit, no delete, no way to fix a
 mistake short of leaving a wrong row in place forever. `InvoiceViewer.jsx`
-now offers three admin/manager-only actions, every accounting decision for
+offers three admin/manager-only actions, every accounting decision for
 which lives in `src/finance/invoiceAmendment.js` (planInvoiceEdit /
 planInvoiceDelete / planInvoiceReplace) and is turned into effects by
 `lib/amend.js` (applyInvoiceEdit / applyInvoiceDelete / applyInvoiceReplace).

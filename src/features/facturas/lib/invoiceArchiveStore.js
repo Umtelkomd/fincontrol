@@ -113,12 +113,13 @@ export const uploadInvoicePdf = async ({ db, appId, bytes, expectedSha256 } = {}
 };
 
 /**
- * Deletes every chunk document of a previously archived PDF (T13: invoice
- * amendment DELETE/REPLACE). Never touches the `invoiceDocuments/{sha256}`
- * metadata document itself — that is the caller's concern (see
- * src/hooks/useInvoiceDocuments.js's `deleteInvoiceDocument`), and DELETE's
- * required ordering (chunks first, archive doc last — see
- * src/features/facturas/lib/amend.js) depends on these being separate calls.
+ * Deletes every chunk document of a previously archived PDF — needed by both
+ * the DELETE and REPLACE invoice-amendment flows. Never touches the
+ * `invoiceDocuments/{sha256}` metadata document itself — that is the
+ * caller's concern (see src/hooks/useInvoiceDocuments.js's
+ * `deleteInvoiceDocument`), and DELETE's required ordering (chunks first,
+ * archive doc last — see src/features/facturas/lib/amend.js) depends on
+ * these being separate calls.
  *
  * Deletes by INDEX up to `chunkCount` (falling back to the largest possible
  * chunk count for a 2 MiB file when it is not known), one atomic batch.

@@ -1,6 +1,6 @@
 /**
  * updateInvoiceDocument / deleteInvoiceDocument — the archive-doc side of
- * amending an archived invoice (T13). Split from useInvoiceDocuments.test.js
+ * amending an archived invoice. Split from useInvoiceDocuments.test.js
  * for the same reason as commitArchive.test.js: needs the Firestore module
  * double (installFirebaseMocks).
  */

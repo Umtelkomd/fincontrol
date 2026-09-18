@@ -40,7 +40,7 @@ const Facturas = ({ user, userRole }) => {
   const obligations = [...ledger.payables, ...ledger.receivables];
 
   /**
-   * writeAuditLogEntry wired to each of the three T13 amendment effects
+   * writeAuditLogEntry wired to each of the three invoice-amendment effects
    * below: a full `before` snapshot of the archive doc plus the mandatory
    * reason, exactly what applyInvoiceEdit/Delete/Replace already assembled
    * into the plan's audit entry.

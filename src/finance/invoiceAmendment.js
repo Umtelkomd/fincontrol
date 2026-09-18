@@ -1,9 +1,8 @@
 /**
  * Invoice amendment — the pure planning core behind correcting an archived
- * invoice from Facturas (odd/tasks/invoice-classification-catalog.md, T13):
- * EDIT, REPLACE PDF and DELETE. Every accounting decision lives here; the
- * store/hook layer (src/features/facturas/lib/amend.js) only turns a plan
- * into Firestore effects, and the UI only collects the form.
+ * invoice from Facturas: EDIT, REPLACE PDF and DELETE. Every accounting
+ * decision lives here; the store/hook layer (src/features/facturas/lib/amend.js)
+ * only turns a plan into Firestore effects, and the UI only collects the form.
  *
  * ── LOCK ────────────────────────────────────────────────────────────────
  * An obligation is LOCKED when touching its amounts or cancelling it would

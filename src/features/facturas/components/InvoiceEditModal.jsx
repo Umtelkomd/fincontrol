@@ -1,5 +1,5 @@
 /**
- * InvoiceEditModal — T13 EDIT: correct an archived invoice's header,
+ * InvoiceEditModal — EDIT: correct an archived invoice's header,
  * classification and (when unlocked) amounts, writing through to the
  * obligation it created (see src/finance/invoiceAmendment.js's
  * planInvoiceEdit for every accounting rule). Reuses the same header +

@@ -256,11 +256,11 @@ describe("invoiceDocuments — Firestore-chunk archive rules", () => {
 		);
 	});
 
-	// T13: correcting an archived invoice (EDIT/REPLACE/DELETE) needs
-	// update/delete on both the metadata doc and its chunks — append-only was
-	// the whole archive's behaviour before this feature, so these rules had
-	// no update/delete coverage at all.
-	describe("update and delete (T13: correcting an archived invoice)", () => {
+	// Correcting an archived invoice (EDIT/REPLACE/DELETE) needs update/delete
+	// on both the metadata doc and its chunks — append-only was the whole
+	// archive's behaviour before this feature, so these rules had no
+	// update/delete coverage at all.
+	describe("update and delete (correcting an archived invoice)", () => {
 		const seed = async () => {
 			await environment.withSecurityRulesDisabled(async (context) => {
 				const db = context.firestore();

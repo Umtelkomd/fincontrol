@@ -207,7 +207,7 @@ describe('updatePayable — explicit clears still land', () => {
   });
 });
 
-describe('updatePayable — costScope (T13: invoice amendment classification propagation)', () => {
+describe('updatePayable — costScope (invoice amendment classification propagation)', () => {
   it('writes costScope alongside the rest of the classification when the caller sends it', async () => {
     const { updatePayable } = usePayables(USER);
 
