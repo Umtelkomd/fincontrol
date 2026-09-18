@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
  Inbox,
  Link2,
@@ -7,6 +8,7 @@ import {
  ArrowDownRight,
  ArrowUpRight,
  CheckCircle2,
+ FileWarning,
  Search,
  Wand2,
  PlayCircle,
@@ -20,7 +22,7 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency } from '../../utils/formatters';
 import { findBestRule } from '../../finance/ruleEngine';
-import { COST_SCOPE } from '../../finance/costScope';
+import { COST_SCOPE, EVIDENCE_STATUS, evidenceStatusOf, missingInvoiceSummary } from '../../finance/costScope';
 import { OPERATIONAL_DATA_START } from '../../finance/constants';
 import { COUNTERPARTY_KIND, suggestClassification } from '../../finance/counterpartyIdentity';
 import CategorizeModal from '../../components/ui/CategorizeModal';
@@ -36,6 +38,11 @@ const TABS = [
  { key: 'sinCategoria', label: 'Sin categoría', icon: Tag },
  { key: 'sinObra', label: 'Sin obra', icon: HardHat },
  { key: 'sinConciliar', label: 'Sin conciliar', icon: Link2 },
+ // T6 — a SEPARATE signal from the three above (see evidenceStatusOf in
+ // costScope.js): outflows that expect an invoice and have none yet. A
+ // statement-only expense (payroll, VAT, bank fees…) is complete once
+ // categorized and destined, so it never lands here.
+ { key: 'sinFactura', label: 'Sin factura', icon: FileWarning },
 ];
 
 const EMPTY_COPY = {
@@ -50,6 +57,10 @@ const EMPTY_COPY = {
  sinConciliar: {
  title: 'Sin pendientes de conciliación',
  description: 'Todos los cobros de obra del periodo están vinculados a una CXC.',
+ },
+ sinFactura: {
+ title: 'Sin pendientes de factura',
+ description: 'Todos los gastos que esperan factura del periodo ya la tienen archivada.',
  },
 };
 
@@ -72,6 +83,7 @@ const Classifier = ({ user }) => {
  const {
  inboxMovements,
  pendingMovements,
+ scopedMovements,
  availableMonths,
  coverage,
  loading,
@@ -130,11 +142,26 @@ const Classifier = ({ user }) => {
  [inboxMovements.sinObra, query],
  );
 
+ // T6 — Sin factura: a SEPARATE signal from pendingReasonOf/inboxMovements
+ // above (evidenceStatusOf, costScope.js). scopedMovements is the same
+ // month-scoped set classificationCoverage runs over, so this never touches
+ // the coverage header numbers.
+ const missingInvoice = useMemo(() => missingInvoiceSummary(scopedMovements), [scopedMovements]);
+ const sinFactura = useMemo(
+ () =>
+ scopedMovements
+ .filter((m) => evidenceStatusOf(m) === EVIDENCE_STATUS.MISSING_INVOICE)
+ .filter((m) => (query ? matchesSearch(m, query) : true))
+ .sort((a, b) => (b.postedDate || '').localeCompare(a.postedDate || '')),
+ [scopedMovements, query],
+ );
+
  const stats = {
  total: pendingMovements.length,
  sinCategoria: inboxMovements.sinCategoria.length,
  sinObra: inboxMovements.sinObra.length,
  sinConciliar: inboxMovements.sinConciliar.length,
+ sinFactura: missingInvoice.count,
  };
 
  const handleLink = async (movement, item) => {
@@ -424,6 +451,41 @@ const Classifier = ({ user }) => {
  )}
  </Panel>
  )}
+
+ {/* SIN FACTURA — outflows expecting an invoice with none archived yet (T6, informational queue) */}
+ {activeTab === 'sinFactura' && (
+ <div className="space-y-3">
+ <p className="text-[12px] text-[var(--color-fg-4)]">
+ Gastos que esperan factura. Los gastos que solo aparecen en el extracto (nómina, impuestos,
+ comisiones bancarias) no pasan por aquí.
+ </p>
+ <Panel
+ title="Sin factura"
+ meta={`${sinFactura.length} resultado(s) · ${formatCurrency(missingInvoice.amount)}`}
+ padding={false}
+ >
+ {sinFactura.length === 0 ? (
+ <EmptyState icon={CheckCircle2} {...EMPTY_COPY.sinFactura} />
+ ) : (
+ <div className="divide-y divide-[var(--color-line)]">
+ {sinFactura.map((m) => (
+ <MovementRow
+ key={m.id}
+ movement={m}
+ matches={suggestMatches(m)}
+ personnel={personnelOf(m)}
+ busy={busyId === m.id}
+ onLink={(item) => handleLink(m, item)}
+ onCategorize={() => setCategorizingMovement(m)}
+ onCreateRule={() => setRuleSeedMovement(m)}
+ showInvoiceLink
+ />
+ ))}
+ </div>
+ )}
+ </Panel>
+ </div>
+ )}
  </>
  )}
 
@@ -433,7 +495,6 @@ const Classifier = ({ user }) => {
  onSubmit={handleCategorize}
  movement={categorizingMovement}
  categories={allCategories}
- costCenters={costCenters || []}
  projects={projects || []}
  suggestion={categorizingMovement ? personnelOf(categorizingMovement) : null}
  />
@@ -546,7 +607,7 @@ const PersonnelHint = ({ personnel }) => {
  );
 };
 
-const MovementRow = ({ movement, matches, personnel, busy, onLink, onCategorize, onCreateRule }) => {
+const MovementRow = ({ movement, matches, personnel, busy, onLink, onCategorize, onCreateRule, showInvoiceLink = false }) => {
  const isInflow = movement.direction === 'in';
  const ArrowIcon = isInflow ? ArrowUpRight : ArrowDownRight;
  const colorClass = isInflow ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]';
@@ -639,6 +700,11 @@ const MovementRow = ({ movement, matches, personnel, busy, onLink, onCategorize,
  <Button variant="ghost" size="sm" icon={Wand2} onClick={onCreateRule} disabled={busy} title="Crear regla desde este movimiento">
  Regla
  </Button>
+ )}
+ {showInvoiceLink && (
+ <Link to="/facturas" className="nx-btn nx-btn-ghost nx-btn-sm">
+ Ir a Facturas
+ </Link>
  )}
  </div>
  </div>

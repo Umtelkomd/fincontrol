@@ -22,8 +22,8 @@ import {
   suggestInvoiceClassification,
   validateInvoiceClassification,
 } from '../../../finance/invoiceClassification';
-import { costCenterOptions, defaultCostCenterForCategory, scopeOfCostCenter } from '../../../finance/costCenterCatalog';
-import { defaultCostCenterForProject } from '../../../finance/projectCode';
+import { costCenterOptions, scopeOfCostCenter } from '../../../finance/costCenterCatalog';
+import { defaultCostCenterFor } from '../../../finance/classificationDefaults';
 import { CATEGORY_TYPE, categoryOptions } from '../../../finance/taxonomy';
 import { formatCurrency } from '../../../utils/formatters';
 import { db, appId } from '../../../services/firebase';
@@ -213,9 +213,7 @@ const InvoiceIntakePanel = ({
   const handleProjectChange = (event) => {
     const projectId = event.target.value;
     const project = activeProjects.find((candidate) => candidate.id === projectId) || null;
-    const costCenterDefault = projectId
-      ? defaultCostCenterForProject(project || { id: projectId })
-      : defaultCostCenterForCategory(state.classification.categoryName);
+    const costCenterDefault = defaultCostCenterFor({ projectId, project, categoryName: state.classification.categoryName });
     setClassificationErrors((previous) => ({ ...previous, projectId: undefined, costCenterId: undefined }));
     dispatch({ type: 'CLASSIFICATION_FIELD_CHANGED', field: 'projectId', value: projectId, costCenterDefault });
   };
