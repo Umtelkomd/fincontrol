@@ -85,6 +85,11 @@ const RECEIVABLE_TEXT_FIELDS = [
   ['projectName', ['projectName']],
   ['costCenterId', ['costCenterId']],
   ['categoryName', ['categoryName']],
+  // Derived from costCenterId (src/finance/costCenterCatalog.js's
+  // scopeOfCostCenter) — carried explicitly so a classification edit from
+  // the invoice archive (src/finance/invoiceAmendment.js) does not silently
+  // drop it and leave the obligation's own scope stale.
+  ['costScope', ['costScope']],
   // Insyte / DATEV linkage — plain text, no aliases, no money implications.
   ['rechnungId', ['rechnungId']],
   ['numeroPedido', ['numeroPedido']],

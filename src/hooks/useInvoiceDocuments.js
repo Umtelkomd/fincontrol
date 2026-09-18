@@ -12,7 +12,17 @@
  */
 import { logError } from '../utils/logger';
 import { useEffect, useMemo, useState } from 'react';
-import { arrayUnion, collection, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
 import { sanitizeValue } from '../utils/sanitizeFirestore';
 import { CHUNK_BYTES } from '../finance/invoiceChunks';
@@ -125,7 +135,65 @@ export const useInvoiceDocuments = (user) => {
     await batch.commit();
   };
 
-  return { documents, loading, error, commitInvoiceArchive };
+  /**
+   * updateInvoiceDocument — T13 EDIT/REPLACE: patches the archive metadata
+   * doc with the exact fields the caller sends (never a default overwrite,
+   * same discipline as updatePayable/updateReceivable). `patch` must never
+   * carry `sha256`/`sizeBytes`/`chunkCount`/`storage`/`links` — those keep
+   * `validInvoiceMetadata()` satisfied in firestore.rules and `links` has no
+   * edit path here (see src/finance/invoiceAmendment.js's planInvoiceReplace
+   * for the one place links legitimately change, via a full document swap).
+   */
+  const updateInvoiceDocument = async (sha256, patch = {}) => {
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+    await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
+  };
+
+  /** deleteInvoiceDocument — T13 DELETE: removes the archive metadata doc itself (chunks are a separate call — see lib/invoiceArchiveStore.js's deleteInvoicePdf). */
+  const deleteInvoiceDocument = async (sha256) => {
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+    await deleteDoc(ref);
+  };
+
+  /**
+   * removeInvoiceLink — T13 DELETE: strips this archive doc's sha256 back
+   * reference from one linked obligation (`invoiceDocumentIds`). Runs for
+   * every link, owned or foreign — it is pure cleanup of a now-dangling
+   * pointer, never an accounting change (see src/finance/invoiceAmendment.js's
+   * `planInvoiceDelete`, which only ever cancels an OWNED, unlocked obligation
+   * separately and explicitly).
+   */
+  const removeInvoiceLink = async (family, recordId, sha256) => {
+    const collectionName = collectionForFamily(family);
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', collectionName, recordId);
+    await updateDoc(ref, { invoiceDocumentIds: arrayRemove(sha256), updatedAt: serverTimestamp() });
+  };
+
+  /**
+   * swapInvoiceLink — T13 REPLACE PDF: re-points one obligation's back
+   * reference from the OLD sha256 to the NEW one. Two sequential updates
+   * (Firestore cannot combine an arrayRemove and an arrayUnion of the SAME
+   * field in one write) rather than a batch — REPLACE's own ordering already
+   * tolerates a failure here (see lib/amend.js's applyInvoiceReplace): the old
+   * PDF is only deleted once every swap has succeeded.
+   */
+  const swapInvoiceLink = async (family, recordId, { removeInvoiceDocumentId, addInvoiceDocumentId } = {}) => {
+    const collectionName = collectionForFamily(family);
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', collectionName, recordId);
+    await updateDoc(ref, { invoiceDocumentIds: arrayRemove(removeInvoiceDocumentId), updatedAt: serverTimestamp() });
+    await updateDoc(ref, { invoiceDocumentIds: arrayUnion(addInvoiceDocumentId), updatedAt: serverTimestamp() });
+  };
+
+  return {
+    documents,
+    loading,
+    error,
+    commitInvoiceArchive,
+    updateInvoiceDocument,
+    deleteInvoiceDocument,
+    removeInvoiceLink,
+    swapInvoiceLink,
+  };
 };
 
 export default useInvoiceDocuments;

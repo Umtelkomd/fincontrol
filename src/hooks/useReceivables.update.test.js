@@ -213,6 +213,26 @@ describe('updateReceivable — explicit clears still land', () => {
   });
 });
 
+describe('updateReceivable — costScope (T13: invoice amendment classification propagation)', () => {
+  it('writes costScope alongside the rest of the classification when the caller sends it', async () => {
+    const { updateReceivable } = useReceivables(USER);
+
+    await updateReceivable(storedReceivable(), { costCenterId: 'CC-120', costScope: 'project' });
+
+    const payload = writtenPayload();
+    expect(payload.costCenterId).toBe('CC-120');
+    expect(payload.costScope).toBe('project');
+  });
+
+  it('does not write costScope when the caller omits it', async () => {
+    const { updateReceivable } = useReceivables(USER);
+
+    await updateReceivable(storedReceivable(), { description: 'x' });
+
+    expect(writtenPayload()).not.toHaveProperty('costScope');
+  });
+});
+
 describe('updateReceivable — the full form still behaves exactly as before', () => {
   it('restates the money block when the caller sends an amount', async () => {
     const { updateReceivable } = useReceivables(USER);

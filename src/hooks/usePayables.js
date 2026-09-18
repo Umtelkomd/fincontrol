@@ -41,6 +41,11 @@ const PAYABLE_TEXT_FIELDS = [
   ['projectName', ['projectName']],
   ['costCenterId', ['costCenterId']],
   ['categoryName', ['categoryName']],
+  // Derived from costCenterId (src/finance/costCenterCatalog.js's
+  // scopeOfCostCenter) — carried explicitly so a classification edit from
+  // the invoice archive (src/finance/invoiceAmendment.js) does not silently
+  // drop it and leave the obligation's own scope stale.
+  ['costScope', ['costScope']],
 ];
 
 /**
