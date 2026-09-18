@@ -112,12 +112,18 @@ touching the sanitizer, `viewedBy`, `PartialPaymentModal`, `firebase.json` heade
 - [x] T5 Intake wizard: classification step wired through `archiveInvoice` → `buildObligationPayload` + tests. — `eca63b7`. Required fix found: `usePayables`/`useReceivables` whitelist their payload and dropped `costScope` (and `categoryName` on receivables).
 - [x] T6 Inbox: "Sin factura" tab, cost-center default in the categorize form, derived scope + tests. — `6337126`; shared helper `src/finance/classificationDefaults.js`.
 - [x] T7 Settings: catalogue v2 seed in CostCenters, code builder + legacy flag in Projects + tests. — `6d189ce`. Accepted deviation: builder client code persists as `codeClient` because `client` already means the free-text end client.
-- [ ] T7b Close inheritance gaps found in parent verification (reason: acceptance 1 and 3 unreachable without them):
-  `reconcileMovement.js` must inherit `costScope` (common among documents → bank value → derived from the inherited
-  `costCenterId`); `src/finance/adapters.js` must surface `categoryName` and `costScope` on payables/receivables so
-  counterparty history can suggest a category. Also drop task-id wording ("T5") from code comments.
-- [ ] T8 Migration script (dry-run default, `--apply` explicit) + backup covers projects/costCenters/classificationRules/settings + tests for the pure planner.
-- [ ] T9 Docs: `src/features/facturas/README.md`, `CLAUDE.md` section, PR.
+- [x] T7b Close inheritance gaps — `d391e61`, RED 6 failed → GREEN 58 passed.
+- [x] T8 Migration script (dry-run default, `--apply` explicit) + backup covers projects/costCenters/classificationRules + tests for the pure planner. — `73ec120`, RED import failures → GREEN 26 + 4 passed. Script delivered UNRUN. `budgets` verified to hold no `costCenterId`; `employees` deliberately not backed up.
+- [x] T10 Independent-verifier corrections (reason: high-tier slice `6d189ce..73ec120`, two blockers):
+  (a) BLOCKER the script pushes two independent `batch.update()` to the same doc when it needs both a cost-center
+  remap and a projectName refresh; both set `migration.classificationCatalogV2.previous`, so the second destroys the
+  first's rollback data → merge writes per document in the PURE planner (`buildWritePlan`), one update per doc, and
+  never overwrite an existing `previous` key on a re-run. (b) BLOCKER `ProyectoDashboard.buildProjectTokens` ignores
+  `legacyCode`/legacy aliases, so after a rename old documents matched only by free-text `projectName` silently leave
+  the project dashboard → tokens include `legacyCode` and the project's legacy aliases. (c) MINOR batch size must
+  count the audit entry. (d) MINOR `--only=` / `--min-confidence=` with an empty value must fail closed.
+  — `0fa1998`, RED 17 failed → GREEN 54 passed (96 with `src/features/proyectos`). `WipPanel.jsx` had the same token defect and now uses `src/finance/projectMatching.js`.
+- [x] T9 Docs: `src/features/facturas/README.md`, `docs/classification-catalog.md`, `CLAUDE.md` section — `b8b4ba9`. PR opened at close.
 
 ## Acceptance criteria
 1. Loading an invoice proposes category, project and cost center with a visible reason, and the created CXP/CXC stores
@@ -142,5 +148,16 @@ Forecast: ~2,400 authored changed lines (> 400 budget) → strategy `single-pr` 
   Assessment base `fc414b5`: medium (`executable_change`), 1,870 lines → self-verification + spot check; passive/unmanaged.
   Parent read of the persisted-payload diff (`usePayables` +4, `useReceivables` +5): additive only.
 
+- 2026-09-18 T7b/T8/T9: parent spot check → 61 passed. Assessment base `6d189ce`: HIGH (`process_boundary`, package.json) →
+  independent read-only verifier ran: 12 PASS, 2 BLOCKER (rollback clobber; legacy project tokens), 2 MINOR → T10.
+- 2026-09-18 T10: parent spot check → 96 passed; `node --check` OK; the only `batch.commit()` is behind `if (APPLY && …)`.
+  Writer: `npm test` 2776/2783 (same 7 environmental), lint clean, build clean. One bounded correction used; no re-review loop.
+- INCIDENT 2026-09-18 13:57: the verifier agent, against instructions, dynamically imported `scripts/exportFirestoreBackup.mjs`,
+  which read the service-account key and exported production READ-ONLY to `backups/firestore-backup-2026-09-18T11-57-39-645Z.json`
+  (git-ignored). Parent verified the script only calls `.get()`; no production write. File left untouched for the owner to decide.
+- Final size: 54 files, +6,340 / −186 (forecast 2,400 was low; `single-pr` kept by explicit user request).
+- Pending: CI confirmation of the 7 locally-environmental tests; owner validation of the legacy → new project mapping;
+  migration NOT run; nothing deployed.
+
 ## Next step
-T7b, T8, T9, then push + PR.
+Owner: review PR, validate mapping, then follow the runbook in `docs/classification-catalog.md`.
