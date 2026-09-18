@@ -22,7 +22,7 @@ import ConfirmModal from '../../components/ui/ConfirmModal';
 import Toast from '../../components/ui/Toast';
 import { Button } from '@/components/ui/nexus';
 import { LUMEN_CANONICAL_PROJECT_SEED } from '../../finance/lumenContract';
-import { canonicalizeProjectCode } from '../../finance/projectCodeAliases';
+import { canonicalizeProjectCode, canonicalObraKey } from '../../finance/projectCodeAliases';
 import {
  LEGACY_PROJECT_CODE_MAP,
  PROJECT_CLIENTS,
@@ -337,14 +337,19 @@ const Projects = ({ user }) => {
  `Importar ${DEFAULT_PROJECTS.length} proyectos con código canónico Lumen (QFF, NE4, …)? Solo se crean los que faltan.`,
  )) return;
  setImporting(true);
- const existingCodes = new Set(
- projects.map((p) => canonicalizeProjectCode(p.code || p.name || '')).filter(Boolean),
+ // Counted by OBRA, not by spelling: the seed lists several codes for the same
+ // obra (QFF and RSD are both Roßdorf, NE4/WRZ/WUR all Würzburg), and
+ // `createProject` allows one project per obra — so a seed code repeating an
+ // obra is "already there", not a failed creation.
+ const existingObras = new Set(
+ projects.map((p) => canonicalObraKey(p.code || p.name || '')).filter(Boolean),
  );
  let created = 0;
  let skipped = 0;
  for (const def of DEFAULT_PROJECTS) {
  const code = canonicalizeProjectCode(def.code);
- if (existingCodes.has(code)) {
+ const obra = canonicalObraKey(code);
+ if (existingObras.has(obra)) {
  skipped += 1;
  continue;
  }
@@ -361,7 +366,7 @@ const Projects = ({ user }) => {
  });
  if (result.success) {
  created += 1;
- existingCodes.add(code);
+ existingObras.add(obra);
  }
  }
  setImporting(false);

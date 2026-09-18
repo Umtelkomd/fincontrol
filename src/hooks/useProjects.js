@@ -12,7 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db, appId } from '../services/firebase';
-import { canonicalizeProjectCode } from '../finance/projectCodeAliases';
+import { canonicalizeProjectCode, canonicalObraKey } from '../finance/projectCodeAliases';
 import { sanitizeValue } from '../utils/sanitizeFirestore';
 
 const normalizeProjectPayload = (projectData = {}) => {
@@ -72,12 +72,26 @@ export const useProjects = (user) => {
       if (!normalized.code) {
         return { success: false, error: new Error('code canónico requerido (ej. QFF, NE4)') };
       }
-      // Prevent duplicate canonical codes
-      const exists = projects.some(
-        (p) => canonicalizeProjectCode(p.code) === normalized.code && p.status !== 'inactive',
+      // One project per OBRA, not per spelling: `QFF`, `QFF-002`, `RSD` and
+      // `INS-RSD-BL1` are all the Roßdorf obra (see canonicalObraKey), so
+      // comparing the stored code alone let a second project be created for an
+      // obra that already had one — and then every document had two places to
+      // belong to. A project that is inactive, deactivated or already merged
+      // holds nothing: its obra is free again.
+      const obraKey = canonicalObraKey(normalized.code);
+      const existing = projects.find(
+        (p) =>
+          p &&
+          p.status !== 'inactive' &&
+          p.active !== false &&
+          !p.mergedInto &&
+          canonicalObraKey(p.code || p.name || '') === obraKey,
       );
-      if (exists) {
-        return { success: false, error: new Error(`Ya existe un proyecto con code ${normalized.code}`) };
+      if (existing) {
+        return {
+          success: false,
+          error: new Error(`Ya existe un proyecto para esa obra: ${existing.code || existing.name}`),
+        };
       }
       await addDoc(projectsRef, {
         ...normalized,

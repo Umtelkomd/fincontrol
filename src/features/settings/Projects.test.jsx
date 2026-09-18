@@ -5,7 +5,7 @@
  * label on the list.
  */
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installFirebaseMocks, TEST_USER } from '@/test/firebaseMock';
 import { projectFixture } from '@/test/fixtures';
 
@@ -281,6 +281,39 @@ describe('Projects — merge-group rename warning', () => {
     fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'WSC-GEN-MD1' } });
 
     expect(screen.queryByText(/corresponde al mismo código/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The Lumen seed lists several codes per obra (QFF and RSD are both Roßdorf,
+ * NE4/WRZ/WUR all Würzburg, FBX and HXT both Höxter). Since `createProject`
+ * now allows one project per OBRA, the importer has to count the same way, or
+ * it would report those as neither created nor already existing.
+ */
+describe('Projects — importing the Lumen catalogue', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates one project per obra and reports the repeated codes as already existing', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Projects user={TEST_USER} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Importar códigos Lumen' }));
+
+    // 17 seed codes, 4 of which (RSD, HXT, WRZ, WUR) repeat an obra already created.
+    expect(await screen.findByText('Códigos Lumen: 13 creados, 4 ya existían')).toBeInTheDocument();
+    expect(firestore.addDoc).toHaveBeenCalledTimes(13);
+  });
+
+  it('skips an obra a live project already holds under another spelling', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    store.collections.projects = [projectFixture({ id: 'p-rsd', code: 'INS-RSD-BL1', name: 'Roßdorf' })];
+    render(<Projects user={TEST_USER} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Importar códigos Lumen' }));
+
+    expect(await screen.findByText('Códigos Lumen: 12 creados, 5 ya existían')).toBeInTheDocument();
   });
 });
 

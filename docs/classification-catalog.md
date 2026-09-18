@@ -124,6 +124,51 @@ for any future, not-yet-validated entry.
 | AMD-001, "Overhead" | UMT-ADM-OH1 | high |
 | QDU, AUSTRIA, EHR, BIE, BAM, LGN, GFP, DGF, WCB | *(none)* | unmapped — stays legacy |
 
+## One project dictionary
+
+The table above lives in `src/finance/projectCodeAliases.js`, next to the short
+legacy-alias table, and `src/finance/projectCode.js` re-exports
+`LEGACY_PROJECT_CODE_MAP`, `PROJECT_CODE_PATTERN`, `isStructuredProjectCode`
+and `resolveLegacyProjectCode` from it. They used to be two dictionaries in a
+circular pair of modules, and they disagreed: `projectCodesMatch('INS-RSD-BL1',
+'QFF')` was `false`, so a project renamed to its v2 code read as a DIFFERENT
+obra from its own documents.
+
+Two functions, deliberately not the same one:
+
+- **`canonicalizeProjectCode`** is the STORAGE normalizer: `QFF-001` → `QFF`,
+  a structured code passes through, anything unknown comes back
+  bare-uppercased. It is persisted as `projects.code` and as `projectCode` on
+  payables and receivables, so it must keep answering with the code production
+  actually holds until the migration renames it.
+- **`canonicalObraKey`** is the MATCHING key: one key per obra, so `QFF`,
+  `QFF-002`, `RSD`, "Roßdorf 2", `QFF (Roßdorf 1)` and `INS-RSD-BL1` all answer
+  `INS-RSD-BL1`. `projectCodesMatch` compares these. An obra the table does not
+  map keeps its canonicalized value, so two unknown codes match only when they
+  are the same code — never a guess.
+
+Reading the table literally has a consequence worth knowing: the legacy
+catalogue listed several codes for one obra (QFF **and** RSD are Roßdorf,
+NE4/WRZ/WUR are Würzburg, FBX **and** HXT are Höxter), so those now answer as
+ONE obra. `useProjects.createProject` therefore allows one project per obra and
+names the existing one ("Ya existe un proyecto para esa obra: QFF"), and
+"Importar códigos Lumen" counts by obra too — 13 of the 17 seed codes are
+created, the 4 repeats are reported as already existing. A project that is
+inactive, `active: false` or `mergedInto` holds no obra: its obra is free again.
+
+`extractProjectToken` prefers a STRUCTURED head code over the parenthesized
+part. The old "a short parenthesized part wins" rule was written for legacy
+values like "Nombre largo (QFF)", and it broke on the displayName this app
+writes (`"CODE (Name)"`): `VAN-UGG-N41 (UGG)` canonicalized to `UGG`, the
+legacy code of the very project that had just been renamed. Everything whose
+head is not a v2 code keeps its previous output.
+
+`resolveProjectIdByCode` (`lumenContract.js`) looks up the exact canonical
+code/name first and only then by obra key or stamped `legacyCode`, so a list
+holding several projects of one obra still answers with the one asked for,
+while a Lumen payload carrying `QFF` finds the project renamed to
+`INS-RSD-BL1`.
+
 ## Project merges
 
 Owner decision 2026-09-18 (T11): QFF, QFF-001, QFF-002, PROY-001, RSD,
