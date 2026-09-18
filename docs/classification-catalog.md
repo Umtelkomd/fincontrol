@@ -157,6 +157,29 @@ Budgets follow one of two policies, chosen PER MERGE GROUP via an opt-in
   carrying `mergedInto` from that match, or it would double-count the
   already-summed total.
 
+### Renaming a project by hand
+
+**Do not rename a merge-group project by hand before the migration has folded
+it.** While QFF and QFF-002 are both live, renaming one of them to
+`INS-RSD-BL1` makes its dictionary aliases ("QFF-002", "Roßdorf 2") collide
+with the other project's own code and name, and a payable carrying only
+`projectName: 'Roßdorf 2'` would appear under BOTH obras. Two guards keep that
+from going unnoticed:
+
+- The Proyectos form shows a muted warning when the structured code being
+  saved is a merge target another LIVE project also resolves to. It is a
+  warning, not a block — renaming the survivor is legitimate.
+- `buildProjectTokens` (`src/finance/projectMatching.js`) takes the project
+  list and withholds any alias that is another live project's own
+  code/name/displayName/legacyCode. Once that sibling is `inactive` or carries
+  `mergedInto` — the state the migration leaves — the alias is admitted again,
+  so the survivor does answer for the absorbed obra's old documents.
+
+Saving a code change in the Proyectos screen also stamps `legacyCode` with the
+PREVIOUS code, once: every document captured before the rename still carries
+that code as free text, and `legacyCode` is what keeps matching them. A later
+rename never overwrites it — the first original is the one the documents hold.
+
 `employees.projectIds` is NOT covered by `npm run backup:firestore` (personal
 data) — its only rollback path is the
 `migration.classificationCatalogV2.previous.projectIds` stamp the migration

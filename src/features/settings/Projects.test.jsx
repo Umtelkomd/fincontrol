@@ -156,6 +156,134 @@ describe('Projects — list shows line and default cost center (T7)', () => {
   });
 });
 
+/**
+ * A rename is the only place the OLD code can still be captured: every
+ * document written before it keeps that code as free text, and
+ * `buildProjectTokens` (src/finance/projectMatching.js) reads `legacyCode` to
+ * keep matching them. Without the stamp a hand rename silently orphans them.
+ */
+describe('Projects — a rename records the previous code as legacyCode', () => {
+  const openEditFor = (project) => {
+    store.collections.projects = [project];
+    render(<Projects user={TEST_USER} />);
+    fireEvent.click(screen.getByTitle('Editar'));
+  };
+
+  const save = () => fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+  const savedPayload = () => firestore.updateDoc.mock.calls.at(-1)[1];
+
+  it('stamps the previous code when the code changes', () => {
+    openEditFor(projectFixture({ id: 'p-legacy', code: 'QFF', name: 'Roßdorf' }));
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-RSD-BL1' } });
+    save();
+
+    expect(savedPayload()).toMatchObject({ code: 'INS-RSD-BL1', legacyCode: 'QFF' });
+  });
+
+  it('never overwrites a legacyCode already on the doc — the first original is the one documents carry', () => {
+    openEditFor(projectFixture({ id: 'p-renamed', code: 'INS-RSD-BL1', name: 'Roßdorf', legacyCode: 'QFF' }));
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-RSD-BL2' } });
+    save();
+
+    expect(savedPayload().code).toBe('INS-RSD-BL2');
+    expect(savedPayload().legacyCode).toBeUndefined();
+  });
+
+  it('stamps nothing when the code is untouched', () => {
+    openEditFor(projectFixture({ id: 'p-legacy', code: 'QFF', name: 'Roßdorf' }));
+
+    fireEvent.change(screen.getByPlaceholderText('Nombre del proyecto'), { target: { value: 'Roßdorf 1' } });
+    save();
+
+    expect(savedPayload().legacyCode).toBeUndefined();
+  });
+
+  it('stamps nothing on a newly created project — it has no previous code', () => {
+    openNewProjectModal();
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-RSD-BL1' } });
+    fireEvent.change(screen.getByPlaceholderText('Nombre del proyecto'), { target: { value: 'Roßdorf' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear proyecto' }));
+
+    expect(firestore.addDoc.mock.calls.at(-1)[1].legacyCode).toBeUndefined();
+  });
+});
+
+/**
+ * Renaming ONE project of a merge group by hand, while its siblings are still
+ * live, is what splits an obra's old documents between two projects — the
+ * migration exists to merge them first. The form says so; it does not block,
+ * because the owner may well be renaming the survivor on purpose.
+ */
+describe('Projects — merge-group rename warning', () => {
+  const MERGE_WARNING = /Otro proyecto activo \(QFF-002\) corresponde al mismo código/;
+
+  const renderWith = (projects) => {
+    store.collections.projects = projects;
+    render(<Projects user={TEST_USER} />);
+  };
+
+  const rossdorf1 = (overrides = {}) => projectFixture({ id: 'p-1', code: 'QFF', name: 'Roßdorf 1', ...overrides });
+  const rossdorf2 = (overrides = {}) => projectFixture({ id: 'p-2', code: 'QFF-002', name: 'Roßdorf 2', ...overrides });
+
+  it('warns when the structured code being saved is a merge target another live project resolves to', () => {
+    renderWith([rossdorf1(), rossdorf2()]);
+    fireEvent.click(screen.getAllByTitle('Editar')[0]);
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-RSD-BL1' } });
+
+    expect(screen.getByText(MERGE_WARNING)).toBeInTheDocument();
+    expect(screen.getByText(/Fusiona los proyectos con la migración antes de renombrar/)).toBeInTheDocument();
+  });
+
+  it('warns without blocking — the save still goes through', () => {
+    renderWith([rossdorf1(), rossdorf2()]);
+    fireEvent.click(screen.getAllByTitle('Editar')[0]);
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-RSD-BL1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(firestore.updateDoc).toHaveBeenCalled();
+    expect(firestore.updateDoc.mock.calls.at(-1)[1]).toMatchObject({ code: 'INS-RSD-BL1' });
+  });
+
+  it('stays quiet once the sibling is inactive or already merged — the post-migration state', () => {
+    renderWith([rossdorf1(), rossdorf2({ status: 'inactive', active: false, mergedInto: 'p-1' })]);
+    fireEvent.click(screen.getAllByTitle('Editar')[0]);
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-RSD-BL1' } });
+
+    expect(screen.queryByText(/corresponde al mismo código/)).not.toBeInTheDocument();
+  });
+
+  it('stays quiet for a code no other live project resolves to', () => {
+    renderWith([projectFixture({ id: 'p-1', code: 'QDU', name: 'Otra obra' })]);
+    fireEvent.click(screen.getByTitle('Editar'));
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'INS-MSD-TB1' } });
+
+    expect(screen.queryByText(/corresponde al mismo código/)).not.toBeInTheDocument();
+  });
+
+  it('stays quiet for a structured code outside any merge group', () => {
+    // WSC-GEN-N41 and WSC-GEN-MD1 are different obras, so their entries carry
+    // no `merge` flag — two live projects there are a real collision, not this
+    // warning's case.
+    renderWith([
+      projectFixture({ id: 'p-1', code: 'WSC', name: 'Wesconnect' }),
+      projectFixture({ id: 'p-2', code: 'WESTC_MDU', name: 'MDU Oeste' }),
+    ]);
+    fireEvent.click(screen.getAllByTitle('Editar')[1]);
+
+    fireEvent.change(screen.getByPlaceholderText('PROY-001'), { target: { value: 'WSC-GEN-MD1' } });
+
+    expect(screen.queryByText(/corresponde al mismo código/)).not.toBeInTheDocument();
+  });
+});
+
 describe('Projects — merged-loser note (T11: owner decision 2026-09-18)', () => {
   it('shows a muted "Fusionado en <code>" note for a project carrying mergedInto', () => {
     store.collections.projects = [

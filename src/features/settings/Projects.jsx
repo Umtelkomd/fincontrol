@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/nexus';
 import { LUMEN_CANONICAL_PROJECT_SEED } from '../../finance/lumenContract';
 import { canonicalizeProjectCode } from '../../finance/projectCodeAliases';
 import {
+ LEGACY_PROJECT_CODE_MAP,
  PROJECT_CLIENTS,
  PROJECT_LINES,
  buildProjectCode,
@@ -158,6 +159,28 @@ const Projects = ({ user }) => {
  const legacySuggestion =
  editingProject && !isStructuredProjectCode(editingProject.code) ? resolveLegacyProjectCode(editingProject.code) : null;
 
+ // A merge group's v2 code stands for ONE obra that production still holds as
+ // several live project docs (QFF + QFF-002 = Roßdorf). Renaming one of them by
+ // hand while the others are live is what splits the obra's old documents
+ // between two projects — `planProjectMerge` exists to fold them first. This
+ // only warns: the owner may legitimately be renaming the survivor.
+ const isLiveProject = (project) =>
+ project.status !== 'inactive' && project.active !== false && !project.mergedInto;
+
+ const mergeGroupRivals = (() => {
+ const target = formData.code.trim().toUpperCase();
+ if (!isStructuredProjectCode(target)) return [];
+ const group = LEGACY_PROJECT_CODE_MAP.find((entry) => entry.code === target && entry.merge);
+ if (!group) return [];
+ return projects.filter(
+ (p) =>
+ p &&
+ p.id !== editingProject?.id &&
+ isLiveProject(p) &&
+ resolveLegacyProjectCode(p.code || p.name || '').code === target,
+ );
+ })();
+
  /** Cliente/Sitio/Línea auto-suggest the next free lot once all three are set and the human has not typed one yet. */
  const updateCodeBuilder = (field, rawValue) => {
  setCodeBuilder((prev) => {
@@ -188,8 +211,11 @@ const Projects = ({ user }) => {
  return;
  }
 
+ const nextCode = formData.code.trim().toUpperCase();
+ const previousCode = String(editingProject?.code || '').trim().toUpperCase();
+
  const projectData = {
- code: formData.code.trim().toUpperCase(),
+ code: nextCode,
  name: formData.name.trim(),
  client: formData.client.trim(),
  operator: formData.operator || 'INSYTE',
@@ -207,6 +233,14 @@ const Projects = ({ user }) => {
  line: codeBuilder.line,
  lot: codeBuilder.lot ? Number(codeBuilder.lot) : null,
  };
+
+ // Renaming a project leaves every document captured under the OLD code
+ // carrying it as free text; `buildProjectTokens` reads `legacyCode` to keep
+ // matching them (src/finance/projectMatching.js). Only the FIRST original is
+ // recorded: a second rename must not overwrite the code the documents hold.
+ if (editingProject && previousCode && previousCode !== nextCode && !String(editingProject.legacyCode || '').trim()) {
+ projectData.legacyCode = previousCode;
+ }
 
  if (editingProject) {
  const result = await updateProject(editingProject.id, projectData);
@@ -759,6 +793,13 @@ const Projects = ({ user }) => {
  </>
  )}
  </div>
+ )}
+ {mergeGroupRivals.length > 0 && (
+ <p className="mt-2 text-[12px] leading-5 text-[var(--color-fg-3)]">
+ Otro proyecto activo ({mergeGroupRivals.map((p) => p.code || p.name).join(', ')}) corresponde al mismo
+ código. Fusiona los proyectos con la migración antes de renombrar, o los documentos antiguos podrían
+ repartirse mal.
+ </p>
  )}
  </div>
  <div>

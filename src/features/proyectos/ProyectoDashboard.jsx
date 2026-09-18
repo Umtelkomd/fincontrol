@@ -176,7 +176,13 @@ const ProyectoDashboard = ({ user }) => {
  [availableProjects, effectiveProjectId],
  );
 
- const projectTokens = useMemo(() => buildProjectTokens(selectedProject), [selectedProject]);
+ // The FULL project list, not `availableProjects`: the builder needs to see
+ // which merge-group aliases another live project still answers to under its
+ // own code/name, and it decides liveness itself.
+ const projectTokens = useMemo(
+ () => buildProjectTokens(selectedProject, { liveProjects: ledger.projects || [] }),
+ [selectedProject, ledger.projects],
+ );
 
  // Project cost is measured NET. Input VAT comes back from the tax office as
  // Vorsteuer, so charging it to the obra overstates the cost and understates the
@@ -640,7 +646,7 @@ const ProyectoDashboard = ({ user }) => {
  {/* Executed work not yet invoiced. Sits right under the KPIs because a site
  accumulating uncertified execution is the early warning: every KPI above
  only knows about money that already moved. */}
- <WipPanel project={selectedProject} user={user} />
+ <WipPanel project={selectedProject} liveProjects={ledger.projects || []} user={user} />
 
  {transfers.internalTransfers.length > 0 ? (
  <section
