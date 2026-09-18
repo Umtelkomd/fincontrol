@@ -511,7 +511,16 @@ export const usePayables = (user) => {
     }
   };
 
-  const cancelPayable = async (payable) => {
+  /**
+   * cancelPayable — optional `{ reason, source }` lets a caller that already
+   * knows WHY (e.g. src/features/facturas/Facturas.jsx cancelling the CXP a
+   * deleted archived invoice created) put that into the obligation's OWN
+   * auditTrail instead of the generic default. With no options — every
+   * existing caller (useNominas.js, this hook's own callers) — the detail
+   * stays byte-identical to before. `source` is recorded as audit-log
+   * metadata only; it never changes the written detail text itself.
+   */
+  const cancelPayable = async (payable, { reason, source } = {}) => {
     if (!user) return { success: false };
     if ((payable.paidAmount || 0) > 0) {
       return { success: false, error: new Error('No se puede cancelar una CXP con pagos registrados') };
@@ -519,6 +528,7 @@ export const usePayables = (user) => {
 
     try {
       const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
+      const detail = reason || 'Factura CXP cancelada desde la mesa maestra';
       const payload = {
         status: 'cancelled',
         openAmount: 0,
@@ -529,7 +539,7 @@ export const usePayables = (user) => {
           action: 'cancel',
           user: user.email,
           timestamp: new Date().toISOString(),
-          detail: 'Factura CXP cancelada desde la mesa maestra',
+          detail,
         }),
       };
       await updateDoc(payableRef, payload);
@@ -544,6 +554,7 @@ export const usePayables = (user) => {
           ...payload,
           updatedAt: new Date().toISOString(),
         }),
+        ...(source ? { metadata: { source } } : {}),
       });
       return { success: true };
     } catch (error) {

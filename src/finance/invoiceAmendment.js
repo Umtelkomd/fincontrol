@@ -340,9 +340,10 @@ export const planInvoiceEdit = ({
  *
  * @param {{
  *   invoiceDocument: object, obligations?: Array<object>, bankMovements?: Array<object>,
- *   cancelObligations?: Array<{family,recordId}>,
+ *   cancelObligations?: Array<{family,recordId}>, reason: string,
  * }} params
  * @returns {{
+ *   valid: boolean, errors: object,
  *   chunkDeletes: number, archiveDelete: boolean,
  *   backReferenceRemovals: Array<{family,id}>,
  *   cancellations: Array<{family,id}>, blockedCancellations: Array<{family,id,reasons}>,
@@ -353,7 +354,23 @@ export const planInvoiceDelete = ({
   obligations = [],
   bankMovements = [],
   cancelObligations = [],
+  reason,
 } = {}) => {
+  // Mirrors planInvoiceEdit's own reason requirement: the UI (ConfirmModal's
+  // `reasonLabel`) already enforces this, but a future or programmatic caller
+  // must never be able to bypass it by skipping the dialog.
+  if (!text(reason)) {
+    return {
+      valid: false,
+      errors: { reason: 'El motivo de la corrección es obligatorio' },
+      chunkDeletes: 0,
+      archiveDelete: false,
+      backReferenceRemovals: [],
+      cancellations: [],
+      blockedCancellations: [],
+    };
+  }
+
   const links = Array.isArray(invoiceDocument?.links) ? invoiceDocument.links : [];
   const backReferenceRemovals = links.map((link) => ({ family: link.family, id: link.recordId }));
   const chunkCount = Math.max(1, Number(invoiceDocument?.chunkCount) || Math.ceil((invoiceDocument?.sizeBytes || 0) / (768 * 1024)) || 1);
@@ -382,6 +399,8 @@ export const planInvoiceDelete = ({
   });
 
   return {
+    valid: true,
+    errors: {},
     chunkDeletes: chunkCount,
     archiveDelete: true,
     backReferenceRemovals,
@@ -399,18 +418,43 @@ export const planInvoiceDelete = ({
  * file, keeping every other field (header + classification-independent
  * links) unchanged. Same 2 MiB / PDF validation as intake.
  *
- * @param {{ invoiceDocument: object, newFile: {sha256,sizeBytes,mimeType,originalName} }} params
+ * `existingDocument` is the archive doc (if any) the orchestrator found
+ * already stored under the NEW file's sha256 — an authoritative lookup, not
+ * a guess (see src/features/facturas/lib/amend.js's applyInvoiceReplace).
+ * When present it can only mean the new PDF is ALREADY a different archived
+ * invoice: this module rejects the replace outright rather than letting
+ * `commitInvoiceArchive`'s `merge:true` + `arrayUnion(links)` silently pool
+ * two invoices' link sets and overwrite one's metadata with the other's.
+ *
+ * @param {{
+ *   invoiceDocument: object, newFile: {sha256,sizeBytes,mimeType,originalName},
+ *   existingDocument?: object|null, reason: string,
+ * }} params
  * @returns {{
  *   valid: boolean, errors: object,
  *   newDocument?: { id: string, data: object }, oldSha256?: string,
  *   backReferenceSwaps?: Array<{family,recordId,removeInvoiceDocumentId,addInvoiceDocumentId}>,
  * }}
  */
-export const planInvoiceReplace = ({ invoiceDocument, newFile } = {}) => {
+export const planInvoiceReplace = ({ invoiceDocument, newFile, existingDocument = null, reason } = {}) => {
+  if (!text(reason)) {
+    return { valid: false, errors: { reason: 'El motivo de la corrección es obligatorio' } };
+  }
+
   const oldSha256 = String(invoiceDocument?.id || invoiceDocument?.sha256 || '').toLowerCase();
 
   if (newFile?.sha256 && String(newFile.sha256).toLowerCase() === oldSha256) {
     return { valid: false, errors: { file: 'Es el mismo archivo' } };
+  }
+
+  if (existingDocument) {
+    const label = existingDocument.invoiceNumber || existingDocument.id || newFile?.sha256;
+    return {
+      valid: false,
+      errors: {
+        file: `Ese PDF ya está archivado como otra factura (Nº ${label}). Elimina una de las dos antes de reemplazar.`,
+      },
+    };
   }
 
   let validated;

@@ -30,6 +30,7 @@ const Facturas = ({ user, userRole }) => {
     deleteInvoiceDocument,
     removeInvoiceLink,
     swapInvoiceLink,
+    findInvoiceDocument,
   } = useInvoiceDocuments(user);
   // Feeds InvoiceIntakePanel's classification suggester (T5, acceptance #1):
   // rules come from the same hook every other classification surface uses
@@ -86,10 +87,22 @@ const Facturas = ({ user, userRole }) => {
       { invoiceDocument, obligations, bankMovements: ledger.postedMovements, cancelObligations, reason },
       {
         removeBackReference: (family, id, sha256) => removeInvoiceLink(family, id, sha256),
-        cancelObligation: async (family, id) => {
+        // The DELETE reason (already validated by planInvoiceDelete) is
+        // re-purposed as a context-aware auditTrail detail on the cancelled
+        // obligation itself — otherwise it always said the same generic
+        // "cancelada desde la mesa maestra" no matter why.
+        cancelObligation: async (family, id, cancelReason) => {
           const row = obligations.find((entry) => entry.kind === family && entry.id === id);
           if (!row) return { success: false, error: new Error('La obligación vinculada ya no existe') };
-          return family === 'payable' ? ledger.actions.payables.cancelPayable(row) : ledger.actions.receivables.cancelReceivable(row);
+          const options = cancelReason
+            ? {
+                reason: `Anulada al eliminar la factura archivada Nº ${invoiceDocument.invoiceNumber || invoiceDocument.id}. Motivo: ${cancelReason}`,
+                source: 'invoice-archive-delete',
+              }
+            : undefined;
+          return family === 'payable'
+            ? ledger.actions.payables.cancelPayable(row, options)
+            : ledger.actions.receivables.cancelReceivable(row, options);
         },
         deleteChunks: (sha256, chunkCount) => deleteInvoicePdf({ db, appId, sha256, chunkCount }),
         deleteArchive: (sha256) => deleteInvoiceDocument(sha256),
@@ -97,9 +110,9 @@ const Facturas = ({ user, userRole }) => {
       },
     );
 
-  const handleReplaceInvoice = (invoiceDocument, newFile, bytes) =>
+  const handleReplaceInvoice = (invoiceDocument, newFile, bytes, reason) =>
     applyInvoiceReplace(
-      { invoiceDocument, newFile, bytes },
+      { invoiceDocument, newFile, bytes, reason },
       {
         uploadPdf: ({ bytes: uploadBytes, expectedSha256 }) => uploadInvoicePdf({ db, appId, bytes: uploadBytes, expectedSha256 }),
         commitNewDocument: ({ document: newDocument }) => commitInvoiceArchive({ document: newDocument, linkUpdates: [] }),
@@ -107,6 +120,7 @@ const Facturas = ({ user, userRole }) => {
         deleteOldChunks: (oldSha256, chunkCount) => deleteInvoicePdf({ db, appId, sha256: oldSha256, chunkCount }),
         deleteOldArchive: (oldSha256) => deleteInvoiceDocument(oldSha256),
         writeAudit: writeAmendAudit,
+        findInvoiceDocument: (sha256) => findInvoiceDocument(sha256),
       },
     );
 

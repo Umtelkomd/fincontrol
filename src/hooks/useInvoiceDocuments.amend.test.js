@@ -21,19 +21,22 @@ const mount = async () => {
 
 beforeEach(() => {
   store.collections.invoiceDocuments = [];
+  store.documents = {};
   firestore.updateDoc.mockClear();
   firestore.deleteDoc.mockClear();
+  firestore.getDoc.mockClear();
 });
 
 describe('updateInvoiceDocument', () => {
   it('patches the given fields and stamps updatedAt, never touching sha256/sizeBytes/chunkCount/storage', async () => {
     const result = await mount();
 
-    await result.current.updateInvoiceDocument('a'.repeat(64), {
+    const response = await result.current.updateInvoiceDocument('a'.repeat(64), {
       counterpartyName: 'Nuevo nombre',
       invoiceNumber: 'RE-2026-999',
     });
 
+    expect(response).toEqual({ success: true });
     expect(firestore.updateDoc).toHaveBeenCalledTimes(1);
     const [ref, payload] = firestore.updateDoc.mock.calls[0];
     expect(ref.path).toContain(`invoiceDocuments/${'a'.repeat(64)}`);
@@ -42,6 +45,66 @@ describe('updateInvoiceDocument', () => {
     ['sha256', 'sizeBytes', 'chunkCount', 'storage', 'links'].forEach((key) =>
       expect(payload).not.toHaveProperty(key),
     );
+  });
+
+  it('accepts every field planInvoiceEdit legitimately emits onto the archive doc', async () => {
+    const result = await mount();
+
+    const response = await result.current.updateInvoiceDocument('a'.repeat(64), {
+      counterpartyName: 'Nuevo nombre',
+      counterpartyId: 'nuevo-nombre',
+      invoiceNumber: 'RE-2026-999',
+      issueDate: '2026-06-11',
+      netAmount: 1000,
+      taxAmount: 190,
+      grossAmount: 1190,
+      identity: 'invoice-v2',
+    });
+
+    expect(response).toEqual({ success: true });
+    expect(firestore.updateDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['sha256', 'sizeBytes', 'chunkCount', 'chunkBytes', 'storage', 'links', 'family', 'direction', 'createdAt', 'createdBy', 'someUnknownField'])(
+    'rejects a patch containing "%s" WITHOUT writing, instead of silently stripping it',
+    async (forbiddenKey) => {
+      const result = await mount();
+
+      const response = await result.current.updateInvoiceDocument('a'.repeat(64), {
+        counterpartyName: 'Nuevo nombre',
+        [forbiddenKey]: 'intento de fuga',
+      });
+
+      expect(response).toEqual({ success: false, error: expect.any(Error) });
+      expect(firestore.updateDoc).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('findInvoiceDocument', () => {
+  it('returns null when no document exists for that sha256', async () => {
+    store.documents = {};
+    const result = await mount();
+
+    const found = await result.current.findInvoiceDocument('c'.repeat(64));
+
+    expect(found).toBeNull();
+  });
+
+  it('returns the sanitized document (with its id) when it exists — an authoritative getDoc, not the possibly-stale onSnapshot list', async () => {
+    store.documents = { [`${'b'.repeat(64)}`]: { invoiceNumber: 'RE-2026-777', counterpartyName: 'Otro proveedor' } };
+    const result = await mount();
+
+    const found = await result.current.findInvoiceDocument('b'.repeat(64));
+
+    expect(found).toMatchObject({ id: 'b'.repeat(64), invoiceNumber: 'RE-2026-777' });
+  });
+
+  it('returns null for an empty/missing sha256 without calling Firestore', async () => {
+    const result = await mount();
+
+    expect(await result.current.findInvoiceDocument('')).toBeNull();
+    expect(firestore.getDoc).not.toHaveBeenCalled();
   });
 });
 

@@ -11,6 +11,43 @@
 import { planInvoiceDelete, planInvoiceEdit, planInvoiceReplace } from '../../../finance/invoiceAmendment';
 
 /**
+ * A missing required effect is a programming error, not something to skip
+ * quietly: every one of these three orchestrators must fail BEFORE touching
+ * a single obligation, movement, archive doc or PDF rather than silently
+ * running without its audit trail (or, for REPLACE, without its cross-
+ * invoice merge guard).
+ */
+const requireEffect = (effects, name, fnName) => {
+  if (typeof effects?.[name] !== 'function') {
+    throw new Error(`${fnName} requires effects.${name}`);
+  }
+};
+
+/**
+ * Calls effects.writeAudit and reports whether IT failed — via a thrown
+ * error or a `{success:false}` result (writeAuditLogEntry's own self-caught
+ * shape) — WITHOUT letting that failure masquerade as, or flip, the data
+ * mutation's own outcome. The mutation already committed by the time this
+ * runs; the caller decides `success`, this only reports the audit side
+ * effect separately so the UI can warn instead of lying about it.
+ */
+const runAudit = async (effects, entry) => {
+  try {
+    const auditResult = await effects.writeAudit(entry);
+    if (auditResult && auditResult.success === false) {
+      return { auditFailed: true, auditError: auditResult.error };
+    }
+    return { auditFailed: false };
+  } catch (error) {
+    return { auditFailed: true, auditError: error };
+  }
+};
+
+/** Merges the audit outcome onto an operation result without adding noise when the audit succeeded. */
+const withAuditOutcome = (result, { auditFailed, auditError }) =>
+  auditFailed ? { ...result, auditFailed: true, auditError } : result;
+
+/**
  * applyInvoiceEdit — EDIT. Ordering: owned obligation first, then linked
  * bank movements, then the archive metadata — matching the task's required
  * write order. Every stage is attempted independently (a failure in one does
@@ -29,6 +66,8 @@ export const applyInvoiceEdit = async (
   { invoiceDocument, obligations = [], bankMovements = [], form, projects = [] } = {},
   effects,
 ) => {
+  requireEffect(effects, 'writeAudit', 'applyInvoiceEdit');
+
   const plan = planInvoiceEdit({ invoiceDocument, obligations, bankMovements, form, projects });
   if (!plan.valid) return { success: false, plan };
 
@@ -53,13 +92,19 @@ export const applyInvoiceEdit = async (
 
   if (Object.keys(plan.archivePatch).length > 0) {
     try {
-      await effects.updateArchive(invoiceDocument.id, plan.archivePatch);
+      // The allowlist guard in useInvoiceDocuments.js's updateInvoiceDocument
+      // rejects with {success:false} rather than throwing — treat that
+      // exactly like a thrown update failure, never a silent success.
+      const archiveResult = await effects.updateArchive(invoiceDocument.id, plan.archivePatch);
+      if (archiveResult && archiveResult.success === false) {
+        failures.push({ stage: 'archive', error: archiveResult.error });
+      }
     } catch (error) {
       failures.push({ stage: 'archive', error });
     }
   }
 
-  await effects.writeAudit?.({
+  const auditOutcome = await runAudit(effects, {
     action: 'update',
     entityType: 'invoiceDocument',
     entityId: invoiceDocument.id,
@@ -69,8 +114,8 @@ export const applyInvoiceEdit = async (
     partial: failures.length > 0,
   });
 
-  if (failures.length > 0) return { success: false, partial: true, plan, failures };
-  return { success: true, plan };
+  if (failures.length > 0) return withAuditOutcome({ success: false, partial: true, plan, failures }, auditOutcome);
+  return withAuditOutcome({ success: true, plan }, auditOutcome);
 };
 
 /**
@@ -96,7 +141,11 @@ export const applyInvoiceDelete = async (
   { invoiceDocument, obligations = [], bankMovements = [], cancelObligations = [], reason } = {},
   effects,
 ) => {
-  const plan = planInvoiceDelete({ invoiceDocument, obligations, bankMovements, cancelObligations });
+  requireEffect(effects, 'writeAudit', 'applyInvoiceDelete');
+
+  const plan = planInvoiceDelete({ invoiceDocument, obligations, bankMovements, cancelObligations, reason });
+  if (!plan.valid) return { success: false, plan };
+
   const failures = [];
 
   for (const removal of plan.backReferenceRemovals) {
@@ -134,7 +183,7 @@ export const applyInvoiceDelete = async (
     }
   }
 
-  await effects.writeAudit?.({
+  const auditOutcome = await runAudit(effects, {
     action: 'delete',
     entityType: 'invoiceDocument',
     entityId: invoiceDocument.id,
@@ -144,8 +193,8 @@ export const applyInvoiceDelete = async (
     partial: failures.length > 0,
   });
 
-  if (failures.length > 0) return { success: false, partial: true, plan, failures };
-  return { success: true, plan };
+  if (failures.length > 0) return withAuditOutcome({ success: false, partial: true, plan, failures }, auditOutcome);
+  return withAuditOutcome({ success: true, plan }, auditOutcome);
 };
 
 /**
@@ -157,18 +206,35 @@ export const applyInvoiceDelete = async (
  * absent or an extra (recoverable) row, never a half-swapped, unreadable
  * invoice.
  *
- * @param {{invoiceDocument, newFile, bytes}} args
+ * Before any of that, the new file's sha256 is looked up against the
+ * archive: if it already belongs to a DIFFERENT invoice, planInvoiceReplace
+ * fails closed and NO effect below runs at all (see its own doc for why —
+ * `commitInvoiceArchive`'s intake `merge:true` must never fire for a
+ * replace).
+ *
+ * @param {{invoiceDocument, newFile, bytes, reason}} args
  * @param {{
  *   uploadPdf: (args: {bytes, expectedSha256}) => Promise<{sha256,sizeBytes,mimeType}>,
  *   commitNewDocument: (args: {document: object}) => Promise<void>,
  *   swapBackReference: (family: string, id: string, swap: {removeInvoiceDocumentId,addInvoiceDocumentId}) => Promise<void>,
  *   deleteOldChunks: (sha256: string, chunkCount: number) => Promise<void>,
  *   deleteOldArchive: (sha256: string) => Promise<void>,
- *   writeAudit: (entry: object) => Promise<void>,
+ *   writeAudit: (entry: object) => Promise<{success:boolean,error?:Error}|void>,
+ *   findInvoiceDocument: (sha256: string) => Promise<object|null>,
  * }} effects
  */
-export const applyInvoiceReplace = async ({ invoiceDocument, newFile, bytes } = {}, effects) => {
-  const plan = planInvoiceReplace({ invoiceDocument, newFile });
+export const applyInvoiceReplace = async ({ invoiceDocument, newFile, bytes, reason } = {}, effects) => {
+  requireEffect(effects, 'writeAudit', 'applyInvoiceReplace');
+  requireEffect(effects, 'findInvoiceDocument', 'applyInvoiceReplace');
+
+  const oldSha256 = String(invoiceDocument?.id || invoiceDocument?.sha256 || '').toLowerCase();
+  const newSha256 = String(newFile?.sha256 || '').toLowerCase();
+  // Same-file is already rejected by planInvoiceReplace from the args alone —
+  // skip the Firestore round trip for that trivial, purely local case.
+  const existingDocument =
+    newSha256 && newSha256 !== oldSha256 ? await effects.findInvoiceDocument(newSha256) : null;
+
+  const plan = planInvoiceReplace({ invoiceDocument, newFile, existingDocument, reason });
   if (!plan.valid) return { success: false, errors: plan.errors };
 
   const uploaded = await effects.uploadPdf({ bytes, expectedSha256: plan.newDocument.data.sha256 });
@@ -188,13 +254,14 @@ export const applyInvoiceReplace = async ({ invoiceDocument, newFile, bytes } = 
   await effects.deleteOldChunks(plan.oldSha256, invoiceDocument.chunkCount);
   await effects.deleteOldArchive(plan.oldSha256);
 
-  await effects.writeAudit?.({
+  const auditOutcome = await runAudit(effects, {
     action: 'replace',
     entityType: 'invoiceDocument',
     entityId: plan.newDocument.id,
     before: invoiceDocument,
+    reason,
     metadata: { oldSha256: plan.oldSha256, newSha256: plan.newDocument.id },
   });
 
-  return { success: true, plan, newSha256: plan.newDocument.id };
+  return withAuditOutcome({ success: true, plan, newSha256: plan.newDocument.id }, auditOutcome);
 };

@@ -347,14 +347,17 @@ describe('planInvoiceEdit', () => {
 });
 
 describe('planInvoiceDelete', () => {
+  const validReason = 'Factura duplicada';
+
   it('plans chunk + archive deletion and a back-reference removal for every link, owned or foreign', () => {
     const doc = invoiceDocument({
       links: [
         { family: 'payable', recordId: 'cxp-1' },
       ],
     });
-    const result = planInvoiceDelete({ invoiceDocument: doc, obligations: [payable()], bankMovements: [] });
+    const result = planInvoiceDelete({ invoiceDocument: doc, obligations: [payable()], bankMovements: [], reason: validReason });
 
+    expect(result.valid).toBe(true);
     expect(result.archiveDelete).toBe(true);
     expect(result.chunkDeletes).toBeGreaterThan(0);
     expect(result.backReferenceRemovals).toEqual([{ family: 'payable', id: 'cxp-1' }]);
@@ -367,6 +370,7 @@ describe('planInvoiceDelete', () => {
       obligations: [payable()],
       bankMovements: [],
       cancelObligations: [{ family: 'payable', recordId: 'cxp-1' }],
+      reason: validReason,
     });
 
     expect(result.cancellations).toEqual([{ family: 'payable', id: 'cxp-1' }]);
@@ -380,6 +384,7 @@ describe('planInvoiceDelete', () => {
       obligations: [payable({ paidAmount: 500, status: 'partial' })],
       bankMovements: [],
       cancelObligations: [{ family: 'payable', recordId: 'cxp-1' }],
+      reason: validReason,
     });
 
     expect(result.cancellations).toEqual([]);
@@ -395,6 +400,7 @@ describe('planInvoiceDelete', () => {
       obligations: [payable()],
       bankMovements: [],
       cancelObligations: [{ family: 'payable', recordId: 'cxp-1' }],
+      reason: validReason,
     });
 
     expect(result.cancellations).toEqual([]);
@@ -405,13 +411,39 @@ describe('planInvoiceDelete', () => {
 
   it('never plans a cancellation that was not explicitly requested', () => {
     const doc = invoiceDocument();
-    const result = planInvoiceDelete({ invoiceDocument: doc, obligations: [payable()], bankMovements: [] });
+    const result = planInvoiceDelete({ invoiceDocument: doc, obligations: [payable()], bankMovements: [], reason: validReason });
     expect(result.cancellations).toEqual([]);
     expect(result.blockedCancellations).toEqual([]);
+  });
+
+  it('rejects an empty reason, planning no deletion or cancellation at all (mirrors planInvoiceEdit)', () => {
+    const doc = invoiceDocument();
+    const result = planInvoiceDelete({
+      invoiceDocument: doc,
+      obligations: [payable()],
+      bankMovements: [],
+      cancelObligations: [{ family: 'payable', recordId: 'cxp-1' }],
+      reason: '',
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.reason).toBeTruthy();
+    expect(result.backReferenceRemovals).toEqual([]);
+    expect(result.cancellations).toEqual([]);
+    expect(result.archiveDelete).toBe(false);
+  });
+
+  it('rejects a whitespace-only reason', () => {
+    const doc = invoiceDocument();
+    const result = planInvoiceDelete({ invoiceDocument: doc, obligations: [payable()], bankMovements: [], reason: '   ' });
+    expect(result.valid).toBe(false);
+    expect(result.errors.reason).toBeTruthy();
   });
 });
 
 describe('planInvoiceReplace', () => {
+  const validReason = 'PDF ilegible';
+
   const newFile = (overrides = {}) => ({
     sha256: 'b'.repeat(64),
     sizeBytes: 20480,
@@ -422,7 +454,7 @@ describe('planInvoiceReplace', () => {
 
   it('rejects the same sha256 (same file)', () => {
     const doc = invoiceDocument();
-    const result = planInvoiceReplace({ invoiceDocument: doc, newFile: newFile({ sha256: doc.id }) });
+    const result = planInvoiceReplace({ invoiceDocument: doc, newFile: newFile({ sha256: doc.id }), reason: validReason });
     expect(result.valid).toBe(false);
     expect(result.errors.file).toMatch(/mismo archivo/i);
   });
@@ -431,6 +463,7 @@ describe('planInvoiceReplace', () => {
     const result = planInvoiceReplace({
       invoiceDocument: invoiceDocument(),
       newFile: newFile({ mimeType: 'image/png' }),
+      reason: validReason,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.file).toBeTruthy();
@@ -440,6 +473,7 @@ describe('planInvoiceReplace', () => {
     const result = planInvoiceReplace({
       invoiceDocument: invoiceDocument(),
       newFile: newFile({ sizeBytes: 2 * 1024 * 1024 + 1 }),
+      reason: validReason,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.file).toMatch(/2 MB/);
@@ -447,7 +481,7 @@ describe('planInvoiceReplace', () => {
 
   it('carries the old metadata + links onto the new document and plans the back-reference swap', () => {
     const doc = invoiceDocument();
-    const result = planInvoiceReplace({ invoiceDocument: doc, newFile: newFile() });
+    const result = planInvoiceReplace({ invoiceDocument: doc, newFile: newFile(), reason: validReason });
 
     expect(result.valid).toBe(true);
     expect(result.newDocument.id).toBe(newFile().sha256);
@@ -465,5 +499,37 @@ describe('planInvoiceReplace', () => {
     expect(result.backReferenceSwaps).toEqual([
       { family: 'payable', recordId: 'cxp-1', removeInvoiceDocumentId: doc.id, addInvoiceDocumentId: newFile().sha256 },
     ]);
+  });
+
+  it('rejects an empty reason (mirrors planInvoiceEdit)', () => {
+    const result = planInvoiceReplace({ invoiceDocument: invoiceDocument(), newFile: newFile(), reason: '  ' });
+    expect(result.valid).toBe(false);
+    expect(result.errors.reason).toBeTruthy();
+  });
+
+  it('fails closed BEFORE any file validation when the new sha256 already belongs to a DIFFERENT archived invoice', () => {
+    const doc = invoiceDocument();
+    const result = planInvoiceReplace({
+      invoiceDocument: doc,
+      // Also an oversized file: if the merge guard did not run first, the
+      // "over 2 MB" error would surface instead — proving fail-closed ordering.
+      newFile: newFile({ sizeBytes: 2 * 1024 * 1024 + 1 }),
+      existingDocument: { id: newFile().sha256, invoiceNumber: 'RE-2026-777' },
+      reason: validReason,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.file).toMatch(/ya está archivado como otra factura/i);
+    expect(result.errors.file).toContain('RE-2026-777');
+  });
+
+  it('does not reject when no conflicting document was found', () => {
+    const result = planInvoiceReplace({
+      invoiceDocument: invoiceDocument(),
+      newFile: newFile(),
+      existingDocument: null,
+      reason: validReason,
+    });
+    expect(result.valid).toBe(true);
   });
 });

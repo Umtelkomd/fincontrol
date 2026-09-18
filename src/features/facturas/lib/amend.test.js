@@ -140,6 +140,96 @@ describe('applyInvoiceEdit', () => {
 
     expect(effects.updateArchive).not.toHaveBeenCalled();
   });
+
+  it('treats a rejected archive patch (e.g. the key-allowlist guard) as a failure, not a silent success', async () => {
+    const effects = {
+      updateObligation: vi.fn(async () => ({ success: true })),
+      updateMovement: vi.fn(async () => {}),
+      updateArchive: vi.fn(async () => ({ success: false, error: new Error('campo no editable') })),
+      writeAudit: vi.fn(async () => {}),
+    };
+
+    const result = await applyInvoiceEdit(
+      { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], form: validForm() },
+      effects,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.partial).toBe(true);
+    expect(result.failures).toEqual(expect.arrayContaining([expect.objectContaining({ stage: 'archive' })]));
+  });
+
+  it('throws before any mutation when effects.writeAudit is missing (a programming error, never a silent skip)', async () => {
+    const effects = {
+      updateObligation: vi.fn(),
+      updateMovement: vi.fn(),
+      updateArchive: vi.fn(),
+    };
+
+    await expect(
+      applyInvoiceEdit(
+        { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], form: validForm() },
+        effects,
+      ),
+    ).rejects.toThrow();
+    Object.values(effects).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+  });
+
+  it('reports auditFailed without flipping success when writeAudit resolves {success:false}', async () => {
+    const effects = {
+      updateObligation: vi.fn(async () => ({ success: true })),
+      updateMovement: vi.fn(async () => {}),
+      updateArchive: vi.fn(async () => {}),
+      writeAudit: vi.fn(async () => ({ success: false, error: new Error('audit store down') })),
+    };
+
+    const result = await applyInvoiceEdit(
+      { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], form: validForm() },
+      effects,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.auditFailed).toBe(true);
+    expect(result.auditError).toBeInstanceOf(Error);
+  });
+
+  it('reports auditFailed without flipping success when writeAudit THROWS', async () => {
+    const effects = {
+      updateObligation: vi.fn(async () => ({ success: true })),
+      updateMovement: vi.fn(async () => {}),
+      updateArchive: vi.fn(async () => {}),
+      writeAudit: vi.fn(async () => {
+        throw new Error('offline');
+      }),
+    };
+
+    const result = await applyInvoiceEdit(
+      { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], form: validForm() },
+      effects,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.auditFailed).toBe(true);
+    expect(result.auditError).toBeInstanceOf(Error);
+  });
+
+  it('never reports auditFailed on a genuine data-mutation failure plus a healthy audit write', async () => {
+    const effects = {
+      updateObligation: vi.fn(async () => ({ success: false, error: new Error('boom') })),
+      updateMovement: vi.fn(async () => {}),
+      updateArchive: vi.fn(async () => {}),
+      writeAudit: vi.fn(async () => ({ success: true })),
+    };
+
+    const result = await applyInvoiceEdit(
+      { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], form: validForm() },
+      effects,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.partial).toBe(true);
+    expect(result.auditFailed).toBeUndefined();
+  });
 });
 
 describe('applyInvoiceDelete', () => {
@@ -233,10 +323,77 @@ describe('applyInvoiceDelete', () => {
 
     expect(effects.cancelObligation).not.toHaveBeenCalled();
   });
+
+  it('returns the invalid plan and calls no effect when the reason is missing (mirrors applyInvoiceEdit)', async () => {
+    const effects = {
+      removeBackReference: vi.fn(),
+      cancelObligation: vi.fn(),
+      deleteChunks: vi.fn(),
+      deleteArchive: vi.fn(),
+      writeAudit: vi.fn(),
+    };
+
+    const result = await applyInvoiceDelete(
+      { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], reason: '   ' },
+      effects,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.plan.valid).toBe(false);
+    Object.values(effects).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+  });
+
+  it('throws before any mutation when effects.writeAudit is missing', async () => {
+    const effects = {
+      removeBackReference: vi.fn(),
+      cancelObligation: vi.fn(),
+      deleteChunks: vi.fn(),
+      deleteArchive: vi.fn(),
+    };
+
+    await expect(
+      applyInvoiceDelete(
+        { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], reason: 'Duplicada' },
+        effects,
+      ),
+    ).rejects.toThrow();
+    Object.values(effects).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+  });
+
+  it('reports auditFailed without flipping success when writeAudit resolves {success:false}', async () => {
+    const effects = {
+      removeBackReference: vi.fn(async () => {}),
+      cancelObligation: vi.fn(async () => ({ success: true })),
+      deleteChunks: vi.fn(async () => {}),
+      deleteArchive: vi.fn(async () => {}),
+      writeAudit: vi.fn(async () => ({ success: false, error: new Error('audit store down') })),
+    };
+
+    const result = await applyInvoiceDelete(
+      { invoiceDocument: invoiceDocument(), obligations: [payable()], bankMovements: [], reason: 'Duplicada' },
+      effects,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.auditFailed).toBe(true);
+    expect(result.auditError).toBeInstanceOf(Error);
+  });
 });
 
 describe('applyInvoiceReplace', () => {
+  const validReason = 'PDF ilegible';
   const newFile = () => ({ sha256: 'b'.repeat(64), sizeBytes: 20480, mimeType: 'application/pdf', originalName: 'nueva.pdf' });
+
+  const baseEffects = (overrides = {}) => ({
+    uploadPdf: vi.fn(async ({ expectedSha256 }) => ({ sha256: expectedSha256, sizeBytes: 20480, mimeType: 'application/pdf' })),
+    commitNewDocument: vi.fn(async () => {}),
+    swapBackReference: vi.fn(async () => {}),
+    deleteOldChunks: vi.fn(async () => {}),
+    deleteOldArchive: vi.fn(async () => {}),
+    writeAudit: vi.fn(async () => {}),
+    findInvoiceDocument: vi.fn(async () => null),
+    ...overrides,
+  });
 
   it('returns invalid without calling any effect for the same sha256', async () => {
     const effects = {
@@ -246,21 +403,24 @@ describe('applyInvoiceReplace', () => {
       deleteOldChunks: vi.fn(),
       deleteOldArchive: vi.fn(),
       writeAudit: vi.fn(),
+      findInvoiceDocument: vi.fn(),
     };
     const doc = invoiceDocument();
 
     const result = await applyInvoiceReplace(
-      { invoiceDocument: doc, newFile: { ...newFile(), sha256: doc.id }, bytes: new Uint8Array(4) },
+      { invoiceDocument: doc, newFile: { ...newFile(), sha256: doc.id }, bytes: new Uint8Array(4), reason: validReason },
       effects,
     );
 
     expect(result.success).toBe(false);
+    // The same-file rejection is known from the args alone — no Firestore
+    // lookup is needed to reach it, so findInvoiceDocument must stay silent too.
     Object.values(effects).forEach((fn) => expect(fn).not.toHaveBeenCalled());
   });
 
   it('uploads, commits the new document, swaps every back-reference, then deletes the OLD chunks and doc last', async () => {
     const calls = [];
-    const effects = {
+    const effects = baseEffects({
       uploadPdf: vi.fn(async ({ expectedSha256 }) => {
         calls.push('upload');
         return { sha256: expectedSha256, sizeBytes: 20480, mimeType: 'application/pdf' };
@@ -270,29 +430,25 @@ describe('applyInvoiceReplace', () => {
       deleteOldChunks: vi.fn(async () => calls.push('deleteOldChunks')),
       deleteOldArchive: vi.fn(async () => calls.push('deleteOldArchive')),
       writeAudit: vi.fn(async () => calls.push('audit')),
-    };
+    });
 
     const result = await applyInvoiceReplace(
-      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4) },
+      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
       effects,
     );
 
     expect(result.success).toBe(true);
     expect(calls).toEqual(['upload', 'commitNew', 'swap:payable:cxp-1', 'deleteOldChunks', 'deleteOldArchive', 'audit']);
+    expect(effects.findInvoiceDocument).toHaveBeenCalledWith(newFile().sha256);
   });
 
   it('fails closed and never deletes the old PDF when the uploaded hash does not match', async () => {
-    const effects = {
+    const effects = baseEffects({
       uploadPdf: vi.fn(async () => ({ sha256: 'c'.repeat(64), sizeBytes: 1 })), // wrong hash
-      commitNewDocument: vi.fn(async () => {}),
-      swapBackReference: vi.fn(async () => {}),
-      deleteOldChunks: vi.fn(async () => {}),
-      deleteOldArchive: vi.fn(async () => {}),
-      writeAudit: vi.fn(async () => {}),
-    };
+    });
 
     const result = await applyInvoiceReplace(
-      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4) },
+      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
       effects,
     );
 
@@ -300,5 +456,89 @@ describe('applyInvoiceReplace', () => {
     expect(effects.commitNewDocument).not.toHaveBeenCalled();
     expect(effects.deleteOldChunks).not.toHaveBeenCalled();
     expect(effects.deleteOldArchive).not.toHaveBeenCalled();
+  });
+
+  it('returns invalid without calling any effect when the reason is missing', async () => {
+    const effects = baseEffects();
+
+    const result = await applyInvoiceReplace(
+      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: '  ' },
+      effects,
+    );
+
+    expect(result.success).toBe(false);
+    ['uploadPdf', 'commitNewDocument', 'swapBackReference', 'deleteOldChunks', 'deleteOldArchive', 'writeAudit'].forEach(
+      (key) => expect(effects[key]).not.toHaveBeenCalled(),
+    );
+  });
+
+  it('fails closed BEFORE any upload when the new sha256 already belongs to a DIFFERENT archived invoice', async () => {
+    const effects = baseEffects({
+      findInvoiceDocument: vi.fn(async () => ({ id: newFile().sha256, invoiceNumber: 'RE-2026-777' })),
+    });
+
+    const result = await applyInvoiceReplace(
+      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+      effects,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errors.file).toMatch(/ya está archivado como otra factura/i);
+    expect(result.errors.file).toContain('RE-2026-777');
+    ['uploadPdf', 'commitNewDocument', 'swapBackReference', 'deleteOldChunks', 'deleteOldArchive', 'writeAudit'].forEach(
+      (key) => expect(effects[key]).not.toHaveBeenCalled(),
+    );
+  });
+
+  it('throws before any lookup or mutation when effects.findInvoiceDocument is missing', async () => {
+    const effects = baseEffects();
+    delete effects.findInvoiceDocument;
+
+    await expect(
+      applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      ),
+    ).rejects.toThrow();
+    Object.values(effects).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+  });
+
+  it('throws before any lookup or mutation when effects.writeAudit is missing', async () => {
+    const effects = baseEffects();
+    delete effects.writeAudit;
+
+    await expect(
+      applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      ),
+    ).rejects.toThrow();
+    Object.values(effects).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+  });
+
+  it('reports auditFailed without flipping success when writeAudit resolves {success:false}', async () => {
+    const effects = baseEffects({
+      writeAudit: vi.fn(async () => ({ success: false, error: new Error('audit store down') })),
+    });
+
+    const result = await applyInvoiceReplace(
+      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+      effects,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.auditFailed).toBe(true);
+    expect(result.auditError).toBeInstanceOf(Error);
+  });
+
+  it('passes the reason through to the audit entry', async () => {
+    const effects = baseEffects();
+
+    await applyInvoiceReplace(
+      { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+      effects,
+    );
+
+    expect(effects.writeAudit).toHaveBeenCalledWith(expect.objectContaining({ reason: validReason }));
   });
 });

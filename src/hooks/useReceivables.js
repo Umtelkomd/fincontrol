@@ -622,7 +622,15 @@ export const useReceivables = (user) => {
     }
   };
 
-  const cancelReceivable = async (receivable) => {
+  /**
+   * cancelReceivable — twin of usePayables.js's cancelPayable: optional
+   * `{ reason, source }` lets a caller that already knows WHY (e.g.
+   * src/features/facturas/Facturas.jsx cancelling the CXC a deleted archived
+   * invoice created) put that into the obligation's OWN auditTrail instead
+   * of the generic default. With no options every existing caller keeps the
+   * exact same detail text as before.
+   */
+  const cancelReceivable = async (receivable, { reason, source } = {}) => {
     if (!user) return { success: false };
     if ((receivable.paidAmount || 0) > 0) {
       return { success: false, error: new Error('No se puede cancelar una CXC con cobros registrados') };
@@ -630,6 +638,7 @@ export const useReceivables = (user) => {
 
     try {
       const receivableRef = doc(db, 'artifacts', appId, 'public', 'data', 'receivables', receivable.id);
+      const detail = reason || 'Factura CXC cancelada desde la mesa maestra';
       const payload = {
         status: 'cancelled',
         openAmount: 0,
@@ -640,7 +649,7 @@ export const useReceivables = (user) => {
           action: 'cancel',
           user: user.email,
           timestamp: new Date().toISOString(),
-          detail: 'Factura CXC cancelada desde la mesa maestra',
+          detail,
         }),
       };
       await updateDoc(receivableRef, payload);
@@ -655,6 +664,7 @@ export const useReceivables = (user) => {
           ...payload,
           updatedAt: new Date().toISOString(),
         }),
+        ...(source ? { metadata: { source } } : {}),
       });
       return { success: true };
     } catch (error) {

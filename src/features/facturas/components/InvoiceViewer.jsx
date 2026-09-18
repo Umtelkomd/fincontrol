@@ -35,6 +35,13 @@ const STATUS_BADGE_VARIANT = {
   issued: 'neutral',
 };
 
+// A data mutation (edit/delete/replace) can succeed while its own audit-log
+// write fails afterwards (src/features/facturas/lib/amend.js's `auditFailed`)
+// — that is never plain success, so every one of the three handlers below
+// surfaces this SAME distinct warning instead of the ordinary success toast.
+const AUDIT_FAILED_MESSAGE =
+  'La corrección se guardó, pero no se pudo registrar en la auditoría. Anota el motivo y avisa al administrador.';
+
 /** `invoiceNumber || numeroPresupuesto` + status for a linked payable/receivable row. */
 const resolveLinkLabel = (link, { payables, receivables }) => {
   const rows = link.family === 'payable' ? payables : receivables;
@@ -72,6 +79,10 @@ const InvoiceViewer = ({
   const [cancelOwnedChecked, setCancelOwnedChecked] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [replacing, setReplacing] = useState(false);
+  // Holds the picked file (already hashed) while its mandatory reason is
+  // collected — mirrors DELETE's own reason dialog (planInvoiceReplace now
+  // rejects an empty reason exactly like planInvoiceDelete, see T14).
+  const [pendingReplaceFile, setPendingReplaceFile] = useState(null);
 
   const canAct = userRole === 'admin' || userRole === 'manager';
   const obligations = [...payables, ...receivables];
@@ -104,7 +115,7 @@ const InvoiceViewer = ({
     try {
       const result = await onEditInvoice?.(document, form);
       if (result?.success) {
-        showToast('Factura actualizada', 'success');
+        showToast(result.auditFailed ? AUDIT_FAILED_MESSAGE : 'Factura actualizada', result.auditFailed ? 'warning' : 'success');
         setEditOpen(false);
       } else if (result?.partial) {
         showToast('Se aplicaron algunos cambios, pero otros fallaron. Revisa el registro de auditoría.', 'warning');
@@ -120,6 +131,7 @@ const InvoiceViewer = ({
 
   const handleReplaceClick = () => fileInputRef.current?.click();
 
+  /** Picks + hashes the file, then opens the reason dialog — nothing is sent yet. */
   const handleReplaceFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -128,23 +140,33 @@ const InvoiceViewer = ({
       showToast(ARCHIVE_ERROR_MESSAGES['too-large'], 'error');
       return;
     }
+    const bytes = await file.arrayBuffer();
+    const hash = await sha256Hex(bytes);
+    setPendingReplaceFile({
+      bytes,
+      sha256: hash,
+      sizeBytes: file.size,
+      mimeType: 'application/pdf',
+      originalName: file.name,
+    });
+  };
+
+  /** Confirmed from the reason dialog: actually calls onReplaceInvoice. */
+  const handleReplaceConfirm = async (reason) => {
+    if (!pendingReplaceFile) return false;
     setReplacing(true);
     try {
-      const bytes = await file.arrayBuffer();
-      const hash = await sha256Hex(bytes);
-      const result = await onReplaceInvoice?.(document, {
-        sha256: hash,
-        sizeBytes: file.size,
-        mimeType: 'application/pdf',
-        originalName: file.name,
-      }, bytes);
+      const { bytes, ...fileMeta } = pendingReplaceFile;
+      const result = await onReplaceInvoice?.(document, fileMeta, bytes, reason);
       if (result?.success) {
-        showToast('PDF reemplazado correctamente', 'success');
-      } else {
-        showToast(result?.errors?.file || 'No se pudo reemplazar el PDF', 'error');
+        showToast(result.auditFailed ? AUDIT_FAILED_MESSAGE : 'PDF reemplazado correctamente', result.auditFailed ? 'warning' : 'success');
+        return true;
       }
+      showToast(result?.errors?.file || result?.errors?.reason || 'No se pudo reemplazar el PDF', 'error');
+      return false;
     } catch (thrown) {
       showToast(thrown?.message || 'No se pudo reemplazar el PDF', 'error');
+      return false;
     } finally {
       setReplacing(false);
     }
@@ -155,7 +177,7 @@ const InvoiceViewer = ({
     try {
       const result = await onDeleteInvoice?.(document, { reason, cancelObligations });
       if (result?.success) {
-        showToast('Factura eliminada del archivo', 'success');
+        showToast(result.auditFailed ? AUDIT_FAILED_MESSAGE : 'Factura eliminada del archivo', result.auditFailed ? 'warning' : 'success');
         setCancelOwnedChecked(false);
         onClose?.();
         return true;
@@ -274,6 +296,24 @@ const InvoiceViewer = ({
           projects={projects}
           submitting={savingEdit}
           onSubmit={handleEditSubmit}
+        />
+      )}
+
+      {canAct && (
+        <ConfirmModal
+          isOpen={Boolean(pendingReplaceFile)}
+          onClose={() => setPendingReplaceFile(null)}
+          onConfirm={handleReplaceConfirm}
+          title="Reemplazar PDF de la factura"
+          message="Se subirá el nuevo PDF y sustituirá el archivo actual. Esta acción no se puede deshacer."
+          confirmText="Reemplazar"
+          variant="warning"
+          reasonLabel="Motivo"
+          reasonPlaceholder="Ej. PDF ilegible, versión incorrecta…"
+          details={[
+            { label: 'Factura', value: document.invoiceNumber || document.id, emphasis: true },
+            { label: 'Archivo nuevo', value: pendingReplaceFile?.originalName || '—' },
+          ]}
         />
       )}
 

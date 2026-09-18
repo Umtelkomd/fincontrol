@@ -18,6 +18,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   updateDoc,
@@ -28,6 +29,26 @@ import { sanitizeValue } from '../utils/sanitizeFirestore';
 import { CHUNK_BYTES } from '../finance/invoiceChunks';
 
 const COLLECTION_BY_FAMILY = { payable: 'payables', receivable: 'receivables' };
+
+/**
+ * Metadata keys src/finance/invoiceAmendment.js's planInvoiceEdit is ever
+ * allowed to write onto the archive doc via its `archivePatch` — mirrors
+ * `validInvoiceMetadata()` in firestore.rules so this generic patch endpoint
+ * cannot be used to slip an identity/storage/provenance field (sha256,
+ * links, family, direction, createdAt/By, …) past the rules' own intent.
+ * updateInvoiceDocument below REJECTS anything outside this set rather than
+ * silently stripping it, so a caller mistake surfaces instead of vanishing.
+ */
+const EDITABLE_INVOICE_DOCUMENT_FIELDS = new Set([
+  'counterpartyName',
+  'counterpartyId',
+  'invoiceNumber',
+  'issueDate',
+  'netAmount',
+  'taxAmount',
+  'grossAmount',
+  'identity',
+]);
 
 /** The Firestore collection an obligation family lives in, or throws. */
 export const collectionForFamily = (family) => {
@@ -139,14 +160,26 @@ export const useInvoiceDocuments = (user) => {
    * updateInvoiceDocument — EDIT/REPLACE: patches the archive metadata
    * doc with the exact fields the caller sends (never a default overwrite,
    * same discipline as updatePayable/updateReceivable). `patch` must never
-   * carry `sha256`/`sizeBytes`/`chunkCount`/`storage`/`links` — those keep
-   * `validInvoiceMetadata()` satisfied in firestore.rules and `links` has no
-   * edit path here (see src/finance/invoiceAmendment.js's planInvoiceReplace
-   * for the one place links legitimately change, via a full document swap).
+   * carry `sha256`/`sizeBytes`/`chunkCount`/`chunkBytes`/`storage`/`links`/
+   * `family`/`direction`/`createdAt`/`createdBy` or any other key outside
+   * EDITABLE_INVOICE_DOCUMENT_FIELDS — those keep `validInvoiceMetadata()`
+   * satisfied in firestore.rules and `links` has no edit path here (see
+   * src/finance/invoiceAmendment.js's planInvoiceReplace for the one place
+   * links legitimately change, via a full document swap). A patch outside
+   * the allowlist is REJECTED, never silently stripped, so the caller sees
+   * its own mistake instead of a quietly incomplete write.
    */
   const updateInvoiceDocument = async (sha256, patch = {}) => {
+    const disallowedKeys = Object.keys(patch).filter((key) => !EDITABLE_INVOICE_DOCUMENT_FIELDS.has(key));
+    if (disallowedKeys.length > 0) {
+      return {
+        success: false,
+        error: new Error(`Campos no editables en el archivo de la factura: ${disallowedKeys.join(', ')}`),
+      };
+    }
     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
     await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
+    return { success: true };
   };
 
   /** deleteInvoiceDocument — DELETE: removes the archive metadata doc itself (chunks are a separate call — see lib/invoiceArchiveStore.js's deleteInvoicePdf). */
@@ -184,6 +217,22 @@ export const useInvoiceDocuments = (user) => {
     await updateDoc(ref, { invoiceDocumentIds: arrayUnion(addInvoiceDocumentId), updatedAt: serverTimestamp() });
   };
 
+  /**
+   * findInvoiceDocument — REPLACE: an authoritative single-document read
+   * (bypasses the onSnapshot-fed `documents` list, which can lag by however
+   * long the listener takes to catch up) used ONLY to check whether the new
+   * PDF's sha256 already belongs to a DIFFERENT archived invoice before a
+   * replace commits (see src/finance/invoiceAmendment.js's planInvoiceReplace
+   * and src/features/facturas/lib/amend.js's applyInvoiceReplace). A single
+   * `getDoc` by id is cheap — this is not a collection scan.
+   */
+  const findInvoiceDocument = async (sha256) => {
+    if (!sha256) return null;
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+    const snapshot = await getDoc(ref);
+    return snapshot.exists() ? sanitizeValue({ id: snapshot.id, ...snapshot.data() }) : null;
+  };
+
   return {
     documents,
     loading,
@@ -193,6 +242,7 @@ export const useInvoiceDocuments = (user) => {
     deleteInvoiceDocument,
     removeInvoiceLink,
     swapInvoiceLink,
+    findInvoiceDocument,
   };
 };
 

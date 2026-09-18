@@ -140,11 +140,19 @@ accounting rules apply; changing it would mean creating a different kind of
 document, not editing this one, so the correction is delete-and-re-archive.
 
 ### Reemplazar PDF
-Uploads a new file, validated exactly like intake (PDF signature, ≤ 2 MiB,
-not the same sha256 as the current file), creates a new
-`invoiceDocuments/{newSha}` carrying the same metadata and links, re-points
+Picking a file only hashes it and opens a mandatory-reason dialog (mirrors
+DELETE's own) — nothing is sent until it is confirmed. Once confirmed, the
+file is validated exactly like intake (PDF signature, ≤ 2 MiB, not the same
+sha256 as the current file) AND checked against an authoritative
+`findInvoiceDocument(sha256)` lookup: if the new file's sha256 already
+belongs to a DIFFERENT archived invoice, the replace fails closed with a
+Spanish error and NOTHING is uploaded — `commitInvoiceArchive`'s intake-time
+`merge:true` + `arrayUnion(links)` must never run for a replace, or it would
+silently pool both invoices' links and overwrite one's metadata with the
+other's. Only once both checks pass does it create a new
+`invoiceDocuments/{newSha}` carrying the same metadata and links, re-point
 every linked obligation's `invoiceDocumentIds` from the old sha to the new
-one, and only then deletes the old document's chunks and the old document
+one, and only then delete the old document's chunks and the old document
 itself.
 
 ### Eliminar
@@ -155,8 +163,17 @@ CXP/CXC" checkbox additionally cancels the obligation through the existing
 soft `cancelPayable`/`cancelReceivable` path (never a hard delete) — offered,
 and enabled, ONLY for an OWNED, unlocked obligation; a LOCKED or FOREIGN one
 disables the checkbox with the reason shown next to it, and the PDF is still
-removed. Mandatory reason, type-to-confirm with the invoice number, one
-`auditLog` entry with the full `before` snapshot.
+removed. That cancellation carries the DELETE reason into the obligation's
+OWN `auditTrail` (`cancelPayable`/`cancelReceivable` accept an optional
+`{ reason, source }` — with no options every other caller keeps the exact
+same generic detail as before), e.g. "Anulada al eliminar la factura
+archivada Nº RE-2026-050. Motivo: factura duplicada" instead of the generic
+"cancelada desde la mesa maestra". Mandatory reason, type-to-confirm with the
+invoice number, one `auditLog` entry with the full `before` snapshot. DELETE
+and REPLACE both reject an empty/whitespace reason inside the PURE planner
+(`planInvoiceDelete`/`planInvoiceReplace`), not only in the UI — mirrors
+`planInvoiceEdit`'s own requirement — so a future or programmatic caller
+cannot skip the dialog to bypass it.
 
 ### Ordering and partial failure
 EDIT attempts the owned obligation patch, then linked bank movements, then
@@ -168,6 +185,28 @@ itself — a failure anywhere leaves a still-visible, retryable row instead of
 an invisible orphan. REPLACE uploads and commits the new document and swaps
 every back-reference BEFORE touching the old file, so a failure there leaves
 the old PDF fully intact.
+
+### Audit write failures never masquerade as success
+The `writeAudit` effect is REQUIRED — a caller wired without it is a
+programming error and `applyInvoiceEdit`/`Delete`/`Replace` throw before
+touching a single obligation, movement, archive doc or PDF. Once the data
+mutation itself has committed, though, a failed (or thrown) audit write must
+never be reported as if nothing happened: the result carries
+`auditFailed: true` (plus `auditError`) alongside `success: true`, and
+`InvoiceViewer.jsx` shows a distinct warning toast — "La corrección se
+guardó, pero no se pudo registrar en la auditoría. Anota el motivo y avisa al
+administrador." — instead of the ordinary success toast. The data mutation's
+own outcome is never flipped or rolled back because of this.
+
+### Archive metadata allowlist
+`updateInvoiceDocument(sha256, patch)` only accepts the exact fields
+`planInvoiceEdit`'s `archivePatch` legitimately emits — `counterpartyName`,
+`counterpartyId`, `invoiceNumber`, `issueDate`, `netAmount`, `taxAmount`,
+`grossAmount`, `identity`. A patch carrying `sha256`, `sizeBytes`,
+`chunkCount`, `chunkBytes`, `storage`, `links`, `family`, `direction`,
+`createdAt`, `createdBy`, or any other unknown key is REJECTED with
+`{ success: false, error }` and writes nothing — never silently stripped —
+mirroring `validInvoiceMetadata()` in `firestore.rules`.
 
 ### No undo of a reconciliation
 There is no working undo of a modern bank reconciliation in this app
