@@ -135,6 +135,51 @@ touching the sanitizer, `viewedBy`, `PartialPaymentModal`, `firebase.json` heade
   code → oldest `createdAt` → smallest id. Same-year budgets are repointed and reported as `budgetConflicts`, never summed.
   `projectName` on repointed documents = survivor plain `name` (precedent: `merge-projects.cjs`, `planProjectNameRefresh`).
 
+- [x] T12 Owner decision 2026-09-18 (reason: accepted user change): for the Roßdorf merge, same-year budgets are SUMMED
+  into the survivor's budget (line by line, month by month) instead of being reported as `budgetConflicts`. Opt-in per
+  merge group (`mergeBudgets: 'sum'`); a merge group without it keeps the conflict report. Loser budget is never deleted.
+  — `f29e841`, RED 17 failed → GREEN 164 passed. Budget identity `(projectId, year)` (`useBudgets.js:172-177`); line key
+  `type + normalized categoryName`. Loser budget keeps its project and is stamped `mergedInto`; `ProyectoDashboard` matched
+  budgets by free-text token and would have double counted (18.000 vs 12.000) → filter `!mergedInto` added with a test.
+  Survivor write carries `previous.lines`; re-run never sums twice (tested). Parent spot check → 169 passed.
+- [x] T13 Owner request 2026-09-18: edit / delete / change an archived invoice from Facturas when a mistake was made.
+  Evidence (exploration): the archive is append-only today (no update/delete for `invoiceDocuments` or `chunks`); rules allow
+  update/delete to admin/manager; obligation and archive are NOT kept in sync and every report reads the obligation only;
+  doc id = sha256 so "replace the PDF" = new doc + delete old; deletes do not cascade to `chunks`; obligations carry
+  `invoiceDocumentIds` + `archivedInvoiceIdentity` back-references; there is NO working undo of a modern reconciliation
+  (`unreconcileMovement` only clears legacy fields), and `canDelete:false` is the app-wide convention (soft `cancelled`).
+  Guard rules (LOCK = obligation has `paidAmount > 0`, `payments[]`, status `partial|settled`, or a bank movement references it):
+  - EDIT writes through to BOTH the archive metadata and every obligation this invoice CREATED (`linkMode: create-ordinary`).
+    Always editable: counterparty, invoice number, issue date (+ due date shift), category, project, cost center.
+    Amounts (net/tax/gross): editable only when not LOCKED (accounting invariants re-validated). Direction never editable
+    (delete and load again). `attach-existing` links: only the archive metadata is edited, the foreign obligation is untouched.
+    Classification edits propagate to bank movements linked ONLY to this obligation (so inheritance stays true); movements
+    linked to several documents are left alone and listed to the user.
+  - REPLACE PDF: upload new file → new `invoiceDocuments/{newSha}` with the same metadata + links, re-point obligation
+    back-references, then delete the old doc's chunks and the old doc. Same 2 MiB / PDF validation as intake.
+  - DELETE: removes chunks first, then the archive doc, and removes the back-reference from every linked obligation.
+    Optional "Anular también la CXP/CXC" is offered ONLY for obligations created by this invoice and NOT LOCKED, and uses
+    the existing soft `cancel*` path (never a hard delete). LOCKED → the PDF can still be removed but the obligation stays,
+    and the dialog says why. Mandatory reason, type-to-confirm, `auditLog` entry with the full `before` snapshot.
+  - Permissions: admin/manager only (same as the rules). Insyte-sourced invoices follow the same rules.
+  - Add emulator rules tests for update and delete of `invoiceDocuments` and `chunks` (none exist today).
+
+  Implemented in `2a31e3b`, `e57f1dc`, `3c6e6a5`, `ad9c6d7`, `4bbbda9` (RED→GREEN per layer: 38 / 86 / 14+7 passed). Owned-link rule:
+  `linkMode === 'create-ordinary'` AND exactly one link, otherwise FOREIGN (fail closed). `update*` whitelists were missing
+  `costScope` (fixed with tests). Rules tests written but NOT run locally (no Java) → CI is the check of record.
+  Assessment base `f29e841`: HIGH (`hot_path`, 3,152 lines) → independent read-only verifier: 12 PASS, 2 FAIL, 1 gap → T14.
+- [x] T14 Verifier corrections for T13 (one bounded correction): (1) MAJOR `writeAudit` result is ignored — an audit write that
+  fails after the mutation committed is reported as full success; (2) MAJOR REPLACE never checks that the NEW sha256 already
+  belongs to a DIFFERENT archived invoice → `merge:true` + `arrayUnion` would silently merge two invoices; (3) MAJOR the
+  delete/cancel reason is dropped in `Facturas.jsx` (`cancelObligation(family, id)` ignores `reason`) so the obligation's own
+  audit trail says "cancelada desde la mesa maestra"; (4) MINOR DELETE reason enforced only by the UI; (5) MINOR
+  `updateInvoiceDocument` has no code-level key allowlist.
+  — `3643918`, RED 15 / 5 / 5 / 16 / 2+2 failed → GREEN 251 passed. Audit failure → `auditFailed:true` + distinct warning toast, no
+  rollback; missing `writeAudit` effect throws before any mutation. REPLACE does an authoritative `getDoc` (`findInvoiceDocument`)
+  and fails closed before upload; REPLACE gained a reason dialog. `cancel*` take optional `{reason, source}`, no-arg output
+  byte-identical (regression tests). `update*` deliberately NOT extended (no caller needs it). Allowlist = 8 editable keys, rejects.
+  Parent spot check → 219 passed; ff-only vs remote; `firestore.rules` and `scripts/` untouched since `f29e841`; stashes 3; no new backup.
+
 ## Acceptance criteria
 1. Loading an invoice proposes category, project and cost center with a visible reason, and the created CXP/CXC stores
    `categoryName, projectId, projectName, costCenterId, costScope`.
@@ -174,6 +219,8 @@ Forecast: ~2,400 authored changed lines (> 400 budget) → strategy `single-pr` 
   Process note: the writer used `git stash`/`stash pop` against instructions to force a RED; parent verified the 3 pre-existing
   stashes, the untracked files and the working-tree edits are all intact.
 - Follow-up outside scope: `scripts/assign-employee-projects.cjs` still hardcodes `ROSSDORF_2 = 'QFF-002'`; review before its next run.
+
+- Pending after T13/T14: emulator rules tests for archive update/delete have never run (no local Java) → CI is the check of record.
 
 ## Next step
 Owner: review PR, validate mapping, then follow the runbook in `docs/classification-catalog.md`.
