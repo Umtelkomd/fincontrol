@@ -49,7 +49,7 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 - [x] T1 Pure `nextRitualStep` sequencer + tests.
 - [x] T2 Permission `bank` for admin+manager; `/banco` and `/clasificar` use it; Banco moves to Operar; editor still blocked. Tests for nav + roles.
 - [x] T3 Resumen next-step strip wired to the ledger (unavailable / import / anchor / drift / classify / remesas / done). Tests.
-- [ ] T4 Nav badges for Banco / Bandeja / CXC remesas counts; continue CTA on those three screens pointing at the current next step. Tests.
+- [x] T4 Nav badges for Banco / Bandeja / CXC remesas counts; continue CTA on those three screens pointing at the current next step. Tests.
 
 ## Acceptance criteria
 
@@ -65,8 +65,9 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 
 - T1 `d60f186` — RED missing module; GREEN 15/15. `nextRitualStep` first-match sequencer.
 - T2 `ba3cff4` — RED 5 failed / 19 passed; GREEN 24/24. Permission `bank`; Banco in Operar.
-- T3 — GREEN 45/45 (`ritualCopy`, `ritualCounts`, `RitualNextStep`, `Resumen`). Strip after PageHeader / FinancialSourceStatus, before Alertas. Omitted while independentLoading. Missing-invoice is not inbox.
+- T3 `8949cde` — GREEN 45/45 (`ritualCopy`, `ritualCounts`, `RitualNextStep`, `Resumen`). Strip after PageHeader / FinancialSourceStatus, before Alertas. Omitted while independentLoading. Missing-invoice is not inbox.
+- T4 — Writer RED: 3 nav badge assertions absent, then GREEN 14/14; strip RED: same-screen CTA remained, then GREEN 91/91. Parent removed autoformat-only churn. Independent verification on the normalized current disk: 105/105 tests, scoped ESLint clean, build green (2,837 modules, 4.00s). Desktop/mobile badges share `ritualBadgeFor`; Banco, Bandeja and Remesas each show the live next-step strip.
 
 ## Next step
 
-Implement T4.
+Review the complete feature diff and prepare the PR when the owner requests delivery.

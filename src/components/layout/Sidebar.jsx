@@ -11,12 +11,14 @@ import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
 import { formatCurrency } from '../../utils/formatters';
 import { useTheme } from '../../hooks/useTheme';
+import { ritualBadgeFor, useRitualStep } from '../../hooks/useRitualStep';
 import { activeGroupKey, isItemActive, visibleNavGroups } from './navItems';
 
 const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceData, bankAccount }) => {
  const navigate = useNavigate();
  const location = useLocation();
  const { theme, toggle: toggleTheme } = useTheme();
+ const { step } = useRitualStep();
  // Row 1 = the groups the role may open; row 2 = the items of the group the
  // current route belongs to. Clicking a group tab navigates to its first
  // item, so the active group is always derived from the route.
@@ -152,6 +154,7 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  {(activeGroup?.items || []).map((item) => {
  const Icon = item.icon;
  const active = isItemActive(location.pathname, item);
+ const ritualBadge = ritualBadgeFor(item.path, step);
  return (
  <button
  key={item.path}
@@ -171,6 +174,14 @@ const Sidebar = ({ user, userRole, hasPermission, onNewTransaction, bankBalanceD
  <span style={{ color: 'var(--color-accent)' }}>{item.accent}</span>
  )}
  </span>
+ {ritualBadge > 0 && (
+ <span
+ className="nx-badge nx-badge-warn"
+ aria-label={`${ritualBadge} ${ritualBadge === 1 ? 'pendiente' : 'pendientes'}`}
+ >
+ {ritualBadge}
+ </span>
+ )}
  {active && (
  <span
  aria-hidden="true"

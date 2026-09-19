@@ -4,6 +4,7 @@ import { useBankMovements } from '../../hooks/useBankMovements';
 import { useBankImport } from '../../hooks/useBankImport';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { useReconciliation } from '../../hooks/useReconciliation';
+import { useRitualStep } from '../../hooks/useRitualStep';
 import { useToast } from '../../contexts/ToastContext';
 import {
  classifyBankImportFiles,
@@ -13,6 +14,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 import { Button, Badge, KPIGrid, KPI, Panel } from '@/components/ui/nexus';
 import PageHeader from '../../components/layout/PageHeader';
+import RitualNextStep from '../resumen/RitualNextStep';
 
 /** "Mayo 2026" from an ISO date — capitalized, matching Spanish month-name style elsewhere. */
 const monthLabel = (isoDate) => {
@@ -74,6 +76,7 @@ const BankImport = ({ user }) => {
  const { rules } = useClassificationRules(user);
  const { anchors, addAnchors } = useReconciliation(user);
  const { showToast } = useToast();
+ const { step, copy, onRetry } = useRitualStep();
 
  // Each entry: { id, file, name, parsed, diff, status, importing, result }
  const [files, setFiles] = useState([]);
@@ -271,6 +274,13 @@ const BankImport = ({ user }) => {
  </p>
  )}
  </PageHeader>
+
+ <RitualNextStep
+ step={step}
+ {...copy}
+ onRetry={onRetry}
+ here={step?.href === '/banco'}
+ />
 
  {balanceIssues.length > 0 && <div role="alert" className="text-sm text-[var(--color-warn)]">
  Saldos no verificables: secuencia incompleta, ambigua o inconsistente. No se registrarán sus anclas; la desviación es desconocida.

@@ -26,6 +26,7 @@ import { Badge, Button, KPI, KPIGrid } from '@/components/ui/nexus';
 import { useToast } from '../../contexts/ToastContext';
 import { useBankMovements } from '../../hooks/useBankMovements';
 import { useReceivables } from '../../hooks/useReceivables';
+import { useRitualStep } from '../../hooks/useRitualStep';
 import {
   buildAllocationDraft,
   buildBatchCandidates,
@@ -38,6 +39,7 @@ import {
 } from '../../finance/batchReconciliation';
 import { isInternalTransfer } from '../../lib/finance/movementAmount';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import RitualNextStep from '../resumen/RitualNextStep';
 
 const STATUS_LABEL = {
   exact: 'Cuadra',
@@ -57,6 +59,7 @@ const BatchReconciliation = ({ user, userRole }) => {
   const { showToast } = useToast();
   const { bankMovements, loading: movementsLoading } = useBankMovements(user);
   const { receivables, loading: receivablesLoading, reconcileBatch } = useReceivables(user);
+  const { step, copy, onRetry } = useRitualStep();
 
   const [selectedMovementId, setSelectedMovementId] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
@@ -229,6 +232,13 @@ const BatchReconciliation = ({ user, userRole }) => {
           </Link>
         </div>
       </section>
+
+      <RitualNextStep
+        step={step}
+        {...copy}
+        onRetry={onRetry}
+        here={step?.href === '/cxc/remesas'}
+      />
 
       <KPIGrid cols={3}>
         <KPI

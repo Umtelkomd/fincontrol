@@ -19,6 +19,7 @@ import { useCostCenters } from '../../hooks/useCostCenters';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useProjects } from '../../hooks/useProjects';
 import { useClassificationRules } from '../../hooks/useClassificationRules';
+import { useRitualStep } from '../../hooks/useRitualStep';
 import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency } from '../../utils/formatters';
 import { findBestRule } from '../../finance/ruleEngine';
@@ -29,6 +30,7 @@ import CategorizeModal from '../../components/ui/CategorizeModal';
 import RuleFormModal from '../../components/ui/RuleFormModal';
 import PageHeader from '../../components/layout/PageHeader';
 import ClassificationCoverage from './ClassificationCoverage';
+import RitualNextStep from '../resumen/RitualNextStep';
 import { groupByCounterparty } from './lib/groupByCounterparty';
 import { Button, Badge, KPIGrid, KPI, Panel, EmptyState } from '@/components/ui/nexus';
 
@@ -100,6 +102,7 @@ const Classifier = ({ user }) => {
  const { projects } = useProjects(user);
  const { rules, createRule, applyRulesToMovements } = useClassificationRules(user);
  const { showToast } = useToast();
+ const { step, copy, onRetry } = useRitualStep();
 
  const [activeTab, setActiveTab] = useState('sinCategoria');
  const [searchQuery, setSearchQuery] = useState('');
@@ -252,6 +255,13 @@ const Classifier = ({ user }) => {
  </Button>
  ) : null
  }
+ />
+
+ <RitualNextStep
+ step={step}
+ {...copy}
+ onRetry={onRetry}
+ here={step?.href === '/clasificar'}
  />
 
  {loading ? (
