@@ -48,7 +48,7 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 
 - [x] T1 Pure `nextRitualStep` sequencer + tests.
 - [x] T2 Permission `bank` for admin+manager; `/banco` and `/clasificar` use it; Banco moves to Operar; editor still blocked. Tests for nav + roles.
-- [ ] T3 Resumen next-step strip wired to the ledger (unavailable / import / anchor / drift / classify / remesas / done). Tests.
+- [x] T3 Resumen next-step strip wired to the ledger (unavailable / import / anchor / drift / classify / remesas / done). Tests.
 - [ ] T4 Nav badges for Banco / Bandeja / CXC remesas counts; continue CTA on those three screens pointing at the current next step. Tests.
 
 ## Acceptance criteria
@@ -64,8 +64,9 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 ## Progress / evidence
 
 - T1 `d60f186` — RED missing module; GREEN 15/15. `nextRitualStep` first-match sequencer.
-- T2 — RED 5 failed / 19 passed; GREEN 24/24 (`config.test.js`, `navItems.test.js`, `Sidebar.test.jsx`). Permission `bank` on admin+manager; `/banco` and `/clasificar` gated on `bank`; Banco sits in Operar after Resumen. Roles matrix label `Banco y bandeja`.
+- T2 `ba3cff4` — RED 5 failed / 19 passed; GREEN 24/24. Permission `bank`; Banco in Operar.
+- T3 — GREEN 45/45 (`ritualCopy`, `ritualCounts`, `RitualNextStep`, `Resumen`). Strip after PageHeader / FinancialSourceStatus, before Alertas. Omitted while independentLoading. Missing-invoice is not inbox.
 
 ## Next step
 
-Implement T3.
+Implement T4.

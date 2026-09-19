@@ -49,12 +49,16 @@ import { KPI, KPIGrid, Panel, Badge, EmptyState } from "@/components/ui/nexus";
 import PageHeader from "../../components/layout/PageHeader";
 import LiquidityKpis from "../../components/finance/LiquidityKpis";
 import FinancialSourceStatus from "../../components/ui/FinancialSourceStatus";
+import { nextRitualStep } from "../../finance/ritualStep";
 import {
 	computeMonthlyResult,
 	selectDueWithinDays,
 	selectUpcomingObligations,
 } from "./lib/resumenMetrics";
 import { buildResumenAlerts } from "./lib/alertsPanel";
+import { ritualCopy } from "./lib/ritualCopy";
+import { pendingInboxCount, pendingRemesasCount } from "./lib/ritualCounts";
+import RitualNextStep from "./RitualNextStep";
 
 const SOURCE_LABELS = {
 	transactions: "transacciones",
@@ -197,6 +201,24 @@ const Resumen = ({ user }) => {
 		now,
 		payrollPeriods,
 	]);
+
+	const ritualStep = useMemo(() => {
+		if (ledger.independentLoading) return null;
+		return nextRitualStep({
+			cashSource: ledger.cashSource,
+			cashMeta: ledger.cashMeta,
+			pendingInboxCount: pendingInboxCount(ledger.bankMovements),
+			pendingRemesasCount: pendingRemesasCount(ledger.bankMovements),
+			today: now.toISOString().slice(0, 10),
+		});
+	}, [
+		ledger.bankMovements,
+		ledger.cashMeta,
+		ledger.cashSource,
+		ledger.independentLoading,
+		now,
+	]);
+	const ritualLabels = ritualStep ? ritualCopy(ritualStep) : null;
 
 	// ── Block 1: cash + runway ─────────────────────────────────────────────────
 	// Caja / Posición neta / Runway are rendered by <LiquidityKpis>, the same
@@ -395,6 +417,16 @@ const Resumen = ({ user }) => {
 				/>
 			)}
 
+			{ritualStep && ritualLabels && (
+				<RitualNextStep
+					step={ritualStep}
+					title={ritualLabels.title}
+					detail={ritualLabels.detail}
+					cta={ritualLabels.cta}
+					onRetry={ledger.actions.reconciliation.retry}
+				/>
+			)}
+
 			{/* ───────────────────────── ALERTAS ────────────────────────────────────── */}
 			{alerts.length > 0 && (
 				<Panel
@@ -465,9 +497,7 @@ const Resumen = ({ user }) => {
 										: "var(--color-err)",
 							}}
 						>
-							{cashUnavailable
-								? cashPlaceholder
-								: formatCurrency(headlinePosition)}
+							{cashUnavailable ? cashPlaceholder : formatCurrency(headlinePosition)}
 						</p>
 						{!cashUnavailable &&
 							(wip.total > 0 ? (
@@ -479,17 +509,16 @@ const Resumen = ({ user }) => {
 										Posición con obra ejecutada
 									</span>
 									<span className="mx-2 text-[var(--color-fg-4)]">·</span>+{" "}
-									{formatCurrency(position.wip)} de obra ejecutada sin facturar
-									→{" "}
+									{formatCurrency(position.wip)} de obra ejecutada sin facturar →{" "}
 									<span className="text-[var(--color-fg-1)]">
 										{formatCurrency(position.net)}
 									</span>
 								</p>
 							) : (
 								<p className="mt-2 text-[12px] text-[var(--color-fg-4)]">
-									El trabajo ya ejecutado y todavía sin facturar no aparece ni
-									en el banco ni en las cuentas por cobrar; cuando exista, se
-									suma aquí como una línea aparte.
+									El trabajo ya ejecutado y todavía sin facturar no aparece ni en el
+									banco ni en las cuentas por cobrar; cuando exista, se suma aquí como
+									una línea aparte.
 								</p>
 							))}
 					</div>
@@ -497,9 +526,7 @@ const Resumen = ({ user }) => {
 					<KPIGrid cols={4}>
 						<KPI
 							label="Caja"
-							value={
-								cashUnavailable ? cashPlaceholder : formatCurrency(currentCash)
-							}
+							value={cashUnavailable ? cashPlaceholder : formatCurrency(currentCash)}
 							tone={!cashUnavailable && currentCash < 0 ? "err" : "default"}
 							icon={Wallet}
 							meta={
@@ -543,9 +570,8 @@ const Resumen = ({ user }) => {
 									Obra sin facturar desde hace {wip.summary.oldestDays} días
 								</p>
 								<p className="mt-1 text-[12px] text-[var(--color-fg-4)]">
-									Ese dinero está congelado por papeleo, no porque el cliente no
-									pague. Certificar y facturar es la acción de más valor
-									disponible ahora mismo.
+									Ese dinero está congelado por papeleo, no porque el cliente no pague.
+									Certificar y facturar es la acción de más valor disponible ahora mismo.
 								</p>
 							</div>
 						</div>
@@ -559,8 +585,8 @@ const Resumen = ({ user }) => {
 						>
 							Proyectos
 						</Link>
-						. No es caja ni cuenta por cobrar: no altera el saldo, el runway ni
-						la antigüedad.
+						. No es caja ni cuenta por cobrar: no altera el saldo, el runway ni la
+						antigüedad.
 					</p>
 				</div>
 			</Panel>
@@ -605,9 +631,7 @@ const Resumen = ({ user }) => {
 				})}
 			>
 				<div className="mb-4">
-					<p className="label-mono text-[var(--color-fg-3)] mb-2">
-						{resultLabel}
-					</p>
+					<p className="label-mono text-[var(--color-fg-3)] mb-2">{resultLabel}</p>
 					<p
 						className="font-mono text-[40px] leading-[1] tabular-nums tracking-tight"
 						style={{
@@ -705,9 +729,7 @@ const Resumen = ({ user }) => {
 			<Panel
 				title="Margen por proyecto"
 				meta={
-					canSeePayroll
-						? "Mano de obra deducida"
-						: "Sin mano de obra (sin permiso)"
+					canSeePayroll ? "Mano de obra deducida" : "Sin mano de obra (sin permiso)"
 				}
 			>
 				{projectMargins.length === 0 && !unassignedMargin ? (
@@ -741,8 +763,7 @@ const Resumen = ({ user }) => {
 									<span
 										className="font-mono text-[15px] tabular-nums tracking-tight"
 										style={{
-											color:
-												p.net >= 0 ? "var(--color-ok)" : "var(--color-err)",
+											color: p.net >= 0 ? "var(--color-ok)" : "var(--color-err)",
 										}}
 									>
 										{p.net >= 0 ? "+" : "−"}
