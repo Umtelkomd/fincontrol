@@ -21,6 +21,7 @@ const MODULE_LABELS = {
   budget: 'Presupuesto',
   audit: 'Auditoría',
   backup: 'Backup',
+  bank: 'Banco y bandeja',
 };
 
 // Derived from the single source of truth so the display can never drift

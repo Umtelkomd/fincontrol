@@ -47,7 +47,7 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 ## Tasks
 
 - [x] T1 Pure `nextRitualStep` sequencer + tests.
-- [ ] T2 Permission `bank` for admin+manager; `/banco` and `/clasificar` use it; Banco moves to Operar; editor still blocked. Tests for nav + roles.
+- [x] T2 Permission `bank` for admin+manager; `/banco` and `/clasificar` use it; Banco moves to Operar; editor still blocked. Tests for nav + roles.
 - [ ] T3 Resumen next-step strip wired to the ledger (unavailable / import / anchor / drift / classify / remesas / done). Tests.
 - [ ] T4 Nav badges for Banco / Bandeja / CXC remesas counts; continue CTA on those three screens pointing at the current next step. Tests.
 
@@ -63,8 +63,9 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 
 ## Progress / evidence
 
-- T1 — RED `npx vitest run src/finance/ritualStep.test.js` failed on missing `./ritualStep.js`; GREEN 15/15 pass (559ms). API: `nextRitualStep`, `RITUAL_STEP`, `RITUAL_ANCHOR_STALE_DAYS` (45). First-match: unavailable → import → anchor → drift → classify → remesas → done.
+- T1 `d60f186` — RED missing module; GREEN 15/15. `nextRitualStep` first-match sequencer.
+- T2 — RED 5 failed / 19 passed; GREEN 24/24 (`config.test.js`, `navItems.test.js`, `Sidebar.test.jsx`). Permission `bank` on admin+manager; `/banco` and `/clasificar` gated on `bank`; Banco sits in Operar after Resumen. Roles matrix label `Banco y bandeja`.
 
 ## Next step
 
-Implement T2.
+Implement T3.

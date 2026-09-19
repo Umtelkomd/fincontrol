@@ -157,10 +157,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/resumen"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="dashboard"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="dashboard">
 										<Resumen user={user} />
 									</ProtectedRoute>
 								}
@@ -168,10 +165,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/cashflow"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="reports"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
 										<CashFlow user={user} />
 									</ProtectedRoute>
 								}
@@ -179,25 +173,16 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/flujo-caja-anual"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="reports"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
 										<FlujoCajaAnual user={user} />
 									</ProtectedRoute>
 								}
 							/>
-							<Route
-								path="/tesoreria"
-								element={<Navigate to="/cashflow" replace />}
-							/>
+							<Route path="/tesoreria" element={<Navigate to="/cashflow" replace />} />
 							<Route
 								path="/reportes"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="reports"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
 										<ReportesUnified user={user} />
 									</ProtectedRoute>
 								}
@@ -205,10 +190,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/configuracion"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<ConfiguracionUnified
 											user={user}
 											transactions={filteredTransactions}
@@ -219,10 +201,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/cxc"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="cxc"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="cxc">
 										<CXCIndependiente user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -230,10 +209,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/cxc/remesas"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="cxc"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="cxc">
 										<BatchReconciliation user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -241,10 +217,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/cxp"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="cxp"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="cxp">
 										<CXPIndependiente user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -252,10 +225,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/facturas"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="cxp"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="cxp">
 										<Facturas user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -263,10 +233,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/presupuesto"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="reports"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
 										<BudgetVsActual user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -274,10 +241,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/auditoria"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="audit"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="audit">
 										<AuditLog user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -285,10 +249,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/proyectos"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="reports"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
 										<ProyectoDashboard user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -296,10 +257,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/proyeccion"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="reports"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
 										<ProyeccionCashflow user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -307,10 +265,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/roles"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<RolesManager user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -318,10 +273,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/backup"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="backup"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="backup">
 										<BackupManager user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -333,10 +285,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/empleados"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<Employees user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -344,10 +293,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/viviendas"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<Properties user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -355,10 +301,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/vehiculos"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<Vehicles user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -366,10 +309,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/seguros"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<Insurances user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -377,25 +317,16 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/banco"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="bank">
 										<BankImport user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
 							/>
-							<Route
-								path="/datev"
-								element={<Navigate to="/banco" replace />}
-							/>
+							<Route path="/datev" element={<Navigate to="/banco" replace />} />
 							<Route
 								path="/clasificar"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="bank">
 										<Classifier user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -403,10 +334,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/movimientos"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="dashboard"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="dashboard">
 										<Movimientos user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -414,10 +342,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/reglas"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="settings"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="settings">
 										<Rules user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -425,10 +350,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/alertas-op"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="dashboard"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="dashboard">
 										<AlertasOperativas user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -436,10 +358,7 @@ function AppContent({ user, userRole, hasPermission }) {
 							<Route
 								path="/nominas"
 								element={
-									<ProtectedRoute
-										hasPermission={hasPermission}
-										permission="cxp"
-									>
+									<ProtectedRoute hasPermission={hasPermission} permission="cxp">
 										<Nominas user={user} userRole={userRole} />
 									</ProtectedRoute>
 								}
@@ -493,11 +412,7 @@ function AppGate() {
 
 	return (
 		<FinanceLedgerProvider user={user}>
-			<AppContent
-				user={user}
-				userRole={userRole}
-				hasPermission={hasPermission}
-			/>
+			<AppContent user={user} userRole={userRole} hasPermission={hasPermission} />
 		</FinanceLedgerProvider>
 	);
 }
