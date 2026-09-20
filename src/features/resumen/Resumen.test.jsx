@@ -69,35 +69,40 @@ describe("Resumen — cockpit render", () => {
 		["loading", ["bankMovements", "receivables", "payables"]],
 		["error", ["payables", "bankMovements", "receivables"]],
 		["ready", ["receivables", "payables", "bankMovements"]],
-	])("waits for independent snapshots with reconciliation %s", (status, order) => {
-		const pending = {};
-		onSnapshot.mockImplementation((ref, next, fail) => {
-			const source = ref.path.split("/").at(-1);
-			if (order.includes(source) || source === "reconciliation") {
-				pending[source] = { ref, next, fail };
-				return vi.fn();
+	])(
+		"waits for independent snapshots with reconciliation %s",
+		(status, order) => {
+			const pending = {};
+			onSnapshot.mockImplementation((ref, next, fail) => {
+				const source = ref.path.split("/").at(-1);
+				if (order.includes(source) || source === "reconciliation") {
+					pending[source] = { ref, next, fail };
+					return vi.fn();
+				}
+				return ordinarySubscribe(ref, next, fail);
+			});
+			renderScreen(<Resumen user={USER} />);
+			if (status === "error") {
+				act(() => pending.reconciliation.fail(new Error("synthetic failure")));
+			} else if (status === "ready") {
+				const { ref, next, fail } = pending.reconciliation;
+				act(() => ordinarySubscribe(ref, next, fail));
 			}
-			return ordinarySubscribe(ref, next, fail);
-		});
-		renderScreen(<Resumen user={USER} />);
-		if (status === "error") {
-			act(() => pending.reconciliation.fail(new Error("synthetic failure")));
-		} else if (status === "ready") {
-			const { ref, next, fail } = pending.reconciliation;
-			act(() => ordinarySubscribe(ref, next, fail));
-		}
-		for (const source of order) {
-			expect(screen.getByText("Cargando…")).toBeInTheDocument();
-			expect(screen.queryByText("Por cobrar / por pagar")).not.toBeInTheDocument();
-			expect(screen.queryByText(/Mes en equilibrio/)).not.toBeInTheDocument();
-			const { ref, next, fail } = pending[source];
-			act(() => ordinarySubscribe(ref, next, fail));
-		}
-		const panel = screen.getByText("Por cobrar / por pagar").closest("section");
-		expect(within(panel).getByText("10.000,00")).toBeInTheDocument();
-		expect(within(panel).getByText("4.000,00")).toBeInTheDocument();
-		expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
-	});
+			for (const source of order) {
+				expect(screen.getByText("Cargando…")).toBeInTheDocument();
+				expect(
+					screen.queryByText("Por cobrar / por pagar"),
+				).not.toBeInTheDocument();
+				expect(screen.queryByText(/Mes en equilibrio/)).not.toBeInTheDocument();
+				const { ref, next, fail } = pending[source];
+				act(() => ordinarySubscribe(ref, next, fail));
+			}
+			const panel = screen.getByText("Por cobrar / por pagar").closest("section");
+			expect(within(panel).getByText("10.000,00")).toBeInTheDocument();
+			expect(within(panel).getByText("4.000,00")).toBeInTheDocument();
+			expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
+		},
+	);
 	it("shows genuine loaded zeroes and equilibrium while reconciliation is still loading", () => {
 		for (const source of ["bankMovements", "receivables", "payables"]) {
 			store.collections[source] = [];
@@ -123,8 +128,7 @@ describe("Resumen — cockpit render", () => {
 	it("retains independent data through reconciliation loading, failure, retry and fresh recovery", () => {
 		const listeners = [];
 		onSnapshot.mockImplementation((ref, next, fail) => {
-			if (ref.id !== "reconciliation")
-				return ordinarySubscribe(ref, next, fail);
+			if (ref.id !== "reconciliation") return ordinarySubscribe(ref, next, fail);
 			const listener = { next, fail, unsubscribe: vi.fn() };
 			listeners.push(listener);
 			return listener.unsubscribe;
@@ -134,17 +138,11 @@ describe("Resumen — cockpit render", () => {
 		expect(screen.getByTestId("position-net")).toHaveTextContent("Cargando…");
 		expect(listeners).toHaveLength(1);
 		act(() => listeners[0].fail(new Error("private backend detail")));
-		expect(screen.getByTestId("position-net")).toHaveTextContent(
-			"No disponible",
-		);
+		expect(screen.getByTestId("position-net")).toHaveTextContent("No disponible");
 		expect(within(cashKpi()).queryByText("0,00")).not.toBeInTheDocument();
 		expect(screen.queryByText("Caja sin conciliar")).not.toBeInTheDocument();
-		expect(
-			screen.queryByText(/private backend detail/),
-		).not.toBeInTheDocument();
-		expect(
-			screen.getByText("Cobros vencidos sin gestionar"),
-		).toBeInTheDocument();
+		expect(screen.queryByText(/private backend detail/)).not.toBeInTheDocument();
+		expect(screen.getByText("Cobros vencidos sin gestionar")).toBeInTheDocument();
 		const independent = screen
 			.getByText("Por cobrar / por pagar")
 			.closest("section");
@@ -418,12 +416,8 @@ describe("Resumen — upcoming due lists", () => {
 		const collections = screen
 			.getByText("Próximos cobros")
 			.closest("div").parentElement;
-		expect(
-			within(payments).getByText("Finanzamt Darmstadt"),
-		).toBeInTheDocument();
-		expect(
-			within(collections).getByText("Deutsche Telekom"),
-		).toBeInTheDocument();
+		expect(within(payments).getByText("Finanzamt Darmstadt")).toBeInTheDocument();
+		expect(within(collections).getByText("Deutsche Telekom")).toBeInTheDocument();
 		expect(
 			within(payments).queryByText("Deutsche Telekom"),
 		).not.toBeInTheDocument();
@@ -514,5 +508,31 @@ describe("Resumen — posición neta", () => {
 		const cash = cashKpi();
 		expect(within(cash).getByText("52.000,00")).toBeInTheDocument();
 		expect(within(cash).queryByText("82.000,00")).not.toBeInTheDocument();
+	});
+});
+
+describe("Resumen — ritual next-step strip", () => {
+	it("keeps a single h1 and still shows the alerts panel next to the strip", () => {
+		renderScreen(<Resumen user={USER} />);
+
+		expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+		expect(screen.getByTestId("ritual-next-step")).toBeInTheDocument();
+		expect(screen.getByText("Alertas")).toBeInTheDocument();
+	});
+
+	it("links the strip to /banco when the anchor is missing", () => {
+		store.documents.reconciliation = { anchors: [] };
+
+		renderScreen(<Resumen user={USER} />);
+
+		const strip = screen.getByTestId("ritual-next-step");
+		expect(within(strip).getByRole("link")).toHaveAttribute("href", "/banco");
+	});
+
+	it("omits the strip while independent ledger sources are still loading", () => {
+		renderScreen(<Resumen user={null} />, { user: null });
+
+		expect(screen.getByText("Cargando…")).toBeInTheDocument();
+		expect(screen.queryByTestId("ritual-next-step")).not.toBeInTheDocument();
 	});
 });
