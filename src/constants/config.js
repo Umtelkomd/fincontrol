@@ -1,43 +1,54 @@
-export const ADMIN_EMAIL = 'jromero@umtelkomd.com';
+export const ADMIN_EMAIL = "jromero@umtelkomd.com";
 
 // Role assignments by email
 export const USER_ROLES = {
-  'jromero@umtelkomd.com': 'admin',
-  'bsandoval@umtelkomd.com': 'manager',
+  "jromero@umtelkomd.com": "admin",
+  "bsandoval@umtelkomd.com": "manager",
 };
 
 // Permissions per role
 export const ROLE_PERMISSIONS = {
-  admin: ['dashboard', 'cxp', 'cxc', 'reports', 'cashflow', 'settings', 'budget', 'audit', 'backup'],
-  manager: ['dashboard', 'cxp', 'cxc', 'reports'],
-  editor: ['dashboard'],
+  admin: [
+    "dashboard",
+    "cxp",
+    "cxc",
+    "reports",
+    "cashflow",
+    "settings",
+    "budget",
+    "audit",
+    "backup",
+    "bank",
+  ],
+  manager: ["dashboard", "cxp", "cxc", "reports", "bank"],
+  editor: ["dashboard"],
 };
 export const ALERT_THRESHOLDS = {
   overdueDays: 15,
   cxpLimit: 15000,
-  cxcLimit: 15000
+  cxcLimit: 15000,
 };
 
 // German VAT (Umsatzsteuer) rates
 // VAT is collected on behalf of Finanzamt — it is NOT company revenue or expense
 export const TAX_RATES = {
-  STANDARD: 0.19,   // 19% regular VAT (Regelsteuersatz) — default for most transactions
-  REDUCED: 0.07,     // 7% reduced VAT (ermäßigter Steuersatz) — food, books, cultural events, etc.
-  ZERO: 0,           // 0% VAT exempt (steuerfrei) — certain financial services, exports outside EU
+  STANDARD: 0.19, // 19% regular VAT (Regelsteuersatz) — default for most transactions
+  REDUCED: 0.07, // 7% reduced VAT (ermäßigter Steuersatz) — food, books, cultural events, etc.
+  ZERO: 0, // 0% VAT exempt (steuerfrei) — certain financial services, exports outside EU
 };
 
 // Labels for display
 export const TAX_RATE_LABELS = {
-  0.19: '19% Std.',
-  0.07: '7% Red.',
-  0: '0% Ex.',
+  0.19: "19% Std.",
+  0.07: "7% Red.",
+  0: "0% Ex.",
 };
 
 export const FINANCIAL_CONSTANTS = {
   // Initial bank balance is NET of VAT — the opening balance reflects only net amounts
   // since all bank transactions in Dec 2025 already had VAT separated at source.
-  INITIAL_BANK_BALANCE_NET: 28450.00,
-  INITIAL_BANK_BALANCE: 28450.00, // Alias for backward compat
+  INITIAL_BANK_BALANCE_NET: 28450.0,
+  INITIAL_BANK_BALANCE: 28450.0, // Alias for backward compat
   IVA_BALANCE_DEC2025: 7332.94,
   ESTIMATED_TAX_RATE: 0.25,
   DAYS_PER_MONTH: 30,

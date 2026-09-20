@@ -15,7 +15,7 @@ import {
   TableProperties,
   WalletCards,
   Wand2,
-} from 'lucide-react';
+} from "lucide-react";
 
 // Shared shell navigation, grouped by routine: what you DO every week
 // (Operar), what you LOOK AT (Ver), the master data behind it (Maestros) and
@@ -24,51 +24,131 @@ import {
 // Routes still in App.jsx but NOT exposed here (accessible by URL only):
 //   /backup, /roles, /auditoria, /perfil, /proyeccion
 
-export const DEFAULT_GROUP_KEY = 'operativo';
+export const DEFAULT_GROUP_KEY = "operativo";
 
 export const NAV_GROUPS = [
   {
-    key: 'operativo',
-    label: 'Operar',
+    key: "operativo",
+    label: "Operar",
     items: [
-      { path: '/resumen', label: 'Resumen', icon: Home, permission: 'dashboard' },
-      { path: '/clasificar', label: 'Bandeja', icon: Inbox, permission: 'settings' },
-      { path: '/movimientos', label: 'Movimientos', icon: Database, permission: 'dashboard' },
-      { path: '/cashflow', label: 'Tesorería', icon: WalletCards, permission: 'reports' },
-      { path: '/cxc', label: 'CXC', icon: ReceiptText, permission: 'cxc' },
-      { path: '/cxp', label: 'CXP', icon: ReceiptText, permission: 'cxp' },
-      { path: '/facturas', label: 'Facturas', icon: FileText, permission: 'cxp' },
-      { path: '/nominas', label: 'Nóminas', icon: WalletCards, permission: 'cxp' },
-      { path: '/alertas-op', label: 'Alertas', icon: Bell, permission: 'dashboard' },
+      {
+        path: "/resumen",
+        label: "Resumen",
+        icon: Home,
+        permission: "dashboard",
+      },
+      { path: "/banco", label: "Banco", icon: Database, permission: "bank" },
+      {
+        path: "/clasificar",
+        label: "Bandeja",
+        icon: Inbox,
+        permission: "bank",
+      },
+      {
+        path: "/movimientos",
+        label: "Movimientos",
+        icon: Database,
+        permission: "dashboard",
+      },
+      {
+        path: "/cashflow",
+        label: "Tesorería",
+        icon: WalletCards,
+        permission: "reports",
+      },
+      { path: "/cxc", label: "CXC", icon: ReceiptText, permission: "cxc" },
+      { path: "/cxp", label: "CXP", icon: ReceiptText, permission: "cxp" },
+      {
+        path: "/facturas",
+        label: "Facturas",
+        icon: FileText,
+        permission: "cxp",
+      },
+      {
+        path: "/nominas",
+        label: "Nóminas",
+        icon: WalletCards,
+        permission: "cxp",
+      },
+      {
+        path: "/alertas-op",
+        label: "Alertas",
+        icon: Bell,
+        permission: "dashboard",
+      },
     ],
   },
   {
-    key: 'reportes',
-    label: 'Ver',
+    key: "reportes",
+    label: "Ver",
     items: [
-      { path: '/flujo-caja-anual', label: 'Flujo Anual', icon: TableProperties, permission: 'reports' },
-      { path: '/reportes', label: 'Reportes', icon: BarChart3, permission: 'reports' },
-      { path: '/proyectos', label: 'Proyectos', icon: FolderKanban, permission: 'reports' },
-      { path: '/presupuesto', label: 'Presupuesto', icon: Briefcase, permission: 'reports' },
+      {
+        path: "/flujo-caja-anual",
+        label: "Flujo Anual",
+        icon: TableProperties,
+        permission: "reports",
+      },
+      {
+        path: "/reportes",
+        label: "Reportes",
+        icon: BarChart3,
+        permission: "reports",
+      },
+      {
+        path: "/proyectos",
+        label: "Proyectos",
+        icon: FolderKanban,
+        permission: "reports",
+      },
+      {
+        path: "/presupuesto",
+        label: "Presupuesto",
+        icon: Briefcase,
+        permission: "reports",
+      },
     ],
   },
   {
-    key: 'maestros',
-    label: 'Maestros',
+    key: "maestros",
+    label: "Maestros",
     items: [
-      { path: '/empleados', label: 'Empleados', icon: HardHat, permission: 'settings' },
-      { path: '/vehiculos', label: 'Vehículos', icon: Car, permission: 'settings' },
-      { path: '/viviendas', label: 'Viviendas', icon: Home, permission: 'settings' },
-      { path: '/seguros', label: 'Seguros', icon: Shield, permission: 'settings' },
+      {
+        path: "/empleados",
+        label: "Empleados",
+        icon: HardHat,
+        permission: "settings",
+      },
+      {
+        path: "/vehiculos",
+        label: "Vehículos",
+        icon: Car,
+        permission: "settings",
+      },
+      {
+        path: "/viviendas",
+        label: "Viviendas",
+        icon: Home,
+        permission: "settings",
+      },
+      {
+        path: "/seguros",
+        label: "Seguros",
+        icon: Shield,
+        permission: "settings",
+      },
     ],
   },
   {
-    key: 'configuracion',
-    label: 'Configuración',
+    key: "configuracion",
+    label: "Configuración",
     items: [
-      { path: '/reglas', label: 'Reglas', icon: Wand2, permission: 'settings' },
-      { path: '/banco', label: 'Banco', icon: Database, permission: 'settings' },
-      { path: '/configuracion', label: 'Config', icon: Settings, permission: 'settings' },
+      { path: "/reglas", label: "Reglas", icon: Wand2, permission: "settings" },
+      {
+        path: "/configuracion",
+        label: "Config",
+        icon: Settings,
+        permission: "settings",
+      },
     ],
   },
 ];
@@ -78,9 +158,11 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 /** Path without query/hash and without a trailing slash; `/` stays `/`. */
 const normalizePath = (value) => {
-  const bare = String(value ?? '').split('?')[0].split('#')[0];
-  if (bare.length > 1 && bare.endsWith('/')) return bare.slice(0, -1);
-  return bare || '/';
+  const bare = String(value ?? "")
+    .split("?")[0]
+    .split("#")[0];
+  if (bare.length > 1 && bare.endsWith("/")) return bare.slice(0, -1);
+  return bare || "/";
 };
 
 /**
@@ -93,7 +175,7 @@ export const isItemActive = (pathname, item) => {
   if (!item?.path) return false;
   const current = normalizePath(pathname);
   const target = normalizePath(item.path);
-  if (target === '/') return current === '/';
+  if (target === "/") return current === "/";
   return current === target || current.startsWith(`${target}/`);
 };
 
@@ -122,7 +204,8 @@ export const activeGroupKey = (pathname, groups = NAV_GROUPS) => {
  */
 export const visibleNavGroups = (hasPermission, groups = NAV_GROUPS) => {
   const allowed = (item) =>
-    !item.permission || (typeof hasPermission === 'function' && hasPermission(item.permission));
+    !item.permission ||
+    (typeof hasPermission === "function" && hasPermission(item.permission));
   return (groups || [])
     .map((group) => ({ ...group, items: (group.items || []).filter(allowed) }))
     .filter((group) => group.items.length > 0);
