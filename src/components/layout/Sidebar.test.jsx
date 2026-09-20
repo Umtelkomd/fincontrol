@@ -6,10 +6,17 @@
  * tab navigates to that group's first permitted item, so the active group is
  * always derived from the route and never drifts from it.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { installFirebaseMocks } from "@/test/firebaseMock";
+
+const useRitualStepMock = vi.hoisted(() => vi.fn(() => ({ step: null })));
+
+vi.mock("../../hooks/useRitualStep", async (importOriginal) => ({
+  ...(await importOriginal()),
+  useRitualStep: useRitualStepMock,
+}));
 
 installFirebaseMocks();
 
@@ -179,6 +186,40 @@ describe("Sidebar — group tabs", () => {
       within(itemRow()).getByRole("button", { name: /Reglas/ }),
     ).toBeInTheDocument();
   });
+
+  it("shows the classify ritual count only on Bandeja", () => {
+    useRitualStepMock.mockReturnValueOnce({
+      step: { id: "classify", count: 4 },
+    });
+
+    renderSidebar();
+
+    expect(
+      within(screen.getByRole("button", { name: /Bandeja/ })).getByLabelText(
+        "4 pendientes",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("button", { name: /Banco/ })).queryByLabelText(
+        /pendiente/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(["anchor", "import"])(
+    "shows one pending item on Banco for the %s ritual step",
+    (id) => {
+      useRitualStepMock.mockReturnValueOnce({ step: { id } });
+
+      renderSidebar();
+
+      expect(
+        within(screen.getByRole("button", { name: /Banco/ })).getByLabelText(
+          "1 pendiente",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("keeps the shell wordmark as its only heading", () => {
     renderSidebar();

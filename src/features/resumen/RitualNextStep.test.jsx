@@ -11,12 +11,13 @@ const renderStep = (props) =>
 		</MemoryRouter>,
 	);
 
-it("renders a Link to step.href for an import step", () => {
+it("renders a Link to step.href for an import step when it is elsewhere", () => {
 	renderStep({
 		step: { id: "import", href: "/banco", count: null, reason: null },
 		title: "Importa el extracto",
 		detail: "Hay un hueco de más de 5 días hábiles sin movimientos.",
 		cta: "Ir a Banco",
+		here: false,
 	});
 
 	const strip = screen.getByTestId("ritual-next-step");
@@ -27,6 +28,22 @@ it("renders a Link to step.href for an import step", () => {
 	expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
 
+it("hides the Link for an import step when it is already here", () => {
+	renderStep({
+		step: { id: "import", href: "/banco", count: null, reason: null },
+		title: "Importa el extracto",
+		detail: "Hay un hueco de más de 5 días hábiles sin movimientos.",
+		cta: "Ir a Banco",
+		here: true,
+	});
+
+	expect(screen.getByTestId("ritual-next-step")).toBeInTheDocument();
+	expect(screen.getByText("Importa el extracto")).toBeInTheDocument();
+	expect(
+		screen.queryByRole("link", { name: "Ir a Banco" }),
+	).not.toBeInTheDocument();
+});
+
 it("calls onRetry from a button when cash is unavailable", () => {
 	const onRetry = vi.fn();
 	renderStep({
@@ -35,6 +52,7 @@ it("calls onRetry from a button when cash is unavailable", () => {
 		detail: "Reintenta la lectura. No uses un saldo en cero.",
 		cta: "Reintentar",
 		onRetry,
+		here: true,
 	});
 
 	fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));

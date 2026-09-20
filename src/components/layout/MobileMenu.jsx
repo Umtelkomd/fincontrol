@@ -8,11 +8,13 @@ import {
 } from 'lucide-react';
 import NexusMark from '../brand/NexusMark';
 import { auth } from '../../services/firebase';
+import { ritualBadgeFor, useRitualStep } from '../../hooks/useRitualStep';
 import { isItemActive, visibleNavGroups } from './navItems';
 
 const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTransaction }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { step } = useRitualStep();
 
   if (!isOpen) return null;
 
@@ -81,6 +83,7 @@ const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTrans
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = isItemActive(location.pathname, item);
+                const ritualBadge = ritualBadgeFor(item.path, step);
                 return (
                   <button
                     key={item.path}
@@ -106,6 +109,14 @@ const MobileMenu = ({ isOpen, onClose, user, userRole, hasPermission, onNewTrans
                         <span style={{ color: 'var(--color-accent)' }}>{item.accent}</span>
                       )}
                     </span>
+                    {ritualBadge > 0 && (
+                      <span
+                        className="nx-badge nx-badge-warn ml-auto"
+                        aria-label={`${ritualBadge} ${ritualBadge === 1 ? 'pendiente' : 'pendientes'}`}
+                      >
+                        {ritualBadge}
+                      </span>
+                    )}
                   </button>
                 );
               })}

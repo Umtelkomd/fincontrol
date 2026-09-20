@@ -49,7 +49,7 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 - [x] T1 Pure `nextRitualStep` sequencer + tests.
 - [x] T2 Permission `bank` for admin+manager; `/banco` and `/clasificar` use it; Banco moves to Operar; editor still blocked. Tests for nav + roles.
 - [x] T3 Resumen next-step strip wired to the ledger (unavailable / import / anchor / drift / classify / remesas / done). Tests.
-- [ ] T4 Nav badges for Banco / Bandeja / CXC remesas counts; continue CTA on those three screens pointing at the current next step. Tests.
+- [x] T4 Nav badges for Banco / Bandeja / CXC remesas counts; continue CTA on those three screens pointing at the current next step. Tests.
 
 ## Acceptance criteria
 
@@ -65,8 +65,11 @@ Out: blocking gates, firestore.rules changes, production data, deploy, theme, sa
 
 - T1 `d60f186` — RED missing module; GREEN 15/15. `nextRitualStep` first-match sequencer.
 - T2 `ba3cff4` — RED 5 failed / 19 passed; GREEN 24/24. Permission `bank`; Banco in Operar.
-- T3 — GREEN 45/45 (`ritualCopy`, `ritualCounts`, `RitualNextStep`, `Resumen`). Strip after PageHeader / FinancialSourceStatus, before Alertas. Omitted while independentLoading. Missing-invoice is not inbox.
+- T3 `8949cde` — GREEN 45/45 (`ritualCopy`, `ritualCounts`, `RitualNextStep`, `Resumen`). Strip after PageHeader / FinancialSourceStatus, before Alertas. Omitted while independentLoading. Missing-invoice is not inbox.
+- T4 `1cf8be1` — Writer RED: 3 nav badge assertions absent, then GREEN 14/14; strip RED: same-screen CTA remained, then GREEN 91/91. Parent removed autoformat-only churn. Independent verification on the normalized current disk: 105/105 tests, scoped ESLint clean, build green. Desktop/mobile badges share `ritualBadgeFor`; Banco, Bandeja and Remesas each show the live next-step strip.
+- Final independent verification (`main...HEAD`): focused feature suite 178/178; `npm run lint` clean; `npm run build` green (2,837 modules, 3.97s); `git diff --check` clean. Full `npm test`: 2,997/2,998, with one known local-environment failure in `src/App.cashSource.test.jsx` because jsdom lacks `localStorage`; no candidate-caused failure observed.
+- Review workload: 25 files, +1,650/−329 versus `main`. This exceeds the normal review-size heuristic; prepare a review-slicing plan before opening a PR instead of presenting it as one undifferentiated review.
 
 ## Next step
 
-Implement T4.
+Owner decision: review/slice the branch for PR delivery; then push/PR/deploy only when explicitly requested.

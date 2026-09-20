@@ -5,7 +5,14 @@ import { Button, Panel } from "@/components/ui/nexus";
  * Presentational next-step strip. Heading stays below h1 so Resumen keeps a
  * single page title.
  */
-const RitualNextStep = ({ step, title, detail, cta, onRetry }) => {
+const RitualNextStep = ({
+	step,
+	title,
+	detail,
+	cta,
+	onRetry,
+	here = false,
+}) => {
 	if (!step) return null;
 
 	let actions = null;
@@ -15,7 +22,7 @@ const RitualNextStep = ({ step, title, detail, cta, onRetry }) => {
 				{cta}
 			</Button>
 		);
-	} else if (step.href && cta) {
+	} else if (step.href && cta && !here) {
 		actions = (
 			<Link
 				to={step.href}
