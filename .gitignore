@@ -54,6 +54,8 @@ _design/
 .atl/
 # Local Pi lens/tool state
 .pi-lens/
+# Local Codex state
+.codex/
 # Local build snapshots and applied-script artifacts — never shared
 tmp/
 

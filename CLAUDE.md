@@ -16,6 +16,10 @@ npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predepl
 - **GitHub:** Umtelkomd/fincontrol
 - **Live:** https://umtelkomd-finance.web.app
 - **Deploy:** Firebase Hosting (`npx firebase deploy --only hosting` — predeploy rebuilds)
+- **Deploy guard:** deploys (hosting and firestore) must run from a clean `main` that
+  is exactly equal to `origin/main`. `firebase.json` predeploy runs `npm run
+  deploy:guard` (`scripts/assert-deploy-ready.js`) before either target and aborts
+  otherwise. Emergency override: `FINCONTROL_ALLOW_UNSAFE_DEPLOY=1`.
 
 ## Firebase Config
 - **Project:** umtelkomd-finance
@@ -172,11 +176,16 @@ npm run build            # Build for production
 
 ### 5. Firebase env guardrails (added after the 2026-06 `auth/invalid-api-key` outage)
 A `dist` built without `.env` shipped an empty Firebase config and took prod down.
-Three guards prevent recurrence — **do not remove them**:
+These guards prevent recurrence — **do not remove them**:
 - `vite.config.js` — aborts the build if any `VITE_FIREBASE_*` var is missing.
 - `src/services/firebase.js` — throws a clear error if any config value is empty.
 - `firebase.json` → `hosting.predeploy: ["npm run build"]` — every `firebase deploy`
   rebuilds from current source + `.env`, so a stale/env-less `dist` can't ship.
+- `firebase.json` predeploy also runs `npm run deploy:guard` for hosting and firestore
+  — blocks deploying from a non-`main` or dirty/out-of-sync tree (see Repo & Deploy above).
+
+Node is pinned to 22 via `.nvmrc`/`package.json#engines` because Node ≥25's
+experimental built-in `localStorage` shadows jsdom's and breaks tests.
 
 Deploy is now just `npx -y firebase-tools deploy --only hosting` (it rebuilds for you).
 Note: plain `npx firebase` resolves to the local `firebase` SDK package (no executable) — always use `firebase-tools`.
