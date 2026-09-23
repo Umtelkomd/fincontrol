@@ -93,8 +93,12 @@ const findUnlinkedSettlements = (docs, liveMovementIds) =>
     .filter((doc) => doc.status === 'settled' || doc.status === 'partial')
     .map((doc) => {
       const payments = Array.isArray(doc.payments) ? doc.payments : [];
-      const claimed = payments.filter((payment) => payment && payment.bankMovementId);
-      const linked = claimed.filter((payment) => liveMovementIds.has(payment.bankMovementId));
+      // A payment settled by netting (an Insyte counter-charge deducted from a
+      // confirming receipt, an invoice offset against a supplier's) is evidenced
+      // by the real movement it was netted in.
+      const movementOf = (payment) => payment?.bankMovementId || payment?.nettedInMovementId;
+      const claimed = payments.filter((payment) => movementOf(payment));
+      const linked = claimed.filter((payment) => liveMovementIds.has(movementOf(payment)));
       return { doc, payments, linked, dangling: claimed.length - linked.length };
     })
     .filter(({ linked }) => linked.length === 0)
