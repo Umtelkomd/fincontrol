@@ -338,7 +338,11 @@ const SEPA_TAG_FIELD = {
 // export uses "TAG: value" (colon, optional space) — including mid-word,
 // e.g. "...aus JuliTAN: 131919". Neither uses a word boundary before the
 // tag name, matching both real-world shapes.
-const SEPA_TAG_PATTERN = /(EREF|KREF|MREF|CRED|DEBT|PURP|SVWZ|ABWA|ABWE|ANAM|TAN|IBAN|BIC)(?:\+|:\s*)/g;
+// OAMT/COAM (original/compensation amount) and the Umsätze BNAM (bank name)
+// carry no identity, but must still END the previous tag's value: otherwise
+// "CRED+DE37GAA…OAMT+800.00" or "BIC: PBNKDEFFXXX BNAM: …" pollute the
+// creditor id / BIC and make the same booking look different per export.
+const SEPA_TAG_PATTERN = /(EREF|KREF|MREF|CRED|DEBT|PURP|SVWZ|ABWA|ABWE|ANAM|TAN|IBAN|BIC|OAMT|COAM|BNAM)(?:\+|:\s*)/g;
 
 const emptySepaPurpose = () => ({
   endToEndRef: '',
@@ -914,7 +918,17 @@ const GENERIC_BANK_PURPOSES = new Set([
   'payment', 'transfer', 'überweisung', 'überweisungsauftrag', 'sepa überweisung',
   'lastschrift', 'sepa basislastschrift', 'entgelt/auslagen', 'abschluss', 'account fee',
 ]);
-const meaningfulPurpose = (purpose) => GENERIC_BANK_PURPOSES.has(purpose.replace(/[- ]+/g, ' ')) ? '' : purpose;
+// Slash-coded remittance ("/MISTRAL-SO//…//USTRD//Kartenzahlung") is a card
+// network code in the kontobewegungen export, not the merchant text Umsätze
+// shows for the same payment — it identifies nothing across formats.
+const SLASH_CODED_PURPOSE = /^\/[a-z0-9-]+\/\//;
+const meaningfulPurpose = (purpose) => (GENERIC_BANK_PURPOSES.has(purpose.replace(/[- ]+/g, ' '))
+  || SLASH_CODED_PURPOSE.test(purpose) ? '' : purpose);
+// The same SEPA purpose arrives with different spacing per export: Umsätze
+// joins its lines with a space ("Gehalt April SecureGo plus"), kontobewegungen
+// concatenates the SVWZ fields ("Gehalt AprilSecureGo plus"). Compare purposes
+// without whitespace, or every re-import across formats looks like a new booking.
+const comparablePurpose = (purpose) => purpose.replace(/\s+/g, '');
 const bankReference = (value) => {
   const reference = normalizeText(value);
   return /^(NOTPROVIDED|NONREF)$/i.test(reference) ? '' : reference;
@@ -936,17 +950,20 @@ const bookingFacts = (row) => {
   const purposes = purposeValues(sources);
   const identity = [
     normalizeBankRowIbanBic(row.counterpartyIban || sepa.iban),
-    normalizeBankRowIbanBic(row.counterpartyBic || sepa.bic).replace(/XXX$/, ''),
+    // First token only: movements stored before BNAM was a delimiter carry
+    // "PBNKDEFFXXX BNAM: <bank name>" in the BIC.
+    normalizeBankRowIbanBic(String(row.counterpartyBic || sepa.bic || '').trim().split(/\s+/)[0]).replace(/XXX$/, ''),
     normalizeBankRowIbanBic(row.accountIban || row.sourceAccountIban),
     normalizeBankRowIbanBic(row.currency),
   ];
   // Resolve each reference independently. Keep all known observations so sparse
   // objects/placeholders cannot hide tagged facts, nor can one source win a conflict.
-  return { balance: row.balanceAfter, purpose: purposes.find(meaningfulPurpose) || purposes[0] || '', evidence: [
+  const purpose = purposes.find(meaningfulPurpose) || purposes[0] || '';
+  return { balance: row.balanceAfter, purpose: comparablePurpose(purpose), evidence: [
     ...identity.map((value) => value ? [value] : []),
     ...['creditorId', 'mandateRef', 'endToEndRef', 'customerRef'].map((key) =>
       knownBankValues(sources.map((source) => source[key]), bankReference)),
-    purposes.filter(meaningfulPurpose),
+    [...new Set(purposes.filter(meaningfulPurpose).map(comparablePurpose))],
   ] };
 };
 // Structured source facts outrank evidence; raw columns and unshipped provenance

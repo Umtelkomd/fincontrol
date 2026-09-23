@@ -81,17 +81,28 @@ const listOffenders = (rows, render) => {
   }
 };
 
-/** A. Status says paid, but nothing ties it to a bank movement. */
-const findUnlinkedSettlements = (docs) =>
+/**
+ * A. Status says paid, but nothing ties it to a real bank movement.
+ *
+ * A bankMovementId only counts when that movement exists and is not void: the
+ * forced reconciliations of 2026-06-14 wrote ids of movements that were never
+ * stored, which looked linked while proving nothing.
+ */
+const findUnlinkedSettlements = (docs, liveMovementIds) =>
   docs
     .filter((doc) => doc.status === 'settled' || doc.status === 'partial')
     .map((doc) => {
       const payments = Array.isArray(doc.payments) ? doc.payments : [];
-      const linked = payments.filter((payment) => payment && payment.bankMovementId);
-      return { doc, payments, linked };
+      // A payment settled by netting (an Insyte counter-charge deducted from a
+      // confirming receipt, an invoice offset against a supplier's) is evidenced
+      // by the real movement it was netted in.
+      const movementOf = (payment) => payment?.bankMovementId || payment?.nettedInMovementId;
+      const claimed = payments.filter((payment) => movementOf(payment));
+      const linked = claimed.filter((payment) => liveMovementIds.has(movementOf(payment)));
+      return { doc, payments, linked, dangling: claimed.length - linked.length };
     })
     .filter(({ linked }) => linked.length === 0)
-    .map(({ doc, payments }) => ({
+    .map(({ doc, payments, dangling }) => ({
       id: doc.id,
       name: label(doc),
       amount: num(doc.grossAmount ?? doc.amount),
@@ -102,7 +113,7 @@ const findUnlinkedSettlements = (docs) =>
       origin: typeof doc.source === 'string' ? doc.source : '(untagged)',
       // No payments at all is a harder failure than payments missing the link:
       // the first means the settlement has no evidence whatsoever.
-      severity: payments.length === 0 ? 'sin-evidencia' : 'sin-vinculo',
+      severity: payments.length === 0 ? 'sin-evidencia' : dangling ? 'vinculo-roto' : 'sin-vinculo',
     }))
     .sort((left, right) => right.amount - left.amount);
 
@@ -190,11 +201,16 @@ const findUnattributed = (docs, field) =>
 
 const sum = (rows, key = 'amount') => rows.reduce((total, row) => total + num(row[key]), 0);
 
-async function auditCollection(collection, title) {
+async function loadLiveMovementIds() {
+  const snapshot = await db.collection(`${BASE}/bankMovements`).select('status').get();
+  return new Set(snapshot.docs.filter((entry) => entry.get('status') !== 'void').map((entry) => entry.id));
+}
+
+async function auditCollection(collection, title, liveMovementIds) {
   const snapshot = await db.collection(`${BASE}/${collection}`).get();
   const docs = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
 
-  const unlinked = findUnlinkedSettlements(docs);
+  const unlinked = findUnlinkedSettlements(docs, liveMovementIds);
   const legacy = unlinked.filter((row) => row.prePolicy);
   const postPolicy = unlinked.filter((row) => !row.prePolicy);
   const incoherent = findIncoherent(docs);
@@ -213,6 +229,7 @@ async function auditCollection(collection, title) {
       postPolicy: postPolicy.length,
       postPolicyAmount: sum(postPolicy),
       noEvidence: unlinked.filter((row) => row.severity === 'sin-evidencia').length,
+      danglingLinks: unlinked.filter((row) => row.severity === 'vinculo-roto').length,
       rows: unlinked,
     },
     incoherent: { total: incoherent.length, rows: incoherent },
@@ -229,7 +246,8 @@ async function auditCollection(collection, title) {
   console.log(`\n  A. Liquidadas/parciales SIN movimiento bancario: ${unlinked.length} · ${money(sum(unlinked))}`);
   console.log(`     ├─ anteriores a la política (${POLICY_START}): ${legacy.length}  → legado, se marcan y se cierran`);
   console.log(`     ├─ POSTERIORES a la política: ${postPolicy.length} · ${money(sum(postPolicy))}  → ESTAS son el problema real`);
-  console.log(`     └─ sin ningún pago registrado: ${unlinked.filter((r) => r.severity === 'sin-evidencia').length}`);
+  console.log(`     ├─ sin ningún pago registrado: ${unlinked.filter((r) => r.severity === 'sin-evidencia').length}`);
+  console.log(`     └─ vínculo a un movimiento inexistente o anulado: ${unlinked.filter((r) => r.severity === 'vinculo-roto').length}`);
   if (postPolicy.length) {
     console.log('\n     Posteriores a la política (mayor importe primero):');
     listOffenders(postPolicy, (row) =>
@@ -296,8 +314,9 @@ async function auditAnchors() {
     console.log(`Fecha: ${todayIso()}   ·   Corte de política de conciliación: ${POLICY_START}`);
   }
 
-  const receivables = await auditCollection('receivables', 'CXC (receivables)');
-  const payables = await auditCollection('payables', 'CXP (payables)');
+  const liveMovementIds = await loadLiveMovementIds();
+  const receivables = await auditCollection('receivables', 'CXC (receivables)', liveMovementIds);
+  const payables = await auditCollection('payables', 'CXP (payables)', liveMovementIds);
   const anchors = await auditAnchors();
 
   if (AS_JSON) {

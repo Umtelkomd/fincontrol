@@ -721,6 +721,46 @@ describe('decision-relevant bank references and purpose', () => {
   });
 });
 
+// Real regression (2026-09-10): an Umsätze export re-imported 25 Feb–Jun
+// bookings that the kontobewegungen export had already stored.
+describe('the same booking across Umsätze and kontobewegungen exports', () => {
+  const booking = { postedDate: '2026-05-13', amount: 2071.84, direction: 'out', counterpartyName: 'Erika Mustermann' };
+  const kontobewegungen = { ...booking, importSource: 'datev', rowHash: 'datev-kb',
+    description: 'EREF+NOTPROVIDEDKREF+20260513451538900902SVWZ+Gehalt AprilSecureGo plus',
+    counterpartyIban: 'DE81500105175444205799', counterpartyBic: 'INGDDEFFXXX' };
+  const umsaetze = { ...booking, importSource: 'bank-csv', rowHash: 'datev-ums', accountIban: 'DE76130910540001342860',
+    description: 'Gehalt April SecureGo plus',
+    sepa: { purpose: 'Gehalt April SecureGo plus', iban: 'DE81500105175444205799', bic: 'INGDDEFFXXX' } };
+
+  it('matches a purpose that differs only in spacing', () => {
+    expect(diffAgainstExisting([umsaetze], [kontobewegungen]).duplicateRows).toHaveLength(1);
+  });
+
+  it('still separates purposes that differ in content', () => {
+    const other = { ...umsaetze, description: 'Gehalt Mai SecureGo plus', sepa: { ...umsaetze.sepa, purpose: 'Gehalt Mai SecureGo plus' } };
+    expect(diffAgainstExisting([other], [kontobewegungen]).newRows).toHaveLength(1);
+  });
+
+  it('ends a tag value at OAMT/COAM/BNAM', () => {
+    expect(parseSepaPurpose('MREF+379037CRED+DE37GAA00000096303OAMT+800.00SVWZ+Auszahlung').creditorId).toBe('DE37GAA00000096303');
+    expect(parseSepaPurpose('EREF+NOTPROVIDEDCOAM+0.00SVWZ+Payment').endToEndRef).toBe('NOTPROVIDED');
+    expect(parseSepaPurpose('Rechnung 1 IBAN: DE02100100100074169141 BIC: PBNKDEFFXXX BNAM: Some Bank').bic).toBe('PBNKDEFFXXX');
+  });
+
+  it('ignores a bank name stored in the BIC by older imports', () => {
+    const stored = { ...umsaetze, sepa: { ...umsaetze.sepa, bic: 'INGDDEFFXXX BNAM: ING-DiBa' } };
+    expect(diffAgainstExisting([stored], [kontobewegungen]).duplicateRows).toHaveLength(1);
+  });
+
+  it('does not treat a slash-coded card purpose as contradicting the merchant text', () => {
+    const card = { postedDate: '2026-03-30', amount: 93.72, direction: 'out', counterpartyName: 'ARAL AG' };
+    const kb = { ...card, rowHash: 'datev-card', description: 'EREF+71114015079638280326084424MREF+589813CRED+DE79ZZZ00000465117SVWZ+/MISTRAL-SO//ZZ1K6VUL4XCJ6XGWQ//CHAN//SFA//USTRD//Kartenzahlung' };
+    const ums = { ...card, rowHash: 'datev-ums-card', description: 'ARAL Leipheim 28.03.2026 um 08:44:24 Uhr REF 589813',
+      sepa: { purpose: 'ARAL Leipheim 28.03.2026 um 08:44:24 Uhr REF 589813', mandateRef: '589813', creditorId: 'DE79ZZZ00000465117' } };
+    expect(diffAgainstExisting([ums], [kb]).duplicateRows).toHaveLength(1);
+  });
+});
+
 describe('bank statement import dedupe classification', () => {
   it.each([false, true])('matches cross-format bookings one-to-one before import (reverse=%s)', (reverse) => {
     const common = { postedDate: '08.05.2026', valueDate: '08.05.2026', amount: '-100,00', description: 'Invoice 123' };
