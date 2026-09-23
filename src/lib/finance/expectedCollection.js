@@ -107,10 +107,19 @@ export const buildPayerProfiles = ({ receivables = [], movements = [] } = {}) =>
  *
  * @param {object} doc
  * @param {{ today: string, openAmount: number, profiles: Map, fallbackSlipDays: number }} context
- * @returns {{ date: string, amount: number, atRisk: boolean, basis: 'payer'|'default', daysLate: number }}
+ * @returns {{ date: string, amount: number, atRisk: boolean, basis: 'payer'|'default'|'disputed', daysLate: number, disputed?: boolean }}
  */
+/** A receivable the customer refuses to pay: never counted as incoming cash. */
+export const COLLECTION_STATUS = Object.freeze({ DISPUTED: 'disputed' });
+export const isDisputed = (doc) => doc?.collectionStatus === COLLECTION_STATUS.DISPUTED;
+
 export const expectedCollectionOf = (doc, { today, openAmount, profiles, fallbackSlipDays }) => {
   const profile = profiles?.get(payerKeyOf(doc)) || null;
+  if (isDisputed(doc)) {
+    // Still owed and still on the books, but a forecast that counts it would
+    // commit payments against money that is not coming.
+    return { date: today, amount: round2(openAmount), atRisk: true, basis: 'disputed', daysLate: 0, disputed: true };
+  }
   const issueDate = isoOf(doc?.issueDate);
   const dueDate = isoOf(doc?.dueDate) || today;
 

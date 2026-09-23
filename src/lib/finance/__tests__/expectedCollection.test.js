@@ -76,4 +76,9 @@ describe('expectedCollectionOf', () => {
     const doc = { id: 'r', counterpartyName: 'Nuevo Cliente', grossAmount: 300, dueDate: '2026-06-01' };
     expect(expectedCollectionOf(doc, { ...context, openAmount: 300 }).atRisk).toBe(true);
   });
+
+  it('never expects a disputed receivable, however recent', () => {
+    const doc = { id: 'v', counterpartyName: 'Vancom-IT GmbH', grossAmount: 84826, issueDate: '2026-09-16', dueDate: '2026-10-16', collectionStatus: 'disputed' };
+    expect(expectedCollectionOf(doc, { ...context, openAmount: 84826 })).toMatchObject({ atRisk: true, disputed: true, basis: 'disputed', amount: 84826 });
+  });
 });

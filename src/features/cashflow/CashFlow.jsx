@@ -474,15 +474,30 @@ const CashFlow = ({ user }) => {
 									Resto de clientes: {formatCollectionSlip(forecast.collectionSlip)}.
 									Lo vencido se espera la semana siguiente.
 								</p>
-								{forecast.atRiskTotal > 0 && (
-									<p className="text-[var(--color-warn)]" data-testid="forecast-at-risk">
-										{formatCurrency(forecast.atRiskTotal)} en{' '}
-										{forecast.atRiskReceivables.length} cobro
-										{forecast.atRiskReceivables.length === 1 ? '' : 's'} vencido
-										{forecast.atRiskReceivables.length === 1 ? '' : 's'} hace más de 60
-										días: no se cuentan en la previsión (cobro en riesgo).
-									</p>
-								)}
+								{(() => {
+									const risk = forecast.atRiskReceivables || [];
+									const disputed = risk.filter((item) => item.disputed);
+									const late = risk.filter((item) => !item.disputed);
+									const sum = (items) => items.reduce((total, item) => total + item.amount, 0);
+									return (
+										<>
+											{disputed.length > 0 && (
+												<p className="text-[var(--color-err)]" data-testid="forecast-disputed">
+													{formatCurrency(sum(disputed))} en disputa (
+													{[...new Set(disputed.map((item) => item.doc.counterpartyName || item.doc.client))].join(', ')}
+													): no se cuentan en la previsión.
+												</p>
+											)}
+											{late.length > 0 && (
+												<p className="text-[var(--color-warn)]" data-testid="forecast-at-risk">
+													{formatCurrency(sum(late))} en {late.length} cobro{late.length === 1 ? '' : 's'} vencido
+													{late.length === 1 ? '' : 's'} hace más de 60 días: no se cuentan en la previsión
+													(cobro en riesgo).
+												</p>
+											)}
+										</>
+									);
+								})()}
 							</div>
 						</>
 					)}

@@ -132,7 +132,7 @@ export const buildCashForecast = ({
   const atRiskReceivables = [];
   const collectionOf = (doc, openAmount) => {
     const expected = expectedCollectionOf(doc, { today, openAmount, profiles: payerProfiles, fallbackSlipDays: slipDays });
-    if (expected.atRisk) atRiskReceivables.push({ doc, amount: expected.amount, daysLate: expected.daysLate });
+    if (expected.atRisk) atRiskReceivables.push({ doc, amount: expected.amount, daysLate: expected.daysLate, disputed: !!expected.disputed });
     return expected.basis === 'payer' || expected.atRisk || expected.daysLate > 0 ? expected : null;
   };
   const openPayables = (payables || []).filter(isForecastable);
