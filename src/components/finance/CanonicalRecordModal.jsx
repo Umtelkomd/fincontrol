@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { buildInitialFormData } from './canonicalRecordForm';
+import { CORRECTION_TARGET, MIN_REASON_LENGTH } from '../../lib/finance/documentLifecycle';
 
 const fieldClassName =
  'w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] px-3 py-2.5 text-[13px] text-[var(--color-fg-1)] outline-none transition-all focus:border-[var(--color-line-s)] focus:bg-[var(--color-bg-1)] focus:';
@@ -12,11 +13,17 @@ const STATUS_LABELS = {
   cancelled: 'Cancelada',
 };
 
-const STATUS_WARNINGS = {
-  issued: 'Revertir a Emitida borrará todos los pagos registrados y pondrá el importe abierto a cero.',
-  settled: 'Marcar como Liquidada forzará el importe cobrado/pagado al total bruto.',
-  cancelled: 'Cancelar la orden cierra el importe abierto a cero.',
-  partial: '',
+// Only two honest corrections exist. A document is settled solely by
+// reconciling it with a bank movement, never by hand (documentLifecycle.js).
+const CORRECTION_OPTIONS = {
+  [CORRECTION_TARGET.CANCELLED]: {
+    label: 'Anular (duplicado o no debió existir)',
+    warning: 'Anular pone el importe abierto a cero y borra los pagos sin respaldo bancario. No se puede anular si tiene pagos conciliados con el banco.',
+  },
+  [CORRECTION_TARGET.REOPENED]: {
+    label: 'Reabrir (quitar pagos sin respaldo bancario)',
+    warning: 'Reabrir conserva solo los pagos vinculados a un movimiento bancario y vuelve a poner el resto como pendiente.',
+  },
 };
 
 const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = [], costCenters = [], categories = [], submitting = false, userRole = '' }) => {
@@ -27,8 +34,8 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  const isOrder = record.recordFamily === 'receivable' || record.recordFamily === 'payable';
  const isAdmin = userRole === 'admin';
  const showStatusOverride = isAdmin && isOrder;
- const requiresReason = Boolean(formData.forceStatus);
- const canSubmit = !submitting && (!requiresReason || formData.correctionReason.trim().length > 0);
+ const requiresReason = Boolean(formData.correctionTarget);
+ const canSubmit = !submitting && (!requiresReason || formData.correctionReason.trim().length >= MIN_REASON_LENGTH);
 
  const projectLabel = record.recordFamily === 'movement' ? 'Movimiento bancario' : record.recordFamily === 'receivable' ? 'Factura CXC' : 'Factura CXP';
 
@@ -123,7 +130,7 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
  <input
  type="number"
  step="0.01"
- min={formData.forceStatus ? 0 : (record.paidAmount || 0)}
+ min={formData.correctionTarget ? 0 : (record.paidAmount || 0)}
  className={fieldClassName}
  value={formData.amount}
  onChange={(event) => setFormData((current) => ({ ...current, amount: event.target.value }))}
@@ -247,27 +254,30 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
    <span className="font-medium text-[var(--color-fg-1)]">{STATUS_LABELS[record.rawRecord?.status] || record.rawRecord?.status || '—'}</span>
  </div>
  <label className="block">
-   <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Forzar estado</span>
+   <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">Corregir estado</span>
    <select
      className={fieldClassName}
-     value={formData.forceStatus}
-     onChange={(event) => setFormData((current) => ({ ...current, forceStatus: event.target.value, correctionReason: '' }))}
+     value={formData.correctionTarget}
+     onChange={(event) => setFormData((current) => ({ ...current, correctionTarget: event.target.value, correctionReason: '' }))}
    >
-     <option value="">Automático (calculado por importe)</option>
-     {Object.entries(STATUS_LABELS).map(([value, label]) => (
-       <option key={value} value={value}>{label}</option>
+     <option value="">Sin corrección (calculado por importe y pagos)</option>
+     {Object.entries(CORRECTION_OPTIONS).map(([value, option]) => (
+       <option key={value} value={value}>{option.label}</option>
      ))}
    </select>
+   <span className="mt-1.5 block text-xs text-[var(--color-fg-4)]">
+     Para liquidar, conciliá el documento con su movimiento bancario.
+   </span>
  </label>
 
- {formData.forceStatus && STATUS_WARNINGS[formData.forceStatus] && (
+ {formData.correctionTarget && (
    <div className="flex items-start gap-2 rounded-md border border-[var(--color-warn)] bg-[var(--color-bg-1)] px-3 py-2.5 text-xs text-[var(--color-warn)]">
      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-     <span>{STATUS_WARNINGS[formData.forceStatus]}</span>
+     <span>{CORRECTION_OPTIONS[formData.correctionTarget]?.warning}</span>
    </div>
  )}
 
- {formData.forceStatus && (
+ {formData.correctionTarget && (
    <label className="block">
      <span className="mb-1.5 block label-mono text-[var(--color-fg-4)]">
        Motivo de corrección <span className="text-[var(--color-accent)]">*</span>
@@ -275,6 +285,7 @@ const CanonicalRecordModal = ({ isOpen, onClose, record, onSubmit, projects = []
      <textarea
        rows="2"
        required
+       minLength={MIN_REASON_LENGTH}
        placeholder="Describí brevemente por qué se corrige el estado..."
        className={fieldClassName}
        value={formData.correctionReason}

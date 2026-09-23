@@ -67,7 +67,7 @@ const modalFormData = (overrides = {}) => ({
   projectName: 'NE4 Rossdorf',
   costCenterId: 'CC1',
   categoryName: 'Material',
-  forceStatus: '',
+  correctionTarget: '',
   correctionReason: '',
   ...overrides,
 });
@@ -195,7 +195,7 @@ describe('updateBankMovement — partial update semantics', () => {
     await updateBankMovement('mov-1', modalFormData());
     const payload = writtenPayload();
 
-    ['forceStatus', 'correctionReason', 'issueDate', 'dueDate'].forEach((field) => {
+    ['correctionTarget', 'correctionReason', 'issueDate', 'dueDate'].forEach((field) => {
       expect(payload).not.toHaveProperty(field);
     });
   });

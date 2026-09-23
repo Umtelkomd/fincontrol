@@ -99,7 +99,7 @@ const modalFormData = (overrides = {}) => ({
   projectName: 'NE4 Rossdorf',
   costCenterId: 'CC1',
   categoryName: 'Certificaciones',
-  forceStatus: '',
+  correctionTarget: '',
   correctionReason: '',
   ...overrides,
 });
@@ -288,44 +288,87 @@ describe('updateReceivable — the full form still behaves exactly as before', (
   });
 });
 
-describe('updateReceivable — admin status override', () => {
-  it('reopens the invoice and drops its payments on forceStatus "issued"', async () => {
+describe('updateReceivable — admin status correction', () => {
+  it('refuses to mark a document settled by hand', async () => {
     const { updateReceivable } = useReceivables(USER);
-    const settled = storedReceivable({ status: 'settled', paidAmount: 10000, openAmount: 0 });
 
-    await updateReceivable(settled, modalFormData({ amount: 10000, forceStatus: 'issued' }));
+    const result = await updateReceivable(storedReceivable(), { correctionTarget: 'settled', correctionReason: 'Pagado según DATEV' });
 
-    expect(writtenPayload()).toMatchObject({
-      status: 'issued',
-      openAmount: 10000,
-      paidAmount: 0,
-      payments: [],
-    });
+    expect(result.success).toBe(false);
+    expect(result.error.message).toMatch(/No se puede marcar como liquidado a mano/);
+    expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
   });
 
-  it('closes the invoice on forceStatus "settled" without an amount in the payload', async () => {
+  it('fails loudly on the removed forceStatus override', async () => {
     const { updateReceivable } = useReceivables(USER);
 
-    await updateReceivable(storedReceivable(), { forceStatus: 'settled', correctionReason: 'DATEV' });
+    const result = await updateReceivable(storedReceivable(), { forceStatus: 'settled', correctionReason: 'Pagado según DATEV' });
 
-    expect(writtenPayload()).toMatchObject({
+    expect(result.success).toBe(false);
+    expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('reopens a force-settled document, keeping only bank-backed payments', async () => {
+    const { updateReceivable } = useReceivables(USER);
+    const forceSettled = storedReceivable({
       status: 'settled',
-      openAmount: 0,
       paidAmount: 10000,
+      openAmount: 0,
+      payments: [
+        { amount: 1000, bankMovementId: 'mov-1' },
+        { amount: 9000, note: 'sin respaldo' },
+      ],
+    });
+
+    await updateReceivable(forceSettled, modalFormData({
+      amount: 10000,
+      correctionTarget: 'reopened',
+      correctionReason: 'Pago nunca llegó al banco',
+    }));
+
+    expect(writtenPayload()).toMatchObject({
+      status: 'partial',
       grossAmount: 10000,
+      paidAmount: 1000,
+      openAmount: 9000,
+      pendingAmount: 9000,
+      payments: [{ amount: 1000, bankMovementId: 'mov-1' }],
     });
   });
 
-  it('cancels without inventing a new gross amount', async () => {
+  it('cancels a duplicate without inventing a new gross amount', async () => {
     const { updateReceivable } = useReceivables(USER);
 
-    await updateReceivable(storedReceivable(), { forceStatus: 'cancelled', correctionReason: 'Duplicada' });
+    await updateReceivable(storedReceivable(), { correctionTarget: 'cancelled', correctionReason: 'Duplicada' });
 
     expect(writtenPayload()).toMatchObject({
       status: 'cancelled',
       openAmount: 0,
       grossAmount: 10000,
     });
+  });
+
+  it('refuses to cancel a document with bank-backed payments', async () => {
+    const { updateReceivable } = useReceivables(USER);
+    const partial = storedReceivable({
+      status: 'partial',
+      paidAmount: 1000,
+      payments: [{ amount: 1000, bankMovementId: 'mov-1' }],
+    });
+
+    const result = await updateReceivable(partial, { correctionTarget: 'cancelled', correctionReason: 'Duplicada' });
+
+    expect(result.success).toBe(false);
+    expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('requires a real reason', async () => {
+    const { updateReceivable } = useReceivables(USER);
+
+    const result = await updateReceivable(storedReceivable(), { correctionTarget: 'cancelled', correctionReason: 'dup' });
+
+    expect(result.success).toBe(false);
+    expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
   });
 });
 
