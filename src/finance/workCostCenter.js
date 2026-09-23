@@ -25,6 +25,8 @@ const rule = (code, family, ...alternatives) => ({ code, family, pattern: new Re
 const RULES = [
   // A claim/rework certificate is a repair, whatever work it re-does.
   rule('CC-160', 'repair', word('REKLAMATION'), `${B}REPARA`, word('AVER[IÍ]A'), `${B}INCIDEN`, word('ST[ÖO]RUNG'), word('NACHBESSERUNG')),
+  // Servicepaket Leitungsweg: the fixed-price private-customer package.
+  rule('CC-170', 'servicepaket', 'LEITUNGSWEG', 'SERVICEPAKET'),
   rule('CC-150', 'survey', word('HBG'), 'BEGEHUNG', `_350${E}`),
   rule('CC-115', 'activation', 'DGF_ACT', 'H[ÜU]E?P[-\\s]?GFTA', `${B}ACTIVAC`, `${B}AKTIVIERUNG`),
   rule('CC-110', 'deployment', 'DGF_BLOW', `${B}SOPLAD`, `${B}BLOW`, 'MONTAJE DP', word('POP'), 'BANDEJA'),

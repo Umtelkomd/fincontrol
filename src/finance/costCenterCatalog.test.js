@@ -31,6 +31,7 @@ const APPROVED = [
   ['CC-140', 'NAS (acometidas)', 'direct', ''],
   ['CC-150', 'HBG (Hausbegehung)', 'direct', ''],
   ['CC-160', 'Reparaciones y reclamaciones', 'direct', ''],
+  ['CC-170', 'SP Leitungsweg (Servicepaket)', 'direct', ''],
   ['CC-190', 'Dirección de obra y Aufmaß', 'direct', 'SV'],
   ['CC-200', 'Flota y vehículos', 'indirect', ''],
   ['CC-210', 'Equipos, almacén y herramienta', 'indirect', ''],
@@ -52,7 +53,7 @@ describe('COST_CENTER_CATALOG', () => {
     expect(COST_CENTER_KIND).toEqual({ DIRECT: 'direct', INDIRECT: 'indirect', CLEARING: 'clearing' });
   });
 
-  it('ships exactly the approved 17 entries, in order, with the approved fields', () => {
+  it('ships exactly the approved 18 entries, in order, with the approved fields', () => {
     expect(COST_CENTER_CATALOG.map((c) => [c.code, c.name, c.kind, c.line])).toEqual(APPROVED);
   });
 
@@ -264,7 +265,7 @@ describe('defaultCostCenterForLine', () => {
 describe('costCenterOptions', () => {
   it('returns one row per catalogue entry, in catalogue order', () => {
     const options = costCenterOptions();
-    expect(options).toHaveLength(17);
+    expect(options).toHaveLength(18);
     expect(options[0]).toEqual({ value: 'CC-100', label: 'CC-100 · Obra civil (Tiefbau)', kind: 'direct' });
     expect(options.at(-1)).toEqual({ value: 'CC-NOM', label: 'CC-NOM · Nómina y seguridad social', kind: 'clearing' });
   });
@@ -272,7 +273,7 @@ describe('costCenterOptions', () => {
   it('returns a fresh array every call', () => {
     const first = costCenterOptions();
     first.push({ value: 'mutated' });
-    expect(costCenterOptions()).toHaveLength(17);
+    expect(costCenterOptions()).toHaveLength(18);
   });
 });
 

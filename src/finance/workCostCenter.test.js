@@ -16,6 +16,8 @@ describe('costCenterForWork', () => {
     ['Hausbegehung Breslauer Straße 12', 'CC-150'],
     ['Tiefbau Graben 120 m', 'CC-100'],
     ['Aufmaß und Dokumentation KW20', 'CC-190'],
+    ['SP Leitungsweg', 'CC-170'],
+    ['Servicepaket Leitungsweg — Claudiusweg 10, 64380 Roßdorf', 'CC-170'],
   ])('%s → %s', (text, code) => {
     expect(costCenterForWork(text).code).toBe(code);
   });

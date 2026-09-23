@@ -55,7 +55,8 @@ const cc = (code, name, kind, line = '') => Object.freeze({ code, name, kind, li
 /** Report order === catalogue order === dropdown order. */
 export const COST_CENTER_CATALOG = Object.freeze([
   // v3 (2026-09): the production lines as the owner runs them. Activaciones,
-  // NAS, HBG and Reparaciones became their own centers; MDU folded into NE4
+  // NAS, HBG, Reparaciones and the private-customer Servicepaket Leitungsweg
+  // became their own centers; MDU folded into NE4
   // (CC-130 still resolves, to CC-120).
   cc('CC-100', 'Obra civil (Tiefbau)', COST_CENTER_KIND.DIRECT, 'TB'),
   cc('CC-110', 'Despliegue (soplado, DP y POP)', COST_CENTER_KIND.DIRECT, 'BL'),
@@ -64,6 +65,7 @@ export const COST_CENTER_CATALOG = Object.freeze([
   cc('CC-140', 'NAS (acometidas)', COST_CENTER_KIND.DIRECT),
   cc('CC-150', 'HBG (Hausbegehung)', COST_CENTER_KIND.DIRECT),
   cc('CC-160', 'Reparaciones y reclamaciones', COST_CENTER_KIND.DIRECT),
+  cc('CC-170', 'SP Leitungsweg (Servicepaket)', COST_CENTER_KIND.DIRECT),
   cc('CC-190', 'Dirección de obra y Aufmaß', COST_CENTER_KIND.DIRECT, 'SV'),
   cc('CC-200', 'Flota y vehículos', COST_CENTER_KIND.INDIRECT),
   cc('CC-210', 'Equipos, almacén y herramienta', COST_CENTER_KIND.INDIRECT),
@@ -125,6 +127,8 @@ const LEGACY_KEY_MAP = new Map(
     ['HBG', 'CC-150'],
     ['Hausbegehung', 'CC-150'],
     ['Reparaciones', 'CC-160'],
+    ['SP Leitungsweg', 'CC-170'],
+    ['Leitungsweg', 'CC-170'],
     ['Obra Civil', 'CC-100'],
     ['Instalaciones y Reparaciones', 'CC-120'],
     ['NE4', 'CC-120'],
