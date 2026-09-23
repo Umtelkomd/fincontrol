@@ -218,10 +218,10 @@ describe('BudgetVsActual — cost-center filter', () => {
     store.collections.bankMovements = MATERIAL_BY_CENTER;
   });
 
-  it('offers the v2 catalogue as the filter buckets', () => {
+  it('offers the catalogue as the filter buckets', () => {
     renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
 
-    expect(screen.getByRole('option', { name: 'CC-120 · NE4 instalación en vivienda' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'CC-120 · NE4 (vivienda y MDU)' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'CC-NOM · Nómina y seguridad social' })).toBeInTheDocument();
   });
 
