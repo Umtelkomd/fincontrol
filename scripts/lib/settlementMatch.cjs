@@ -65,10 +65,26 @@ const isUnlinkedSettlement = (doc) => {
   return !payments.some((payment) => payment && payment.bankMovementId);
 };
 
-/** When the settlement was claimed — used for both windowing and policy age. */
-const settledOn = (doc) => iso(doc.updatedAt) || iso(doc.dueDate);
+/**
+ * When the settlement was claimed — used for both windowing and policy age.
+ *
+ * The latest recorded payment date wins: `updatedAt` moves on ANY later write
+ * (the repair's own legacy tag bumped 55 documents to the repair day), so it is
+ * only a fallback. A document already tagged legacy keeps its due date rather
+ * than that bumped timestamp.
+ */
+const settledOn = (doc) => {
+  const paymentDates = (Array.isArray(doc.payments) ? doc.payments : [])
+    .map((payment) => iso(payment?.date))
+    .filter(Boolean)
+    .sort();
+  if (paymentDates.length) return paymentDates[paymentDates.length - 1];
+  if (doc.settlementEvidence === 'legacy-pre-policy') return iso(doc.dueDate) || iso(doc.updatedAt);
+  return iso(doc.updatedAt) || iso(doc.dueDate);
+};
 
 const isPrePolicy = (doc) => {
+  if (doc.settlementEvidence === 'legacy-pre-policy') return true;
   const when = settledOn(doc);
   return !when || when < POLICY_START;
 };
