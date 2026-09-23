@@ -3,6 +3,7 @@ import {
   Bell,
   Briefcase,
   Car,
+  Construction,
   Database,
   FileText,
   FolderKanban,
@@ -63,6 +64,12 @@ export const NAV_GROUPS = [
         label: "Facturas",
         icon: FileText,
         permission: "cxp",
+      },
+      {
+        path: "/obra-sin-facturar",
+        label: "Obra sin facturar",
+        icon: Construction,
+        permission: "reports",
       },
       {
         path: "/nominas",
