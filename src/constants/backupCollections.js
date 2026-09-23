@@ -19,6 +19,9 @@ export const BACKUP_COLLECTIONS = Object.freeze([
   'projects',
   'costCenters',
   'classificationRules',
+  // Executed-not-invoiced work per obra: a project merge rewrites it, so a
+  // rollback needs it in the same snapshot as the projects themselves.
+  'workInProgress',
   // Singleton settings docs (categories, vatRates, reconciliation, treasury,
   // bankAccount, overhead, ...) all live as documents inside this one
   // collection, so listing it captures every one of them with no change to

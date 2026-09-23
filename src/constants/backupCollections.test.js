@@ -15,6 +15,10 @@ describe('BACKUP_COLLECTIONS', () => {
     );
   });
 
+  it('captures work in progress, which a project merge rewrites', () => {
+    expect(BACKUP_COLLECTIONS).toContain('workInProgress');
+  });
+
   it('never includes employees, which carries personal/salary data', () => {
     expect(BACKUP_COLLECTIONS).not.toContain('employees');
   });
