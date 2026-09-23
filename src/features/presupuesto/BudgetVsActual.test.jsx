@@ -197,6 +197,84 @@ describe('BudgetVsActual — budget loaded', () => {
 });
 
 /**
+ * The cost-center filter compared two different things: the dropdown was keyed
+ * by the live doc's NAME while the predicate read the movement's stored CODE
+ * through a dictionary of its own (OPE/ADM/LOG/FIN/VEN) that knew neither
+ * `CC-0xx` nor `CC-1xx`. Both sides now speak catalogue CODES, resolved through
+ * `resolveLegacyCostCenter`, so every spelling of one center is one bucket.
+ */
+describe('BudgetVsActual — cost-center filter', () => {
+  const MATERIAL_BY_CENTER = [
+    bankMovementFixture({ id: 'cc-v2', direction: 'out', amount: 1000, categoryName: 'Material', costCenterId: 'CC-120', postedDate: thisMonthIso(3) }),
+    bankMovementFixture({ id: 'cc-legacy', direction: 'out', amount: 2000, categoryName: 'Material', costCenterId: 'CC-002', postedDate: thisMonthIso(4) }),
+    bankMovementFixture({ id: 'cc-label', direction: 'out', amount: 4000, categoryName: 'Material', costCenterId: 'Instalaciones y Reparaciones', postedDate: thisMonthIso(5) }),
+    bankMovementFixture({ id: 'cc-other', direction: 'out', amount: 8000, categoryName: 'Material', costCenterId: 'CC-300', postedDate: thisMonthIso(6) }),
+  ];
+
+  const selectCostCenter = (value) =>
+    fireEvent.change(screen.getByRole('option', { name: 'Todos los CC' }).closest('select'), { target: { value } });
+
+  beforeEach(() => {
+    store.collections.bankMovements = MATERIAL_BY_CENTER;
+  });
+
+  it('offers the v2 catalogue as the filter buckets', () => {
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+
+    expect(screen.getByRole('option', { name: 'CC-120 · NE4 instalación en vivienda' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'CC-NOM · Nómina y seguridad social' })).toBeInTheDocument();
+  });
+
+  it('counts every center in the unfiltered view', () => {
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+
+    expect(screen.getAllByText('15.000,00').length).toBeGreaterThan(0);
+  });
+
+  it('filters by the resolved code, whichever spelling the movement was stored with', () => {
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+
+    selectCostCenter('CC-120');
+
+    // 1.000 (CC-120) + 2.000 (CC-002) + 4.000 ("Instalaciones y Reparaciones").
+    expect(screen.getAllByText('7.000,00').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('15.000,00')).toHaveLength(0);
+    expect(screen.getByText('CC: CC-120')).toBeInTheDocument();
+  });
+
+  it('keeps a live cost-center doc that resolves to no v2 code as its own filterable bucket', () => {
+    // "Contratistas" has no recorded meaning anywhere, so it is never guessed
+    // into a v2 center — it stays visible and filters under itself alone.
+    store.collections.costCenters = [{ id: 'cc-doc-sub', code: 'CC-008', name: 'Contratistas' }];
+    store.collections.bankMovements = [
+      ...MATERIAL_BY_CENTER,
+      bankMovementFixture({ id: 'cc-sub', direction: 'out', amount: 500, categoryName: 'Material', costCenterId: 'CC-008', postedDate: thisMonthIso(8) }),
+    ];
+
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+    expect(screen.getByRole('option', { name: 'CC-008 · Contratistas' })).toBeInTheDocument();
+
+    selectCostCenter('CC-008');
+
+    expect(screen.getAllByText('500,00').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('7.000,00')).toHaveLength(0);
+  });
+
+  it('resolves a movement stored as the Firestore doc id of a live legacy center', () => {
+    store.collections.costCenters = [{ id: 'cc-doc-legacy', code: 'CC-002', name: 'Instalaciones y Reparaciones' }];
+    store.collections.bankMovements = [
+      bankMovementFixture({ id: 'cc-by-id', direction: 'out', amount: 900, categoryName: 'Material', costCenterId: 'cc-doc-legacy', postedDate: thisMonthIso(9) }),
+    ];
+
+    renderScreen(<BudgetVsActual user={USER} userRole="admin" />);
+
+    selectCostCenter('CC-120');
+
+    expect(screen.getAllByText('900,00').length).toBeGreaterThan(0);
+  });
+});
+
+/**
  * The screen has always labelled its actuals "neto sin IVA"; until the category
  * rates existed the figure behind that label was the gross amount, because the
  * adapter's `netAmount` equals `amount` whenever no rate is known.

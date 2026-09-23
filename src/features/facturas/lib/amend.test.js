@@ -541,4 +541,186 @@ describe('applyInvoiceReplace', () => {
 
     expect(effects.writeAudit).toHaveBeenCalledWith(expect.objectContaining({ reason: validReason }));
   });
+
+  /**
+   * A swap is two writes on one obligation and cannot be one (see
+   * swapInvoiceLink). Losing the connection between them used to reject the
+   * whole promise: the caller saw a thrown error, the old PDF's chunks and
+   * archive row were never deleted but nothing said which obligations had been
+   * re-pointed, and the new archive row was already there. The old document
+   * must stay fully readable and the operator must be told to retry.
+   */
+  describe('a failing back-reference swap', () => {
+    const twoLinks = () =>
+      invoiceDocument({
+        links: [
+          { family: 'payable', recordId: 'cxp-1' },
+          { family: 'payable', recordId: 'cxp-2' },
+        ],
+      });
+
+    it('is reported as partial, keeps the OLD chunks and archive row, and still writes the audit', async () => {
+      const effects = baseEffects({
+        swapBackReference: vi.fn(async () => {
+          throw new Error('offline');
+        }),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result).toMatchObject({ success: false, partial: true });
+      expect(result.failures).toEqual([
+        { stage: 'backReference', family: 'payable', recordId: 'cxp-1', error: expect.any(Error) },
+      ]);
+      expect(effects.deleteOldChunks).not.toHaveBeenCalled();
+      expect(effects.deleteOldArchive).not.toHaveBeenCalled();
+      expect(effects.writeAudit).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a {success:false} swap result exactly like a thrown one', async () => {
+      const effects = baseEffects({
+        swapBackReference: vi.fn(async () => ({ success: false, error: new Error('permission-denied') })),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result).toMatchObject({ success: false, partial: true });
+      expect(result.failures).toHaveLength(1);
+      expect(effects.deleteOldArchive).not.toHaveBeenCalled();
+    });
+
+    it('still attempts every other obligation — each one is independent', async () => {
+      const effects = baseEffects({
+        swapBackReference: vi.fn(async (family, recordId) => {
+          if (recordId === 'cxp-1') throw new Error('offline');
+        }),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: twoLinks(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(effects.swapBackReference).toHaveBeenCalledTimes(2);
+      expect(result.failures.map((failure) => failure.recordId)).toEqual(['cxp-1']);
+    });
+
+    it('records the failures in the audit metadata, as messages rather than Error objects', async () => {
+      const effects = baseEffects({
+        swapBackReference: vi.fn(async () => {
+          throw new Error('offline');
+        }),
+      });
+
+      await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(effects.writeAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          partial: true,
+          metadata: expect.objectContaining({
+            failures: [{ stage: 'backReference', family: 'payable', recordId: 'cxp-1', error: 'offline' }],
+          }),
+        }),
+      );
+    });
+
+    it('reports auditFailed alongside the partial result, never flipping it to success', async () => {
+      const effects = baseEffects({
+        swapBackReference: vi.fn(async () => {
+          throw new Error('offline');
+        }),
+        writeAudit: vi.fn(async () => ({ success: false, error: new Error('audit store down') })),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result).toMatchObject({ success: false, partial: true, auditFailed: true });
+    });
+  });
+
+  /**
+   * The cross-invoice guard reads "this sha256 already belongs to an archived
+   * invoice". After a partial replace that is ALSO true of the replacement this
+   * very invoice just committed — so the retry that is supposed to finish the
+   * job would be refused. It must recognize its own half-finished work, and
+   * only that: same archive identity AND the same link set.
+   */
+  describe('retrying a half-finished replace', () => {
+    const halfWritten = (overrides = {}) => ({
+      ...invoiceDocument(),
+      id: newFile().sha256,
+      sha256: newFile().sha256,
+      ...overrides,
+    });
+
+    it('converges: the new document already committed by the first attempt is not a DIFFERENT invoice', async () => {
+      const effects = baseEffects({ findInvoiceDocument: vi.fn(async () => halfWritten()) });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result.success).toBe(true);
+      expect(effects.swapBackReference).toHaveBeenCalledTimes(1);
+      expect(effects.deleteOldArchive).toHaveBeenCalledWith(invoiceDocument().id);
+    });
+
+    it('still fails closed when the stored document carries a DIFFERENT identity', async () => {
+      const effects = baseEffects({
+        findInvoiceDocument: vi.fn(async () =>
+          halfWritten({ identity: JSON.stringify(['invoice-v2', 'incoming', 'Otro proveedor', 'RE-2026-777']) }),
+        ),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errors.file).toMatch(/ya está archivado como otra factura/i);
+      expect(effects.uploadPdf).not.toHaveBeenCalled();
+    });
+
+    it('still fails closed when the identity matches but the links do not', async () => {
+      const effects = baseEffects({
+        findInvoiceDocument: vi.fn(async () => halfWritten({ links: [{ family: 'payable', recordId: 'cxp-9' }] })),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument(), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errors.file).toMatch(/ya está archivado como otra factura/i);
+    });
+
+    it('still fails closed when neither document has an identity to compare', async () => {
+      const effects = baseEffects({
+        findInvoiceDocument: vi.fn(async () => halfWritten({ identity: '' })),
+      });
+
+      const result = await applyInvoiceReplace(
+        { invoiceDocument: invoiceDocument({ identity: '' }), newFile: newFile(), bytes: new Uint8Array(4), reason: validReason },
+        effects,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errors.file).toMatch(/ya está archivado como otra factura/i);
+    });
+  });
 });

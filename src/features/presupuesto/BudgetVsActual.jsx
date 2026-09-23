@@ -42,6 +42,7 @@ import { isInternalTransfer } from '../../lib/finance/movementAmount';
 import { formatCurrency } from '../../utils/formatters';
 import { txToBudgetMap, incToBudgetMap } from './categoryMapping';
 import { categoryByName } from '../../finance/taxonomy';
+import { costCenterFilterOptions, matchesCostCenterFilter } from '../../finance/costCenterCatalog';
 import { usePayrollPeriods } from '../nominas/usePayrollPeriods';
 import { buildPayrollBudgetActuals } from '../nominas/lib/payrollBudgetActuals';
 import { OPERATIONAL_DATA_START } from '../../finance/constants';
@@ -61,15 +62,13 @@ const CAT_COLORS = [
 ];
 const getCatColor = (idx) => CAT_COLORS[idx % CAT_COLORS.length];
 
-// Legacy costCenter codes → new CC names (module-level: pure, no reactive deps)
-const LEGACY_CC_MAP = {
-  'OPE': 'Despliegue', 'CC-OPE': 'Despliegue',
-  'ADM': 'Administrativo', 'CC-ADM': 'Administrativo',
-  'LOG': 'Instalaciones y Reparaciones', 'CC-LOG': 'Instalaciones y Reparaciones',
-  'FIN': 'Financiero', 'CC-FIN': 'Financiero',
-  'VEN': 'NE4', 'CC-VEN': 'NE4',
-};
-const normCC = (cc) => LEGACY_CC_MAP[cc] || cc || '';
+// The cost-center filter compares CODES on both sides. It used to compare a
+// live doc's NAME (the dropdown) against a stored code run through a private
+// dictionary of its own (`LEGACY_CC_MAP`: OPE/ADM/LOG/FIN/VEN → v1 labels) that
+// knew neither the `CC-0xx` legacy codes nor the `CC-1xx` v2 ones, so picking a
+// center filtered everything away. Both sides now go through the catalogue
+// (`src/finance/costCenterCatalog.js`), which folded all five of those tokens
+// into its own legacy table, each resolved through the label it named.
 
 // ── Confirm Modal ───────────────────────────────────────────────
 const ConfirmModal = ({ isOpen, onConfirm, onCancel, title, message }) => {
@@ -511,7 +510,11 @@ const BudgetVsActual = ({ user, userRole }) => {
 
  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
  const [selectedProject, setSelectedProject] = useState(null); // null = empresa
- const [selectedCostCenter, setSelectedCostCenter] = useState(''); // '' = todos
+ const [selectedCostCenter, setSelectedCostCenter] = useState(''); // '' = todos, else a catalogue code
+
+ // The v2 catalogue plus any live doc that resolves to no v2 code, so a center
+ // the operator can pick today does not vanish before the migration runs.
+ const costCenterChoices = useMemo(() => costCenterFilterOptions(costCenters), [costCenters]);
  const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'detail'
  const [isCreateOpen, setIsCreateOpen] = useState(false);
  const [editingLine, setEditingLine] = useState(null); // null = no modal
@@ -582,7 +585,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  // bank-statement precision but is the only categorized historical record.
  allTransactions.forEach((t) => {
  if (Number(t.date?.slice(0, 4)) !== Number(selectedYear)) return;
- if (selectedCostCenter && normCC(t.costCenter || '') !== selectedCostCenter) return;
+ if (!matchesCostCenterFilter(t.costCenter || '', selectedCostCenter, costCenters)) return;
 
  const status = String(t.status || '').toLowerCase();
  const settled = ['paid','completed','settled'].includes(status);
@@ -609,7 +612,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  // inflated the actuals on BOTH sides of every budget line they touched.
  if (isInternalTransfer(m)) return;
  if (!m.categoryName) return; // skip uncategorized bank imports
- if (selectedCostCenter && normCC(m.costCenterId || '') !== selectedCostCenter) return;
+ if (!matchesCostCenterFilter(m.costCenterId || '', selectedCostCenter, costCenters)) return;
 
  const isIncome = m.direction === 'in';
  const budCat = resolve(m.categoryName, isIncome);
@@ -623,7 +626,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  }
 
  return map;
- }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter, netAmountOf]);
+ }, [allTransactions, ledger.postedMovements, selectedYear, currentBudget, selectedCostCenter, costCenters, netAmountOf]);
 
  // Phase 3, item 4 — payroll accruals as a SEPARATE 'comprometido' overlay for
  // the Salarios line. Kept apart from `actuals` on purpose: actuals already
@@ -632,7 +635,7 @@ const BudgetVsActual = ({ user, userRole }) => {
  // month so a CFO sees Presupuesto vs Comprometido vs Pagado.
  const payrollCommitted = useMemo(() => {
  // Only meaningful when viewing all cost centers or CC-NOM specifically.
- if (selectedCostCenter && selectedCostCenter !== normCC('CC-NOM')) {
+ if (selectedCostCenter && selectedCostCenter !== 'CC-NOM') {
  return { byMonth: new Map(), total: 0 };
  }
  const byMonth = buildPayrollBudgetActuals({ periods: payrollPeriods, year: selectedYear });
@@ -798,8 +801,8 @@ const BudgetVsActual = ({ user, userRole }) => {
  onChange={(e) => setSelectedCostCenter(e.target.value)}
  >
  <option value="">Todos los CC</option>
- {costCenters.map((cc) => (
- <option key={cc.id} value={cc.name}>{cc.id} — {cc.name}</option>
+ {costCenterChoices.map((choice) => (
+ <option key={choice.value} value={choice.value}>{choice.label}</option>
  ))}
  </select>
  {canAct && (

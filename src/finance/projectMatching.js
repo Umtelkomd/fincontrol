@@ -17,6 +17,18 @@
  * code, so a sibling project sharing a legacy prefix (`QFF` vs `QFF-002`)
  * never bleeds into the wrong obra.
  *
+ * A merge group breaks that last guarantee on its own, though: `QFF-002` and
+ * "Roßdorf 2" map to `INS-RSD-BL1` because the two Roßdorf sites are ONE obra
+ * AFTER the migration merges them — until then the second site is a separate
+ * LIVE project doc holding exactly those values as its own code and name, and
+ * renaming the first one by hand in the Proyectos screen is enough to make a
+ * payable carrying `projectName: 'Roßdorf 2'` appear under both obras at once.
+ * That is why `buildProjectTokens` accepts the caller's project list: an alias
+ * that is another live project's own identity is withheld while that project
+ * is live, and admitted once it is inactive or `mergedInto` — the exact state
+ * the migration leaves behind, where the survivor SHOULD answer for the
+ * absorbed obra's old documents.
+ *
  * Pure: no React, no Firebase, no Date.now() — no I/O of any kind.
  */
 
@@ -34,14 +46,69 @@ const legacyAliasesFor = (code) => {
 };
 
 /**
+ * Comparison key for "is this alias another project's own identity": accents
+ * folded and inner whitespace collapsed on top of `normalizeToken`, because a
+ * project doc may well store "Hoxter Nord" where the dictionary says "Höxter
+ * Nord". Deliberately NOT used to build tokens — those keep their accents so a
+ * document storing "Roßdorf" verbatim keeps matching.
+ */
+const claimKey = (value) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** A project doc still in play: neither status nor the older `active` flag
+ * retired it, and no merge has already absorbed it into another project. */
+const isLiveProject = (project) =>
+  project?.status !== 'inactive' && project?.active !== false && !project?.mergedInto;
+
+/**
+ * Every identifier the OTHER live projects already answer to under their own
+ * name — the set an alias must stay out of. `displayName` is this app's
+ * `"CODE (Name)"` form (see `normalizeProjectPayload` in useProjects.js); the
+ * same form is rebuilt from code+name so an alias written that way, or a doc
+ * saved before displayName existed, is caught too.
+ */
+const identitiesClaimedByLiveSiblings = (project, liveProjects) => {
+  const claimed = new Set();
+  if (!Array.isArray(liveProjects)) return claimed;
+
+  for (const sibling of liveProjects) {
+    if (!sibling || sibling === project) continue;
+    if (sibling.id && project?.id && sibling.id === project.id) continue;
+    if (!isLiveProject(sibling)) continue;
+
+    const ownIdentities = [sibling.code, sibling.name, sibling.displayName, sibling.legacyCode];
+    if (sibling.code && sibling.name) ownIdentities.push(`${sibling.code} (${sibling.name})`);
+    if (sibling.legacyCode && sibling.name) ownIdentities.push(`${sibling.legacyCode} (${sibling.name})`);
+
+    ownIdentities.map(claimKey).filter(Boolean).forEach((key) => claimed.add(key));
+  }
+
+  return claimed;
+};
+
+/**
  * buildProjectTokens — every string a document might carry to identify this
  * project, normalized and deduplicated.
  *
  * @param {{ id?:string, code?:string, name?:string, displayName?:string, legacyCode?:string }} project
+ * @param {{ liveProjects?: Array<object> }} [options] the caller's project
+ *   list. It may hold inactive and merged docs — liveness is decided here, so
+ *   callers pass the list they already have. Omitting it keeps the tokens a
+ *   caller without a list has always got.
  * @returns {string[]}
  */
-export const buildProjectTokens = (project) => {
+export const buildProjectTokens = (project, { liveProjects } = {}) => {
   if (!project) return [];
+
+  const claimed = identitiesClaimedByLiveSiblings(project, liveProjects);
+  // Only the DICTIONARY aliases are filtered. The project's own fields below
+  // are never withheld: a project always answers to its own identity.
+  const aliases = legacyAliasesFor(project.code).filter((alias) => !claimed.has(claimKey(alias)));
 
   const rawTokens = [
     project.id,
@@ -51,7 +118,7 @@ export const buildProjectTokens = (project) => {
     project.legacyCode,
     `${project.code || ''} (${project.name || ''})`,
     project.legacyCode ? `${project.legacyCode} (${project.name || ''})` : '',
-    ...legacyAliasesFor(project.code),
+    ...aliases,
   ];
 
   return Array.from(new Set(rawTokens.map(normalizeToken).filter(Boolean)));

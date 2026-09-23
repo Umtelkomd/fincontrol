@@ -197,6 +197,45 @@ export const applyInvoiceDelete = async (
   return withAuditOutcome({ success: true, plan }, auditOutcome);
 };
 
+/** `family:recordId` set of an archive document's links, order-independent. */
+const linkKeysOf = (document) =>
+  new Set((Array.isArray(document?.links) ? document.links : []).map((link) => `${link.family}:${link.recordId}`));
+
+const sameLinkSet = (left, right) => {
+  const a = linkKeysOf(left);
+  const b = linkKeysOf(right);
+  return a.size === b.size && [...a].every((key) => b.has(key));
+};
+
+/**
+ * Is the archive document already stored under the NEW sha256 this invoice's
+ * OWN half-finished replacement, rather than a different archived invoice?
+ *
+ * A partial replace leaves exactly that behind: `commitNewDocument` already
+ * wrote `invoiceDocuments/{newSha}` as a verbatim copy of this document's
+ * header, identity and links (see planInvoiceReplace), and the old row is
+ * still there because a swap failed. Retrying is the documented recovery, so
+ * the cross-invoice guard must let that one case through — and ONLY that one:
+ * the archive identity must be present and equal, and the link sets must
+ * match. Anything else (a genuinely different invoice that happens to be the
+ * same bytes, an identity we cannot compare) stays refused.
+ */
+const isOwnHalfFinishedReplacement = (existingDocument, invoiceDocument) => {
+  const existingIdentity = String(existingDocument?.identity || '').trim();
+  const ownIdentity = String(invoiceDocument?.identity || '').trim();
+  if (!existingIdentity || existingIdentity !== ownIdentity) return false;
+  return sameLinkSet(existingDocument, invoiceDocument);
+};
+
+/** Audit-safe failure rows: an Error is not a Firestore value. */
+const auditableFailures = (failures) =>
+  failures.map(({ stage, family, recordId, error }) => ({
+    stage,
+    family,
+    recordId,
+    error: error?.message || String(error || ''),
+  }));
+
 /**
  * applyInvoiceReplace — REPLACE PDF. Ordering: upload the new bytes, commit
  * the new `invoiceDocuments/{newSha}` doc, re-point every obligation
@@ -205,6 +244,16 @@ export const applyInvoiceDelete = async (
  * the final deletes leaves the OLD PDF fully intact and the new one either
  * absent or an extra (recoverable) row, never a half-swapped, unreadable
  * invoice.
+ *
+ * Each swap is attempted independently and its failure CAPTURED, exactly like
+ * EDIT and DELETE do, because a rejected promise here would tell the operator
+ * nothing about which obligations had already been re-pointed. Any failure
+ * means the old chunks and the old archive row are kept — the old document
+ * stays fully readable — and the result comes back `{success:false,
+ * partial:true, failures}` with the audit entry written anyway, carrying the
+ * failures in its metadata. Retrying the same replace converges: every write
+ * involved is idempotent, and the guard below recognizes the new document the
+ * first attempt already committed.
  *
  * Before any of that, the new file's sha256 is looked up against the
  * archive: if it already belongs to a DIFFERENT invoice, planInvoiceReplace
@@ -216,7 +265,7 @@ export const applyInvoiceDelete = async (
  * @param {{
  *   uploadPdf: (args: {bytes, expectedSha256}) => Promise<{sha256,sizeBytes,mimeType}>,
  *   commitNewDocument: (args: {document: object}) => Promise<void>,
- *   swapBackReference: (family: string, id: string, swap: {removeInvoiceDocumentId,addInvoiceDocumentId}) => Promise<void>,
+ *   swapBackReference: (family: string, id: string, swap: {removeInvoiceDocumentId,addInvoiceDocumentId}) => Promise<{success:boolean,error?:Error}|void>,
  *   deleteOldChunks: (sha256: string, chunkCount: number) => Promise<void>,
  *   deleteOldArchive: (sha256: string) => Promise<void>,
  *   writeAudit: (entry: object) => Promise<{success:boolean,error?:Error}|void>,
@@ -231,8 +280,10 @@ export const applyInvoiceReplace = async ({ invoiceDocument, newFile, bytes, rea
   const newSha256 = String(newFile?.sha256 || '').toLowerCase();
   // Same-file is already rejected by planInvoiceReplace from the args alone —
   // skip the Firestore round trip for that trivial, purely local case.
-  const existingDocument =
+  const storedUnderNewSha =
     newSha256 && newSha256 !== oldSha256 ? await effects.findInvoiceDocument(newSha256) : null;
+  const existingDocument =
+    storedUnderNewSha && isOwnHalfFinishedReplacement(storedUnderNewSha, invoiceDocument) ? null : storedUnderNewSha;
 
   const plan = planInvoiceReplace({ invoiceDocument, newFile, existingDocument, reason });
   if (!plan.valid) return { success: false, errors: plan.errors };
@@ -244,15 +295,32 @@ export const applyInvoiceReplace = async ({ invoiceDocument, newFile, bytes, rea
 
   await effects.commitNewDocument({ document: plan.newDocument });
 
+  const failures = [];
+
   for (const swap of plan.backReferenceSwaps) {
-    await effects.swapBackReference(swap.family, swap.recordId, {
-      removeInvoiceDocumentId: swap.removeInvoiceDocumentId,
-      addInvoiceDocumentId: swap.addInvoiceDocumentId,
-    });
+    try {
+      // swapInvoiceLink reports a failed write as {success:false} instead of
+      // throwing, so an obligation left pointing at both PDFs is recorded
+      // rather than mistaken for a completed swap.
+      const swapResult = await effects.swapBackReference(swap.family, swap.recordId, {
+        removeInvoiceDocumentId: swap.removeInvoiceDocumentId,
+        addInvoiceDocumentId: swap.addInvoiceDocumentId,
+      });
+      if (swapResult && swapResult.success === false) {
+        failures.push({ stage: 'backReference', family: swap.family, recordId: swap.recordId, error: swapResult.error });
+      }
+    } catch (error) {
+      failures.push({ stage: 'backReference', family: swap.family, recordId: swap.recordId, error });
+    }
   }
 
-  await effects.deleteOldChunks(plan.oldSha256, invoiceDocument.chunkCount);
-  await effects.deleteOldArchive(plan.oldSha256);
+  // The old PDF is the only readable copy for every obligation whose swap did
+  // not land — deleting it here is what would turn a partial swap into a lost
+  // invoice, so both deletes wait for a clean run.
+  if (failures.length === 0) {
+    await effects.deleteOldChunks(plan.oldSha256, invoiceDocument.chunkCount);
+    await effects.deleteOldArchive(plan.oldSha256);
+  }
 
   const auditOutcome = await runAudit(effects, {
     action: 'replace',
@@ -260,8 +328,19 @@ export const applyInvoiceReplace = async ({ invoiceDocument, newFile, bytes, rea
     entityId: plan.newDocument.id,
     before: invoiceDocument,
     reason,
-    metadata: { oldSha256: plan.oldSha256, newSha256: plan.newDocument.id },
+    partial: failures.length > 0,
+    metadata: {
+      oldSha256: plan.oldSha256,
+      newSha256: plan.newDocument.id,
+      ...(failures.length > 0 ? { failures: auditableFailures(failures) } : {}),
+    },
   });
 
+  if (failures.length > 0) {
+    return withAuditOutcome(
+      { success: false, partial: true, plan, failures, newSha256: plan.newDocument.id },
+      auditOutcome,
+    );
+  }
   return withAuditOutcome({ success: true, plan, newSha256: plan.newDocument.id }, auditOutcome);
 };

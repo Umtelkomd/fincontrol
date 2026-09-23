@@ -30,6 +30,7 @@ import {
   COST_CENTER_CATALOG,
   costCenterByCode,
   resolveLegacyCostCenter,
+  resolveStoredCostCenter,
 } from './costCenterCatalog.js';
 import { canonicalizeProjectCode } from './projectCodeAliases.js';
 import {
@@ -81,16 +82,11 @@ export const planCostCenterMigration = ({ costCenters, documentsByCollection } =
   }
 
   // A stored value may be a v2 code, a legacy code, a free-text label, or the
-  // Firestore doc id of a live (possibly still-legacy) cost-center doc. Try
-  // it as a code/label first; only a value that resolves to nothing on its
-  // own falls back to a live-doc lookup, through the doc's OWN code/name.
-  const resolveStoredValue = (value) => {
-    const direct = resolveLegacyCostCenter(value);
-    if (direct.status !== 'unresolved') return direct;
-    const live = byId.get(value);
-    if (!live) return direct;
-    return resolveLegacyCostCenter(live.code || live.name, { liveName: live.name });
-  };
+  // Firestore doc id of a live (possibly still-legacy) cost-center doc. That
+  // resolution now lives in the catalogue module (`resolveStoredCostCenter`),
+  // shared with the screens that FILTER by cost center so a document groups
+  // exactly where this migration would send it.
+  const resolveStoredValue = (value) => resolveStoredCostCenter(value, liveCenters);
 
   const remaps = [];
   const unresolved = [];

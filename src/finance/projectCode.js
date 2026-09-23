@@ -30,11 +30,32 @@
  * is what lets an invoice PDF's free text resolve to a project by code,
  * legacy alias or name, in that priority.
  *
+ * The shape check, the legacy mapping and its resolver LIVE in
+ * `projectCodeAliases.js` and are re-exported below: that module's matching
+ * functions (`canonicalObraKey`, `projectCodesMatch`) need the structured
+ * scheme, this one needs its `canonicalizeProjectCode`, and a dictionary split
+ * across a circular pair of modules is what let the two disagree in the first
+ * place. Every importer keeps reading them from here.
+ *
  * Pure: no React, no Firebase, no Date.now() — no I/O of any kind.
  */
 
 import { defaultCostCenterForLine } from './costCenterCatalog.js';
-import { canonicalizeProjectCode } from './projectCodeAliases.js';
+import {
+  isStructuredProjectCode,
+  legacyKeyOf,
+  LEGACY_PROJECT_CODE_MAP,
+  PROJECT_CODE_PATTERN,
+  resolveLegacyProjectCode,
+} from './projectCodeAliases.js';
+
+export {
+  canonicalObraKey,
+  isStructuredProjectCode,
+  LEGACY_PROJECT_CODE_MAP,
+  PROJECT_CODE_PATTERN,
+  resolveLegacyProjectCode,
+} from './projectCodeAliases.js';
 
 const line = (code, label) => Object.freeze({ code, label, costCenter: defaultCostCenterForLine(code) });
 
@@ -60,12 +81,8 @@ export const PROJECT_CLIENTS = Object.freeze(
   ].map(Object.freeze),
 );
 
-export const PROJECT_CODE_PATTERN = /^[A-Z]{3}-[A-Z0-9]{3}-(TB|BL|N4|MD|SV|OH)[1-9][0-9]?$/;
-
 /** Strip accents/whitespace, uppercase — the shape check ignores nothing else. */
 const upper = (value) => String(value ?? '').trim().toUpperCase();
-
-export const isStructuredProjectCode = (code) => PROJECT_CODE_PATTERN.test(upper(code));
 
 /** `{ client, site, line, lot } | null` — null for anything not shaped like a v2 code. */
 export const parseProjectCode = (code) => {
@@ -132,95 +149,6 @@ export const nextLot = (existingCodes, { client, site, line: lineCode } = {}) =>
   let lot = 1;
   while (used.has(lot)) lot += 1;
   return lot;
-};
-
-/** `options.merge: true` flags a target code that more than one LIVE project
- * may resolve to as the SAME project, not a collision — see
- * `planProjectCodeMigration`'s merge handling in classificationMigration.js.
- * `options.mergeBudgets: 'sum'` is the separate, per-merge-group opt-in
- * (owner decision 2026-09-18, T12): when set, `planProjectMerge` sums a
- * same-year survivor+loser budget line-by-line instead of reporting it under
- * `budgetConflicts`. A merge entry without it keeps the conflict-report
- * default — `mergeBudgets` only makes sense alongside `merge: true`. */
-const legacyEntry = (match, code, confidence, options = {}) =>
-  Object.freeze({
-    match: Object.freeze([...match]),
-    code,
-    confidence,
-    ...(options.merge ? { merge: true } : {}),
-    ...(options.mergeBudgets ? { mergeBudgets: options.mergeBudgets } : {}),
-  });
-
-/**
- * Legacy → v2 mapping from the design doc, owner-validated on 2026-09-18
- * (T11): every entry below is `confidence: 'high'`. QFF, QFF-001, QFF-002,
- * PROY-001, RSD, "Roßdorf 1" and "Roßdorf 2" are ONE project — `merge: true`
- * is the explicit signal that several live projects resolving to this code
- * are the same obra and must be MERGED (one survivor absorbs the others),
- * never treated as a collision. Everything not covered here (QDU, AUSTRIA,
- * EHR, BIE, BAM, LGN, GFP, DGF, WCB, ...) stays `legacy` —
- * `resolveLegacyProjectCode` never guesses a target for it. `confidence` and
- * `--min-confidence` remain useful for any future, not-yet-validated entry.
- */
-export const LEGACY_PROJECT_CODE_MAP = Object.freeze([
-  legacyEntry(
-    ['QFF', 'QFF-001', 'QFF-002', 'PROY-001', 'RSD', 'Roßdorf 1', 'Roßdorf 2'],
-    'INS-RSD-BL1',
-    'high',
-    { merge: true, mergeBudgets: 'sum' },
-  ),
-  legacyEntry(['NE4', 'PROY-004', 'WRZ', 'WUR', 'Würzburg', 'Würzwurg'], 'INS-WRZ-N41', 'high'),
-  legacyEntry(['UGG', 'UGG-001', 'Vancom NE4'], 'VAN-UGG-N41', 'high'),
-  legacyEntry(['WSC', 'WEST-001', 'Wesconnect', 'NE4 West-connect'], 'WSC-GEN-N41', 'high'),
-  legacyEntry(['WESTC_MDU'], 'WSC-GEN-MD1', 'high'),
-  legacyEntry(['FBX', 'PROY-003', 'HXT', 'Höxter Nord'], 'INS-HXT-TB1', 'high'),
-  legacyEntry(['Meschede'], 'INS-MSD-TB1', 'high'),
-  legacyEntry(['AMD-001', 'Overhead'], 'UMT-ADM-OH1', 'high'),
-]);
-
-/** Lookup key: trimmed, lower-cased, accent-stripped. Mirrors costCenterCatalog.js. */
-const legacyKeyOf = (value) =>
-  String(value ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const LEGACY_ALIAS_INDEX = new Map();
-LEGACY_PROJECT_CODE_MAP.forEach(({ match, code, confidence }) => {
-  match.forEach((alias) => LEGACY_ALIAS_INDEX.set(legacyKeyOf(alias), { code, confidence }));
-});
-
-/**
- * resolveLegacyProjectCode — v2 code for a legacy code/name, never a guess.
- *
- *   - a current v2 code                        → { code: <same>, confidence: null, status: 'current' }
- *   - a mapped legacy code or name              → { code, confidence, status: 'mapped' }
- *   - tolerates the "CODE (Name)" displayName form (tries the code part, the
- *     parenthesized name, then the whole string)
- *   - unknown/unmapped, incl. blank             → { code: <canonicalized input>, confidence: null, status: 'legacy' }
- *     (blank input canonicalizes to '')
- */
-export const resolveLegacyProjectCode = (value) => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return { code: '', confidence: null, status: 'legacy' };
-
-  const paren = raw.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-  const codePart = (paren ? paren[1] : raw).trim();
-  const namePart = paren ? paren[2].trim() : '';
-
-  if (isStructuredProjectCode(codePart)) {
-    return { code: upper(codePart), confidence: null, status: 'current' };
-  }
-
-  for (const candidate of [codePart, namePart, raw]) {
-    const key = legacyKeyOf(candidate);
-    const hit = key && LEGACY_ALIAS_INDEX.get(key);
-    if (hit) return { code: hit.code, confidence: hit.confidence, status: 'mapped' };
-  }
-
-  return { code: canonicalizeProjectCode(raw), confidence: null, status: 'legacy' };
 };
 
 /** Project line code for a project doc, or '' when it cannot be resolved. */
