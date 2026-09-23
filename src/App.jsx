@@ -55,6 +55,7 @@ const AlertasOperativas = lazy(
 );
 const Nominas = lazy(() => import("./features/nominas/Nominas"));
 const Facturas = lazy(() => import("./features/facturas/Facturas"));
+const ObraSinFacturar = lazy(() => import("./features/obra/ObraSinFacturar"));
 const FinanceActionLauncher = lazy(
 	() => import("./components/finance/FinanceActionLauncher"),
 );
@@ -243,6 +244,14 @@ function AppContent({ user, userRole, hasPermission }) {
 								element={
 									<ProtectedRoute hasPermission={hasPermission} permission="audit">
 										<AuditLog user={user} userRole={userRole} />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/obra-sin-facturar"
+								element={
+									<ProtectedRoute hasPermission={hasPermission} permission="reports">
+										<ObraSinFacturar user={user} />
 									</ProtectedRoute>
 								}
 							/>
