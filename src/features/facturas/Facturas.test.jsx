@@ -10,7 +10,7 @@
  * src/finance/invoiceArchive.js, runs unmocked.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { installFirebaseMocks, TEST_USER } from '@/test/firebaseMock';
 import {
   invoiceDocumentFixture,
@@ -47,6 +47,16 @@ const payableCandidate = payableFixture({
   // classification rule below for how this vendor's category actually resolves.
   costCenterId: 'CC-120',
 });
+
+const rankingCandidates = Array.from({ length: 6 }, (_, index) =>
+  payableFixture({
+    id: `cxp-${index + 2}`,
+    sourceSystem: 'ordinary',
+    counterpartyName: `Proveedor ${index + 2} GmbH`,
+    invoiceNumber: `P-${index + 2}`,
+    grossAmount: 100 + index,
+  }),
+);
 
 // Standing in for a classification rule an operator already created for this
 // vendor — this is what lets Categoría auto-resolve (categoryName is NOT
@@ -105,7 +115,7 @@ const baseFixtures = () =>
   ledgerFixtures({
     collections: {
       invoiceDocuments: [incomingDoc, outgoingDoc],
-      payables: [payableCandidate],
+      payables: [payableCandidate, ...rankingCandidates],
       receivables: [receivableCandidateA, receivableCandidateB],
       classificationRules: [classificationRuleFixture],
     },
@@ -114,7 +124,17 @@ const baseFixtures = () =>
 const store = installFirebaseMocks(baseFixtures());
 
 const extractPdfTextMock = vi.fn(async () => ({ text: INVOICE_TEXT, pageCount: 1, hash: FILE_HASH }));
+const rankInvoiceObligationsMock = vi.fn();
 vi.doMock('@/lib/pdf/extractPdfText', () => ({ extractPdfText: extractPdfTextMock }));
+vi.doMock('./lib/obligationMatcher', () => ({
+  rankInvoiceObligations: rankInvoiceObligationsMock,
+  normalizeObligationMatchResponse: (value) => {
+    if (!value || typeof value.fallback !== 'boolean' || !Array.isArray(value.matches)) {
+      throw new Error('Invalid obligation ranking response');
+    }
+    return { fallback: value.fallback, matches: value.matches.slice(0, 5) };
+  },
+}));
 
 vi.doMock('./lib/invoiceArchiveStore', async () => {
   const actual = await vi.importActual('./lib/invoiceArchiveStore');
@@ -131,6 +151,9 @@ vi.doMock('./lib/invoiceArchiveStore', async () => {
 
 const { renderScreen } = await import('@/test/renderScreen.jsx');
 const { default: Facturas } = await import('./Facturas.jsx');
+const { auth } = await import('@/services/firebase');
+const { rankInvoiceObligations: rankInvoiceObligationsViaHttp } =
+  await vi.importActual('./lib/obligationMatcher');
 const { addDoc, writeBatch } = await import('firebase/firestore');
 const { uploadInvoicePdf, fetchInvoicePdf, InvoiceArchiveError } = await import('./lib/invoiceArchiveStore');
 
@@ -151,6 +174,17 @@ beforeEach(() => {
   uploadInvoicePdf.mockClear();
   fetchInvoicePdf.mockClear();
   extractPdfTextMock.mockClear();
+  rankInvoiceObligationsMock.mockReset();
+  rankInvoiceObligationsMock.mockResolvedValue({
+    fallback: false,
+    matches: ['cxp-7', 'cxp-3', 'cxp-5', 'cxp-2', 'cxp-6'].map(
+      (recordId, index) => ({
+        recordId,
+        score: 0.9 - index * 0.1,
+        deterministicScore: 0.8 - index * 0.1,
+      }),
+    ),
+  });
 
   URL.createObjectURL = vi.fn(() => 'blob:mock-url');
   URL.revokeObjectURL = vi.fn();
@@ -296,6 +330,239 @@ describe('Facturas — intake wizard', () => {
     await screen.findByText('El PDF supera el máximo de 2 MB.');
 
     expect(extractPdfTextMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('obligation ranking HTTP adapter (T4)', () => {
+  it("posts only allowlisted invoice fields with the signed-in user's ID token", async () => {
+    vi.stubEnv(
+      'VITE_OBLIGATION_MATCHER_URL',
+      'https://ranking.example/rank-invoice-obligations',
+    );
+    const getIdToken = vi.fn(async () => 'firebase-id-token');
+    auth.currentUser = { getIdToken };
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ matches: [], fallback: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      rankInvoiceObligationsViaHttp({
+        family: 'payable',
+        sourceSystem: 'ordinary',
+        counterpartyName: 'Kabel Service GmbH',
+        invoiceNumber: 'RE-2026-777',
+        grossAmount: 1190,
+        issueDate: '2026-01-15',
+        appId: 'must-not-leave-browser',
+        candidates: [{ id: 'must-not-leave-browser' }],
+      }),
+    ).resolves.toEqual({ matches: [], fallback: false });
+
+    expect(getIdToken).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://ranking.example/rank-invoice-obligations');
+    expect(init).toMatchObject({
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer firebase-id-token',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(JSON.parse(init.body)).toEqual({
+      family: 'payable',
+      sourceSystem: 'ordinary',
+      counterpartyName: 'Kabel Service GmbH',
+      invoiceNumber: 'RE-2026-777',
+      grossAmount: 1190,
+      issueDate: '2026-01-15',
+    });
+
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ['missing endpoint', '', { getIdToken: vi.fn(async () => 'token') }],
+    ['missing user', 'https://ranking.example/rank-invoice-obligations', null],
+  ])(
+    'rejects %s so the hook can use its existing fallback',
+    async (_label, endpoint, user) => {
+      vi.stubEnv('VITE_OBLIGATION_MATCHER_URL', endpoint);
+      auth.currentUser = user;
+      await expect(
+        rankInvoiceObligationsViaHttp({
+          family: 'payable',
+          sourceSystem: 'ordinary',
+          counterpartyName: 'Kabel Service GmbH',
+        }),
+      ).rejects.toThrow();
+      vi.unstubAllEnvs();
+    },
+  );
+});
+
+describe('Facturas — obligation ranking (T2)', () => {
+  const openAttachExisting = async () => {
+    mountFacturas();
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva factura' }));
+    fireEvent.change(screen.getByLabelText('PDF de la factura'), {
+      target: { files: [pdfFile()] },
+    });
+    await screen.findByLabelText('Nº de factura');
+    fireEvent.click(
+      screen.getByRole('radio', { name: 'Vincular a existentes' }),
+    );
+  };
+
+  it('does not request ranking outside attach-existing or without a counterparty', async () => {
+    mountFacturas();
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva factura' }));
+    fireEvent.change(screen.getByLabelText('PDF de la factura'), {
+      target: { files: [pdfFile()] },
+    });
+    await screen.findByLabelText('Nº de factura');
+    expect(rankInvoiceObligationsMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Contraparte'), {
+      target: { value: '' },
+    });
+    fireEvent.click(
+      screen.getByRole('radio', { name: 'Vincular a existentes' }),
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    expect(rankInvoiceObligationsMock).not.toHaveBeenCalled();
+  });
+
+  it('renders at most five suggestions in provider order without auto-selecting', async () => {
+    await openAttachExisting();
+
+    const list = await screen.findByRole('group', {
+      name: 'Obligaciones sugeridas',
+    });
+    const labels = within(list)
+      .getAllByRole('checkbox')
+      .map((checkbox) => checkbox.closest('label').textContent);
+    expect(labels).toEqual([
+      expect.stringContaining('Proveedor 7 GmbH'),
+      expect.stringContaining('Proveedor 3 GmbH'),
+      expect.stringContaining('Proveedor 5 GmbH'),
+      expect.stringContaining('Proveedor 2 GmbH'),
+      expect.stringContaining('Proveedor 6 GmbH'),
+    ]);
+    expect(within(list).getAllByRole('checkbox')).toHaveLength(5);
+    within(list)
+      .getAllByRole('checkbox')
+      .forEach((checkbox) => expect(checkbox).not.toBeChecked());
+    expect(rankInvoiceObligationsMock).toHaveBeenCalledWith({
+      family: 'payable',
+      sourceSystem: 'ordinary',
+      counterpartyName: 'Kabel Service GmbH',
+      invoiceNumber: 'RE-2026-777',
+      grossAmount: 1190,
+      issueDate: '2026-01-15',
+    });
+  });
+
+  it('toggles the complete searchable list while preserving selection', async () => {
+    await openAttachExisting();
+
+    const suggestions = await screen.findByRole('group', {
+      name: 'Obligaciones sugeridas',
+    });
+    const selected = within(suggestions).getAllByRole('checkbox')[0];
+    fireEvent.click(selected);
+    expect(selected).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver todas' }));
+    const all = screen.getByRole('group', { name: 'Todas las obligaciones' });
+    expect(within(all).getAllByRole('checkbox')).toHaveLength(7);
+    expect(within(all).getByText('Proveedor 4 GmbH')).toBeInTheDocument();
+    expect(
+      within(all)
+        .getByText('Proveedor 7 GmbH')
+        .closest('label')
+        .querySelector('input'),
+    ).toBeChecked();
+
+    fireEvent.change(screen.getByLabelText('Filtrar obligaciones existentes'), {
+      target: { value: 'Proveedor 4' },
+    });
+    expect(within(all).getAllByRole('checkbox')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver sugerencias' }));
+    const restored = screen.getByRole('group', {
+      name: 'Obligaciones sugeridas',
+    });
+    expect(
+      within(restored)
+        .getByText('Proveedor 7 GmbH')
+        .closest('label')
+        .querySelector('input'),
+    ).toBeChecked();
+  });
+
+  it('shows a non-blocking loading state while ranking', async () => {
+    let resolveRanking;
+    rankInvoiceObligationsMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRanking = resolve;
+      }),
+    );
+    await openAttachExisting();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Ordenando obligaciones automáticamente…',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Archivar factura' }),
+    ).toBeEnabled();
+
+    resolveRanking({ fallback: false, matches: [] });
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Ordenando obligaciones automáticamente…'),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it.each([
+    [
+      'callable error',
+      () =>
+        rankInvoiceObligationsMock.mockRejectedValueOnce(new Error('offline')),
+    ],
+    [
+      'server fallback',
+      () =>
+        rankInvoiceObligationsMock.mockResolvedValueOnce({
+          fallback: true,
+          matches: [],
+        }),
+    ],
+    [
+      'malformed response',
+      () =>
+        rankInvoiceObligationsMock.mockResolvedValueOnce({
+          fallback: false,
+          matches: 'invalid',
+        }),
+    ],
+  ])('shows the full list after %s', async (_label, arrange) => {
+    arrange();
+    await openAttachExisting();
+
+    const fallbackStatus = await screen.findByText(
+      'No se pudo ordenar automáticamente. Puedes elegir de la lista completa.',
+    );
+    expect(fallbackStatus).toHaveAttribute('role', 'status');
+    const all = screen.getByRole('group', { name: 'Todas las obligaciones' });
+    expect(within(all).getAllByRole('checkbox')).toHaveLength(7);
   });
 });
 
