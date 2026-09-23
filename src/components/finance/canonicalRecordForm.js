@@ -24,7 +24,7 @@ export const buildInitialFormData = (record) => ({
   // Insyte / DATEV linkage — receivables only; seeded so an edit never blanks them.
   rechnungId: record?.rawRecord?.rechnungId || '',
   numeroPedido: record?.rawRecord?.numeroPedido || '',
-  forceStatus: '',
+  correctionTarget: '',
   correctionReason: '',
 });
 

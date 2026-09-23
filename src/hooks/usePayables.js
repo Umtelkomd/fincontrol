@@ -26,6 +26,12 @@ import { assertPayablePaymentAllowed } from '../finance/opsControl';
 import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { applyCorrection, CORRECTION_TARGET } from '../lib/finance/documentLifecycle';
+
+const CORRECTION_LABELS = {
+  [CORRECTION_TARGET.CANCELLED]: 'anulada',
+  [CORRECTION_TARGET.REOPENED]: 'reabierta',
+};
 
 /**
  * Editable CXP fields, each with the legacy aliases it has to keep in sync.
@@ -57,8 +63,8 @@ const PAYABLE_TEXT_FIELDS = [
  * written. Writing a default for every field wiped whatever the caller had not
  * sent, and because the money block is DERIVED from `clampMoney(data.amount)`
  * (0 when absent), a metadata-only edit zeroed an open CXP and closed it.
- * Money is therefore restated only when the caller sends an amount or forces a
- * status.
+ * Money is therefore restated only when the caller sends an amount or a status
+ * correction (`correctionTarget`: 'cancelled' | 'reopened').
  *
  * The payroll and ops-gate markers (`payrollPeriodId`, `opsCleared`, …) are
  * deliberately absent from this payload: the CXP editor does not own them, and
@@ -90,49 +96,43 @@ export const buildPayableUpdatePayload = (payable = {}, data = {}) => {
   if (dueDate) payload.dueDate = dueDate;
 
   const currentPaid = clampMoney(payable?.paidAmount ?? 0);
-  const forceStatus = data.forceStatus || '';
+  // The old `forceStatus` override (it could mark a document settled with no
+  // cash behind it) is gone; a stale caller must fail loudly, not save silently.
+  if (data.forceStatus) {
+    return { error: new Error('La corrección forzada de estado ya no existe: anulá o reabrí el documento.') };
+  }
+  const correctionTarget = data.correctionTarget || '';
   const restatesAmount = supplied('amount') && data.amount !== null && data.amount !== '';
-  if (!restatesAmount && !forceStatus) return { payload, nextPaidAmount: currentPaid };
+  if (!restatesAmount && !correctionTarget) return { payload, nextPaidAmount: currentPaid };
 
   const grossAmount = restatesAmount
     ? clampMoney(data.amount)
     : clampMoney(payable?.grossAmount ?? payable?.amount ?? 0);
 
-  let nextStatus;
-  let nextOpenAmount;
-  let nextPaidAmount = currentPaid;
-
-  if (forceStatus) {
-    nextStatus = forceStatus;
-    if (forceStatus === 'issued') {
-      nextOpenAmount = grossAmount;
-      nextPaidAmount = 0;
-      payload.paidAmount = 0;
-      payload.payments = [];
-    } else if (forceStatus === 'settled') {
-      nextOpenAmount = 0;
-      nextPaidAmount = grossAmount;
-      payload.paidAmount = grossAmount;
-    } else if (forceStatus === 'cancelled') {
-      nextOpenAmount = 0;
-    } else {
-      nextOpenAmount = clampMoney(grossAmount - currentPaid);
-    }
-  } else {
-    if (grossAmount < currentPaid) {
-      return { error: new Error('El importe no puede quedar por debajo de lo ya pagado') };
-    }
-    nextOpenAmount = clampMoney(grossAmount - currentPaid);
-    nextStatus = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
+  // A status correction goes through the lifecycle module, which only allows
+  // cancelling or reopening a document; nothing can be marked settled by hand.
+  if (correctionTarget) {
+    const corrected = applyCorrection(
+      { ...payable, grossAmount, amount: grossAmount },
+      { target: correctionTarget, reason: data.correctionReason },
+    );
+    if (!corrected.ok) return { error: new Error(corrected.message) };
+    Object.assign(payload, corrected.next, { grossAmount, amount: grossAmount });
+    return { payload, nextPaidAmount: corrected.next.paidAmount };
   }
+
+  if (grossAmount < currentPaid) {
+    return { error: new Error('El importe no puede quedar por debajo de lo ya pagado') };
+  }
+  const nextOpenAmount = clampMoney(grossAmount - currentPaid);
 
   payload.grossAmount = grossAmount;
   payload.amount = grossAmount;
-  payload.openAmount = clampMoney(nextOpenAmount);
-  payload.pendingAmount = clampMoney(nextOpenAmount);
-  payload.status = nextStatus;
+  payload.openAmount = nextOpenAmount;
+  payload.pendingAmount = nextOpenAmount;
+  payload.status = nextOpenAmount <= 0 ? 'settled' : currentPaid > 0 ? 'partial' : 'issued';
 
-  return { payload, nextPaidAmount };
+  return { payload, nextPaidAmount: currentPaid };
 };
 
 const buildPayableSnapshot = (payable, override = {}) => ({
@@ -410,21 +410,21 @@ export const usePayables = (user) => {
         updatedAt: serverTimestamp(),
         updatedBy: user.email,
         auditTrail: arrayUnion({
-          action: data.forceStatus ? 'status-override' : 'update',
+          action: data.correctionTarget ? 'status-correction' : 'update',
           user: user.email,
           timestamp: new Date().toISOString(),
-          detail: data.forceStatus
-            ? `Estado corregido a "${data.forceStatus}" por admin. Motivo: ${data.correctionReason || 'sin motivo'}`
+          detail: data.correctionTarget
+            ? `Estado corregido (${CORRECTION_LABELS[data.correctionTarget]}) por admin. Motivo: ${data.correctionReason}`
             : 'Factura CXP actualizada desde la mesa maestra',
         }),
       };
       await updateDoc(payableRef, payload);
       await writeAuditLogEntry({
-        action: data.forceStatus ? 'status-override' : 'update',
+        action: data.correctionTarget ? 'status-correction' : 'update',
         entityType: 'payable',
         entityId: payable.id,
-        description: data.forceStatus
-          ? `Estado CXP corregido a "${data.forceStatus}": ${data.documentNumber || payable.documentNumber || payable.id}`
+        description: data.correctionTarget
+          ? `CXP ${CORRECTION_LABELS[data.correctionTarget]}: ${data.documentNumber || payable.documentNumber || payable.id}`
           : `Factura CXP actualizada: ${data.documentNumber || payable.documentNumber || payable.id}`,
         userEmail: user.email,
         before: buildPayableSnapshot(payable),
@@ -434,7 +434,9 @@ export const usePayables = (user) => {
           updatedBy: user.email,
           updatedAt: new Date().toISOString(),
         }),
-        ...(data.forceStatus ? { metadata: { correctionReason: data.correctionReason, forceStatus: data.forceStatus } } : {}),
+        ...(data.correctionTarget
+          ? { metadata: { correctionReason: data.correctionReason, correctionTarget: data.correctionTarget } }
+          : {}),
       });
 
       return { success: true };

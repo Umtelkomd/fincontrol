@@ -58,7 +58,7 @@ const STATUS = {
 /** Spanish user-facing copy — these surface directly in the CXC/CXP views. */
 const MESSAGES = {
   [REJECTION.NO_BANK_LINK]:
-    'Todo pago debe vincularse a un movimiento bancario (DATEV). Conciliá desde /cxp o /cxc.',
+    'Todo pago debe vincularse a un movimiento bancario. Conciliá desde /cxp o /cxc.',
   [REJECTION.NON_POSITIVE]: 'El importe del pago debe ser mayor que cero.',
   [REJECTION.EXCEEDS_OPEN]: 'El pago excede el saldo abierto del documento.',
   [REJECTION.DUPLICATE_ALLOCATION]:

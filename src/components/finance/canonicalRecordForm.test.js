@@ -92,7 +92,7 @@ describe('buildInitialFormData — category seed', () => {
       documentNumber: 'RE-1',
       projectId: 'proj-1',
       costCenterId: 'CC1',
-      forceStatus: '',
+      correctionTarget: '',
       correctionReason: '',
     });
   });
