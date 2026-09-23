@@ -27,6 +27,7 @@
 const admin = require('firebase-admin');
 const path = require('path');
 const os = require('os');
+const { isPrePolicy, settledOn } = require('./lib/settlementMatch.cjs');
 
 const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
   || path.join(os.homedir(), '.credentials', 'umtelkomd-firebase.json');
@@ -95,7 +96,8 @@ const findUnlinkedSettlements = (docs) =>
       name: label(doc),
       amount: num(doc.grossAmount ?? doc.amount),
       status: doc.status,
-      settledOn: iso(doc.updatedAt) || iso(doc.dueDate),
+      settledOn: settledOn(doc),
+      prePolicy: isPrePolicy(doc),
       paymentsRecorded: payments.length,
       origin: typeof doc.source === 'string' ? doc.source : '(untagged)',
       // No payments at all is a harder failure than payments missing the link:
@@ -193,8 +195,8 @@ async function auditCollection(collection, title) {
   const docs = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
 
   const unlinked = findUnlinkedSettlements(docs);
-  const legacy = unlinked.filter((row) => !row.settledOn || row.settledOn < POLICY_START);
-  const postPolicy = unlinked.filter((row) => row.settledOn && row.settledOn >= POLICY_START);
+  const legacy = unlinked.filter((row) => row.prePolicy);
+  const postPolicy = unlinked.filter((row) => !row.prePolicy);
   const incoherent = findIncoherent(docs);
   const corrupt = findCorruptSource(docs);
   const duplicates = findDuplicates(docs);
