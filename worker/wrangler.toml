@@ -1,0 +1,8 @@
+name = "fincontrol-obligation-ranking"
+main = "src/index.ts"
+compatibility_date = "2025-09-17"
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "replace-with-firebase-project-id"
+ALLOWED_ORIGIN = "http://localhost:5173"

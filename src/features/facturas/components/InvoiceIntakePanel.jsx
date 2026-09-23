@@ -27,6 +27,7 @@ import { CATEGORY_TYPE } from '../../../finance/taxonomy';
 import { db, appId } from '../../../services/firebase';
 import { MAX_INVOICE_BYTES } from '../../../finance/invoiceChunks';
 import { createInitialIntakeState, intakeReducer } from '../lib/intakeState';
+import { useInvoiceObligationMatches } from '../hooks/useInvoiceObligationMatches';
 import { archiveInvoice, buildConfirmedHeader, obligationToLinkRow } from '../lib/intake';
 import { ARCHIVE_ERROR_MESSAGES, InvoiceArchiveError, uploadInvoicePdf } from '../lib/invoiceArchiveStore';
 import { translateValidationMessage } from '../lib/validationMessages';
@@ -73,6 +74,7 @@ const InvoiceIntakePanel = ({
   const { showToast } = useToast();
   const [state, dispatch] = useReducer(intakeReducer, undefined, createInitialIntakeState);
   const [candidateSearch, setCandidateSearch] = useState('');
+  const [showAllCandidates, setShowAllCandidates] = useState(false);
   // The full extracted PDF text — kept outside the (Firestore-bound) reducer
   // state purely so the classification suggestion can be recomputed if the
   // direction changes after extraction; evidenceLines only holds the header
@@ -84,7 +86,30 @@ const InvoiceIntakePanel = ({
   const candidates = (family === 'payable' ? payables : receivables).filter(
     (row) => (row.sourceSystem || 'ordinary') === state.sourceSystem,
   );
-  const filteredCandidates = candidates.filter((row) => {
+  const ranking = useInvoiceObligationMatches({
+    enabled: state.linkMode === 'attach-existing',
+    invoice: {
+      family,
+      sourceSystem: state.sourceSystem,
+      counterpartyName: state.form.counterpartyName,
+      invoiceNumber: state.form.invoiceNumber,
+      grossAmount: toNumber(state.form.grossAmount),
+      issueDate: state.form.issueDate,
+    },
+  });
+  const candidateById = new Map(
+    candidates.map((candidate) => [candidate.id, candidate]),
+  );
+  const suggestedCandidates = ranking.matchedIds
+    .map((id) => candidateById.get(id))
+    .filter(Boolean)
+    .slice(0, 5);
+  const suggestionsActive = ranking.status === 'success' && !showAllCandidates;
+  const displayedCandidates = suggestionsActive
+    ? suggestedCandidates
+    : candidates;
+  const filteredCandidates = displayedCandidates.filter((row) => {
+    if (suggestionsActive) return true;
     const needle = candidateSearch.trim().toLowerCase();
     if (!needle) return true;
     const counterparty = row.counterpartyName || row.vendor || row.client || '';
@@ -397,7 +422,10 @@ const InvoiceIntakePanel = ({
                   type="radio"
                   name="facturas-link-mode"
                   checked={state.linkMode === 'attach-existing'}
-                  onChange={() => dispatch({ type: 'SET_LINK_MODE', linkMode: 'attach-existing' })}
+                  onChange={() => {
+                    setShowAllCandidates(false);
+                    dispatch({ type: 'SET_LINK_MODE', linkMode: 'attach-existing' });
+                  }}
                 />
                 Vincular a existentes
               </label>
@@ -405,15 +433,49 @@ const InvoiceIntakePanel = ({
           </fieldset>
 
           {state.linkMode === 'attach-existing' && (
-            <div>
-              <input
-                className="mb-2 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
-                placeholder="Filtrar obligaciones…"
-                value={candidateSearch}
-                onChange={(event) => setCandidateSearch(event.target.value)}
-                aria-label="Filtrar obligaciones existentes"
-              />
-              <div className="max-h-56 space-y-1 overflow-auto">
+            <div className="space-y-2">
+              {ranking.status === 'loading' && (
+                <p
+                  role="status"
+                  className="label-mono text-[var(--color-fg-3)]"
+                >
+                  Ordenando obligaciones automáticamente…
+                </p>
+              )}
+              {ranking.status === 'fallback' && (
+                <p role="status" className="text-sm text-[var(--color-fg-3)]">
+                  No se pudo ordenar automáticamente. Puedes elegir de la lista
+                  completa.
+                </p>
+              )}
+              {ranking.status === 'success' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAllCandidates((current) => !current)}
+                >
+                  {showAllCandidates ? 'Ver sugerencias' : 'Ver todas'}
+                </Button>
+              )}
+              {!suggestionsActive && (
+                <input
+                  className="w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)] px-3 py-2 text-sm text-[var(--color-fg-1)]"
+                  placeholder="Filtrar obligaciones…"
+                  value={candidateSearch}
+                  onChange={(event) => setCandidateSearch(event.target.value)}
+                  aria-label="Filtrar obligaciones existentes"
+                />
+              )}
+              <div
+                role="group"
+                aria-label={
+                  suggestionsActive
+                    ? 'Obligaciones sugeridas'
+                    : 'Todas las obligaciones'
+                }
+                className="max-h-56 space-y-1 overflow-auto"
+              >
                 {filteredCandidates.length === 0 && (
                   <p className="label-mono text-[var(--color-fg-3)]">Sin obligaciones que coincidan.</p>
                 )}
