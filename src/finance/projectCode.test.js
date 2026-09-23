@@ -26,7 +26,7 @@ describe('PROJECT_LINES', () => {
       ['TB', 'Obra civil', 'CC-100'],
       ['BL', 'Soplado y fusiones', 'CC-110'],
       ['N4', 'NE4', 'CC-120'],
-      ['MD', 'MDU', 'CC-130'],
+      ['MD', 'MDU', 'CC-120'],
       ['SV', 'Dirección de obra', 'CC-190'],
       ['OH', 'Estructura interna', 'CC-300'],
     ]);

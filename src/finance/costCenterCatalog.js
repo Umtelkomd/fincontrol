@@ -42,7 +42,7 @@
 import { COST_SCOPE } from './costScope.js';
 import { categoryByName } from './taxonomy.js';
 
-export const COST_CENTER_CATALOG_VERSION = 2;
+export const COST_CENTER_CATALOG_VERSION = 3;
 
 export const COST_CENTER_KIND = Object.freeze({
   DIRECT: 'direct',
@@ -54,11 +54,17 @@ const cc = (code, name, kind, line = '') => Object.freeze({ code, name, kind, li
 
 /** Report order === catalogue order === dropdown order. */
 export const COST_CENTER_CATALOG = Object.freeze([
+  // v3 (2026-09): the production lines as the owner runs them. Activaciones,
+  // NAS, HBG and Reparaciones became their own centers; MDU folded into NE4
+  // (CC-130 still resolves, to CC-120).
   cc('CC-100', 'Obra civil (Tiefbau)', COST_CENTER_KIND.DIRECT, 'TB'),
-  cc('CC-110', 'Soplado y fusiones', COST_CENTER_KIND.DIRECT, 'BL'),
-  cc('CC-120', 'NE4 instalación en vivienda', COST_CENTER_KIND.DIRECT, 'N4'),
-  cc('CC-130', 'MDU cableado interior', COST_CENTER_KIND.DIRECT, 'MD'),
-  cc('CC-190', 'Dirección de obra y documentación', COST_CENTER_KIND.DIRECT, 'SV'),
+  cc('CC-110', 'Despliegue (soplado, DP y POP)', COST_CENTER_KIND.DIRECT, 'BL'),
+  cc('CC-115', 'Activaciones (HÜP-GFTA-ONT)', COST_CENTER_KIND.DIRECT),
+  cc('CC-120', 'NE4 (vivienda y MDU)', COST_CENTER_KIND.DIRECT, 'N4'),
+  cc('CC-140', 'NAS (acometidas)', COST_CENTER_KIND.DIRECT),
+  cc('CC-150', 'HBG (Hausbegehung)', COST_CENTER_KIND.DIRECT),
+  cc('CC-160', 'Reparaciones y reclamaciones', COST_CENTER_KIND.DIRECT),
+  cc('CC-190', 'Dirección de obra y Aufmaß', COST_CENTER_KIND.DIRECT, 'SV'),
   cc('CC-200', 'Flota y vehículos', COST_CENTER_KIND.INDIRECT),
   cc('CC-210', 'Equipos, almacén y herramienta', COST_CENTER_KIND.INDIRECT),
   cc('CC-220', 'Alojamientos (pool sin obra)', COST_CENTER_KIND.INDIRECT),
@@ -111,6 +117,14 @@ const LEGACY_KEY_MAP = new Map(
     ['CC-003', 'CC-120'],
     ['CC-004', 'CC-300'],
     ['CC-005', 'CC-110'],
+    // v2 → v3: MDU folded into NE4.
+    ['CC-130', 'CC-120'],
+    ['MDU', 'CC-120'],
+    ['Activaciones', 'CC-115'],
+    ['NAS', 'CC-140'],
+    ['HBG', 'CC-150'],
+    ['Hausbegehung', 'CC-150'],
+    ['Reparaciones', 'CC-160'],
     ['Obra Civil', 'CC-100'],
     ['Instalaciones y Reparaciones', 'CC-120'],
     ['NE4', 'CC-120'],
@@ -242,7 +256,7 @@ const LINE_DEFAULTS = Object.freeze({
   TB: 'CC-100',
   BL: 'CC-110',
   N4: 'CC-120',
-  MD: 'CC-130',
+  MD: 'CC-120',
   SV: 'CC-190',
   OH: 'CC-300',
 });

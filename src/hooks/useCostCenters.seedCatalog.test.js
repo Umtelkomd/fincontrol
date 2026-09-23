@@ -12,7 +12,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { installFirebaseMocks, TEST_USER } from '@/test/firebaseMock';
-import { COST_CENTER_CATALOG } from '../finance/costCenterCatalog.js';
+import { COST_CENTER_CATALOG, COST_CENTER_CATALOG_VERSION } from '../finance/costCenterCatalog.js';
 
 const store = installFirebaseMocks({ collections: { costCenters: [] } });
 
@@ -42,7 +42,7 @@ describe('seedCatalog — fresh install', () => {
         name: entry.name,
         kind: entry.kind,
         line: entry.line || '',
-        catalogVersion: 2,
+        catalogVersion: COST_CENTER_CATALOG_VERSION,
       });
       expect(options).toEqual({ merge: true });
     });
