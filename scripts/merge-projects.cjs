@@ -14,6 +14,18 @@
  *   node scripts/merge-projects.cjs --from QFF-002 --into QFF-001 --name "Roßdorf"
  *   node scripts/merge-projects.cjs --from QFF-002 --into QFF-001 --name "Roßdorf" --apply
  *
+ * Options:
+ *   --alias "<projectName>"  (repeatable) other spellings documents carry for
+ *                            either project, e.g. "QFF-002 (Roßdorf2)"; they move
+ *                            too, but only when their projectId is empty or one
+ *                            of the two projects.
+ *   --code <CODE>            new code for the destination project. Refused if
+ *                            any other project already uses it.
+ *
+ * Before --apply writes, the employees' project assignments (ids only, no
+ * salary data) are saved to backups/, since the Firestore backup excludes
+ * the employees collection.
+ *
  * The source project is deactivated, never deleted: its id may still appear in
  * an audit trail, and a dangling reference is worse than an inactive row.
  */
@@ -31,6 +43,8 @@ const APPLY = argv.includes('--apply');
 const FROM = flag('from');
 const INTO = flag('into');
 const NEW_NAME = flag('name');
+const NEW_CODE = flag('code');
+const ALIASES = argv.reduce((list, arg, i) => (arg === '--alias' && argv[i + 1] ? [...list, argv[i + 1]] : list), []);
 
 const line = (c = '─', w = 82) => c.repeat(w);
 const norm = (s) => String(s || '').trim().toLowerCase();
@@ -54,6 +68,11 @@ const norm = (s) => String(s || '').trim().toLowerCase();
   }
   if (from.id === into.id) { console.error('\n✖ Origen y destino son el mismo proyecto.'); process.exit(1); }
 
+  if (NEW_CODE) {
+    const clash = projSnap.docs.find((d) => d.id !== from.id && d.id !== into.id && norm(d.data().codigo || d.data().code) === norm(NEW_CODE));
+    if (clash) { console.error(`\n✖ El código ${NEW_CODE} ya lo usa el proyecto ${clash.id}.`); process.exit(1); }
+  }
+
   const fromName = String(from.data().nombre || from.data().name || '');
   const intoName = String(into.data().nombre || into.data().name || '');
   const finalName = NEW_NAME || intoName;
@@ -68,11 +87,16 @@ const norm = (s) => String(s || '').trim().toLowerCase();
     db.collection(`${BASE}/classificationRules`).get(),
   ]);
 
-  /** A doc points at the source when its id matches, or its stored name does. */
-  const pointsAtFrom = (d) => d.projectId === from.id || norm(d.projectName) === norm(fromName);
+  const aliasNames = new Set(ALIASES.map(norm));
+  /** An alias only claims a doc that is unassigned or already on one of the two projects. */
+  const matchesAlias = (d) => aliasNames.has(norm(d.projectName))
+    && (!d.projectId || d.projectId === from.id || d.projectId === into.id);
+  /** A doc points at the source when its id matches, or its stored name (or an alias) does. */
+  const pointsAtFrom = (d) => d.projectId === from.id || norm(d.projectName) === norm(fromName)
+    || (matchesAlias(d) && d.projectId !== into.id);
   /** Any doc on either side needs its denormalised name refreshed. */
   const needsRename = (d) =>
-    (d.projectId === into.id || norm(d.projectName) === norm(intoName)) && d.projectName !== finalName;
+    (d.projectId === into.id || norm(d.projectName) === norm(intoName) || matchesAlias(d)) && d.projectName !== finalName;
 
   const plan = { movements: [], receivables: [], payables: [], employees: [], budgets: [], wip: [], rules: [] };
 
@@ -109,7 +133,9 @@ const norm = (s) => String(s || '').trim().toLowerCase();
   console.log(line('═'));
   console.log(`Modo:    ${APPLY ? '🔴 APLICAR' : '🟢 DRY-RUN (no escribe)'}`);
   console.log(`Origen:  ${FROM} "${fromName}"  →  se desactiva`);
-  console.log(`Destino: ${INTO} "${intoName}"  →  se renombra a "${finalName}"\n`);
+  console.log(`Destino: ${INTO} "${intoName}"  →  se renombra a "${finalName}"${NEW_CODE ? `, código ${NEW_CODE}` : ''}`);
+  if (ALIASES.length) console.log(`Alias:   ${ALIASES.map((a) => `"${a}"`).join(', ')}`);
+  console.log('');
 
   console.log(line());
   console.log('QUÉ SE MUEVE');
@@ -140,9 +166,19 @@ const norm = (s) => String(s || '').trim().toLowerCase();
   console.log(`\n${line('═')}`);
   if (!APPLY) {
     console.log('🟢 DRY-RUN — no se escribió nada.');
-    console.log(`   Aplicar: node scripts/merge-projects.cjs --from ${FROM} --into ${INTO}${NEW_NAME ? ` --name "${NEW_NAME}"` : ''} --apply`);
+    const quoted = argv.map((a) => (/[\s()]/.test(a) ? `"${a}"` : a)).join(' ');
+    console.log(`   Aplicar: node scripts/merge-projects.cjs ${quoted} --apply`);
     console.log(line('═'));
     process.exit(0);
+  }
+
+  // The Firestore backup skips employees (salary data): keep just the assignments.
+  if (plan.employees.length) {
+    const fs = require('node:fs');
+    const file = path.join(__dirname, '..', 'backups', `merge-projects-${FROM}-into-${INTO}-${new Date().toISOString().replace(/[:.]/g, '-')}-employees.json`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(plan.employees.map((e) => ({ id: e.ref.id, projectIdsBefore: emp.docs.find((d) => d.id === e.ref.id).data().projectIds, projectIdsAfter: e.next })), null, 2));
+    console.log(`  💾 asignaciones de personal guardadas en ${path.relative(process.cwd(), file)}`);
   }
 
   const ts = admin.firestore.FieldValue.serverTimestamp();
@@ -174,9 +210,12 @@ const norm = (s) => String(s || '').trim().toLowerCase();
   await commit(plan.employees, (item) => ({ projectIds: item.next, ...stamp }));
   if (plan.employees.length) console.log(`  ✔ personal: ${plan.employees.length}`);
 
-  await into.ref.update({ nombre: finalName, name: finalName, status: 'active', ...stamp });
+  await into.ref.update({ nombre: finalName, name: finalName, status: 'active', ...(NEW_CODE ? { code: NEW_CODE, codigo: NEW_CODE } : {}), ...stamp });
+  const fromCode = String(from.data().codigo || from.data().code || '');
   await from.ref.update({
     status: 'inactive',
+    // Retired codes are prefixed so they never collide with a live project's code.
+    ...(fromCode && !fromCode.startsWith('FUSIONADO-') ? { code: `FUSIONADO-${fromCode}`, codigo: `FUSIONADO-${fromCode}` } : {}),
     notes: `Fusionado en ${INTO} "${finalName}" el ${new Date().toISOString().slice(0, 10)}. No usar.`,
     ...stamp,
   });
