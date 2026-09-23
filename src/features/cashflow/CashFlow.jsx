@@ -462,10 +462,28 @@ const CashFlow = ({ user }) => {
 								</ResponsiveContainer>
 							</div>
 							{/* The bars move with this assumption, so it does not hide in a tooltip. */}
-							<p className="mt-3 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
-								{formatCollectionSlip(forecast.collectionSlip)}. Lo ya vencido
-								se espera de inmediato.
-							</p>
+							<div className="mt-3 space-y-1 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+								{[...(forecast.payerProfiles?.values() || [])].map((profile) => (
+									<p key={profile.label}>
+										{profile.label}: cobra {profile.lagDays} días después de la factura,
+										un {Math.round(profile.cashRatio * 100)} % del importe registrado
+										(medido en {profile.sampleSize} cobros).
+									</p>
+								))}
+								<p>
+									Resto de clientes: {formatCollectionSlip(forecast.collectionSlip)}.
+									Lo vencido se espera la semana siguiente.
+								</p>
+								{forecast.atRiskTotal > 0 && (
+									<p className="text-[var(--color-warn)]" data-testid="forecast-at-risk">
+										{formatCurrency(forecast.atRiskTotal)} en{' '}
+										{forecast.atRiskReceivables.length} cobro
+										{forecast.atRiskReceivables.length === 1 ? '' : 's'} vencido
+										{forecast.atRiskReceivables.length === 1 ? '' : 's'} hace más de 60
+										días: no se cuentan en la previsión (cobro en riesgo).
+									</p>
+								)}
+							</div>
 						</>
 					)}
 				</Section>

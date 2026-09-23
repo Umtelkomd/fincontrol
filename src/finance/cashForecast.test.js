@@ -33,6 +33,12 @@ const rule = (extra = {}) => ({
   ...extra,
 });
 
+const addDaysIso = (iso, days) => {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
 const run = (overrides = {}) =>
   buildCashForecast({
     startBalance: 10000,
@@ -241,13 +247,22 @@ describe('buildCashForecast document filtering', () => {
     expect(forecast.totalOutflow).toBe(0);
   });
 
-  it('keeps overdue documents instead of dropping them', () => {
+  it('keeps overdue payables in week 1 and expects recently overdue receivables next week', () => {
     const forecast = run({
-      receivables: [receivable('2026-05-01', 3000)],
+      receivables: [receivable(addDaysIso(TODAY, -20), 3000)],
       payables: [payable('2026-04-15', 1000)],
     });
-    expect(forecast.weeks[0].inflow).toBe(3000);
     expect(forecast.weeks[0].outflow).toBe(-1000);
+    expect(forecast.weeks[0].inflow).toBe(0);
+    expect(forecast.weeks[1].inflow).toBe(3000);
+    expect(forecast.atRiskTotal).toBe(0);
+  });
+
+  it('leaves receivables long past their expected date out of the projection, as at risk', () => {
+    const forecast = run({ receivables: [receivable(addDaysIso(TODAY, -90), 3000)] });
+    expect(forecast.totalInflow).toBe(0);
+    expect(forecast.atRiskTotal).toBe(3000);
+    expect(forecast.atRiskReceivables).toHaveLength(1);
   });
 });
 
@@ -363,5 +378,32 @@ describe('buildCashForecast collection slip', () => {
       sampleSize: 12,
       confidence: 'override',
     });
+  });
+});
+
+// ─── per-payer expectations (measured from reconciled receipts) ───────────────
+
+describe('buildCashForecast per-payer collection', () => {
+  // Three past confirming receipts: bank got net × 1.19 − 2.3 %, 3 days after the invoice.
+  const settled = [1, 2, 3].map((n) => ({
+    id: `s${n}`, counterpartyName: 'Insyte Deutschland GmbH', grossAmount: 10000, openAmount: 0,
+    status: 'settled', issueDate: `2026-06-0${n}`, dueDate: `2026-07-0${n}`,
+  }));
+  const receipts = [1, 2, 3].map((n) => ({
+    id: `m${n}`, direction: 'in', status: 'posted', amount: 11626.3, postedDate: `2026-06-0${n + 3}`, receivableIds: [`s${n}`],
+  }));
+
+  it('expects an Insyte invoice a few days after issue, for the measured cash', () => {
+    const open = receivable('2026-08-06', 10000, { counterpartyName: 'Insyte Deutschland', issueDate: '2026-07-07' });
+    const forecast = run({ receivables: [...settled, open], movements: receipts });
+    // Issued 07.07 + 3 days = 10.07 → week 1, at 10,000 × 1.1626.
+    expect(forecast.weeks[0].inflow).toBeCloseTo(11626, 0);
+    expect(forecast.payerProfiles.size).toBe(1);
+  });
+
+  it('keeps the booked amount and due-date slip for a payer without history', () => {
+    const open = receivable('2026-07-20', 500, { counterpartyName: 'Nuevo Cliente', issueDate: '2026-07-01' });
+    const forecast = run({ receivables: [open], movements: receipts });
+    expect(forecast.totalInflow).toBe(500);
   });
 });
