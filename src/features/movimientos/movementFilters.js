@@ -9,6 +9,7 @@
  */
 
 import { isClassified, pendingReasonOf } from '../../finance/costScope.js';
+import { isReconciledMovement } from './movementEvidence.js';
 
 export const DEFAULT_MOVEMENT_FILTERS = {
   year: 'all',
@@ -18,7 +19,8 @@ export const DEFAULT_MOVEMENT_FILTERS = {
   searchQuery: '',
 };
 
-const isReconciled = (movement) => Boolean(movement?.receivableId || movement?.payableId);
+// Grouped links (payableIds / receivableIds) count too — see movementEvidence.js.
+const isReconciled = isReconciledMovement;
 
 const matchesSearch = (movement, query) => {
   if (!query) return true;

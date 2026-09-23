@@ -11,6 +11,7 @@ import {
  ChevronRight,
  Filter,
  Wand2,
+ CircleCheck,
 } from 'lucide-react';
 import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { useCategories } from '../../hooks/useCategories';
@@ -33,6 +34,7 @@ import {
 import CanonicalRecordModal from '../../components/finance/CanonicalRecordModal';
 import { buildMovementEditRecord } from './movementRecordUtils';
 import { filterMovements } from './movementFilters';
+import { MOVEMENT_EVIDENCE, isReconciledMovement, movementEvidence } from './movementEvidence';
 import {
  formatBulkResult,
  movementDestinationLabel,
@@ -98,6 +100,13 @@ const Movimientos = ({ user }) => {
  const [selectedIds, setSelectedIds] = useState([]);
  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
+ // Receivables and payables by id, so each row can say whether its
+ // reconciled documents carry an invoice number (green tick).
+ const documentsById = useMemo(
+ () => new Map([...(receivables || []), ...(payables || [])].map((doc) => [doc.id, doc])),
+ [receivables, payables],
+ );
+
  const filtered = useMemo(
  () => filterMovements(bankMovements, { year, month, direction, statusFilter, searchQuery }),
  [bankMovements, year, month, direction, statusFilter, searchQuery],
@@ -110,7 +119,7 @@ const Movimientos = ({ user }) => {
  const inSum = inflows.reduce((s, m) => s + (Number(m.amount) || 0), 0);
  const outSum = outflows.reduce((s, m) => s + (Number(m.amount) || 0), 0);
  const classified = filtered.filter(isClassified).length;
- const reconciled = filtered.filter((m) => !!(m.receivableId || m.payableId)).length;
+ const reconciled = filtered.filter(isReconciledMovement).length;
  return {
  total,
  inflows: inflows.length,
@@ -435,7 +444,7 @@ const Movimientos = ({ user }) => {
  <tbody>
  {pageRows.map((m) => {
  const isIn = m.direction === 'in';
- const isReconciled = !!(m.receivableId || m.payableId);
+ const evidence = movementEvidence(m, documentsById);
  const classified = isClassified(m);
  const isVoid = m.status === 'void';
  const isTransfer = !isVoid && isInternalTransfer(m);
@@ -497,8 +506,13 @@ const Movimientos = ({ user }) => {
  >
  Transferencia interna
  </Badge>
- ) : isReconciled ? (
- <Badge variant="ok" dot>Conciliado</Badge>
+ ) : evidence?.kind === MOVEMENT_EVIDENCE.INVOICED ? (
+ <Badge variant="ok" title={evidence.title} className="inline-flex items-center gap-1">
+ <CircleCheck size={12} aria-hidden="true" />
+ {evidence.label}
+ </Badge>
+ ) : evidence ? (
+ <Badge variant="info" dot title={evidence.title}>{evidence.label}</Badge>
  ) : classified ? (
  <Badge variant="info" dot>Clasificado</Badge>
  ) : (
