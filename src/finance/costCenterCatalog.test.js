@@ -25,10 +25,14 @@ import {
 
 const APPROVED = [
   ['CC-100', 'Obra civil (Tiefbau)', 'direct', 'TB'],
-  ['CC-110', 'Soplado y fusiones', 'direct', 'BL'],
-  ['CC-120', 'NE4 instalación en vivienda', 'direct', 'N4'],
-  ['CC-130', 'MDU cableado interior', 'direct', 'MD'],
-  ['CC-190', 'Dirección de obra y documentación', 'direct', 'SV'],
+  ['CC-110', 'Despliegue (soplado, DP y POP)', 'direct', 'BL'],
+  ['CC-115', 'Activaciones (HÜP-GFTA-ONT)', 'direct', ''],
+  ['CC-120', 'NE4 (vivienda y MDU)', 'direct', 'N4'],
+  ['CC-140', 'NAS (acometidas)', 'direct', ''],
+  ['CC-150', 'HBG (Hausbegehung)', 'direct', ''],
+  ['CC-160', 'Reparaciones y reclamaciones', 'direct', ''],
+  ['CC-170', 'SP Leitungsweg (Servicepaket)', 'direct', ''],
+  ['CC-190', 'Dirección de obra y Aufmaß', 'direct', 'SV'],
   ['CC-200', 'Flota y vehículos', 'indirect', ''],
   ['CC-210', 'Equipos, almacén y herramienta', 'indirect', ''],
   ['CC-220', 'Alojamientos (pool sin obra)', 'indirect', ''],
@@ -41,15 +45,15 @@ const APPROVED = [
 ];
 
 describe('COST_CENTER_CATALOG', () => {
-  it('is version 2', () => {
-    expect(COST_CENTER_CATALOG_VERSION).toBe(2);
+  it('is version 3', () => {
+    expect(COST_CENTER_CATALOG_VERSION).toBe(3);
   });
 
   it('exposes the three kinds', () => {
     expect(COST_CENTER_KIND).toEqual({ DIRECT: 'direct', INDIRECT: 'indirect', CLEARING: 'clearing' });
   });
 
-  it('ships exactly the approved 14 entries, in order, with the approved fields', () => {
+  it('ships exactly the approved 18 entries, in order, with the approved fields', () => {
     expect(COST_CENTER_CATALOG.map((c) => [c.code, c.name, c.kind, c.line])).toEqual(APPROVED);
   });
 
@@ -66,7 +70,7 @@ describe('COST_CENTER_CATALOG', () => {
 
 describe('costCenterByCode', () => {
   it('finds an entry by exact code', () => {
-    expect(costCenterByCode('CC-110')).toMatchObject({ name: 'Soplado y fusiones', kind: 'direct' });
+    expect(costCenterByCode('CC-110')).toMatchObject({ name: 'Despliegue (soplado, DP y POP)', kind: 'direct' });
   });
 
   it('tolerates case and whitespace', () => {
@@ -240,7 +244,7 @@ describe('defaultCostCenterForLine', () => {
     expect(defaultCostCenterForLine('TB')).toBe('CC-100');
     expect(defaultCostCenterForLine('BL')).toBe('CC-110');
     expect(defaultCostCenterForLine('N4')).toBe('CC-120');
-    expect(defaultCostCenterForLine('MD')).toBe('CC-130');
+    expect(defaultCostCenterForLine('MD')).toBe('CC-120');
     expect(defaultCostCenterForLine('SV')).toBe('CC-190');
   });
 
@@ -261,7 +265,7 @@ describe('defaultCostCenterForLine', () => {
 describe('costCenterOptions', () => {
   it('returns one row per catalogue entry, in catalogue order', () => {
     const options = costCenterOptions();
-    expect(options).toHaveLength(14);
+    expect(options).toHaveLength(18);
     expect(options[0]).toEqual({ value: 'CC-100', label: 'CC-100 · Obra civil (Tiefbau)', kind: 'direct' });
     expect(options.at(-1)).toEqual({ value: 'CC-NOM', label: 'CC-NOM · Nómina y seguridad social', kind: 'clearing' });
   });
@@ -269,7 +273,7 @@ describe('costCenterOptions', () => {
   it('returns a fresh array every call', () => {
     const first = costCenterOptions();
     first.push({ value: 'mutated' });
-    expect(costCenterOptions()).toHaveLength(14);
+    expect(costCenterOptions()).toHaveLength(18);
   });
 });
 
