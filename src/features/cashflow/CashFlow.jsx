@@ -462,10 +462,43 @@ const CashFlow = ({ user }) => {
 								</ResponsiveContainer>
 							</div>
 							{/* The bars move with this assumption, so it does not hide in a tooltip. */}
-							<p className="mt-3 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
-								{formatCollectionSlip(forecast.collectionSlip)}. Lo ya vencido
-								se espera de inmediato.
-							</p>
+							<div className="mt-3 space-y-1 border-t border-[var(--color-line)] pt-3 text-[12px] text-[var(--color-fg-4)]">
+								{[...(forecast.payerProfiles?.values() || [])].map((profile) => (
+									<p key={profile.label}>
+										{profile.label}: cobra {profile.lagDays} días después de la factura,
+										un {Math.round(profile.cashRatio * 100)} % del importe registrado
+										(medido en {profile.sampleSize} cobros).
+									</p>
+								))}
+								<p>
+									Resto de clientes: {formatCollectionSlip(forecast.collectionSlip)}.
+									Lo vencido se espera la semana siguiente.
+								</p>
+								{(() => {
+									const risk = forecast.atRiskReceivables || [];
+									const disputed = risk.filter((item) => item.disputed);
+									const late = risk.filter((item) => !item.disputed);
+									const sum = (items) => items.reduce((total, item) => total + item.amount, 0);
+									return (
+										<>
+											{disputed.length > 0 && (
+												<p className="text-[var(--color-err)]" data-testid="forecast-disputed">
+													{formatCurrency(sum(disputed))} en disputa (
+													{[...new Set(disputed.map((item) => item.doc.counterpartyName || item.doc.client))].join(', ')}
+													): no se cuentan en la previsión.
+												</p>
+											)}
+											{late.length > 0 && (
+												<p className="text-[var(--color-warn)]" data-testid="forecast-at-risk">
+													{formatCurrency(sum(late))} en {late.length} cobro{late.length === 1 ? '' : 's'} vencido
+													{late.length === 1 ? '' : 's'} hace más de 60 días: no se cuentan en la previsión
+													(cobro en riesgo).
+												</p>
+											)}
+										</>
+									);
+								})()}
+							</div>
 						</>
 					)}
 				</Section>

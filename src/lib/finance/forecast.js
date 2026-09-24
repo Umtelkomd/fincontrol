@@ -115,6 +115,7 @@ export const forecastHorizon = ({ today, weeks = 13 }) => {
  *   obligations: import('./obligations.js').Obligation[],
  *   collectionSlipDays?: number,
  *   openAmountOf?: (doc: Object) => number,
+ *   collectionOf?: (doc: Object, openAmount: number) => ({ date: string, amount: number, atRisk?: boolean } | null),
  * }} params
  * @returns {ForecastWeek[]}
  */
@@ -127,6 +128,7 @@ export const forecastWeeks = ({
   obligations,
   collectionSlipDays = COLLECTION_SLIP_DAYS,
   openAmountOf = defaultOpenAmountOf,
+  collectionOf = null,
 }) => {
   const { firstWeekStart, horizonEnd } = forecastHorizon({ today, weeks });
   const weekList = Array.from({ length: weeks }, (_, index) => ({
@@ -152,14 +154,17 @@ export const forecastWeeks = ({
   for (const doc of receivables || []) {
     const amount = openAmountOf(doc);
     if (!isOpenAmount(amount)) continue;
+    const label = doc.counterpartyName || doc.client || doc.invoiceNumber || 'Receivable';
+    // A caller-supplied expectation (measured per payer) decides date and cash;
+    // an at-risk receivable is left out of the projection entirely.
+    const expected = collectionOf ? collectionOf(doc, amount) : null;
+    if (expected) {
+      if (!expected.atRisk) placeItem(expected.date, { kind: 'receivable', label, amount: expected.amount, source: 'receivables' });
+      continue;
+    }
     const dueDate = isIsoDate(doc?.dueDate) ? doc.dueDate : today;
     const collectionDate = dueDate < today ? today : addDays(dueDate, collectionSlipDays);
-    placeItem(collectionDate, {
-      kind: 'receivable',
-      label: doc.counterpartyName || doc.client || doc.invoiceNumber || 'Receivable',
-      amount,
-      source: 'receivables',
-    });
+    placeItem(collectionDate, { kind: 'receivable', label, amount, source: 'receivables' });
   }
 
   for (const doc of payables || []) {

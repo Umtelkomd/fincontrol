@@ -43,6 +43,7 @@
 import { deriveCollectionSlip, forecastHorizon, forecastWeeks } from '../lib/finance';
 import { buildCompanyObligations } from './companyObligations';
 import { buildVatEstimates } from './vatObligation';
+import { buildPayerProfiles, expectedCollectionOf } from '../lib/finance/expectedCollection';
 
 /** Month abbreviations for week labels — fixed, so labels never vary by ICU build. */
 const MONTH_ABBR_ES = [
@@ -123,6 +124,17 @@ export const buildCashForecast = ({
     : measuredSlip;
 
   const openReceivables = (receivables || []).filter(isForecastable);
+
+  // Per-payer behaviour measured from reconciled receipts (cash ratio incl.
+  // VAT and confirming discount, and issue→cash lag). Receivables of payers
+  // without enough history keep the global slip.
+  const payerProfiles = buildPayerProfiles({ receivables, movements });
+  const atRiskReceivables = [];
+  const collectionOf = (doc, openAmount) => {
+    const expected = expectedCollectionOf(doc, { today, openAmount, profiles: payerProfiles, fallbackSlipDays: slipDays });
+    if (expected.atRisk) atRiskReceivables.push({ doc, amount: expected.amount, daysLate: expected.daysLate, disputed: !!expected.disputed });
+    return expected.basis === 'payer' || expected.atRisk || expected.daysLate > 0 ? expected : null;
+  };
   const openPayables = (payables || []).filter(isForecastable);
 
   // Derived from the WHOLE receivables array, settled invoices included: VAT is
@@ -155,6 +167,7 @@ export const buildCashForecast = ({
     payables: openPayables,
     obligations,
     collectionSlipDays: slipDays,
+    collectionOf,
   });
 
   const decorated = rawWeeks.map((week, index) => ({
@@ -186,6 +199,9 @@ export const buildCashForecast = ({
     lowestWeek,
     collectionSlipDays: slipDays,
     collectionSlip,
+    payerProfiles,
+    atRiskReceivables,
+    atRiskTotal: atRiskReceivables.reduce((sum, item) => sum + item.amount, 0),
     vatObligations,
     horizonWeeks: weeks,
     horizonEnd: horizon.horizonEnd,
