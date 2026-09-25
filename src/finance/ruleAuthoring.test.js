@@ -241,7 +241,7 @@ describe('selectMissingSeedRules', () => {
     const { toCreate, skipped } = selectMissingSeedRules([payroll]);
 
     expect(skipped).toBe(0);
-    expect(toCreate.map((r) => r.name)).toContain('JEISSON ANDRES ROMERO LESMES — Aportes y préstamos de socios recibidos');
+    expect(toCreate.map((r) => r.name)).toContain('JEISSON ANDRES ROMERO LESMES — Préstamos recibidos');
   });
 
   it('dedupes a production-like set: same field, pattern and direction under other names', () => {

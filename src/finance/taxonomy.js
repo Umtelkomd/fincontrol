@@ -103,8 +103,8 @@ export const TAXONOMY = Object.freeze([
   // ── Financiero ────────────────────────────────────────────────────────────
   category('intereses-comisiones', 'Intereses y comisiones bancarias', 'financiero', 'expense', 'overhead', STATEMENT),
   category('amortizacion-prestamos', 'Amortización de préstamos', 'financiero', 'expense', 'overhead', STATEMENT),
-  category('intereses-socios', 'Intereses de préstamos de socios', 'financiero', 'expense', 'overhead', STATEMENT),
-  category('aportes-socios', 'Aportes y préstamos de socios recibidos', 'financiero', 'income', '', STATEMENT),
+  category('intereses-prestamos', 'Intereses de préstamos', 'financiero', 'expense', 'overhead', STATEMENT),
+  category('prestamos-recibidos', 'Préstamos recibidos', 'financiero', 'income', '', STATEMENT),
   // ── Interno ───────────────────────────────────────────────────────────────
   category('transferencia-interna', 'Transferencia interna', 'interno', 'internal', '', STATEMENT),
 ]);
@@ -165,7 +165,11 @@ export const LEGACY_CATEGORY_MAP = Object.freeze({
   'Equipos Alquileres': nameOf('equipos'),
   'Facturas Telefonos': nameOf('oficina'),
   'Miscelaneos Oficina': nameOf('oficina'),
-  'Intereses prestamos': nameOf('intereses-socios'),
+  'Intereses prestamos': nameOf('intereses-prestamos'),
+  // Pre-2026-09 names: the company has no shareholder loans or contributions;
+  // these were loans from a lender who is not a shareholder.
+  'Intereses de préstamos de socios': nameOf('intereses-prestamos'),
+  'Aportes y préstamos de socios recibidos': nameOf('prestamos-recibidos'),
   Servicios: nameOf('facturacion-obra'),
   'Ingresos Servicios': nameOf('facturacion-obra'),
   SP: nameOf('servicios-particulares'),
@@ -236,7 +240,7 @@ const splitAdministrativo = ({ counterpartyName, description }) => {
 
 const splitInteresesBancos = ({ counterpartyName, description }) => {
   if (/zinsen darleh/i.test(description) || /romero lesmes|lesmes sandoval/i.test(counterpartyName)) {
-    return nameOf('intereses-socios');
+    return nameOf('intereses-prestamos');
   }
   if (CARD_SETTLEMENT.test(description)) return nameOf('tarjeta-corporativa');
   return nameOf('intereses-comisiones');
