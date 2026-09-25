@@ -237,9 +237,9 @@ describe('seed rules through the engine — descriptions outrank counterparties'
     );
   });
 
-  it('routes partner loan interest to Intereses de préstamos de socios', () => {
+  it('routes loan interest to Intereses de préstamos', () => {
     expect(classify(movementFrom('Jeisson Romero Lesmes', { description: 'Zinsen Darlehn 06/26' })).payload.categoryName).toBe(
-      'Intereses de préstamos de socios',
+      'Intereses de préstamos',
     );
   });
 
@@ -303,9 +303,9 @@ describe('seed rules through the engine — inbound money', () => {
     });
   });
 
-  it('files a partner contribution from Jeisson as Aportes y préstamos de socios recibidos', () => {
+  it('files a loan from Jeisson as Préstamos recibidos', () => {
     expect(classify(movementFrom('JEISSON ANDRES ROMERO LESMES', { direction: 'in', amount: 8000 })).payload).toEqual({
-      categoryName: 'Aportes y préstamos de socios recibidos',
+      categoryName: 'Préstamos recibidos',
     });
   });
 

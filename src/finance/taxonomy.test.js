@@ -69,8 +69,8 @@ const APPROVED = [
   ['impuesto-beneficios', 'Impuesto sobre beneficios', 'impuestos', 'expense', 'overhead'],
   ['intereses-comisiones', 'Intereses y comisiones bancarias', 'financiero', 'expense', 'overhead'],
   ['amortizacion-prestamos', 'Amortización de préstamos', 'financiero', 'expense', 'overhead'],
-  ['intereses-socios', 'Intereses de préstamos de socios', 'financiero', 'expense', 'overhead'],
-  ['aportes-socios', 'Aportes y préstamos de socios recibidos', 'financiero', 'income', ''],
+  ['intereses-prestamos', 'Intereses de préstamos', 'financiero', 'expense', 'overhead'],
+  ['prestamos-recibidos', 'Préstamos recibidos', 'financiero', 'income', ''],
   ['transferencia-interna', 'Transferencia interna', 'interno', 'internal', ''],
 ];
 
@@ -93,7 +93,9 @@ const SIMPLE_RENAMES = [
   ['Reparaciones', 'Reparaciones'],
   ['Facturas Telefonos', 'Oficina, telefonía y software'],
   ['Miscelaneos Oficina', 'Oficina, telefonía y software'],
-  ['Intereses prestamos', 'Intereses de préstamos de socios'],
+  ['Intereses prestamos', 'Intereses de préstamos'],
+  ['Intereses de préstamos de socios', 'Intereses de préstamos'],
+  ['Aportes y préstamos de socios recibidos', 'Préstamos recibidos'],
   ['Servicios', 'Facturación obra'],
   ['Ingresos Servicios', 'Facturación obra'],
   ['SP', 'Servicios particulares'],
@@ -137,8 +139,8 @@ const EVIDENCE_APPROVED = [
   ['impuesto-beneficios', 'statement'],
   ['intereses-comisiones', 'statement'],
   ['amortizacion-prestamos', 'statement'],
-  ['intereses-socios', 'statement'],
-  ['aportes-socios', 'statement'],
+  ['intereses-prestamos', 'statement'],
+  ['prestamos-recibidos', 'statement'],
   ['transferencia-interna', 'statement'],
 ];
 
@@ -431,13 +433,13 @@ describe('resolveLegacyCategory — Administrativo split (§2b)', () => {
 });
 
 describe('resolveLegacyCategory — Intereses Bancos split (§2b)', () => {
-  it('routes partner loan interest to Intereses de préstamos de socios', () => {
+  it('routes loan interest to Intereses de préstamos', () => {
     expect(
       resolveLegacyCategory(out({ categoryName: 'Intereses Bancos', counterpartyName: 'Jeisson Romero Lesmes', description: 'Zinsen Darlehn' })),
-    ).toBe('Intereses de préstamos de socios');
+    ).toBe('Intereses de préstamos');
     expect(
       resolveLegacyCategory(out({ categoryName: 'Intereses Bancos', counterpartyName: 'Beatriz Lesmes Sandoval', description: 'Rueckzahlung' })),
-    ).toBe('Intereses de préstamos de socios');
+    ).toBe('Intereses de préstamos');
   });
 
   it('routes the VISA settlement to Tarjeta corporativa', () => {
@@ -519,7 +521,7 @@ describe('groupOfCategory', () => {
   it('returns the group of a v2 category', () => {
     expect(groupOfCategory('Salarios')).toBe('personal');
     expect(groupOfCategory('Intereses y comisiones bancarias')).toBe('financiero');
-    expect(groupOfCategory('Aportes y préstamos de socios recibidos')).toBe('financiero');
+    expect(groupOfCategory('Préstamos recibidos')).toBe('financiero');
     expect(groupOfCategory('Devoluciones e ingresos financieros')).toBe('ingresos');
     expect(groupOfCategory('Transferencia interna')).toBe('interno');
   });

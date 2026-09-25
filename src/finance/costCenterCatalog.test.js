@@ -219,7 +219,7 @@ describe('defaultCostCenterForCategory', () => {
   });
 
   it('defaults fiscal/financial categories to CC-900', () => {
-    ['IVA', 'Impuesto sobre beneficios', 'Intereses y comisiones bancarias', 'Amortización de préstamos', 'Intereses de préstamos de socios'].forEach(
+    ['IVA', 'Impuesto sobre beneficios', 'Intereses y comisiones bancarias', 'Amortización de préstamos', 'Intereses de préstamos'].forEach(
       (name) => {
         expect(defaultCostCenterForCategory(name)).toBe('CC-900');
       },
