@@ -242,10 +242,10 @@ export const SEED_CLASSIFICATION_RULES = [
     'Liquidación mensual de la tarjeta de empresa cargada por el Volksbank.',
   ),
   description(
-    'Zinsen Darlehen — Intereses de préstamos de socios',
+    'Zinsen Darlehen — Intereses de préstamos',
     'Zinsen Darleh',
-    'Intereses de préstamos de socios',
-    'Intereses pagados a los socios por sus préstamos a la empresa.',
+    'Intereses de préstamos',
+    'Intereses pagados por préstamos recibidos por la empresa.',
   ),
   description(
     'Kontoabschluss (ABSCHLUSS PER) — Intereses y comisiones bancarias',
@@ -414,10 +414,10 @@ export const SEED_CLASSIFICATION_RULES = [
   counterparty('BANCO BILBAO VIZCAYA — Facturación obra', 'BANCO BILBAO VIZCAYA', 'Facturación obra', 'Cobro de INSYTE vía confirming de BBVA.', { direction: 'in' }),
   counterparty('SANTANDER FACTORING — Facturación obra', 'SANTANDER FACTORING', 'Facturación obra', 'Cobro de INSYTE vía confirming de Santander: facturación cobrada, no financiación.', { direction: 'in' }),
   counterparty(
-    'JEISSON ANDRES ROMERO LESMES — Aportes y préstamos de socios recibidos',
+    'JEISSON ANDRES ROMERO LESMES — Préstamos recibidos',
     'JEISSON ANDRES ROMERO LESMES',
-    'Aportes y préstamos de socios recibidos',
-    'Aportación / préstamo del socio a la empresa.',
+    'Préstamos recibidos',
+    'Préstamo a la empresa (no es socio ni aportación de capital).',
     { direction: 'in' },
   ),
   description(

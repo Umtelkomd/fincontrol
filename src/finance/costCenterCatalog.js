@@ -245,7 +245,7 @@ const CATEGORY_DEFAULTS = Object.freeze({
   'impuesto-beneficios': 'CC-900',
   'intereses-comisiones': 'CC-900',
   'amortizacion-prestamos': 'CC-900',
-  'intereses-socios': 'CC-900',
+  'intereses-prestamos': 'CC-900',
 });
 
 /** Default indirect/clearing center for a v2 category name. '' if none or unknown. */
