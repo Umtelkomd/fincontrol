@@ -173,8 +173,13 @@ const Facturas = ({ user, userRole }) => {
   // it is sticky and exactly viewport-high — otherwise the page header above
   // it pushes the bottom of the PDF out of view.
   useEffect(() => {
-    if (!selectedId) return;
-    window.document.getElementById('invoice-viewer')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    if (!selectedId) return undefined;
+    // Instant, one frame later: the chart unmounts in this same commit, and a
+    // smooth scroll started now gets cancelled by that height change.
+    const frame = window.requestAnimationFrame(() => {
+      window.document.getElementById('invoice-viewer')?.scrollIntoView?.({ block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [selectedId]);
 
   const handleViewInvoice = (sha256) => {
