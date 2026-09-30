@@ -230,9 +230,10 @@ const InvoiceViewer = ({
     }
   };
 
-  // `#view=FitH` makes the browser's PDF viewer fit the page to the frame's
-  // width instead of opening at its default zoom with half the page hidden.
-  const pdfSrc = url ? `${url}#view=FitH` : null;
+  // Open the browser's PDF viewer showing the WHOLE page (`view=Fit`) and
+  // without its thumbnail sidebar (`navpanes=0`), which otherwise eats a
+  // third of the frame for a one-page invoice.
+  const pdfSrc = url ? `${url}#navpanes=0&view=Fit` : null;
 
   return (
     <div className="order-first flex flex-col rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] lg:order-none lg:sticky lg:top-0 lg:h-[calc(100vh-11rem)]">
