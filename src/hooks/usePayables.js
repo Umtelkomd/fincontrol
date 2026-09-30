@@ -4,7 +4,6 @@ import {
   addDoc,
   arrayUnion,
   collection,
-  deleteDoc,
   doc,
   getDocs,
   limit,
@@ -15,6 +14,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { adaptPayableDoc } from '../finance/adapters';
 import {
@@ -26,6 +26,7 @@ import { assertPayablePaymentAllowed } from '../finance/opsControl';
 import { LUMEN_SOURCE_SYSTEM, normalizeProjectCode } from '../finance/lumenContract';
 import { db, appId } from '../services/firebase';
 import { writeAuditLogEntry } from '../utils/auditLog';
+import { buildConvertedPayload, conversionBlocker } from '../finance/obligationConversion';
 import { applyCorrection, CORRECTION_TARGET } from '../lib/finance/documentLifecycle';
 
 const CORRECTION_LABELS = {
@@ -446,54 +447,31 @@ export const usePayables = (user) => {
     }
   };
 
+  /**
+   * convertToReceivable — a CXP loaded on the wrong side. Creates the CXC twin and
+   * deletes the original in ONE batch (src/finance/obligationConversion.js
+   * decides what may be converted and what is carried over).
+   */
   const convertToReceivable = async (payable) => {
     if (!user) return { success: false };
-    if ((payable.paidAmount || 0) > 0) {
-      return { success: false, error: new Error('No se puede convertir una CXP con pagos registrados') };
-    }
+    const blocker = conversionBlocker(payable, 'payable');
+    if (blocker) return { success: false, error: new Error(blocker) };
 
     try {
-      const amount = clampMoney(payable.grossAmount ?? payable.amount ?? 0);
-      const receivablesRef = collection(db, 'artifacts', appId, 'public', 'data', 'receivables');
+      const nowIso = new Date().toISOString();
+      const { auditTrail, ...fields } = buildConvertedPayload(payable, 'payable', user.email, nowIso);
+      const targetRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'receivables'));
+      const sourceRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
 
-      const payload = {
-        accountId: payable.accountId || MAIN_ACCOUNT_ID,
-        currency: payable.currency || DEFAULT_CURRENCY,
-        client: payable.counterpartyName || payable.vendor || '',
-        counterpartyName: payable.counterpartyName || payable.vendor || '',
-        documentNumber: payable.documentNumber || payable.invoiceNumber || '',
-        invoiceNumber: payable.documentNumber || payable.invoiceNumber || '',
-        projectId: payable.projectId || '',
-        projectName: payable.projectName || '',
-        costCenterId: payable.costCenterId || '',
-        description: payable.description || '',
-        grossAmount: amount,
-        amount,
-        openAmount: amount,
-        pendingAmount: amount,
-        paidAmount: 0,
-        issueDate: payable.issueDate || null,
-        dueDate: payable.dueDate || null,
-        paymentTerms: payable.paymentTerms || 'net30',
-        status: 'issued',
-        payments: [],
-        notes: payable.notes || '',
-        _convertedFrom: { collection: 'payables', id: payable.id },
-        createdBy: user.email,
+      const batch = writeBatch(db);
+      batch.set(targetRef, {
+        ...fields,
         createdAt: serverTimestamp(),
-        updatedBy: user.email,
         updatedAt: serverTimestamp(),
-        auditTrail: arrayUnion({
-          action: 'create',
-          user: user.email,
-          timestamp: new Date().toISOString(),
-          detail: `Convertida desde CXP (ID: ${payable.id}) por corrección de error`,
-        }),
-      };
-
-      const newDocRef = await addDoc(receivablesRef, payload);
-      const payableRef = doc(db, 'artifacts', appId, 'public', 'data', 'payables', payable.id);
-      await deleteDoc(payableRef);
+        auditTrail: arrayUnion(...auditTrail),
+      });
+      batch.delete(sourceRef);
+      await batch.commit();
 
       await writeAuditLogEntry({
         action: 'convert',
@@ -501,12 +479,12 @@ export const usePayables = (user) => {
         entityId: payable.id,
         description: `CXP convertida a CXC: ${payable.documentNumber || payable.counterpartyName || payable.id}`,
         userEmail: user.email,
-        before: buildPayableSnapshot(payable),
-        after: { convertedTo: 'receivable', newId: newDocRef.id },
-        metadata: { source: 'cxp-to-cxc-conversion', newReceivableId: newDocRef.id },
+        before: buildPayableSnapshot(payable.raw || payable),
+        after: { convertedTo: 'receivable', newId: targetRef.id },
+        metadata: { source: 'cxp-to-cxc-conversion', newReceivableId: targetRef.id },
       });
 
-      return { success: true, newId: newDocRef.id };
+      return { success: true, newId: targetRef.id };
     } catch (error) {
       logError('Error converting payable to receivable:', error);
       return { success: false, error };

@@ -36,6 +36,7 @@ import { useFinanceLedgerContext } from '../../contexts/FinanceLedgerContext';
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPIGrid, KPI, Badge, Button } from '@/components/ui/nexus';
+import { conversionBlocker } from '../../finance/obligationConversion';
 
 const statusLabels = {
  issued: 'Emitida',
@@ -586,14 +587,14 @@ const CXCIndependiente = ({ user, userRole }) => {
  >
  Editar
  </Button>
- {userRole === 'admin' && (
+ {canAct && (
  <Button
  variant="ghost"
  size="sm"
  icon={ArrowLeftRight}
- disabled={row.source !== 'receivable' || (row.paidAmount || 0) > 0 || row.status === 'cancelled'}
+ disabled={row.source !== 'receivable' || Boolean(conversionBlocker(row, 'receivable'))}
  onClick={() => setConvertingRecord(row)}
- title={(row.paidAmount || 0) > 0 ? 'No convertible: tiene cobros registrados' : 'Convertir a CXP'}
+ title={conversionBlocker(row, 'receivable') || 'Convertir a CXP'}
  >
  → CXP
  </Button>
