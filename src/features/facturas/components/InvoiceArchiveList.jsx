@@ -40,19 +40,19 @@ const InvoiceArchiveList = ({ documents = [], loading = false, compact = false, 
   const rows = filtered.map((document) => ({ ...document, id: document.id }));
 
   // Beside the open PDF there is no room for six columns: one two-line cell
-  // (counterparty / date · type · nº) plus the amount keeps everything visible.
+  // (counterparty / type nº · date) plus the amount keeps everything visible.
   const compactColumns = [
     {
       key: 'counterpartyName',
       label: 'Factura',
       render: (row) => (
         <div className="min-w-0">
-          <span className="block max-w-[13rem] truncate 2xl:max-w-[17rem]" title={row.counterpartyName}>
+          <span className="block max-w-[12rem] truncate 2xl:max-w-[16rem]" title={row.counterpartyName}>
             {row.counterpartyName || '—'}
           </span>
-          <span className="label-mono mt-0.5 block whitespace-nowrap text-[var(--color-fg-4)]">
-            {row.issueDate ? formatDate(row.issueDate) : '—'} · {row.direction === 'incoming' ? 'CXP' : 'CXC'} ·{' '}
-            {row.invoiceNumber || '—'}
+          <span className="label-mono mt-0.5 block max-w-[12rem] truncate text-[var(--color-fg-4)] 2xl:max-w-[16rem]">
+            {row.direction === 'incoming' ? 'CXP' : 'CXC'} {row.invoiceNumber || '—'} ·{' '}
+            {row.issueDate ? formatDate(row.issueDate) : '—'}
           </span>
         </div>
       ),
@@ -120,7 +120,7 @@ const InvoiceArchiveList = ({ documents = [], loading = false, compact = false, 
   return (
     <div
       className={`rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4 ${
-        compact ? 'lg:sticky lg:top-0 lg:flex lg:h-[calc(100vh-11rem)] lg:flex-col' : ''
+        compact ? 'lg:sticky lg:top-0 lg:flex lg:h-[calc(100vh-15rem)] lg:flex-col' : ''
       }`}
     >
       <div

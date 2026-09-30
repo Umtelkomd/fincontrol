@@ -5,7 +5,7 @@
  * obligation candidates the intake wizard links against) with its own
  * invoiceDocuments subscription (useInvoiceDocuments).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/nexus';
 import { db, appId } from '../../services/firebase';
@@ -169,6 +169,14 @@ const Facturas = ({ user, userRole }) => {
 
   const selectedDocument = documents.find((document) => document.id === selectedId) || null;
 
+  // Opening an invoice scrolls the viewer to the top of the page area, where
+  // it is sticky and exactly viewport-high — otherwise the page header above
+  // it pushes the bottom of the PDF out of view.
+  useEffect(() => {
+    if (!selectedId) return;
+    window.document.getElementById('invoice-viewer')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  }, [selectedId]);
+
   const handleViewInvoice = (sha256) => {
     setSelectedId(sha256);
     setIntakeOpen(false);
@@ -218,7 +226,7 @@ const Facturas = ({ user, userRole }) => {
       <div
         className={
           selectedDocument
-            ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'
+            ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]'
             : 'grid gap-4'
         }
       >
