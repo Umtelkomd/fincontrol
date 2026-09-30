@@ -187,9 +187,11 @@ const Facturas = ({ user, userRole }) => {
         }
       />
 
+      {/* While an invoice is open the PDF is the focus: the chart steps
+          aside so list + viewer start right under the header. */}
       {ledger.loading ? (
         <p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>
-      ) : (
+      ) : selectedDocument ? null : (
         <MonthlyInvoicingChart
           movements={ledger.postedMovements}
           receivables={ledger.receivables}
@@ -213,26 +215,36 @@ const Facturas = ({ user, userRole }) => {
         />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <div
+        className={
+          selectedDocument
+            ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'
+            : 'grid gap-4'
+        }
+      >
         <InvoiceArchiveList
           documents={documents}
           loading={documentsLoading}
+          compact={Boolean(selectedDocument)}
+          selectedId={selectedId}
           onSelect={(document) => setSelectedId(document.id)}
         />
-        <InvoiceViewer
-          document={selectedDocument}
-          user={user}
-          userRole={userRole}
-          payables={ledger.payables}
-          receivables={ledger.receivables}
-          bankMovements={ledger.postedMovements}
-          projects={ledger.projects}
-          onClose={() => setSelectedId(null)}
-          onEditInvoice={handleEditInvoice}
-          onReplaceInvoice={handleReplaceInvoice}
-          onDeleteInvoice={handleDeleteInvoice}
-          onSwitchSide={handleSwitchSide}
-        />
+        {selectedDocument && (
+          <InvoiceViewer
+            document={selectedDocument}
+            user={user}
+            userRole={userRole}
+            payables={ledger.payables}
+            receivables={ledger.receivables}
+            bankMovements={ledger.postedMovements}
+            projects={ledger.projects}
+            onClose={() => setSelectedId(null)}
+            onEditInvoice={handleEditInvoice}
+            onReplaceInvoice={handleReplaceInvoice}
+            onDeleteInvoice={handleDeleteInvoice}
+            onSwitchSide={handleSwitchSide}
+          />
+        )}
       </div>
     </div>
   );

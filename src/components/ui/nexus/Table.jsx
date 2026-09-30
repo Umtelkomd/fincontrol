@@ -9,6 +9,7 @@
  *   - align: 'left' | 'right' | 'center'
  *
  * rows: any[] (each must have a stable .id)
+ * rowClassName: (row) => string, optional extra classes per row (e.g. selected)
  *
  * Use <Panel> as the wrapper for a titled table.
  */
@@ -27,6 +28,7 @@ const Table = ({
   loading = false,
   rowKey = 'id',
   onRowClick,
+  rowClassName,
   className = '',
 }) => {
   if (loading) {
@@ -65,6 +67,7 @@ const Table = ({
           {rows.map((row) => (
             <tr
               key={row[rowKey]}
+              className={rowClassName?.(row) || undefined}
               {...(onRowClick ? rowButtonProps(() => onRowClick(row)) : {})}
             >
               {columns.map((c) => {
