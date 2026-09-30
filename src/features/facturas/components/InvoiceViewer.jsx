@@ -43,12 +43,15 @@ const STATUS_BADGE_VARIANT = {
 const AUDIT_FAILED_MESSAGE =
   'La corrección se guardó, pero no se pudo registrar en la auditoría. Anota el motivo y avisa al administrador.';
 
-/** `invoiceNumber || numeroPresupuesto` + status for a linked payable/receivable row. */
+/** `documentNumber || invoiceNumber || numeroPresupuesto` + status for a linked payable/receivable row. */
 const resolveLinkLabel = (link, { payables, receivables }) => {
   const rows = link.family === 'payable' ? payables : receivables;
   const row = (rows || []).find((candidate) => candidate.id === link.recordId);
   if (!row) return { label: link.recordId, status: null };
-  return { label: row.invoiceNumber || row.numeroPresupuesto || link.recordId, status: row.status || null };
+  return {
+    label: row.documentNumber || row.invoiceNumber || row.numeroPresupuesto || link.recordId,
+    status: row.status || null,
+  };
 };
 
 const Field = ({ label, children }) => (
@@ -227,106 +230,131 @@ const InvoiceViewer = ({
     }
   };
 
+  // `#view=FitH` makes the browser's PDF viewer fit the page to the frame's
+  // width instead of opening at its default zoom with half the page hidden.
+  const pdfSrc = url ? `${url}#view=FitH` : null;
+
   return (
-    <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] p-4">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="label-mono text-[var(--color-fg-3)]">Factura</p>
-          <h3 className="font-display mt-1 truncate text-[18px] font-medium tracking-tight text-[var(--color-fg-1)]">
-            {document.counterpartyName}
-          </h3>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Cerrar
-        </Button>
-      </div>
-
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Field label="Nº">{document.invoiceNumber || '—'}</Field>
-        <Field label="Fecha">{document.issueDate ? formatDate(document.issueDate) : '—'}</Field>
-        <Field label="Origen">{document.sourceSystem === 'insyte' ? 'Insyte' : 'Ordinaria'}</Field>
-        <Field label="Neto">
-          <span className="font-mono">{formatCurrency(document.netAmount)}</span>
-        </Field>
-        <Field label="IVA">
-          <span className="font-mono">{formatCurrency(document.taxAmount)}</span>
-        </Field>
-        <Field label="Bruto">
-          <span className="font-mono">{formatCurrency(document.grossAmount)}</span>
-        </Field>
-      </dl>
-
-      {links.length > 0 && (
-        <div className="mt-4">
-          <p className="label-mono text-[var(--color-fg-4)]">Vínculos</p>
-          <ul className="mt-1 space-y-1 text-sm text-[var(--color-fg-2)]">
-            {links.map((link) => {
-              const { label, status } = resolveLinkLabel(link, { payables, receivables });
-              return (
-                <li key={`${link.family}-${link.recordId}`} className="flex items-center gap-2">
-                  <span>{label}</span>
-                  {status && (
-                    <Badge variant={STATUS_BADGE_VARIANT[status] || 'neutral'}>
-                      {STATUS_LABELS[status] || status}
-                    </Badge>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <a
-          href={url || undefined}
-          download={document.originalName}
-          aria-disabled={!url}
-          className={`nx-btn nx-btn-secondary ${!url ? 'pointer-events-none opacity-50' : ''}`}
-        >
-          Descargar
-        </a>
-
-        {canAct && (
-          <>
-            <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
-              Editar
-            </Button>
-            <Button variant="secondary" size="sm" onClick={handleReplaceClick} loading={replacing} disabled={replacing}>
-              Reemplazar PDF
-            </Button>
-            <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleReplaceFile} />
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setSwitchOpen(true)}
-              disabled={Boolean(switchBlocker)}
-              title={switchBlocker || `Esta factura está como ${FAMILY_LABEL[currentFamily]}: pasarla a ${FAMILY_LABEL[targetFamily]}`}
+    <div className="order-first flex flex-col rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] lg:order-none lg:sticky lg:top-0 lg:h-[calc(100vh-11rem)]">
+      <div className="flex-shrink-0 border-b border-[var(--color-line)] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge variant={currentFamily === 'payable' ? 'warn' : 'info'}>{FAMILY_LABEL[currentFamily]}</Badge>
+              <p className="label-mono truncate text-[var(--color-fg-3)]">
+                {document.invoiceNumber || '—'} · {document.issueDate ? formatDate(document.issueDate) : '—'} ·{' '}
+                {document.sourceSystem === 'insyte' ? 'Insyte' : 'Ordinaria'}
+              </p>
+            </div>
+            <h3
+              className="font-display mt-1.5 truncate text-[20px] font-medium tracking-tight text-[var(--color-fg-1)]"
+              title={document.counterpartyName}
             >
-              Cambiar a {FAMILY_LABEL[targetFamily]}
-            </Button>
-            <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
-              Eliminar
-            </Button>
-          </>
-        )}
+              {document.counterpartyName}
+            </h3>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cerrar
+          </Button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <dl className="flex flex-wrap gap-x-6 gap-y-2">
+            <Field label="Neto">
+              <span className="font-mono">{formatCurrency(document.netAmount)}</span>
+            </Field>
+            <Field label="IVA">
+              <span className="font-mono">{formatCurrency(document.taxAmount)}</span>
+            </Field>
+            <Field label="Bruto">
+              <span className="font-mono font-medium">{formatCurrency(document.grossAmount)}</span>
+            </Field>
+            {links.length > 0 && (
+              <div>
+                <dt className="label-mono text-[var(--color-fg-4)]">Vínculos</dt>
+                <dd className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-[var(--color-fg-2)]">
+                  {links.map((link) => {
+                    const { label, status } = resolveLinkLabel(link, { payables, receivables });
+                    return (
+                      <span key={`${link.family}-${link.recordId}`} className="flex items-center gap-1.5">
+                        <span className="font-mono">
+                          {FAMILY_LABEL[link.family]} {label}
+                        </span>
+                        {status && (
+                          <Badge variant={STATUS_BADGE_VARIANT[status] || 'neutral'}>
+                            {STATUS_LABELS[status] || status}
+                          </Badge>
+                        )}
+                      </span>
+                    );
+                  })}
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={url || undefined}
+              download={document.originalName}
+              aria-disabled={!url}
+              className={`nx-btn nx-btn-secondary nx-btn-sm ${!url ? 'pointer-events-none opacity-50' : ''}`}
+            >
+              Descargar
+            </a>
+            {url && (
+              <a href={url} target="_blank" rel="noreferrer" className="nx-btn nx-btn-secondary nx-btn-sm">
+                Abrir
+              </a>
+            )}
+
+            {canAct && (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+                  Editar
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleReplaceClick} loading={replacing} disabled={replacing}>
+                  Reemplazar PDF
+                </Button>
+                <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleReplaceFile} />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSwitchOpen(true)}
+                  disabled={Boolean(switchBlocker)}
+                  title={switchBlocker || `Esta factura está como ${FAMILY_LABEL[currentFamily]}: pasarla a ${FAMILY_LABEL[targetFamily]}`}
+                >
+                  Cambiar a {FAMILY_LABEL[targetFamily]}
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
+                  Eliminar
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-4">
-        {loading && <p className="label-mono text-[var(--color-fg-3)]">Cargando…</p>}
+      <div className="flex min-h-[75vh] flex-1 flex-col p-2 lg:min-h-0">
+        {loading && (
+          <div className="flex flex-1 items-center justify-center">
+            <p className="label-mono text-[var(--color-fg-3)]">Cargando PDF…</p>
+          </div>
+        )}
         {errorMessage && (
-          <div className="nx-alert nx-alert-err flex flex-wrap items-center justify-between gap-3">
+          <div className="nx-alert nx-alert-err m-2 flex flex-wrap items-center justify-between gap-3">
             <p>{errorMessage}</p>
             <Button variant="secondary" size="sm" onClick={retry}>
               Reintentar
             </Button>
           </div>
         )}
-        {url && !loading && !errorMessage && (
+        {pdfSrc && !loading && !errorMessage && (
           <iframe
+            key={pdfSrc}
             title={`Factura ${document.invoiceNumber}`}
-            src={url}
-            className="h-[70vh] w-full rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)]"
+            src={pdfSrc}
+            className="w-full flex-1 rounded-md border border-[var(--color-line)] bg-[var(--color-bg-0)]"
           />
         )}
       </div>
