@@ -39,7 +39,34 @@ const InvoiceArchiveList = ({ documents = [], loading = false, compact = false, 
 
   const rows = filtered.map((document) => ({ ...document, id: document.id }));
 
-  const columns = [
+  // Beside the open PDF there is no room for six columns: one two-line cell
+  // (counterparty / date · type · nº) plus the amount keeps everything visible.
+  const compactColumns = [
+    {
+      key: 'counterpartyName',
+      label: 'Factura',
+      render: (row) => (
+        <div className="min-w-0">
+          <span className="block max-w-[13rem] truncate 2xl:max-w-[17rem]" title={row.counterpartyName}>
+            {row.counterpartyName || '—'}
+          </span>
+          <span className="label-mono mt-0.5 block whitespace-nowrap text-[var(--color-fg-4)]">
+            {row.issueDate ? formatDate(row.issueDate) : '—'} · {row.direction === 'incoming' ? 'CXP' : 'CXC'} ·{' '}
+            {row.invoiceNumber || '—'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'grossAmount',
+      label: 'Bruto',
+      align: 'right',
+      mono: true,
+      render: (row) => <span className="whitespace-nowrap">{formatCurrency(row.grossAmount)}</span>,
+    },
+  ];
+
+  const fullColumns = [
     {
       key: 'issueDate',
       label: 'Fecha',
@@ -54,10 +81,7 @@ const InvoiceArchiveList = ({ documents = [], loading = false, compact = false, 
       key: 'counterpartyName',
       label: 'Contraparte',
       render: (row) => (
-        <span
-          className={`block truncate ${compact ? 'max-w-[9rem] 2xl:max-w-[12rem]' : 'max-w-[22rem]'}`}
-          title={row.counterpartyName}
-        >
+        <span className="block max-w-[22rem] truncate" title={row.counterpartyName}>
           {row.counterpartyName || '—'}
         </span>
       ),
@@ -74,7 +98,7 @@ const InvoiceArchiveList = ({ documents = [], loading = false, compact = false, 
       mono: true,
       render: (row) => <span className="whitespace-nowrap">{formatCurrency(row.grossAmount)}</span>,
     },
-    ...(compact ? [] : [{
+    {
       key: 'links',
       label: 'Vínculos',
       align: 'right',
@@ -88,8 +112,10 @@ const InvoiceArchiveList = ({ documents = [], loading = false, compact = false, 
           {row.originalName}
         </span>
       ),
-    }]),
+    },
   ];
+
+  const columns = compact ? compactColumns : fullColumns;
 
   return (
     <div
