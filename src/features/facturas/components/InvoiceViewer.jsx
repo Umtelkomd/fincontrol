@@ -236,7 +236,10 @@ const InvoiceViewer = ({
   const pdfSrc = url ? `${url}#navpanes=0&view=Fit` : null;
 
   return (
-    <div className="order-first flex flex-col rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] lg:order-none lg:sticky lg:top-0 lg:h-[calc(100vh-11rem)]">
+    <div
+      id="invoice-viewer"
+      className="order-first flex flex-col rounded-lg border border-[var(--color-line)] bg-[var(--color-bg-1)] lg:order-none lg:sticky lg:top-0 lg:h-[calc(100vh-15rem)]"
+    >
       <div className="flex-shrink-0 border-b border-[var(--color-line)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
