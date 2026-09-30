@@ -16,6 +16,7 @@ import { formatCurrency, formatDate } from '../../../utils/formatters';
 import { ARCHIVE_ERROR_MESSAGES } from '../lib/invoiceArchiveStore';
 import { useInvoicePdfBlob } from '../hooks/useInvoicePdfBlob';
 import InvoiceEditModal from './InvoiceEditModal';
+import { FAMILY_LABEL, switchSideBlocker } from '../lib/switchSide';
 
 // Same vocabulary/labels as src/features/cxp/CXPIndependiente.jsx's statusLabels,
 // so a linked obligation reads identically here and in its own CXP/CXC list.
@@ -69,6 +70,7 @@ const InvoiceViewer = ({
   onEditInvoice,
   onReplaceInvoice,
   onDeleteInvoice,
+  onSwitchSide,
 }) => {
   const { showToast } = useToast();
   const sha256 = document?.id;
@@ -76,6 +78,7 @@ const InvoiceViewer = ({
   const fileInputRef = useRef(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [cancelOwnedChecked, setCancelOwnedChecked] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [replacing, setReplacing] = useState(false);
@@ -109,6 +112,28 @@ const InvoiceViewer = ({
     : lockState.locked
       ? lockState.reasons.join('; ')
       : '';
+
+  const currentFamily = document.direction === 'incoming' ? 'payable' : 'receivable';
+  const targetFamily = currentFamily === 'payable' ? 'receivable' : 'payable';
+  const switchBlocker = switchSideBlocker({ invoiceDocument: document, obligations, bankMovements });
+
+  const handleSwitchConfirm = async (reason) => {
+    try {
+      const result = await onSwitchSide?.(document, reason);
+      if (result?.success) {
+        showToast(
+          result.auditFailed ? AUDIT_FAILED_MESSAGE : `Factura cambiada de ${result.from} a ${result.to}. Revisa la categoría.`,
+          result.auditFailed ? 'warning' : 'success',
+        );
+        return true;
+      }
+      showToast(result?.error?.message || 'No se pudo cambiar el tipo de la factura', 'error');
+      return false;
+    } catch (thrown) {
+      showToast(thrown?.message || 'No se pudo cambiar el tipo de la factura', 'error');
+      return false;
+    }
+  };
 
   const handleEditSubmit = async (form) => {
     setSavingEdit(true);
@@ -271,6 +296,15 @@ const InvoiceViewer = ({
               Reemplazar PDF
             </Button>
             <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleReplaceFile} />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSwitchOpen(true)}
+              disabled={Boolean(switchBlocker)}
+              title={switchBlocker || `Esta factura está como ${FAMILY_LABEL[currentFamily]}: pasarla a ${FAMILY_LABEL[targetFamily]}`}
+            >
+              Cambiar a {FAMILY_LABEL[targetFamily]}
+            </Button>
             <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
               Eliminar
             </Button>
@@ -325,6 +359,25 @@ const InvoiceViewer = ({
           details={[
             { label: 'Factura', value: document.invoiceNumber || document.id, emphasis: true },
             { label: 'Archivo nuevo', value: pendingReplaceFile?.originalName || '—' },
+          ]}
+        />
+      )}
+
+      {canAct && (
+        <ConfirmModal
+          isOpen={switchOpen}
+          onClose={() => setSwitchOpen(false)}
+          onConfirm={handleSwitchConfirm}
+          title={`Cambiar factura de ${FAMILY_LABEL[currentFamily]} a ${FAMILY_LABEL[targetFamily]}`}
+          message={`La factura y su ${FAMILY_LABEL[currentFamily]} pasan a ${FAMILY_LABEL[targetFamily]} con el mismo número, contraparte, importes, fechas, proyecto y centro de costo. El PDF se mantiene. La categoría queda vacía: asígnala después.`}
+          confirmText={`Cambiar a ${FAMILY_LABEL[targetFamily]}`}
+          variant="warning"
+          reasonLabel="Motivo"
+          reasonPlaceholder="Ej. factura de proveedor cargada como emitida…"
+          details={[
+            { label: 'Factura', value: document.invoiceNumber || document.id, emphasis: true },
+            { label: 'Contraparte', value: document.counterpartyName || '—' },
+            { label: 'Bruto', value: formatCurrency(document.grossAmount) },
           ]}
         />
       )}

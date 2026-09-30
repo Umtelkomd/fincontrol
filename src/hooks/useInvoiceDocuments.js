@@ -237,6 +237,47 @@ export const useInvoiceDocuments = (user) => {
   };
 
   /**
+   * switchInvoiceSide — SWITCH SIDE (src/features/facturas/lib/switchSide.js):
+   * one atomic batch flips the archive doc's direction/family/identity, and —
+   * when it has a linked obligation — creates the twin in the other
+   * collection, deletes the original and re-points the archive link. Never a
+   * half-state: either the invoice is on the new side with its PDF, or
+   * nothing changed.
+   * @returns {Promise<{ success: boolean, newId?: string, error?: Error }>}
+   */
+  const switchInvoiceSide = async (sha256, plan) => {
+    if (!plan?.valid) return { success: false, error: new Error(plan?.error || 'Plan inválido') };
+    try {
+      const batch = writeBatch(db);
+      const archiveRef = doc(db, 'artifacts', appId, 'public', 'data', 'invoiceDocuments', sha256);
+      const archiveUpdate = { ...plan.archivePatch, updatedAt: serverTimestamp() };
+      let newId;
+
+      if (plan.obligation) {
+        const { fromFamily, id, payload } = plan.obligation;
+        const { auditTrail, ...fields } = payload;
+        const targetRef = doc(collection(db, 'artifacts', appId, 'public', 'data', collectionForFamily(plan.toFamily)));
+        newId = targetRef.id;
+        batch.set(targetRef, {
+          ...fields,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          auditTrail: arrayUnion(...auditTrail),
+        });
+        batch.delete(doc(db, 'artifacts', appId, 'public', 'data', collectionForFamily(fromFamily), id));
+        archiveUpdate.links = [{ family: plan.toFamily, recordId: newId }];
+      }
+
+      batch.update(archiveRef, archiveUpdate);
+      await batch.commit();
+      return { success: true, newId };
+    } catch (switchError) {
+      logError('Error switching invoice side:', switchError);
+      return { success: false, error: switchError };
+    }
+  };
+
+  /**
    * findInvoiceDocument — REPLACE: an authoritative single-document read
    * (bypasses the onSnapshot-fed `documents` list, which can lag by however
    * long the listener takes to catch up) used ONLY to check whether the new
@@ -262,6 +303,7 @@ export const useInvoiceDocuments = (user) => {
     removeInvoiceLink,
     swapInvoiceLink,
     findInvoiceDocument,
+    switchInvoiceSide,
   };
 };
 
