@@ -33,6 +33,7 @@ import { isoWeekLabel, payableIsOpsCleared, payableRequiresOpsClear } from '../.
 import { rowButtonProps } from '../../utils/a11y';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { KPIGrid, KPI, Badge, Button } from '@/components/ui/nexus';
+import { conversionBlocker } from '../../finance/obligationConversion';
 
 const statusLabels = {
  issued: 'Emitida',
@@ -496,14 +497,14 @@ const CXPIndependiente = ({ user, userRole }) => {
  >
  Editar
  </Button>
- {userRole === 'admin' && (
+ {canAct && (
  <Button
  variant="ghost"
  size="sm"
  icon={ArrowLeftRight}
- disabled={row.source !== 'payable' || (row.paidAmount || 0) > 0 || row.status === 'cancelled'}
+ disabled={row.source !== 'payable' || Boolean(conversionBlocker(row, 'payable'))}
  onClick={() => setConvertingRecord(row)}
- title={(row.paidAmount || 0) > 0 ? 'No convertible: tiene pagos registrados' : 'Convertir a CXC'}
+ title={conversionBlocker(row, 'payable') || 'Convertir a CXC'}
  >
  → CXC
  </Button>
