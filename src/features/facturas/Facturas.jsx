@@ -15,6 +15,7 @@ import { useClassificationRules } from '../../hooks/useClassificationRules';
 import { writeAuditLogEntry } from '../../utils/auditLog';
 import { applyInvoiceDelete, applyInvoiceEdit, applyInvoiceReplace } from './lib/amend';
 import { deleteInvoicePdf, uploadInvoicePdf } from './lib/invoiceArchiveStore';
+import { FAMILY_LABEL, planInvoiceSwitchSide } from './lib/switchSide';
 import MonthlyInvoicingChart from './components/MonthlyInvoicingChart';
 import InvoiceIntakePanel from './components/InvoiceIntakePanel';
 import InvoiceArchiveList from './components/InvoiceArchiveList';
@@ -31,6 +32,7 @@ const Facturas = ({ user, userRole }) => {
     removeInvoiceLink,
     swapInvoiceLink,
     findInvoiceDocument,
+    switchInvoiceSide,
   } = useInvoiceDocuments(user);
   // Feeds InvoiceIntakePanel's classification suggester (T5, acceptance #1):
   // rules come from the same hook every other classification surface uses
@@ -56,7 +58,9 @@ const Facturas = ({ user, userRole }) => {
           ? `Factura archivada corregida: ${entry.before?.invoiceNumber || entry.entityId}`
           : entry.action === 'delete'
             ? `Factura archivada eliminada: ${entry.before?.invoiceNumber || entry.entityId}`
-            : `PDF de factura reemplazado: ${entry.before?.invoiceNumber || entry.entityId}`,
+            : entry.action === 'switch-side'
+              ? `Factura archivada cambiada de ${entry.metadata?.from} a ${entry.metadata?.to}: ${entry.before?.invoiceNumber || entry.entityId}`
+              : `PDF de factura reemplazado: ${entry.before?.invoiceNumber || entry.entityId}`,
       userEmail: user.email,
       before: entry.before,
       metadata: { reason: entry.reason || '', partial: Boolean(entry.partial), ...(entry.metadata || {}) },
@@ -124,6 +128,45 @@ const Facturas = ({ user, userRole }) => {
       },
     );
 
+  /**
+   * SWITCH SIDE — the invoice was archived as CXC but is a CXP (or the
+   * reverse). planInvoiceSwitchSide refuses anything carrying money; the
+   * hook commits archive + obligation in one batch.
+   */
+  const handleSwitchSide = async (invoiceDocument, reason) => {
+    const plan = planInvoiceSwitchSide({
+      invoiceDocument,
+      obligations,
+      bankMovements: ledger.postedMovements,
+      reason,
+      userEmail: user.email,
+      nowIso: new Date().toISOString(),
+    });
+    if (!plan.valid) return { success: false, error: new Error(plan.error) };
+    const result = await switchInvoiceSide(invoiceDocument.id, plan);
+    if (!result.success) return result;
+    const from = FAMILY_LABEL[plan.fromFamily];
+    const to = FAMILY_LABEL[plan.toFamily];
+    try {
+      await writeAmendAudit({
+        action: 'switch-side',
+        entityType: 'invoiceDocument',
+        entityId: invoiceDocument.id,
+        before: invoiceDocument,
+        reason,
+        metadata: {
+          from,
+          to,
+          fromObligationId: plan.obligation?.id || '',
+          toObligationId: result.newId || '',
+        },
+      });
+      return { ...result, from, to };
+    } catch (auditError) {
+      return { ...result, from, to, auditFailed: true, auditError };
+    }
+  };
+
   const selectedDocument = documents.find((document) => document.id === selectedId) || null;
 
   const handleViewInvoice = (sha256) => {
@@ -188,6 +231,7 @@ const Facturas = ({ user, userRole }) => {
           onEditInvoice={handleEditInvoice}
           onReplaceInvoice={handleReplaceInvoice}
           onDeleteInvoice={handleDeleteInvoice}
+          onSwitchSide={handleSwitchSide}
         />
       </div>
     </div>
