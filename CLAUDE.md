@@ -7,8 +7,18 @@ React 19 + Vite + Firebase + Tailwind v4 + Recharts.
 ## Quick Start
 ```bash
 cd ~/Dev/fincontrol
-npm run dev          # localhost:5173
+npm run dev          # localhost:5173 — talks to PRODUCTION Firebase (real data)
 npm run build && npx -y firebase-tools deploy --only hosting   # deploy (predeploy hook rebuilds)
+```
+
+### Local dev without touching production
+Requires Java 21+ (`brew install openjdk@21`). Uses the `demo-fincontrol`
+project, which cannot reach real Firebase resources; emulator data is wiped
+when the emulators stop.
+```bash
+npm run emulators      # terminal 1: Auth (9099) + Firestore (8080) emulators
+npm run seed:emulator  # once per emulator start: admin@fincontrol.local / fincontrol
+npm run dev:emulator   # terminal 2: app on localhost:5173 against the emulators
 ```
 
 ## Repo & Deploy

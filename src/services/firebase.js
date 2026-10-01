@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import {
+  connectFirestoreEmulator,
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
@@ -52,9 +53,26 @@ const createFirestore = (firebaseApp) => {
   }
 };
 
+// Local development against the Firebase emulators (`npm run dev:emulator`,
+// which overrides the project env vars). The emulators only ever run under a `demo-`
+// project, which Firebase guarantees can never reach real resources — so a
+// misconfigured .env cannot silently point an emulator session at production.
+const useEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+if (useEmulators && !firebaseConfig.projectId.startsWith('demo-')) {
+  throw new Error(
+    `Firebase emulator mode requires a demo- project, got "${firebaseConfig.projectId}". ` +
+      'Start the app with `npm run dev:emulator`.'
+  );
+}
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = createFirestore(app);
+
+if (useEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099');
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
 
 // Tenant key — must match the appId used in Firestore rules. Validated above so
 // data never accidentally mixes under a fallback id.
