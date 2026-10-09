@@ -10,7 +10,9 @@
  * caller actually extracts a PDF. The worker is instantiated via Vite's
  * `?worker` import so it loads as a proper ES module worker (setting
  * workerSrc to a URL makes pdfjs load the ESM worker as a classic worker,
- * which fails in production).
+ * which fails in production). ReadableStream async iteration is polyfilled
+ * first (see readableStreamAsyncIterator.js) — pdfjs v6 needs it, Safari < 27
+ * lacks it.
  *
  * Not unit-tested — it needs the pdfjs worker (jsdom has no Worker/canvas
  * support), so it is exercised only through manual/integration testing of its
@@ -18,6 +20,8 @@
  * modules (e.g. datevPayrollParser.js, invoiceHeaderParser.js), which ARE
  * unit-tested.
  */
+import { installReadableStreamAsyncIterator } from './readableStreamAsyncIterator';
+
 let pdfjsPromise = null;
 
 /** Compute the SHA-256 hex digest of an ArrayBuffer via the Web Crypto API. */
@@ -32,6 +36,7 @@ export const sha256Hex = async (arrayBuffer) => {
 const loadPdfjs = async () => {
   if (!pdfjsPromise) {
     pdfjsPromise = (async () => {
+      installReadableStreamAsyncIterator();
       const pdfjsLib = await import('pdfjs-dist');
       const { default: PdfjsWorker } = await import('pdfjs-dist/build/pdf.worker.min.mjs?worker');
       pdfjsLib.GlobalWorkerOptions.workerPort = new PdfjsWorker();
