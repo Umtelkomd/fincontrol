@@ -27,8 +27,10 @@ Owner chose manual entry for no-text PDFs (no in-app OCR). Fix the Safari root c
 to the pdfjs legacy build.
 
 ## Tasks
-- [ ] 1. Polyfill `ReadableStream.prototype[Symbol.asyncIterator]`/`values` before pdfjs loads; unit test; verify in WebKit.
-- [ ] 2. Invoice intake: when the extracted text is empty, show a notice asking for manual entry; test.
-- [ ] 3. Intake catch: log the real error and stop blaming scanning for every failure; test.
+- [x] 1. Polyfill `ReadableStream.prototype[Symbol.asyncIterator]`/`values` before pdfjs loads; unit test; verify in WebKit.
+- [x] 2. Invoice intake: empty-text notice for manual entry + catch logs the real error with an accurate message; tests.
+  (Former tasks 2 and 3 merged: both change the same extraction handler in `InvoiceIntakePanel.jsx`.)
 
 ## Evidence log
+- Task 1 — `77455f7`. RED: missing module, then no-op stub `4 failed | 2 passed` (`stream is not async iterable`). GREEN: `npx vitest run src/lib/pdf` 6/6; eslint clean. Playwright WebKit + Vite dev server with real `extractPdfText`: BWA PDF ok (2461 chars), honorarios invoice ok (0 chars, no throw); before the fix both threw.
+- Task 2 — see commit below. RED: `npx vitest run src/features/facturas` 5 failed | 173 passed. GREEN: 178/178. Full `npm test` 3302/3302, `npm run lint` clean, `npm run build` ok. Not yet checked by hand in a real Safari.
