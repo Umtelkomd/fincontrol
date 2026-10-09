@@ -13,7 +13,7 @@
  * upload, createObligation, commit.
  */
 import { useReducer, useState } from 'react';
-import { Button } from '../../../components/ui/nexus';
+import { Alert, Button } from '../../../components/ui/nexus';
 import { useToast } from '../../../contexts/ToastContext';
 import { extractPdfText } from '../../../lib/pdf/extractPdfText';
 import { suggestInvoiceHeader } from '../../../finance/invoiceHeaderParser';
@@ -45,6 +45,14 @@ const SOURCE_OPTIONS = [
   { value: 'ordinary', label: 'Ordinaria' },
   { value: 'insyte', label: 'Insyte' },
 ];
+
+const TEXTLESS_NOTICE =
+  'Este PDF no contiene texto legible (puede ser una imagen o un PDF «impreso»). Completa los datos de la factura a mano.';
+
+const extractionErrorMessage = (error) =>
+  error?.name === 'PasswordException'
+    ? 'El PDF está protegido con contraseña. Quita la protección e inténtalo de nuevo.'
+    : 'No se pudo leer el PDF. Revisa que el archivo no esté dañado e inténtalo de nuevo.';
 
 const familyOf = (direction) => (direction === 'incoming' ? 'payable' : 'receivable');
 
@@ -167,6 +175,9 @@ const InvoiceIntakePanel = ({
           bytes,
           evidenceLines: evidence?.lines || [],
           suggestions,
+          // No text layer (scanned or vector-"printed" PDF): still archivable,
+          // but the header has to be entered by hand.
+          textless: !text?.trim(),
         },
       });
       setPdfText(text);
@@ -185,11 +196,9 @@ const InvoiceIntakePanel = ({
           history,
         }),
       });
-    } catch {
-      dispatch({
-        type: 'EXTRACTION_FAILED',
-        message: 'No se pudo leer el PDF. Asegúrate de que sea un PDF con texto (no escaneado).',
-      });
+    } catch (error) {
+      console.error('[InvoiceIntake] PDF extraction failed', error);
+      dispatch({ type: 'EXTRACTION_FAILED', message: extractionErrorMessage(error) });
     }
   };
 
@@ -381,6 +390,8 @@ const InvoiceIntakePanel = ({
 
       {(state.step === 'confirm' || state.step === 'saving') && (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {state.textless && <Alert variant="warn">{TEXTLESS_NOTICE}</Alert>}
+
           <InvoiceHeaderFields idPrefix="facturas" form={state.form} onFieldChange={handleFieldChange} mismatch={mismatch} />
 
           <ClassificationFields

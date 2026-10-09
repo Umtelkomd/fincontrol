@@ -99,6 +99,25 @@ describe('intakeReducer', () => {
     });
   });
 
+  it('EXTRACTION_SUCCEEDED with textless: true stores the flag for a PDF with no text layer', () => {
+    const state = intakeReducer(createInitialIntakeState(), {
+      type: 'EXTRACTION_SUCCEEDED',
+      payload: { hash: 'h', sizeBytes: 1, originalName: 'x.pdf', bytes: new ArrayBuffer(0), textless: true },
+    });
+    expect(state.step).toBe('confirm');
+    expect(state.textless).toBe(true);
+  });
+
+  it('textless is cleared by FILE_PICKED and by a later normal extraction', () => {
+    const textless = intakeReducer(createInitialIntakeState(), {
+      type: 'EXTRACTION_SUCCEEDED',
+      payload: { hash: 'h', textless: true },
+    });
+    expect(createInitialIntakeState().textless).toBe(false);
+    expect(intakeReducer(textless, { type: 'FILE_PICKED' }).textless).toBe(false);
+    expect(intakeReducer(textless, { type: 'EXTRACTION_SUCCEEDED', payload: { hash: 'h2' } }).textless).toBe(false);
+  });
+
   it('EXTRACTION_FAILED moves to the error step with the given message', () => {
     const state = intakeReducer(createInitialIntakeState(), { type: 'EXTRACTION_FAILED', message: 'boom' });
     expect(state.step).toBe('error');

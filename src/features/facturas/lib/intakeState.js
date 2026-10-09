@@ -2,7 +2,9 @@
  * Pure state machine for the invoice PDF intake wizard (InvoiceIntakePanel).
  *
  * Steps: 'choose' -> 'extracting' -> 'confirm' -> 'saving' -> 'done' | 'error'.
- * 'error' is reserved for a failed PDF extraction (unreadable/scanned file);
+ * 'error' is reserved for a failed PDF extraction (damaged/protected file);
+ * a PDF with no text layer (scanned or vector-"printed") is NOT an error: it
+ * reaches 'confirm' with `textless: true` so the header is entered by hand;
  * a failed submission (validation or an archive effect) returns to 'confirm'
  * with an inline `error` message instead, so the user can fix the form without
  * losing the extracted file or their edits.
@@ -44,6 +46,7 @@ export const createInitialIntakeState = () => ({
   selectedCandidateIds: [],
   error: null,
   sha256: null,
+  textless: false,
   classification: { ...EMPTY_CLASSIFICATION },
   touched: { ...UNTOUCHED },
   suggestion: null,
@@ -76,14 +79,16 @@ export const intakeReducer = (state, action) => {
     }
 
     case 'FILE_PICKED':
-      return { ...state, step: 'extracting', error: null };
+      return { ...state, step: 'extracting', error: null, textless: false };
 
     case 'EXTRACTION_SUCCEEDED': {
-      const { hash, sizeBytes, originalName, bytes, evidenceLines = [], suggestions = {} } = action.payload || {};
+      const { hash, sizeBytes, originalName, bytes, evidenceLines = [], suggestions = {}, textless = false } =
+        action.payload || {};
       return {
         ...state,
         step: 'confirm',
         error: null,
+        textless: Boolean(textless),
         file: { hash, sizeBytes, originalName, bytes },
         evidenceLines,
         form: {
@@ -110,6 +115,7 @@ export const intakeReducer = (state, action) => {
         ...state,
         step: 'choose',
         error: null,
+        textless: false,
         file: null,
         evidenceLines: [],
         form: { ...EMPTY_FORM },

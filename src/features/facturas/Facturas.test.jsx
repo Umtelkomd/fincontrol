@@ -333,6 +333,61 @@ describe('Facturas — intake wizard', () => {
   });
 });
 
+describe('Facturas — PDF without a text layer and extraction failures', () => {
+  const TEXTLESS_NOTICE =
+    'Este PDF no contiene texto legible (puede ser una imagen o un PDF «impreso»). Completa los datos de la factura a mano.';
+
+  const pickPdf = () => {
+    mountFacturas();
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva factura' }));
+    fireEvent.change(screen.getByLabelText('PDF de la factura'), { target: { files: [pdfFile()] } });
+  };
+
+  it('goes to the confirm form with empty fields and a manual-entry notice when the PDF has no text', async () => {
+    extractPdfTextMock.mockResolvedValueOnce({ text: '  \n', pageCount: 1, hash: 'c'.repeat(64) });
+    pickPdf();
+
+    const invoiceNumberInput = await screen.findByLabelText('Nº de factura');
+    expect(invoiceNumberInput).toHaveValue('');
+    expect(screen.getByText(TEXTLESS_NOTICE)).toBeInTheDocument();
+  });
+
+  it('does not show the manual-entry notice for a PDF with readable text', async () => {
+    pickPdf();
+
+    await screen.findByLabelText('Nº de factura');
+    expect(screen.queryByText(TEXTLESS_NOTICE)).not.toBeInTheDocument();
+  });
+
+  it('shows a password message when the PDF is password-protected', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    extractPdfTextMock.mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'PasswordException' }));
+    try {
+      pickPdf();
+      expect(
+        await screen.findByText('El PDF está protegido con contraseña. Quita la protección e inténtalo de nuevo.'),
+      ).toBeInTheDocument();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('shows a generic message and logs the error when extraction fails for another reason', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failure = new Error('boom');
+    extractPdfTextMock.mockRejectedValueOnce(failure);
+    try {
+      pickPdf();
+      expect(
+        await screen.findByText('No se pudo leer el PDF. Revisa que el archivo no esté dañado e inténtalo de nuevo.'),
+      ).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith('[InvoiceIntake] PDF extraction failed', failure);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});
+
 describe('obligation ranking HTTP adapter (T4)', () => {
   it("posts only allowlisted invoice fields with the signed-in user's ID token", async () => {
     vi.stubEnv(
